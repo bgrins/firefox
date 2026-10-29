@@ -1,0 +1,120 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>moveBefore preserves CSS animations inside a moved shadow host</title>
+<link rel="help" href="https://dom.spec.whatwg.org/#concept-node-move">
+<link rel="help" href="https://drafts.csswg.org/css-animations-1/#animations">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const shape of ["root", "light-child", "shadow-child"]) {
+  for (const operation of ["none", "self", "original-gap", "cross-parent"]) {
+    test(t => {
+      const fixture = document.createElement("section");
+      document.body.append(fixture);
+      t.add_cleanup(() => fixture.remove());
+      const scope = fixture.attachShadow({mode: "open"});
+      const style = document.createElement("style");
+      style.textContent = `
+        @keyframes travel {
+          from { margin-left: 0px; }
+          to { margin-left: 100px; }
+        }
+        .animated {
+          width: 8px;
+          height: 8px;
+          background: green;
+          animation: travel 10s linear paused;
+        }
+      `;
+      const oldParent = document.createElement("div");
+      const newParent = document.createElement("div");
+      scope.append(style, oldParent, newParent);
+      const moving = document.createElement("div");
+      let target = moving;
+      if (shape !== "root") {
+        target = document.createElement("div");
+        if (shape === "shadow-child") {
+          moving.attachShadow({mode: "open"}).append(style.cloneNode(true), target);
+        } else {
+          moving.append(target);
+        }
+      }
+      target.className = "animated";
+      const next = document.createElement("div");
+      oldParent.append(moving, next);
+      assert_equals(getComputedStyle(newParent).display, "block");
+      const declaringRoot = target.getRootNode();
+      const initial = target.getAnimations();
+      assert_equals(initial.length, 1, "one initial CSS animation");
+      const animation = initial[0];
+      assert_true(animation instanceof CSSAnimation);
+      animation.currentTime = 375;
+      const effect = animation.effect;
+      t.add_cleanup(() => {
+        for (const item of target.getAnimations()) {
+          item.cancel();
+        }
+        animation.cancel();
+      });
+      const sample = phase => {
+        const computed = getComputedStyle(target);
+        const margin = computed.marginLeft;
+        const animations = target.getAnimations();
+        return {
+          phase,
+          connected: target.isConnected,
+          sameRoot: target.getRootNode() === declaringRoot,
+          sameHost: shape !== "shadow-child" || declaringRoot.host === moving,
+          parent: moving.parentNode === oldParent ? "old" :
+            moving.parentNode === newParent ? "new" : "other",
+          originalGap: moving.nextSibling === next,
+          name: computed.animationName,
+          margin,
+          count: animations.length,
+          sameAnimation: animations[0] === animation,
+          sameEffect: animations[0]?.effect === effect && animation.effect === effect,
+          sameTarget: effect.target === target,
+          time: animation.currentTime,
+          state: animation.playState,
+          pending: animation.pending,
+        };
+      };
+      const before = sample("before");
+      assert_equals(before.margin, "3.75px", "calibrated paused animation style");
+      assert_equals(before.time, 375);
+      assert_equals(before.state, "paused");
+      assert_false(before.pending);
+      if (operation === "self") {
+        oldParent.moveBefore(moving, moving);
+      } else if (operation === "original-gap") {
+        oldParent.moveBefore(moving, next);
+      } else if (operation === "cross-parent") {
+        newParent.moveBefore(moving, null);
+      }
+      const after = sample("after");
+      if (operation === "cross-parent") {
+        oldParent.moveBefore(moving, next);
+      }
+      const restored = sample("restored");
+      const detail = JSON.stringify([before, after, restored]);
+      for (const row of [before, after, restored]) {
+        assert_true(row.connected && row.sameRoot && row.sameHost, detail);
+        assert_equals(row.parent,
+          row.phase === "after" && operation === "cross-parent" ? "new" : "old", detail);
+        assert_equals(row.originalGap,
+          !(row.phase === "after" && operation === "cross-parent"), detail);
+        assert_equals(row.name, "travel", detail);
+        assert_equals(row.count, 1, detail);
+        assert_true(row.sameAnimation, detail);
+        assert_true(row.sameEffect, detail);
+        assert_true(row.sameTarget, detail);
+        assert_equals(row.time, 375, detail);
+        assert_equals(row.state, "paused", detail);
+        assert_false(row.pending, detail);
+        assert_equals(row.margin, "3.75px", detail);
+      }
+    }, `${shape}: CSS animation identity and time survive ${operation}`);
+  }
+}
+</script>

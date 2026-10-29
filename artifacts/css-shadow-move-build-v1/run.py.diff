@@ -1,0 +1,20 @@
+--- artifacts/css-move-before-build-v1/run.py
++++ artifacts/css-shadow-move-build-v1/run.py
+@@ -104,7 +104,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'move-before-removal-candidate'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'shadow-move-context-candidate'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+@@ -210,7 +210,7 @@
+     lock.unlink()
+     state.save(output / 'RESULT.json', {'success': success, 'error': failure, 'publication_errors': errors, 'candidate_phase': phase_result, 'restoration_verified': True, 'runtime_controls_unchanged': True, 'empty_staging_preserved': True, 'native_fix_acceptance': False, 'full_epoch_copies_saved': 0})
+     assert success, failure
+-    print('MoveBefore paired observation complete; original source and application restored', flush=True)
++    print('Shadow move-context paired observation complete; original source and application restored', flush=True)
+ 
+ 
+ if __name__ == '__main__':

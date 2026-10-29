@@ -1,0 +1,3 @@
+Completed reversible shadow move pair: original 90 PASS / 8 FAIL; candidate 98 PASS. All 90 strict controls and 16 ending signatures are preserved. Candidate child exit 1 reflects the one unchanged existing expected-FAIL custom-element callback passing. The owner exited 0 after source/application restoration and backup removal. No acceptance is recorded.
+
+This completion inventory preserves the original baseline manifest unchanged. Large app inventories and backup mapping remain local in RETAINED-RECOVERY.json; no binaries are included. Both harness tools symlinks are recorded separately. Supplemental iframe validation remains a separate future experiment.

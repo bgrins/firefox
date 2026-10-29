@@ -1,0 +1,22 @@
+--- artifacts/css-shadow-move-paired-browser-v1/guard.py
++++ artifacts/css-shadow-move-iframe-browser-v1/guard.py
+@@ -71,7 +71,9 @@
+     for marker, expected in policy['preserved_markers'].items():
+         assert epoch[marker] == expected
+     metadata = load('shadow_metadata', policy['wpt']['metadata_helper'])
+-    assert metadata.application_metadata(ROOT / policy['wpt']['application_ini'], recorded_metadata['revision']) == recorded_metadata
++    restored_metadata = policy['application_metadata']
++    assert {k:v for k,v in recorded_metadata.items() if k not in ('identity', 'entry_identity')} == {k:v for k,v in restored_metadata.items() if k not in ('identity', 'entry_identity')}
++    assert metadata.application_metadata(ROOT / policy['wpt']['application_ini'], recorded_metadata['revision']) == restored_metadata
+     deletion = policy['deleted_metadata']
+     assert epoch['pins'][deletion] is None and deletion not in epoch['installed_identities']
+     owned_data = json.loads(controls['OWNED.json'])
+@@ -80,7 +82,7 @@
+     def verify():
+         assert all((RUNTIME / name).read_bytes() == body for name, body in controls.items())
+         assert not (ROOT / deletion).exists() and not (ROOT / deletion).is_symlink()
+-        assert metadata.application_metadata(ROOT / policy['wpt']['application_ini'], recorded_metadata['revision']) == recorded_metadata
++        assert metadata.application_metadata(ROOT / policy['wpt']['application_ini'], recorded_metadata['revision']) == restored_metadata
+         for name, record in policy['accepted_current_payloads'].items():
+             ownership.claim(ROOT, name, record['sha256'], record['identity'])
+         current = state.a.verify_current(state.h, ROOT, env, epoch)

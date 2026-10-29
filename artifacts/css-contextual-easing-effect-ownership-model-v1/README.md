@@ -1,0 +1,19 @@
+# Contextual effect ownership
+
+This standalone companion adds an ownership boundary to the existing dependency model. The useful general result is `successful_override_shields`: after a successful script keyframe call, an arbitrary finite trace of CSS refreshes, rejected calls and transition starts preserves script ownership and the script-supplied parameter list. `rejected_call_erases_from_trace` proves that inserting one rejected call anywhere in an arbitrary event trace changes no modeled state. The existing dependency model already covers context-only transition capture retention; that theorem is not duplicated or credited again here.
+
+Eight declarations, including helper lemmas and concrete witnesses, passed the pinned Lean kernel in run-4 (ea3fd9/session54893 → 4c31f5/0). Three false controls were rejected: replacing script values with freshly computed CSS values, acquiring override behavior after a rejected call, and using script animation values as a new transition's CSS timing capture. Printed axioms are only propext and Quot.sound. Private scratch and generated oleans were removed. Run-3 also passed; run-4 strengthens the false refresh claim to use the actual modeled refresh event. The first two runs failed on Lean source syntax; their logs remain historical and do not support the final claim.
+
+`Selection` carries the declaration identity, selected root and complete expression list. Evaluation selects the root's context before evaluating those expressions. No theorem infers expression or declaration identity from equal support. `State.frames` is an abstract keyframe-parameter list; its owner flag concerns only precedence for keyframes, not ownership of every animation property. The property selection/environment continue updating after script override. A concrete witness retains script values [5], computes current CSS values [4], keeps the earlier transition capture (declaration10/root7/[2]), then captures declaration11/root9/[4] for a new transition.
+
+The event semantics are stipulated, inspectable specification/source obligations, not a Gecko refinement. The induction checks their composition through arbitrary traces; it does not derive API parsing or native mutation atomicity from C++. A rejected call is an already-processed error with no reentrant getter, iterator or other author-script side effects. Full-state erasure applies only under that abstraction; Web Animations guarantees unchanged effect keyframes on processing failure, not rollback of unrelated JavaScript side effects. A successful processed call supplies scalar parameters. Empty keyframes, other override bits, object identity, timing progress, exceptions after processing, cancellation, effect replacement, last-rule removal and animation-name changes are outside the protocol.
+
+Transition start is assumed eligible and captures the current CSS parameters, independently from the script-owned CSSAnimation keyframes. This represents two independent consumers of a common modeled parameter source; it does not identify the actual animation and transition longhands or prove start eligibility, reversal, composition, or scheduler behavior. Natural numbers and the imported expression evaluator omit CSS floats, clamping, serialization, normalization and rendered interpolation. Root selection is an input, not a proof of cascade or shadow lookup correctness.
+
+The source join authenticates the prior override trace against immutable current HEAD 2fe2ced22a525a4348286bddaa7dcb0168d72905 without reading the active native overlay. No canonical Lean library, native source, browser, build, index, epoch, app or Git reference was changed. No native acceptance, new bug or canonical coverage count is added.
+
+Replay into a new absent run directory:
+
+```
+python3 -I -S -B artifacts/css-contextual-easing-effect-ownership-model-v1/replay.py run-5
+```

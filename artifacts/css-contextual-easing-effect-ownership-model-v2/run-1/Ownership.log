@@ -1,0 +1,109 @@
+Ownership.lean:52:76: error: unexpected identifier; expected '}'
+Ownership.lean:69:30: error: Application type mismatch: The argument
+  owned
+has type
+  state.owner = Owner.script
+but is expected to have type
+  (step state Event.startTransition).owner = Owner.script
+in the application
+  And.intro owned
+Ownership.lean:72:30: error: Application type mismatch: The argument
+  owned
+has type
+  state.owner = Owner.script
+but is expected to have type
+  (step state (Event.setKeyframes (Except.error error))).owner = Owner.script
+in the application
+  And.intro owned
+Ownership.lean:90:40: error: Application type mismatch: The argument
+  rfl
+has type
+  ?m.16 = ?m.16
+but is expected to have type
+  State.owner ?m.14 = Owner.script
+in the application
+  script_trace_preserves ?m.14 events rfl
+Ownership.lean:95:37: error: unsolved goals
+state : State
+front suffix : List Event
+error : Nat
+⊢ List.foldl step
+      (match Event.setKeyframes (Except.error error) with
+      | Event.refresh selection elementContext =>
+        { selection := selection, element := (List.foldl step state front).element, elementContext := elementContext,
+          owner := (List.foldl step state front).owner, frames := (List.foldl step state front).frames,
+          transition := (List.foldl step state front).transition })
+      suffix =
+    List.foldl step (List.foldl step state front) suffix
+Ownership.lean:101:54: error: unsolved goals
+state : State
+selection : Selection
+elementContext : Context
+owned : state.owner = Owner.css
+⊢ state.frames = evaluate selection.parameters elementContext
+Ownership.lean:102:21: warning: This simp argument is unused:
+  computed
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [step, owned]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+Ownership.lean:104:0: error: Not a definitional equality: the left-hand side
+  (step state Event.startTransition).transition
+is not definitionally equal to the right-hand side
+  some (capture state)
+Ownership.lean:105:71: error: Type mismatch
+  rfl
+has type
+  ?m.4 = ?m.4
+but is expected to have type
+  (step state Event.startTransition).transition = some (capture state)
+Ownership.lean:131:52: error: Tactic `decide` failed to reduce
+  @decide
+    (let result := run initial [Event.setKeyframes (Except.error 2), Event.refresh nextSelection targetContext];
+    result.owner = Owner.css ∧ result.frames = [3])
+    instDecidableAnd
+to `true` or `false`.
+
+After unfolding the instances `instDecidableAnd`, `instDecidableEqNat`, `instDecidableEqOwner`, and `Nat.decEq`, reduction got stuck at
+  (run initial [Event.setKeyframes (Except.error 2), Event.refresh nextSelection targetContext]).owner.ctorIdx.beq
+    Owner.css.ctorIdx
+Ownership.lean:142:68: error: Tactic `decide` failed to reduce
+  @decide
+    (let overridden := step initial (Event.setKeyframes (Except.ok [5]));
+    let started := step overridden Event.startTransition;
+    let changed := step started (Event.refresh nextSelection targetContext);
+    let restored := step changed (Event.refresh firstSelection targetContext);
+    changed.frames = [5] ∧
+      changed.element = 42 ∧
+        computed changed.selection changed.elementContext = [3] ∧
+          changed.transition =
+              some
+                { referenceRoot := 7, ruleRoot := 7, ruleIdentity := 100, ruleVersion := 1, declaration := 10,
+                  element := 42, values := [2] } ∧
+            (step changed Event.startTransition).transition =
+                some
+                  { referenceRoot := 9, ruleRoot := 9, ruleIdentity := 101, ruleVersion := 1, declaration := 11,
+                    element := 42, values := [3] } ∧
+              computed restored.selection restored.elementContext = [2])
+    instDecidableAnd
+to `true` or `false`.
+
+After unfolding the instances `instDecidableAnd` and `instDecidableEqList`, reduction got stuck at
+  match
+    (step (step (step initial (Event.setKeyframes (Except.ok [5]))) Event.startTransition)
+        (Event.refresh nextSelection targetContext)).frames with
+  | [] =>
+    match [5] with
+    | [] => isTrue ⋯
+    | head :: tail => isFalse ⋯
+  | a :: as =>
+    match [5] with
+    | [] => isFalse ⋯
+    | b :: bs =>
+      match decEq a b with
+      | { decide := true, reflects_decide := hab } =>
+        match as.hasDecEq bs with
+        | { decide := true, reflects_decide := habs } => isTrue ⋯
+        | { decide := false, reflects_decide := nabs } => isFalse ⋯
+      | { decide := false, reflects_decide := nab } => isFalse ⋯

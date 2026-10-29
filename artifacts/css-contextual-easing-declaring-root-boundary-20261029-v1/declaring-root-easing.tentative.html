@@ -1,0 +1,113 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Keyframe easing follows the declaring root of animation-name</title>
+<meta name="variant" content="?variant=literal">
+<meta name="variant" content="?variant=contextual">
+<link rel="help" href="https://drafts.csswg.org/css-shadow-1/#css-tree-scoped-reference">
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#keyframe-processing">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<div id="log"></div>
+<script>
+"use strict";
+
+function keyframes(name, easing) {
+  return `@keyframes ${name} {
+    from { opacity: 0; animation-timing-function: ${easing}; }
+    to { opacity: 1; }
+  }`;
+}
+
+const contextual = new URLSearchParams(location.search).get("variant") === "contextual";
+{
+  test(t => {
+    const suffix = contextual ? "contextual" : "literal";
+    const name = `collision-${suffix}`;
+    const localName = `local-${suffix}`;
+    const outerName = `outer-${suffix}`;
+    const localEasing = contextual ? "steps(calc(1em / 8px))" : "steps(2)";
+    const outerEasing = contextual ? "steps(calc(1 + 1em / 8px))" : "steps(3)";
+    assert_true(CSS.supports("animation-timing-function", localEasing), "Local easing syntax is supported");
+    assert_true(CSS.supports("animation-timing-function", outerEasing), "Outer easing syntax is supported");
+    const host = document.createElement("div");
+    host.id = `host-${suffix}`;
+    const outerStyle = document.createElement("style");
+    outerStyle.textContent = `
+      ${keyframes(name, outerEasing)}
+      ${keyframes(outerName, outerEasing)}
+      #${host.id}.external::part(subject) {
+        animation-name: ${name};
+        background-color: rgb(0, 128, 0);
+      }
+      #${host.id}::part(outer-control) { animation-name: ${outerName}; }
+    `;
+    const shadow = host.attachShadow({mode: "open"});
+    shadow.innerHTML = `
+      <style>
+        ${keyframes(name, localEasing)}
+        ${keyframes(localName, localEasing)}
+        div {
+          inline-size: 20px;
+          block-size: 20px;
+          font-size: 16px;
+          animation-duration: 1s;
+          animation-timing-function: linear;
+          animation-fill-mode: both;
+          animation-play-state: paused;
+        }
+        #subject { animation-name: ${name}; background-color: rgb(128, 0, 0); }
+        #local-control { animation-name: ${localName}; }
+      </style>
+      <div id="subject" part="subject"></div>
+      <div id="local-control"></div>
+      <div id="outer-control" part="outer-control"></div>
+    `;
+    t.add_cleanup(() => {
+      host.remove();
+      outerStyle.remove();
+    });
+    document.head.append(outerStyle);
+    document.body.append(host);
+    const subject = shadow.getElementById("subject");
+    const local = shadow.getElementById("local-control");
+    const outer = shadow.getElementById("outer-control");
+    const snapshots = [];
+    for (const external of [false, true, false]) {
+      host.classList.toggle("external", external);
+      const entries = [subject, local, outer].map(element => {
+        const animations = element.getAnimations();
+        assert_equals(animations.length, 1, `${suffix}: ${element.id} has one animation`);
+        const animation = animations[0];
+        animation.currentTime = 750;
+        const style = getComputedStyle(element);
+        return {
+          opacity: Number(style.opacity),
+          name: style.animationName,
+          fontSize: style.fontSize,
+          background: style.backgroundColor,
+          easing: animation.effect.getKeyframes().find(frame => frame.offset === 0).easing,
+        };
+      });
+      snapshots.push({external, entries});
+    }
+    for (const {external, entries: [target, localControl, outerControl]} of snapshots) {
+      const detail = JSON.stringify({suffix, external, target, localControl, outerControl});
+      assert_equals(localControl.fontSize, "16px", `Local dependency input: ${detail}`);
+      assert_equals(outerControl.fontSize, "16px", `Outer dependency input: ${detail}`);
+      assert_approx_equals(localControl.opacity, 1 / 2, 0.0001, `Unique local rule: ${detail}`);
+      assert_approx_equals(outerControl.opacity, 2 / 3, 0.0001, `Unique outer rule: ${detail}`);
+      assert_equals(localControl.easing, "steps(2)", `Local easing control: ${detail}`);
+      assert_equals(outerControl.easing, "steps(3)", `Outer easing control: ${detail}`);
+      assert_equals(target.name, name, `The serialized animation-name is unchanged: ${detail}`);
+      assert_equals(target.fontSize, "16px", `The dependency input is unchanged: ${detail}`);
+      assert_equals(target.background, external ? "rgb(0, 128, 0)" : "rgb(128, 0, 0)",
+                    `The intended declaration context wins: ${detail}`);
+      assert_approx_equals(target.opacity, external ? 2 / 3 : 1 / 2, 0.0001,
+                           `The selected rule follows the declaring root: ${detail}`);
+      assert_equals(target.easing, external ? "steps(3)" : "steps(2)",
+                    `The keyframe easing follows the declaring root: ${detail}`);
+    }
+  }, `Changing only the declaring root of animation-name selects ${contextual ? "contextual" : "literal"} keyframe easing`);
+}
+</script>

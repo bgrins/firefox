@@ -1,0 +1,97 @@
+Ownership.lean:40:42: error: unexpected identifier; expected '}'
+Ownership.lean:59:30: error: Application type mismatch: The argument
+  owned
+has type
+  state.owner = Owner.script
+but is expected to have type
+  (step state Event.startTransition).owner = Owner.script
+in the application
+  And.intro owned
+Ownership.lean:62:30: error: Application type mismatch: The argument
+  owned
+has type
+  state.owner = Owner.script
+but is expected to have type
+  (step state (Event.setKeyframes (Except.error error))).owner = Owner.script
+in the application
+  And.intro owned
+Ownership.lean:80:40: error: Application type mismatch: The argument
+  rfl
+has type
+  ?m.16 = ?m.16
+but is expected to have type
+  State.owner ?m.14 = Owner.script
+in the application
+  script_trace_preserves ?m.14 events rfl
+Ownership.lean:82:57: error: unexpected token 'prefix'; expected '_' or identifier
+Ownership.lean:82:63: error: unexpected identifier; expected ':'
+Ownership.lean:84:21: error: unexpected token '++'; expected ':'
+Ownership.lean:85:23: error: unexpected token '++'; expected ':'
+Ownership.lean:91:68: error: unsolved goals
+state : State
+selection : Selection
+environment : Environment
+owned : state.owner = Owner.css
+⊢ state.frames = evaluate selection.parameters (environment selection.root)
+Ownership.lean:92:21: warning: This simp argument is unused:
+  computed
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [step, owned]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+Ownership.lean:94:0: error: Not a definitional equality: the left-hand side
+  (step state Event.startTransition).transition
+is not definitionally equal to the right-hand side
+  some
+    { declaration := state.selection.declaration, root := state.selection.root,
+      values := computed state.selection state.environment }
+Ownership.lean:97:55: error: Type mismatch
+  rfl
+has type
+  ?m.5 = ?m.5
+but is expected to have type
+  (step state Event.startTransition).transition =
+    some
+      { declaration := state.selection.declaration, root := state.selection.root,
+        values := computed state.selection state.environment }
+Ownership.lean:112:52: error: Tactic `decide` failed to reduce
+  @decide
+    (let result := run initial [Event.setKeyframes (Except.error 2), Event.refresh nextSelection env];
+    result.owner = Owner.css ∧ result.frames = [4])
+    instDecidableAnd
+to `true` or `false`.
+
+After unfolding the instances `instDecidableAnd`, `instDecidableEqNat`, `instDecidableEqOwner`, and `Nat.decEq`, reduction got stuck at
+  (run initial [Event.setKeyframes (Except.error 2), Event.refresh nextSelection env]).owner.ctorIdx.beq
+    Owner.css.ctorIdx
+Ownership.lean:120:73: error: Tactic `decide` failed to reduce
+  @decide
+    (let overridden := step initial (Event.setKeyframes (Except.ok [5]));
+    let started := step overridden Event.startTransition;
+    let changed := step started (Event.refresh nextSelection env);
+    changed.frames = [5] ∧
+      computed changed.selection changed.environment = [4] ∧
+        changed.transition = some { declaration := 10, root := 7, values := [2] } ∧
+          (step changed Event.startTransition).transition = some { declaration := 11, root := 9, values := [4] })
+    instDecidableAnd
+to `true` or `false`.
+
+After unfolding the instances `instDecidableAnd` and `instDecidableEqList`, reduction got stuck at
+  match
+    (step (step (step initial (Event.setKeyframes (Except.ok [5]))) Event.startTransition)
+        (Event.refresh nextSelection env)).frames with
+  | [] =>
+    match [5] with
+    | [] => isTrue ⋯
+    | head :: tail => isFalse ⋯
+  | a :: as =>
+    match [5] with
+    | [] => isFalse ⋯
+    | b :: bs =>
+      match decEq a b with
+      | { decide := true, reflects_decide := hab } =>
+        match as.hasDecEq bs with
+        | { decide := true, reflects_decide := habs } => isTrue ⋯
+        | { decide := false, reflects_decide := nabs } => isFalse ⋯
+      | { decide := false, reflects_decide := nab } => isFalse ⋯

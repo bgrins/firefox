@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>moveBefore preserves a paused CSSAnimation across parents and back</title>
+<link rel="help" href="https://dom.spec.whatwg.org/#concept-node-move-ext">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .left { font-size: 16px; color: rgb(0, 128, 0); }
+  .right { font-size: 24px; color: rgb(0, 0, 255); }
+  .animated { animation: fade 1s linear paused both; }
+</style>
+<body>
+<script>
+promise_test(async t => {
+  const fixture = document.createElement("div");
+  fixture.innerHTML = '<div class="left"><div class="animated">text</div></div>' +
+    '<div class="right"></div>';
+  const [left, right] = fixture.children;
+  const target = left.firstElementChild;
+  document.body.append(fixture);
+  t.add_cleanup(() => fixture.remove());
+  const initial = target.getAnimations();
+  assert_equals(initial.length, 1, "one initial CSS animation");
+  const animation = initial[0];
+  assert_true(animation instanceof CSSAnimation, "CSS animation control");
+  const effect = animation.effect;
+  t.add_cleanup(() => animation.cancel());
+  await animation.ready;
+  animation.currentTime = 375;
+  const snapshots = [];
+  async function sample() {
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    const style = getComputedStyle(target);
+    const animations = target.getAnimations();
+    snapshots.push({
+      count: animations.length, same: animations[0] === animation,
+      sameEffect: animation.effect === effect, time: animation.currentTime,
+      state: animation.playState, opacity: Number(style.opacity),
+      font: style.fontSize, color: style.color,
+      parent: target.parentElement === left ? "left" : "right",
+    });
+  }
+  await sample();
+  right.moveBefore(target, null);
+  await sample();
+  left.moveBefore(target, null);
+  await sample();
+  const diagnostic = JSON.stringify(snapshots);
+  for (const [i, row] of snapshots.entries()) {
+    assert_equals(row.parent, i === 1 ? "right" : "left", diagnostic);
+    assert_equals(row.font, i === 1 ? "24px" : "16px", diagnostic);
+    assert_equals(row.color, i === 1 ? "rgb(0, 0, 255)" : "rgb(0, 128, 0)", diagnostic);
+    assert_equals(row.count, 1, diagnostic);
+    assert_true(row.same, diagnostic);
+    assert_true(row.sameEffect, diagnostic);
+    assert_equals(row.time, 375, diagnostic);
+    assert_equals(row.state, "paused", diagnostic);
+    assert_approx_equals(row.opacity, 0.375, 0.0001, diagnostic);
+  }
+}, "moveBefore preserves CSSAnimation identity and time while inherited style changes");
+</script>

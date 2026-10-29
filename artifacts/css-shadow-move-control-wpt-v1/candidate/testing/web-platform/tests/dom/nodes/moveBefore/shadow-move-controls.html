@@ -1,0 +1,157 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Shadow descendant controls for state-preserving moves</title>
+<link rel="help" href="https://dom.spec.whatwg.org/#concept-node-move">
+<link rel="help" href="https://html.spec.whatwg.org/multipage/custom-elements.html#enqueue-a-custom-element-callback-reaction">
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#event-dispatch">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+let nextName = 0;
+
+function setup(t) {
+  const fixture = document.createElement("div");
+  t.add_cleanup(() => fixture.remove());
+  const scope = fixture.attachShadow({mode: "open"});
+  scope.innerHTML = `<style>
+    .old { color: rgb(255, 0, 0); }
+    .new { color: rgb(0, 0, 255); }
+  </style><div class="old"></div><div class="new"></div>`;
+  const oldParent = scope.querySelector(".old");
+  const newParent = scope.querySelector(".new");
+  const host = document.createElement("div");
+  const shadow = host.attachShadow({mode: "open"});
+  oldParent.append(host);
+  document.body.append(fixture);
+  return {oldParent, newParent, host, shadow};
+}
+
+function reactionCase(t, ordinary, hasMoveCallback) {
+  const {oldParent, newParent, host, shadow} = setup(t);
+  const events = [];
+  class Target extends HTMLElement {
+    connectedCallback() { events.push(["connected", this.isConnected]); }
+    disconnectedCallback() { events.push(["disconnected", this.isConnected]); }
+  }
+  if (hasMoveCallback) {
+    Target.prototype.connectedMoveCallback = function() {
+      events.push(["moved", this.isConnected]);
+    };
+  }
+  const name = `shadow-move-control-${++nextName}`;
+  customElements.define(name, Target);
+  const target = document.createElement(name);
+  shadow.append(target);
+  assert_array_equals(events.map(e => e[0]), ["connected"]);
+  events.length = 0;
+  const rows = [];
+  for (const parent of [newParent, oldParent]) {
+    if (ordinary) {
+      parent.appendChild(host);
+    } else {
+      parent.moveBefore(host, null);
+    }
+    rows.push({events: events.splice(0), connected: target.isConnected,
+      sameRoot: target.getRootNode() === shadow,
+      sameTarget: shadow.firstChild === target, correctParent: host.parentNode === parent});
+  }
+  const detail = JSON.stringify(rows);
+  for (const row of rows) {
+    assert_true(row.connected && row.sameRoot && row.sameTarget && row.correctParent, detail);
+    assert_array_equals(row.events.map(e => e[0]), ["disconnected", "connected"], detail);
+    assert_true(row.events.every(e => e[1]), detail);
+  }
+}
+
+function animationSetup(t) {
+  const nodes = setup(t);
+  nodes.shadow.innerHTML = `<style>
+    @keyframes travel { from { margin-left: 0px; } to { margin-left: 100px; } }
+    .target { animation: travel 10s linear paused; width: 8px; height: 8px; }
+  </style><div class="target"></div>`;
+  const target = nodes.shadow.querySelector(".target");
+  const animations = target.getAnimations();
+  assert_equals(animations.length, 1, "initial CSS animation");
+  const animation = animations[0];
+  assert_true(animation instanceof CSSAnimation);
+  animation.currentTime = 375;
+  const effect = animation.effect;
+  t.add_cleanup(() => {
+    for (const item of target.getAnimations()) { item.cancel(); }
+    animation.cancel();
+  });
+  const sample = () => {
+    const style = getComputedStyle(target);
+    const margin = style.marginLeft;
+    const color = style.color;
+    const current = target.getAnimations();
+    return {margin, color, repeat: getComputedStyle(target).marginLeft,
+      connected: target.isConnected, sameRoot: target.getRootNode() === nodes.shadow,
+      count: current.length, sameAnimation: current[0] === animation,
+      sameEffect: current[0]?.effect === effect,
+      time: animation.currentTime, state: animation.playState, pending: animation.pending,
+      currentTime: current[0]?.currentTime, currentState: current[0]?.playState};
+  };
+  return {...nodes, target, animation, sample};
+}
+
+test(t => {
+  reactionCase(t, true, true);
+}, "Shadow custom element: appendChild uses disconnect/connect despite a move callback");
+
+test(t => {
+  reactionCase(t, false, false);
+}, "Shadow custom element: moveBefore without a move callback uses disconnect/connect");
+
+test(t => {
+  const {host, oldParent, target, animation, sample} = animationSetup(t);
+  const before = sample();
+  host.remove();
+  getComputedStyle(target).marginLeft;
+  target.getAnimations();
+  const disconnected = {connected: target.isConnected,
+    state: animation.playState, time: animation.currentTime};
+  oldParent.appendChild(host);
+  const after = sample();
+  const detail = JSON.stringify({before, disconnected, after});
+  assert_equals(before.margin, "3.75px", detail);
+  assert_equals(before.time, 375, detail);
+  assert_equals(before.state, "paused", detail);
+  assert_false(before.pending, detail);
+  assert_false(disconnected.connected, detail);
+  assert_equals(disconnected.state, "idle", detail);
+  assert_equals(disconnected.time, null, detail);
+  assert_true(after.connected && after.sameRoot, detail);
+  assert_equals(after.count, 1, detail);
+  assert_false(after.sameAnimation, detail);
+  assert_equals(after.state, "idle", detail);
+  assert_equals(after.time, null, detail);
+  assert_equals(after.currentTime, 0, detail);
+  assert_equals(after.currentState, "paused", detail);
+  assert_equals(after.margin, "0px", detail);
+  assert_equals(after.repeat, after.margin, detail);
+}, "Shadow CSS animation: ordinary removal with a disconnected flush cancels and reinsertion restarts");
+
+test(t => {
+  const {host, oldParent, newParent, sample} = animationSetup(t);
+  const before = sample();
+  newParent.moveBefore(host, null);
+  const after = sample();
+  oldParent.moveBefore(host, null);
+  const restored = sample();
+  const rows = [before, after, restored];
+  const detail = JSON.stringify(rows);
+  for (const [index, row] of rows.entries()) {
+    assert_true(row.connected && row.sameRoot, detail);
+    assert_equals(row.color, index === 1 ? "rgb(0, 0, 255)" : "rgb(255, 0, 0)", detail);
+    assert_equals(row.count, 1, detail);
+    assert_true(row.sameAnimation && row.sameEffect, detail);
+    assert_equals(row.time, 375, detail);
+    assert_equals(row.state, "paused", detail);
+    assert_false(row.pending, detail);
+    assert_equals(row.margin, "3.75px", detail);
+    assert_equals(row.repeat, row.margin, detail);
+  }
+}, "Shadow CSS animation: moveBefore preserves identity and time while inherited color changes");
+</script>

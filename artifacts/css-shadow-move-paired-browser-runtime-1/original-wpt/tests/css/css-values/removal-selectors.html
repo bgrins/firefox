@@ -1,0 +1,117 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Old-parent selector invalidation after child moves</title>
+<link rel="help" href="https://dom.spec.whatwg.org/#dom-parentnode-movebefore">
+<link rel="help" href="https://drafts.csswg.org/selectors-4/">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#tree-counting">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const cases = [
+  {name: "first-child", selector: ".target:first-child", children: ["moved", "target"], widths: [10, 30, 10]},
+  {name: "last-child", selector: ".target:last-child", children: ["target", "moved"], widths: [10, 30, 10]},
+  {name: "only-child", selector: ".target:only-child", children: ["target", "moved"], widths: [10, 30, 10]},
+  {name: "nth-child(2)", selector: ".target:nth-child(2)", children: ["moved", "target"], widths: [30, 10, 30]},
+  {name: "adjacent-sibling", selector: ".moved + .target", children: ["moved", "target"], widths: [30, 10, 30]},
+  {name: "general-sibling", selector: ".moved ~ .target", children: ["moved", "spacer", "target"], widths: [30, 10, 30]},
+  {name: "parent-has", selector: ".source:has(> .moved)", children: ["moved", "target"], parent: true, widths: [30, 10, 30]},
+  {name: "parent-empty", selector: ".source:empty", children: ["moved"], parent: true, widths: [10, 30, 10]},
+  {name: "sibling-index-moving-first", children: ["moved", "target"], widths: [20, 10, 20]}
+];
+for (const method of ["appendChild", "moveBefore"]) {
+  for (const entry of cases) {
+    promise_test(async t => {
+      const frame = document.createElement("iframe");
+      frame.width = "400";
+      frame.height = "200";
+      t.add_cleanup(() => frame.remove());
+      document.body.append(frame);
+      const doc = frame.contentDocument;
+      const win = frame.contentWindow;
+      assert_equals(typeof win.Element.prototype[method], "function", `${method} is available`);
+      const style = doc.createElement("style");
+      style.textContent = ".subject { width:10px; height:0; padding:0; border:0; animation:none; transition:none; } " +
+        (entry.selector ? `${entry.selector} { width:30px; }` : ".target { width:calc(sibling-index() * 10px); }");
+      const source = doc.createElement("div");
+      source.className = "source";
+      const destination = doc.createElement("div");
+      const children = new Map(entry.children.map(name => {
+        const child = doc.createElement("div");
+        child.className = name;
+        child.id = name;
+        source.append(child);
+        return [name, child];
+      }));
+      const moved = children.get("moved");
+      const subject = entry.parent ? source : children.get("target");
+      subject.classList.add("subject");
+      const restoreBefore = moved.nextSibling;
+      const references = new Map([10, 20, 30].map(width => {
+        const element = doc.createElement("div");
+        element.style.cssText = `width:${width}px;height:0;padding:0;border:0`;
+        return [width, element];
+      }));
+      doc.body.append(style, source, destination, ...references.values());
+      const snapshots = [];
+      for (const [phaseIndex, phase] of ["initial", "moved", "restored"].entries()) {
+        if (phase === "moved") {
+          if (method === "moveBefore") {
+            destination.moveBefore(moved, null);
+          } else {
+            destination.appendChild(moved);
+          }
+        } else if (phase === "restored") {
+          if (method === "moveBefore") {
+            source.moveBefore(moved, restoreBefore);
+          } else {
+            source.insertBefore(moved, restoreBefore);
+          }
+        }
+        await new Promise(resolve => win.requestAnimationFrame(() => win.requestAnimationFrame(resolve)));
+        const reference = references.get(entry.widths[phaseIndex]);
+        snapshots.push({phase,
+          sourceChildren: Array.from(source.children, child => child.id),
+          destinationChildren: Array.from(destination.children, child => child.id),
+          retainedMoved: doc.getElementById("moved") === moved,
+          retainedTarget: !children.has("target") || doc.getElementById("target") === children.get("target"),
+          connected: moved.isConnected && subject.isConnected,
+          subjectParent: entry.parent ? subject.parentElement === doc.body : subject.parentElement === source,
+          subjectIndex: entry.parent ? null : Array.from(source.children).indexOf(subject) + 1,
+          actual: win.getComputedStyle(subject).width,
+          repeat: win.getComputedStyle(subject).width,
+          geometry: subject.getBoundingClientRect().width,
+          literalSpecified: reference.style.width,
+          literalComputed: win.getComputedStyle(reference).width,
+          literalGeometry: reference.getBoundingClientRect().width,
+          animations: subject.getAnimations().length,
+          selectorMatches: entry.selector ? subject.matches(entry.selector) : null});
+      }
+      const details = JSON.stringify({method, name: entry.name, snapshots});
+      assert_true(entry.selector ? win.CSS.supports(`selector(${entry.selector})`) :
+        win.CSS.supports("width", "calc(sibling-index() * 10px)"), `Syntax supported; ${details}`);
+      assert_not_equals(style.sheet.cssRules[1].style.width, "", `Declaration retained; ${details}`);
+      for (const [i, snapshot] of snapshots.entries()) {
+        const expectedChildren = i === 1 ? entry.children.filter(name => name !== "moved") : entry.children;
+        assert_array_equals(snapshot.sourceChildren, expectedChildren, `Source topology; ${details}`);
+        assert_array_equals(snapshot.destinationChildren, i === 1 ? ["moved"] : [], `Destination topology; ${details}`);
+        assert_true(snapshot.retainedMoved && snapshot.retainedTarget && snapshot.connected && snapshot.subjectParent, `Node identity and parent retained; ${details}`);
+        assert_equals(snapshot.literalSpecified, `${entry.widths[i]}px`, `Literal admitted; ${details}`);
+        assert_equals(snapshot.literalComputed, `${entry.widths[i]}px`, `Literal computed; ${details}`);
+        assert_equals(snapshot.literalGeometry, entry.widths[i], `Literal geometry; ${details}`);
+        assert_equals(snapshot.repeat, snapshot.actual, `Stable read; ${details}`);
+        assert_equals(snapshot.animations, 0, `No animation; ${details}`);
+        if (entry.selector) {
+          assert_equals(snapshot.selectorMatches, entry.widths[i] === 30, `Selector matching calibration; ${details}`);
+        } else {
+          assert_equals(snapshot.subjectIndex * 10, entry.widths[i], `Index calibration; ${details}`);
+        }
+      }
+      for (const [i, snapshot] of snapshots.entries()) {
+        assert_equals(snapshot.actual, `${entry.widths[i]}px`, `Old-parent computed width; ${details}`);
+        assert_equals(snapshot.geometry, entry.widths[i], `Old-parent geometry; ${details}`);
+      }
+    }, `${method}: old-parent ${entry.name}`);
+  }
+}
+</script>

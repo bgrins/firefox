@@ -1,0 +1,19 @@
+# Mapping and correction accounting
+
+This transfer uses the recorded primary reads in v1 `SPEC-READ.json` and immutable source join in v1 `SOURCE-JOIN.json`. It is not a fresh exhaustive specification trace or native refinement.
+
+| Boundary | Model interpretation and limit |
+|---|---|
+| CSS Animations 2 `#animations`, successful setKeyframes precedence | `.setKeyframes (.ok frames)` sets only the modeled keyframe owner and values. The recorded native mapping processes arguments before `mIgnoreKeyframesGeneration` and the Keyframes override bit. Other properties have separate bits. |
+| Web Animations 1 `#dom-keyframeeffect-setkeyframes`, processing failure | `.setKeyframes (.error _)` is a side-effect-free post-processing event. Unchanged effect keyframes does not imply arbitrary JavaScript-world rollback. |
+| CSS refresh after accepted override | `step` updates the supplied selected rule data and target context while retaining script frames and the association/reference-root/target identity. Eligibility as a refresh of that same association is a premise; native/source correspondence remains an obligation. |
+| CSS Shadow `#tree-context` and `#css-tree-scoped-reference`; Animations 2 `#keyframe-processing` | Reference root is distinct from the selected rule's defining root and from target context. Both roots and the selected rule are supplied, with no lookup proof. Reference root and association identity are fixed through protocol refreshes; root changes are represented only by a separate comparison of independent CSS-owned states. The recorded declaring-root report notes incomplete integration wording between the drafts. |
+| Element-relative numeric inputs | `computed selection elementContext` reads only the supplied target context. Neither root is a font/sibling-context lookup key. The imported Nat arithmetic does not implement the full CSS value machinery. |
+| Expression identity and reuse | `selected_parameters_locality` requires complete expression equality and supported-input agreement, then invokes the existing locality theorem. Identity/version labels do not imply expression equality. No cache-selection soundness is inferred. |
+| Independent transition capture | An eligible start is stipulated and records current supplied CSS parameters with provenance labels and target identity. It does not prove scheduling, cancellation, reversal, composition, timing or longhand identity. |
+
+The last matching `@keyframes` rule removal cancellation exception cannot occur in this event alphabet. A refresh always supplies rule data for the same assumed live association and fixed name-reference context. Animation-name changes, cancellation, replacement and author-code reentrancy are excluded. Arbitrary traces mean arbitrary traces in this restricted protocol, not all browser executions.
+
+`css_refresh_uses_element_context` replaces the misleading v1 root-indexed branch fact. The fixed-context 2→3→2 witness corrects v1's mixed expression/context-change witness. The other six transferred declarations preserve their protocol role; counting the changed witness and branch fact still yields eight transferred audits total. The ninth audit is a corollary of an existing dependency theorem. The tenth compares separate CSS-owned states at different reference roots with the same element/context. Neither receives independent proof-discovery credit. Root changes cannot be inferred to preserve CSSAnimation identity from equal serialized animation names. Existing `context_changes_retain_capture`, `new_transition_captures_latest`, `cache_sound` and `field_support_does_not_identify_rule` receive no duplicate credit.
+
+The saved literal browser observation is evidence of the recorded known bug 1458189 only. The contextual fixture's readiness failure supplies no contextual native evaluation result. No native bug count, native fix acceptance, canonical theorem count or normative coverage increment follows from v2.

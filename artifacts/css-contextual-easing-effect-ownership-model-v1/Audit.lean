@@ -1,0 +1,9 @@
+import Ownership
+#print axioms EffectOwnership.script_step_preserves
+#print axioms EffectOwnership.script_trace_preserves
+#print axioms EffectOwnership.successful_override_shields
+#print axioms EffectOwnership.rejected_call_erases_from_trace
+#print axioms EffectOwnership.css_refresh_uses_selection
+#print axioms EffectOwnership.new_transition_uses_css_selection
+#print axioms EffectOwnership.rejected_then_refresh_remains_css
+#print axioms EffectOwnership.independent_consumer_witness

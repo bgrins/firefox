@@ -1,0 +1,11 @@
+import Ownership
+#print axioms EffectOwnershipV2.script_step_preserves
+#print axioms EffectOwnershipV2.script_trace_preserves
+#print axioms EffectOwnershipV2.successful_override_shields
+#print axioms EffectOwnershipV2.rejected_call_erases_from_trace
+#print axioms EffectOwnershipV2.css_refresh_uses_element_context
+#print axioms EffectOwnershipV2.new_transition_uses_css_selection
+#print axioms EffectOwnershipV2.selected_parameters_locality
+#print axioms EffectOwnershipV2.rejected_then_refresh_remains_css
+#print axioms EffectOwnershipV2.independent_consumer_witness
+#print axioms EffectOwnershipV2.independent_reference_root_witness
