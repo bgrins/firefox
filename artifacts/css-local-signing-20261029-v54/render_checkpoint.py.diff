@@ -1,0 +1,60 @@
+--- artifacts/css-local-signing-20261028-v52/render_checkpoint.py
++++ artifacts/css-local-signing-20261029-v54/render_checkpoint.py
+@@ -16,7 +16,7 @@
+ assert inputs['execution_enabled'] is True and inputs['final_validation_ready'] is True
+ assert inputs['renderer_canonical_write_authorized'] is False
+ for name,pin in inputs['references'].items(): assert sha(ROOT/name) == pin
+-runpy.run_path(str(HERE/'revalidation.py'))['verify'](ROOT,inputs)
++runpy.run_path(str(HERE/'final_validation.py'))['verify'](ROOT,inputs)
+ assert isinstance(inputs['fix'], int) and inputs['fix'] > 0
+ assert not any(os.environ.get(n) for n in ('GIT_DIR','GIT_WORK_TREE','GIT_INDEX_FILE','GIT_OBJECT_DIRECTORY','GIT_ALTERNATE_OBJECT_DIRECTORIES'))
+ env = dict(os.environ,GIT_OPTIONAL_LOCKS='0')
+@@ -34,9 +34,10 @@
+ assert accepted['fix'] == inputs['fix']
+ assert accepted['payload_sha256'] == sha(HERE/'native-selection.json')
+ assert accepted['promoted_build_passed'] and accepted['promoted_wpt_passed'] and accepted['wpt_lint_passed']
+-assert accepted['target_pass'] == 51 and accepted['regressions_unchanged'] == 19
+-assert accepted['repaired_target_subtests'] == 21 and accepted['ends_unchanged'] == 12
+-assert accepted['landing_wpt_subtests'] == 2 and accepted['final_wpt_exit'] == 0
++assert accepted['target_pass'] == 8 and accepted['regressions_unchanged'] == 90
++assert accepted['repaired_target_subtests'] == 8 and accepted['ends_unchanged'] == 16
++assert accepted['landing_wpt_subtests'] == 29 and accepted['final_wpt_exit'] == 0
++assert accepted['supplemental_validation'] == {'pass': 8, 'repaired_targets': 2, 'regressions_unchanged': 6, 'ends_unchanged': 1, 'exit': 0}
+ assert accepted['accepted_dependencies'] == []
+ assert accepted['group'] == inputs['accepted_group']
+ assert accepted['evidence_pins'] == inputs['evidence_pins'] and inputs['evidence_pins']
+@@ -45,7 +46,7 @@
+ signing = ROOT/inputs['signing_directory']
+ receipt = read(signing/inputs['native_receipt'])
+ assert receipt['signature_verified'] and receipt['working_bodies_and_nested_index_preserved']
+-assert sorted(receipt['files']) == payload['files'] and len(payload['files']) == 5
++assert sorted(receipt['files']) == payload['files'] and len(payload['files']) == 8
+ commit = receipt['commit']
+ assert git('rev-parse','HEAD').decode().strip() == commit
+ assert git('rev-parse',commit+'^').decode().strip() == receipt['parent']
+@@ -65,7 +66,7 @@
+     assert hashlib.sha256(b).hexdigest() == inputs['ledger_preimages'][n]
+     assert b == git('show',commit+':'+n)
+ ledger = json.loads(old[paths[0]])
+-assert ledger['committed_native_fixes'] == inputs['previous_accepted_fixes'] == 145
++assert ledger['committed_native_fixes'] == inputs['previous_accepted_fixes'] == 146
+ assert not any(v.get('fix') == inputs['fix'] for v in ledger['new_queue'])
+ assert inputs['fix'] == max(v['fix'] for v in ledger['new_queue'] if isinstance(v.get('fix'),int)) + 1
+ entry = copy.deepcopy(accepted['ledger_entry'])
+@@ -86,14 +87,14 @@
+ entry.update(native_commit=commit,research_commit=research_receipt['commit'],validation_commit=validation_receipt['commit'],companion_commit=validation_receipt['commit'],signature_verified=True,status='COMMITTED_NATIVE_WPT',commit_verification={'path':str((signing/inputs['native_receipt']).relative_to(ROOT)),'sha256':sha(signing/inputs['native_receipt'])})
+ ledger['new_queue'].append(entry)
+ ledger['committed_native_fixes'] = inputs['previous_accepted_fixes'] + 1
+-ledger['latest_move_before_removal_fix'] = entry
++ledger['latest_shadow_move_context_fix'] = entry
+ summary = accepted['approved_checkpoint_summary']
+ assert isinstance(summary,str) and summary.strip()
+ assert accepted['approved_roadmap'].encode().endswith(old[paths[2]])
+ title,rest = old[paths[1]].decode().split('\n',1)
+ planned = {paths[0]:(json.dumps(ledger,indent=2)+'\n').encode(),paths[1]:(title+'\n\n'+summary+'\n\nEarlier entries retain their historical state.\n\n'+rest).encode(),paths[2]:accepted['approved_roadmap'].encode()}
+ bug_title,bug_history = old[paths[3]].decode().split('\n',1)
+-bug_entry = f"Fix {inputs['fix']}: {entry['title']}\n\nNative: `{commit}`. Research: `{research_receipt['commit']}`. Validation: `{validation_receipt['commit']}`. Exact five-path payload: three C++ files, two-case landing WPT, and removal of obsolete expected-failure metadata. Final 70 callbacks PASS; 21 original failures repaired, with 19 control and 12 ending signatures preserved. Shared held-provider/configured-pref validation limits remain.\n\n"
++bug_entry = f"Fix {inputs['fix']}: {entry['title']}\n\nNative: `{commit}`. Research: `{research_receipt['commit']}`. Validation: `{validation_receipt['commit']}`. Exact eight-path payload: three DOM source files, four WPT pages with 29 callbacks, and removal of obsolete expected-failure metadata. Final 98 callbacks PASS; eight original failures repaired, with 90 control and 16 ending signatures preserved. Supplemental iframe validation separately passes eight callbacks with two repaired targets, six unchanged controls and one ending. Shared held-provider/configured-pref validation limits remain.\n\n"
+ planned[paths[3]] = (bug_title+'\n\n'+bug_entry+bug_history).encode()
+ output = HERE/'prepared-checkpoint'
+ assert not output.exists() and not output.is_symlink()

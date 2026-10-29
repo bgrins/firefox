@@ -1,0 +1,578 @@
+diff --git a/dom/base/Element.cpp b/dom/base/Element.cpp
+index 083113ffad0ddc3cb032fb43088eb5a060d4febe..a5a2282cc00aaad5ab2e177e7e0d2099fdb65630 100644
+--- a/dom/base/Element.cpp
++++ b/dom/base/Element.cpp
+@@ -3052,7 +3052,7 @@ nsresult Element::BindToTree(BindContext& aContext, nsINode& aParent) {
+   // Call BindToTree on shadow root children.
+   nsresult rv;
+   if (ShadowRoot* shadowRoot = GetShadowRoot()) {
+-    rv = shadowRoot->Bind();
++    rv = shadowRoot->Bind(aContext.IsMove());
+     NS_ENSURE_SUCCESS(rv, rv);
+   }
+ 
+@@ -3392,7 +3392,7 @@ void Element::UnbindFromTree(UnbindContext& aContext) {
+ 
+   // Unbind children of shadow root.
+   if (ShadowRoot* shadowRoot = GetShadowRoot()) {
+-    shadowRoot->Unbind();
++    shadowRoot->Unbind(aContext.IsMove());
+   }
+ 
+   MOZ_ASSERT_IF(!aContext.IsMove(), !HasAnyOfFlags(kAllServoDescendantBits));
+diff --git a/dom/base/ShadowRoot.cpp b/dom/base/ShadowRoot.cpp
+index b97e18d2d56505cd24dff0f32f117e2b971adca2..1d95c902f0812076f3260b5b868adbedeb9bb08a 100644
+--- a/dom/base/ShadowRoot.cpp
++++ b/dom/base/ShadowRoot.cpp
+@@ -191,7 +191,7 @@ void ShadowRoot::CloneInternalDataFrom(ShadowRoot* aOther) {
+   }
+ }
+ 
+-nsresult ShadowRoot::Bind() {
++nsresult ShadowRoot::Bind(bool aIsMove) {
+   MOZ_ASSERT(!IsInComposedDoc(), "Forgot to unbind?");
+   if (Host()->IsInComposedDoc()) {
+     SetIsConnected(true);
+@@ -205,6 +205,7 @@ nsresult ShadowRoot::Bind() {
+   }
+ 
+   BindContext context(*this);
++  context.SetIsMove(aIsMove);
+   for (nsIContent* child = GetFirstChild(); child;
+        child = child->GetNextSibling()) {
+     nsresult rv = child->BindToTree(context, *this);
+@@ -214,8 +215,9 @@ nsresult ShadowRoot::Bind() {
+   return NS_OK;
+ }
+ 
+-void ShadowRoot::Unbind() {
++void ShadowRoot::Unbind(bool aIsMove) {
+   UnbindContext context(*this, /* aBatchState = */ nullptr);
++  context.SetIsMove(aIsMove);
+   if (IsInComposedDoc()) {
+     SetIsConnected(false);
+     OwnerDoc()->RemoveComposedDocShadowRoot(*this);
+diff --git a/dom/base/ShadowRoot.h b/dom/base/ShadowRoot.h
+index 3f8b48961b1c3d6cf5380e18d300b2aa0b95202e..8507f98c068121207f7a7fd73a15eb671cf6ec85 100644
+--- a/dom/base/ShadowRoot.h
++++ b/dom/base/ShadowRoot.h
+@@ -181,7 +181,7 @@ class ShadowRoot final : public DocumentFragment, public DocumentOrShadowRoot {
+ 
+   // Calls UnbindFromTree for each of our kids, and also flags us as no longer
+   // being connected.
+-  void Unbind();
++  void Unbind(bool aIsMove = false);
+ 
+   // Only intended for UA widgets / special shadow roots, or for handling
+   // failure cases when adopting (see BlastSubtreeToPieces).
+@@ -191,7 +191,7 @@ class ShadowRoot final : public DocumentFragment, public DocumentOrShadowRoot {
+ 
+   // Calls BindToTree on each of our kids, and also maybe flags us as being
+   // connected.
+-  nsresult Bind();
++  nsresult Bind(bool aIsMove = false);
+ 
+   /**
+    * Explicitly invalidates the style and layout of the flattened-tree subtree
+diff --git a/testing/web-platform/meta/dom/nodes/moveBefore/custom-element-move-reactions.html.ini b/testing/web-platform/meta/dom/nodes/moveBefore/custom-element-move-reactions.html.ini
+deleted file mode 100644
+index 409d1c5924ec269caf0f9ad7582fcf990bffc452..0000000000000000000000000000000000000000
+--- a/testing/web-platform/meta/dom/nodes/moveBefore/custom-element-move-reactions.html.ini
++++ /dev/null
+@@ -1,3 +0,0 @@
+-[custom-element-move-reactions.html]
+-  [connectedMove runs when custom element is nested within a shadow root]
+-    expected: FAIL
+diff --git a/testing/web-platform/tests/dom/nodes/moveBefore/shadow-descendant-css-animation-preserve.html b/testing/web-platform/tests/dom/nodes/moveBefore/shadow-descendant-css-animation-preserve.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..7a61feaea3a6bd8d389e9e2e4c3e14ce6bd9a462
+--- /dev/null
++++ b/testing/web-platform/tests/dom/nodes/moveBefore/shadow-descendant-css-animation-preserve.html
+@@ -0,0 +1,120 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>moveBefore preserves CSS animations inside a moved shadow host</title>
++<link rel="help" href="https://dom.spec.whatwg.org/#concept-node-move">
++<link rel="help" href="https://drafts.csswg.org/css-animations-1/#animations">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++for (const shape of ["root", "light-child", "shadow-child"]) {
++  for (const operation of ["none", "self", "original-gap", "cross-parent"]) {
++    test(t => {
++      const fixture = document.createElement("section");
++      document.body.append(fixture);
++      t.add_cleanup(() => fixture.remove());
++      const scope = fixture.attachShadow({mode: "open"});
++      const style = document.createElement("style");
++      style.textContent = `
++        @keyframes travel {
++          from { margin-left: 0px; }
++          to { margin-left: 100px; }
++        }
++        .animated {
++          width: 8px;
++          height: 8px;
++          background: green;
++          animation: travel 10s linear paused;
++        }
++      `;
++      const oldParent = document.createElement("div");
++      const newParent = document.createElement("div");
++      scope.append(style, oldParent, newParent);
++      const moving = document.createElement("div");
++      let target = moving;
++      if (shape !== "root") {
++        target = document.createElement("div");
++        if (shape === "shadow-child") {
++          moving.attachShadow({mode: "open"}).append(style.cloneNode(true), target);
++        } else {
++          moving.append(target);
++        }
++      }
++      target.className = "animated";
++      const next = document.createElement("div");
++      oldParent.append(moving, next);
++      assert_equals(getComputedStyle(newParent).display, "block");
++      const declaringRoot = target.getRootNode();
++      const initial = target.getAnimations();
++      assert_equals(initial.length, 1, "one initial CSS animation");
++      const animation = initial[0];
++      assert_true(animation instanceof CSSAnimation);
++      animation.currentTime = 375;
++      const effect = animation.effect;
++      t.add_cleanup(() => {
++        for (const item of target.getAnimations()) {
++          item.cancel();
++        }
++        animation.cancel();
++      });
++      const sample = phase => {
++        const computed = getComputedStyle(target);
++        const margin = computed.marginLeft;
++        const animations = target.getAnimations();
++        return {
++          phase,
++          connected: target.isConnected,
++          sameRoot: target.getRootNode() === declaringRoot,
++          sameHost: shape !== "shadow-child" || declaringRoot.host === moving,
++          parent: moving.parentNode === oldParent ? "old" :
++            moving.parentNode === newParent ? "new" : "other",
++          originalGap: moving.nextSibling === next,
++          name: computed.animationName,
++          margin,
++          count: animations.length,
++          sameAnimation: animations[0] === animation,
++          sameEffect: animations[0]?.effect === effect && animation.effect === effect,
++          sameTarget: effect.target === target,
++          time: animation.currentTime,
++          state: animation.playState,
++          pending: animation.pending,
++        };
++      };
++      const before = sample("before");
++      assert_equals(before.margin, "3.75px", "calibrated paused animation style");
++      assert_equals(before.time, 375);
++      assert_equals(before.state, "paused");
++      assert_false(before.pending);
++      if (operation === "self") {
++        oldParent.moveBefore(moving, moving);
++      } else if (operation === "original-gap") {
++        oldParent.moveBefore(moving, next);
++      } else if (operation === "cross-parent") {
++        newParent.moveBefore(moving, null);
++      }
++      const after = sample("after");
++      if (operation === "cross-parent") {
++        oldParent.moveBefore(moving, next);
++      }
++      const restored = sample("restored");
++      const detail = JSON.stringify([before, after, restored]);
++      for (const row of [before, after, restored]) {
++        assert_true(row.connected && row.sameRoot && row.sameHost, detail);
++        assert_equals(row.parent,
++          row.phase === "after" && operation === "cross-parent" ? "new" : "old", detail);
++        assert_equals(row.originalGap,
++          !(row.phase === "after" && operation === "cross-parent"), detail);
++        assert_equals(row.name, "travel", detail);
++        assert_equals(row.count, 1, detail);
++        assert_true(row.sameAnimation, detail);
++        assert_true(row.sameEffect, detail);
++        assert_true(row.sameTarget, detail);
++        assert_equals(row.time, 375, detail);
++        assert_equals(row.state, "paused", detail);
++        assert_false(row.pending, detail);
++        assert_equals(row.margin, "3.75px", detail);
++      }
++    }, `${shape}: CSS animation identity and time survive ${operation}`);
++  }
++}
++</script>
+diff --git a/testing/web-platform/tests/dom/nodes/moveBefore/shadow-descendant-custom-element-reactions.html b/testing/web-platform/tests/dom/nodes/moveBefore/shadow-descendant-custom-element-reactions.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..4e0e88053d5c6c6c719fe9cacd8f3136d6d9426b
+--- /dev/null
++++ b/testing/web-platform/tests/dom/nodes/moveBefore/shadow-descendant-custom-element-reactions.html
+@@ -0,0 +1,81 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>moveBefore delivers move reactions to internal shadow descendants</title>
++<link rel="help" href="https://dom.spec.whatwg.org/#concept-node-move">
++<link rel="help" href="https://html.spec.whatwg.org/multipage/custom-elements.html#custom-element-reactions">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++let index = 0;
++for (const [shape, operation] of [
++  ["root", "self"],
++  ["light-child", "self"],
++  ["shadow-child", "self"],
++  ["nested-shadow-child", "self"],
++  ["nested-shadow-child", "cross-parent"],
++]) {
++  test(t => {
++    const name = `move-shadow-reaction-${++index}`;
++    const events = [];
++    customElements.define(name, class extends HTMLElement {
++      connectedCallback() { events.push("connected"); }
++      disconnectedCallback() { events.push("disconnected"); }
++      connectedMoveCallback() { events.push("moved"); }
++    });
++    const fixture = document.createElement("section");
++    const oldParent = document.createElement("div");
++    const newParent = document.createElement("div");
++    fixture.append(oldParent, newParent);
++    document.body.append(fixture);
++    t.add_cleanup(() => fixture.remove());
++    const target = document.createElement(name);
++    const moving = shape === "root" ? target : document.createElement("div");
++    if (shape === "light-child") {
++      moving.append(target);
++    } else if (shape === "shadow-child") {
++      moving.attachShadow({mode: "open"}).append(target);
++    } else if (shape === "nested-shadow-child") {
++      const innerHost = document.createElement("div");
++      moving.attachShadow({mode: "open"}).append(innerHost);
++      innerHost.attachShadow({mode: "open"}).append(target);
++    }
++    const next = document.createElement("div");
++    oldParent.append(moving, next);
++    assert_array_equals(events, ["connected"], "initial connection");
++    const root = target.getRootNode();
++    const sample = phase => ({
++      phase,
++      events: [...events],
++      connected: target.isConnected,
++      sameRoot: target.getRootNode() === root,
++      parent: moving.parentNode === oldParent ? "old" :
++        moving.parentNode === newParent ? "new" : "other",
++      originalGap: moving.nextSibling === next,
++    });
++    const before = sample("before");
++    events.length = 0;
++    if (operation === "self") {
++      oldParent.moveBefore(moving, moving);
++    } else {
++      newParent.moveBefore(moving, null);
++    }
++    const after = sample("after");
++    events.length = 0;
++    if (operation === "cross-parent") {
++      oldParent.moveBefore(moving, next);
++    }
++    const restored = sample("restored");
++    const detail = JSON.stringify([before, after, restored]);
++    for (const row of [before, after, restored]) {
++      assert_true(row.connected && row.sameRoot, detail);
++      assert_equals(row.parent,
++        row.phase === "after" && operation === "cross-parent" ? "new" : "old", detail);
++      assert_equals(row.originalGap,
++        !(row.phase === "after" && operation === "cross-parent"), detail);
++    }
++    assert_array_equals(after.events, ["moved"], detail);
++    assert_array_equals(restored.events, operation === "cross-parent" ? ["moved"] : [], detail);
++  }, `${shape}: connectedMoveCallback for ${operation}`);
++}
++</script>
+diff --git a/testing/web-platform/tests/dom/nodes/moveBefore/shadow-descendant-iframe-preserve.html b/testing/web-platform/tests/dom/nodes/moveBefore/shadow-descendant-iframe-preserve.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..b155cd01b62b5beb891c7d5045a6ad16e263c7de
+--- /dev/null
++++ b/testing/web-platform/tests/dom/nodes/moveBefore/shadow-descendant-iframe-preserve.html
+@@ -0,0 +1,111 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>State-preserving moves retain documents inside shadow descendant iframes</title>
++<link rel="help" href="https://dom.spec.whatwg.org/#concept-node-move">
++<link rel="help" href="https://html.spec.whatwg.org/multipage/iframe-embed-object.html#the-iframe-element">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++async function exercise(t, shape, operation) {
++  const fixture = document.createElement("div");
++  t.add_cleanup(() => fixture.remove());
++  const oldParent = document.createElement("div");
++  const newParent = document.createElement("div");
++  fixture.append(oldParent, newParent);
++  document.body.append(fixture);
++  const frame = document.createElement("iframe");
++  frame.srcdoc = '<!doctype html><input id="state" value="initial">';
++  let loads = 0;
++  frame.addEventListener("load", () => ++loads);
++  const loaded = () => new Promise(resolve => frame.addEventListener("load", resolve, {once: true}));
++  const firstLoad = loaded();
++  let moving = frame;
++  if (shape !== "root") {
++    moving = document.createElement("div");
++    const parent = shape === "shadow-child" ? moving.attachShadow({mode: "open"}) : moving;
++    parent.append(frame);
++  }
++  oldParent.append(moving);
++  await firstLoad;
++  const initialDocument = frame.contentDocument;
++  const initialWindow = frame.contentWindow;
++  const input = initialDocument.getElementById("state");
++  assert_not_equals(input, null, "loaded srcdoc input");
++  assert_equals(input.value, "initial");
++  const marker = {};
++  initialWindow.moveControlMarker = marker;
++  input.value = "edited";
++  const root = frame.getRootNode();
++  const sample = expectedParent => {
++    const doc = frame.contentDocument;
++    const win = frame.contentWindow;
++    return {
++      connected: frame.isConnected,
++      correctParent: moving.parentNode === expectedParent,
++      sameRoot: frame.getRootNode() === root,
++      sameFrame: (shape === "root" ? moving :
++        shape === "shadow-child" ? moving.shadowRoot.firstChild : moving.firstChild) === frame,
++      sameDocument: doc === initialDocument,
++      sameWindow: win === initialWindow,
++      sameMarker: win?.moveControlMarker === marker,
++      text: doc?.getElementById("state")?.value ?? null,
++      loads,
++    };
++  };
++  const before = sample(oldParent);
++  let after;
++  let restored;
++  if (operation === "appendChild") {
++    const nextLoad = loaded();
++    newParent.appendChild(moving);
++    await nextLoad;
++    after = sample(newParent);
++    const finalLoad = loaded();
++    oldParent.appendChild(moving);
++    await finalLoad;
++    restored = sample(oldParent);
++  } else {
++    if (operation === "self") {
++      oldParent.moveBefore(moving, moving);
++    } else if (operation === "cross-parent") {
++      newParent.moveBefore(moving, null);
++    }
++    after = sample(operation === "cross-parent" ? newParent : oldParent);
++    if (operation === "cross-parent") {
++      oldParent.moveBefore(moving, null);
++    }
++    restored = sample(oldParent);
++  }
++  const detail = JSON.stringify({before, after, restored});
++  for (const row of [before, after, restored]) {
++    assert_true(row.connected && row.correctParent && row.sameRoot && row.sameFrame, detail);
++  }
++  assert_true(before.sameDocument && before.sameWindow && before.sameMarker, detail);
++  assert_equals(before.text, "edited", detail);
++  for (const row of [after, restored]) {
++    if (operation === "appendChild") {
++      assert_false(row.sameDocument, detail);
++      assert_false(row.sameWindow, detail);
++      assert_false(row.sameMarker, detail);
++      assert_equals(row.text, "initial", detail);
++    } else {
++      assert_true(row.sameDocument, detail);
++      assert_true(row.sameWindow, detail);
++      assert_true(row.sameMarker, detail);
++      assert_equals(row.text, "edited", detail);
++    }
++  }
++}
++
++for (const shape of ["root", "light-child"]) {
++  for (const operation of ["self", "cross-parent"]) {
++    promise_test(t => exercise(t, shape, operation),
++      `${shape}: iframe document and edited state survive ${operation}`);
++  }
++}
++for (const operation of ["none", "self", "cross-parent", "appendChild"]) {
++  promise_test(t => exercise(t, "shadow-child", operation),
++    `shadow-child: iframe document and edited state for ${operation}`);
++}
++</script>
+diff --git a/testing/web-platform/tests/dom/nodes/moveBefore/shadow-move-controls.html b/testing/web-platform/tests/dom/nodes/moveBefore/shadow-move-controls.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..86d69b0742deb3e8f03401ce013caf14081373fe
+--- /dev/null
++++ b/testing/web-platform/tests/dom/nodes/moveBefore/shadow-move-controls.html
+@@ -0,0 +1,157 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Shadow descendant controls for state-preserving moves</title>
++<link rel="help" href="https://dom.spec.whatwg.org/#concept-node-move">
++<link rel="help" href="https://html.spec.whatwg.org/multipage/custom-elements.html#enqueue-a-custom-element-callback-reaction">
++<link rel="help" href="https://drafts.csswg.org/css-animations-2/#event-dispatch">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++let nextName = 0;
++
++function setup(t) {
++  const fixture = document.createElement("div");
++  t.add_cleanup(() => fixture.remove());
++  const scope = fixture.attachShadow({mode: "open"});
++  scope.innerHTML = `<style>
++    .old { color: rgb(255, 0, 0); }
++    .new { color: rgb(0, 0, 255); }
++  </style><div class="old"></div><div class="new"></div>`;
++  const oldParent = scope.querySelector(".old");
++  const newParent = scope.querySelector(".new");
++  const host = document.createElement("div");
++  const shadow = host.attachShadow({mode: "open"});
++  oldParent.append(host);
++  document.body.append(fixture);
++  return {oldParent, newParent, host, shadow};
++}
++
++function reactionCase(t, ordinary, hasMoveCallback) {
++  const {oldParent, newParent, host, shadow} = setup(t);
++  const events = [];
++  class Target extends HTMLElement {
++    connectedCallback() { events.push(["connected", this.isConnected]); }
++    disconnectedCallback() { events.push(["disconnected", this.isConnected]); }
++  }
++  if (hasMoveCallback) {
++    Target.prototype.connectedMoveCallback = function() {
++      events.push(["moved", this.isConnected]);
++    };
++  }
++  const name = `shadow-move-control-${++nextName}`;
++  customElements.define(name, Target);
++  const target = document.createElement(name);
++  shadow.append(target);
++  assert_array_equals(events.map(e => e[0]), ["connected"]);
++  events.length = 0;
++  const rows = [];
++  for (const parent of [newParent, oldParent]) {
++    if (ordinary) {
++      parent.appendChild(host);
++    } else {
++      parent.moveBefore(host, null);
++    }
++    rows.push({events: events.splice(0), connected: target.isConnected,
++      sameRoot: target.getRootNode() === shadow,
++      sameTarget: shadow.firstChild === target, correctParent: host.parentNode === parent});
++  }
++  const detail = JSON.stringify(rows);
++  for (const row of rows) {
++    assert_true(row.connected && row.sameRoot && row.sameTarget && row.correctParent, detail);
++    assert_array_equals(row.events.map(e => e[0]), ["disconnected", "connected"], detail);
++    assert_true(row.events.every(e => e[1]), detail);
++  }
++}
++
++function animationSetup(t) {
++  const nodes = setup(t);
++  nodes.shadow.innerHTML = `<style>
++    @keyframes travel { from { margin-left: 0px; } to { margin-left: 100px; } }
++    .target { animation: travel 10s linear paused; width: 8px; height: 8px; }
++  </style><div class="target"></div>`;
++  const target = nodes.shadow.querySelector(".target");
++  const animations = target.getAnimations();
++  assert_equals(animations.length, 1, "initial CSS animation");
++  const animation = animations[0];
++  assert_true(animation instanceof CSSAnimation);
++  animation.currentTime = 375;
++  const effect = animation.effect;
++  t.add_cleanup(() => {
++    for (const item of target.getAnimations()) { item.cancel(); }
++    animation.cancel();
++  });
++  const sample = () => {
++    const style = getComputedStyle(target);
++    const margin = style.marginLeft;
++    const color = style.color;
++    const current = target.getAnimations();
++    return {margin, color, repeat: getComputedStyle(target).marginLeft,
++      connected: target.isConnected, sameRoot: target.getRootNode() === nodes.shadow,
++      count: current.length, sameAnimation: current[0] === animation,
++      sameEffect: current[0]?.effect === effect,
++      time: animation.currentTime, state: animation.playState, pending: animation.pending,
++      currentTime: current[0]?.currentTime, currentState: current[0]?.playState};
++  };
++  return {...nodes, target, animation, sample};
++}
++
++test(t => {
++  reactionCase(t, true, true);
++}, "Shadow custom element: appendChild uses disconnect/connect despite a move callback");
++
++test(t => {
++  reactionCase(t, false, false);
++}, "Shadow custom element: moveBefore without a move callback uses disconnect/connect");
++
++test(t => {
++  const {host, oldParent, target, animation, sample} = animationSetup(t);
++  const before = sample();
++  host.remove();
++  getComputedStyle(target).marginLeft;
++  target.getAnimations();
++  const disconnected = {connected: target.isConnected,
++    state: animation.playState, time: animation.currentTime};
++  oldParent.appendChild(host);
++  const after = sample();
++  const detail = JSON.stringify({before, disconnected, after});
++  assert_equals(before.margin, "3.75px", detail);
++  assert_equals(before.time, 375, detail);
++  assert_equals(before.state, "paused", detail);
++  assert_false(before.pending, detail);
++  assert_false(disconnected.connected, detail);
++  assert_equals(disconnected.state, "idle", detail);
++  assert_equals(disconnected.time, null, detail);
++  assert_true(after.connected && after.sameRoot, detail);
++  assert_equals(after.count, 1, detail);
++  assert_false(after.sameAnimation, detail);
++  assert_equals(after.state, "idle", detail);
++  assert_equals(after.time, null, detail);
++  assert_equals(after.currentTime, 0, detail);
++  assert_equals(after.currentState, "paused", detail);
++  assert_equals(after.margin, "0px", detail);
++  assert_equals(after.repeat, after.margin, detail);
++}, "Shadow CSS animation: ordinary removal with a disconnected flush cancels and reinsertion restarts");
++
++test(t => {
++  const {host, oldParent, newParent, sample} = animationSetup(t);
++  const before = sample();
++  newParent.moveBefore(host, null);
++  const after = sample();
++  oldParent.moveBefore(host, null);
++  const restored = sample();
++  const rows = [before, after, restored];
++  const detail = JSON.stringify(rows);
++  for (const [index, row] of rows.entries()) {
++    assert_true(row.connected && row.sameRoot, detail);
++    assert_equals(row.color, index === 1 ? "rgb(0, 0, 255)" : "rgb(255, 0, 0)", detail);
++    assert_equals(row.count, 1, detail);
++    assert_true(row.sameAnimation && row.sameEffect, detail);
++    assert_equals(row.time, 375, detail);
++    assert_equals(row.state, "paused", detail);
++    assert_false(row.pending, detail);
++    assert_equals(row.margin, "3.75px", detail);
++    assert_equals(row.repeat, row.margin, detail);
++  }
++}, "Shadow CSS animation: moveBefore preserves identity and time while inherited color changes");
++</script>

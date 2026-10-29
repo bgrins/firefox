@@ -1,5 +1,10 @@
 # CSS and Stylo verification plan
 
+Fix 148 preserves move context through shadow-root traversal, including CSS animation identity, custom-element move reactions and iframe state. The standalone payload is three DOM sources, four WPT pages with 29 callbacks and deletion of obsolete custom-element expected-FAIL metadata. Final installed results are 98 PASS / 16 OK plus a separate eight PASS / one OK on the same compiled application, preserving 90 primary and six iframe controls. After signed publication the ledger contains 147 accepted fixes / 148 tracked IDs, with held120 excluded. Source review and browser observations preceded the scoped companion; no native refinement or canonical Lean coverage increment is claimed. Shared held-provider/configured-pref limitations remain, with no clean-upstream or Servo-only execution claim.
+
+Earlier entries retain their historical state.
+
+
 Fix 147 restores old-parent style invalidation during moveBefore while preserving the moved subtree. The standalone payload is three C++ files, a two-case landing WPT and deletion of obsolete seven-failure metadata. The original/candidate pair repaired 21 failures; final installed browser results are 70 PASS / 12 OK, with all 19 controls preserved. The initial final wrapper rejected seven empty known_intermittent presence fields; corrected raw reassessment and fresh full-state revalidation passed without another browser run. After signed native publication the ledger contains 146 accepted fixes / 147 tracked IDs, with held 120 excluded. Shared held-provider/configured-pref limits remain; no clean-upstream, Servo-only or native-refinement claim and no canonical Lean coverage increment.
 
 Earlier entries retain their historical state.

@@ -1,5 +1,10 @@
 # CSS verification bugfix commits
 
+Fix 148: Preserve move context through shadow-root traversal, including animations, custom elements and iframes
+
+Native: `9e99cf9e4c886efb9232d90ed13f0c587e240da9`. Research: `c79aace4b76dac7186ce3e67c686b8b8554b8f2e`. Validation: `369f288603917711ba2f6420aa992ee917a6c91e`. Exact eight-path payload: three DOM source files, four WPT pages with 29 callbacks, and removal of obsolete expected-failure metadata. Final 98 callbacks PASS; eight original failures repaired, with 90 control and 16 ending signatures preserved. Supplemental iframe validation separately passes eight callbacks with two repaired targets, six unchanged controls and one ending. Shared held-provider/configured-pref validation limits remain.
+
+
 Fix 147: Invalidate old-parent styles during moveBefore()
 
 Native: `ebb5d4fc489e1a5affdb8f2c1ae2d4dd50884bf9`. Research: `d6e3b47c1c7f0c504fae1548e650473eec27fb22`. Validation: `95faba10a2d1fe388dc1156d689732dd7b658df8`. Exact five-path payload: three C++ files, two-case landing WPT, and removal of obsolete expected-failure metadata. Final 70 callbacks PASS; 21 original failures repaired, with 19 control and 12 ending signatures preserved. Shared held-provider/configured-pref validation limits remain.
