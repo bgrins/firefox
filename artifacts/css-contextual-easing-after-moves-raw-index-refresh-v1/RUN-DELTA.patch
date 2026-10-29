@@ -1,0 +1,69 @@
+--- artifacts/css-shadow-move-raw-index-refresh-v1/run.py
++++ artifacts/css-contextual-easing-after-moves-raw-index-refresh-v1/run.py
+@@ -42,7 +42,8 @@
+     result, restored = read(evidence / "RESULT.json"), read(evidence / "RESTORATION.json")
+     inner = read(evidence / "candidate-build/build-RESULT.json")
+     terminal = read(evidence / "CANDIDATE-ROOT-REPORTED-TERMINAL.json")
+-    assert terminal["owner_session"] == 11795 and terminal["terminal_tool_chunk"] == "916239" and terminal["terminal_exit"] == 0
++    assert terminal["session_id"] == 2315 and terminal["terminal_tool"] == "1921d1" and terminal["exit"] == 0
++    assert terminal["root_observed_terminal"] and terminal["result_sha256"] == digest((evidence / "RESULT.json").read_bytes())
+     assert result["success"] is True and result["restoration_verified"] and result["runtime_controls_unchanged"] and result["empty_staging_preserved"]
+     assert result["error"] is None
+     assert result["candidate_phase"] == {"assessment_sha256": digest((evidence / "candidate-wpt/ASSESSMENT.json").read_bytes()), "raw_sha256": digest((evidence / "candidate-wpt/raw.jsonl").read_bytes()), "result_sha256": digest((evidence / "candidate-wpt/RESULT.json").read_bytes())}
+@@ -64,25 +65,31 @@
+         assessments[role] = assessment
+     assert assessments["candidate"]["comparison_gate_passed"] is True
+     assert assessments["candidate"]["comparison_errors"] == []
+-    assert len(assessments["candidate"]["rows"]) == 98
++    assert len(assessments["candidate"]["rows"]) == 19
+     assert all(row["status"] == "PASS" for row in assessments["candidate"]["rows"])
+-    assert len(assessments["candidate"]["regression_signature"]) == 106
++    assert len(assessments["candidate"]["regression_signature"]) == 3
++    assert all(len(a["ends"]) == 3 and all(row["status"] == "OK" for row in a["ends"]) for a in assessments.values())
+     targets = {tuple(row) for row in policy["target_ids"]}
+     original_targets = [row for row in assessments["original"]["rows"] if (row["test"], row["subtest"]) in targets]
+     candidate_targets = [row for row in assessments["candidate"]["rows"] if (row["test"], row["subtest"]) in targets]
+-    assert len(original_targets) == len(candidate_targets) == 8
+-    assert sum(row["status"] == "FAIL" for row in original_targets) == 8
++    assert len(original_targets) == len(candidate_targets) == 19
++    assert sum(row["status"] == "FAIL" for row in original_targets) == 19
+     assert all(row["status"] in ("PASS", "FAIL") for row in original_targets)
+     assert all(row["status"] == "PASS" for row in candidate_targets)
+     unexpected = assessments["candidate"]["unexpected"]
+-    assert len(unexpected) == 1
+-    assert all(row["status"] == "PASS" and row["expected"] == "FAIL" for row in unexpected)
+-    assert {(row["test"], row["subtest"]) for row in unexpected} == {tuple(row) for row in policy["expected_unexpected_pass_ids"]}
++    assert unexpected == []
+     assert assessments["original"]["regression_signature"] == assessments["candidate"]["regression_signature"]
+     cleanup = read(evidence / "BACKUP-CLEANUP.json")
+     assert cleanup["removed"] and cleanup["verified_original_restoration"] and cleanup["retained_after_failure"] is False
++    assert cleanup["owned_backup_bytes"] == read(evidence / "CANDIDATE-PRE.json")["owned_backup_bytes"] == 1008622360
+     assert not (evidence / "backups").exists()
+     assert epoch["semantic_index"]["head"] == policy["head"]
++    preservation = read(ROOT / policy["preservation_reference"])
++    assert len(preservation["accepted_current_payloads"]) == 27
++    for name, record in preservation["accepted_current_payloads"].items():
++        assert epoch["pins"][name] == record["sha256"] and epoch["installed_identities"][name] == record["identity"]
++    for name, record in preservation["accepted_epoch_records"].items():
++        assert epoch[name] == record
+     assert {k: v for k, v in pre["index"].items() if k != "raw_index"} == epoch["semantic_index"]
+     assert pre["index"]["raw_index"] == epoch["raw_index_observation"]["current"]
+     raw = read(evidence / "RAW-INDEX-OBSERVATION.json")
+@@ -99,7 +106,7 @@
+     encoded = json.dumps(updated, indent=2, sort_keys=True).encode() + b"\n"
+     assert digest(encoded) == policy["updated_epoch_sha256"]
+     if sys.argv[1] == "--check":
+-        print("Authenticated successful shadow move98 pair with verified restoration; only canonical raw observation changes", policy["updated_epoch_sha256"])
++        print("Authenticated successful contextual easing19 pair with verified restoration; only canonical raw observation changes", policy["updated_epoch_sha256"])
+         return
+     assert policy["execution_enabled"] is True
+     assert not any(os.environ.get(k) for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"))
+@@ -123,6 +130,8 @@
+         assert read(evidence / name)["owned_group_absent"]
+     for name in ("candidate-build/build-PROCESS.json", "candidate-build/WAKE-PROCESS.json", "original-wpt/PROCESS.json", "candidate-wpt/PROCESS.json"):
+         owned.group_absent(read(evidence / name)["pgid"])
++    for name in preservation["preserved_absent_metadata"]:
++        assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()
+     owned.quiescent(RUNTIME)
+     lock = RUNTIME / "SOURCE-TRANSITION.lock"
+     assert not lock.exists() and not lock.is_symlink()

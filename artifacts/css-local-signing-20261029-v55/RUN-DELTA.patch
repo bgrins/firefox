@@ -1,0 +1,77 @@
+--- artifacts/css-local-signing-20261028-v53/run.py
++++ artifacts/css-local-signing-20261029-v55/run.py
+@@ -68,7 +68,8 @@
+         for name, pin in authenticate(package["directory"], package["sha256"]).items():
+             assert name not in selected
+             selected[name] = pin
+-    for name, pin in policy["previous_receipts"].items():
++    assert not set(policy["previous_receipts"]).intersection(policy["extra_files"])
++    for name, pin in {**policy["previous_receipts"], **policy["extra_files"]}.items():
+         assert digest((ROOT / name).read_bytes()) == pin
+         assert name not in selected
+         selected[name] = pin
+@@ -94,7 +95,35 @@
+     if sys.argv[1] == "--check":
+         print(json.dumps({"selected": len(selected), "already_committed_identical": len(skipped), "capsule_sha256": sys.argv[2], "execution_enabled": policy["execution_enabled"]}, sort_keys=True))
+         return
+-    assert policy["execution_enabled"] is True
++    assert policy["execution_enabled"] is True and policy["activation_pending"] == []
++    completion = policy["completed_pair"]
++    assert isinstance(completion, dict) and completion
++    for name, pin in completion["evidence"].items():
++        assert digest((ROOT / name).read_bytes()) == pin
++        assert selected.get(name, skipped.get(name)) == pin
++    pair = read(ROOT / completion["result"])
++    assert pair["success"] and pair["error"] is None and pair["publication_errors"] == []
++    assert pair["restoration_verified"] and pair["runtime_controls_unchanged"] and pair["empty_staging_preserved"]
++    assert pair["native_fix_acceptance"] is False
++    restoration = read(ROOT / completion["restoration"])
++    assert restoration["errors"] == [] and restoration["owned_processes"] == {}
++    terminal = read(ROOT / completion["terminal"])
++    assert terminal[completion["terminal_exit_key"]] == completion["observed_exit"]
++    assert terminal["result_sha256"] == completion["evidence"][completion["result"]]
++    assert terminal["root_observed_terminal"] and terminal["native_fix_acceptance"] is False
++    original_phase = read(ROOT / completion["original_result"])
++    candidate_phase = read(ROOT / completion["candidate_result"])
++    assert original_phase["success"] and original_phase["preservation_verified"]
++    assert candidate_phase["success"] and candidate_phase["preservation_verified"] and candidate_phase["comparison_gate_passed"]
++    for name in [completion["original_assessment"], completion["candidate_assessment"]]:
++        assessment = read(ROOT / name)
++        assert assessment["complete"] and assessment["observed_subtest_count"] == 19
++        assert len(assessment["ends"]) == 3 and all(end["status"] == "OK" for end in assessment["ends"])
++    candidate_assessment = read(ROOT / completion["candidate_assessment"])
++    assert candidate_assessment["comparison_gate_passed"] and all(row["status"] == "PASS" for row in candidate_assessment["rows"])
++    cleanup = read(ROOT / completion["backup_cleanup"])
++    assert cleanup["removed"] and cleanup["verified_original_restoration"] and not cleanup["retained_after_failure"]
++    assert not os.path.lexists(ROOT / completion["backup_directory"])
+     assert git("config", "--get", "commit.gpgsign").strip() == b"true"
+     state = load("compact_state", policy["state_helper"])
+     owned = load("compact_ownership", policy["ownership_helper"])
+@@ -106,10 +135,17 @@
+     assert epoch["modified_native_paths"] == ["servo/components/style/custom_properties.rs"]
+     assert epoch["accepted_move_before_removal"]["fix"] == 147
+     assert epoch["move_before_removal_transition"]["accepted"] is True
+-    assert len(policy["accepted_current_payloads"]) == 20
++    assert len(policy["accepted_current_payloads"]) == 27
++    assert epoch["accepted_shadow_move_context"]["fix"] == 148
++    assert epoch["shadow_move_context_transition"]["accepted"] is True
++    for marker, expected in policy["accepted_preservation_markers"].items():
++        assert epoch[marker] == expected
+     deleted = "testing/web-platform/meta/dom/nodes/moveBefore/moveBefore-child-list-selector-invalidation.html.ini"
+     assert epoch["pins"][deleted] is None and not os.path.lexists(ROOT / deleted)
+     assert deleted not in epoch["installed_identities"] and deleted not in json.loads(controls["OWNED.json"])
++    shadow_deleted = "testing/web-platform/meta/dom/nodes/moveBefore/custom-element-move-reactions.html.ini"
++    assert epoch["pins"][shadow_deleted] is None and not os.path.lexists(ROOT / shadow_deleted)
++    assert shadow_deleted not in epoch["installed_identities"] and shadow_deleted not in json.loads(controls["OWNED.json"])
+     assert epoch["accepted_sibling_count_rule_cache"]["fix"] == 146
+     assert epoch["accepted_round_context_quotient"]["fix"] == 145
+     assert epoch["accepted_round_special_knowledge"]["fix"] == 144
+@@ -204,7 +240,7 @@
+         owned.write_owned(ROOT, control_claims["CURRENT-EPOCH.json"], owned.encoded(updated))
+         assert state.a.verify_current(state.h, ROOT, ENV, updated) == post
+         assert all((RUNTIME / n).read_bytes() == controls[n] for n in ("ROLE.json", "OWNED.json"))
+-        save(output / "FINAL-CHECK.json", {"head": commit, "parent": policy["head"], "tree": tree, "signature_verified": True, "runtime_epoch_synchronized": True, "current_epoch_sha256": digest(owned.encoded(updated)), "accepted_fixes": 146, "tracked_fixes": 147, "accepted_fix_increment": 0, "canonical_coverage_increment": 0, "provider_candidate_accepted": False, "shadow_native_candidate_compiled_or_executed": False, "system_browser_fixture_execution_recorded": True, "signing_performed_build_or_browser_execution": False, "native_and_binary_payloads_preserved": True, "nested_index_and_flags_preserved": True, "unselected_untracked_names_preserved": True, "untracked_before": len(untracked), "untracked_after": len(untracked_names()), "selection_count": len(selected), "full_epoch_copies_saved": 0})
++        save(output / "FINAL-CHECK.json", {"head": commit, "parent": policy["head"], "tree": tree, "signature_verified": True, "runtime_epoch_synchronized": True, "current_epoch_sha256": digest(owned.encoded(updated)), "accepted_fixes": 147, "tracked_fixes": 148, "accepted_fix_increment": 0, "canonical_coverage_increment": 0, "provider_candidate_accepted": False, "easing_native_acceptance": False, "completed_pair_result_sha256": completion["evidence"][completion["result"]], "signing_performed_build_or_browser_execution": False, "native_and_binary_payloads_preserved": True, "nested_index_and_flags_preserved": True, "unselected_untracked_names_preserved": True, "untracked_before": len(untracked), "untracked_after": len(untracked_names()), "selection_count": len(selected), "full_epoch_copies_saved": 0})
+         final_published = True
+         assert [lock.stat().st_dev, lock.stat().st_ino] == lock_identity
+         lock.rmdir()

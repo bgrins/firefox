@@ -1,0 +1,23 @@
+# Contextual easing after accepted move repairs
+
+Disabled execution capsule for the exact existing nineteen callbacks on three pages. No native source, fixture, application, Git/index or runtime-control bytes were changed during preparation. Original and candidate owners remain disabled. This capsule is preparation, not execution authority or native acceptance.
+
+The executed predecessor is `css-contextual-easing-followup-browser-v4`, whose four shims import `css-contextual-easing-reversible-browser-v4`. `PROVENANCE.json` pins both manifests. The baseline and candidate bodies are copied into this successor so the necessary binding checks are reviewable in `RUNNER-DELTA.patch`; the WPT shim is byte-identical. `SOURCE-ROLES.json` preserves all eight activation-v2 base/candidate captures and hashes. No rebase is needed.
+
+The original app is authenticated by `css-shadow-move-promotion-runtime-1/candidate-build-1` and its saved application metadata: BuildID `20261029142442`, build revision `2fe2ced22a525a4348286bddaa7dcb0168d72905`. Current HEAD is `1af4f27f189cea454b1fa3ff90bafbf5f99d4896`; the seven later-committed payloads already match the actual build epoch. The separate deleted metadata preimage is authenticated against the build revision, while its actual build/current epoch pins are null. The lineage guard uses `--no-renames` because rename detection can otherwise hide a metadata deletion as an artifact destination. Both deleted metadata paths have no current identity or ownership record and must remain absent.
+
+The live guard checks the current canonical epoch/control hashes, all accepted epoch records, all 27 accepted payload claims, four binaries, app metadata, held provider, source roles, root/nested index and installed state. The candidate retains the prior app/extras backup, owned process cleanup, source restoration, complete app/extras restoration and restored-state verification lifecycle. Only the declared eight sources are overlaid; accepted specified easing is restored from its authenticated base, and every accepted payload outside that overlay remains fixed.
+
+The exact sealed plan is `css-contextual-easing-after-cache-plan-v1`, manifest SHA-256 `b4fb76d0363f15279b224917332a58baad9d0363118f0145bc2c9041f8510fa2`. Original must complete all nineteen callbacks and three OK endings. Candidate must pass all nineteen, retain all original PASS signatures and full ending signatures, and avoid every setup, timeout and infrastructure fault. The old requirement that an original target must fail is removed because this is an observation plan without a presumed outcome; even an all-PASS comparison grants no acceptance or new-bug credit. No expectation, fixture, preference or test timeout changes are introduced.
+
+The explicit resource proposal changes the old easing admission floor from 30 to 27 GiB after logical app/extras backup. It reuses the already executed `css-shadow-move-promotion-v1/phase.py`, pinned in POLICY, and the matching `css-shadow-move-build-v1/run.py` admission logic. The 15 GiB running stop, existing objdir, `build binaries -j2`, 1800-second build deadline and 900-second WPT deadline remain. `RESOURCE-OBSERVATION.json` records 1,008,622,360 backup bytes and about 27.82 GiB estimated post-backup free space. The actual prior shadow build ran 1482 seconds and reached a minimum 29,214,507,008 free bytes. This observation is not a future-space guarantee: the owner must remeasure before backup, after backup and throughout building. No build/cache cleanup is proposed.
+
+Read-only authentication and live checks use isolated Python:
+
+```
+GIT_OPTIONAL_LOCKS=0 python3 -I -B -S artifacts/css-contextual-easing-after-moves-browser-v1/baseline.py --check <FILES-SHA256>
+GIT_OPTIONAL_LOCKS=0 python3 -I -B -S artifacts/css-contextual-easing-after-moves-browser-v1/baseline.py --guard <FILES-SHA256>
+GIT_OPTIONAL_LOCKS=0 python3 -I -B -S artifacts/css-contextual-easing-after-moves-browser-v1/candidate.py --check <FILES-SHA256>
+```
+
+After root and independent review, create a new enabled baseline successor and run its `baseline.py --run <successor-FILES-SHA256>`. Preserve this disabled capsule. After the fresh original completes, seal its runtime evidence and root terminal; create a separate candidate successor binding that baseline capsule, manifest, result and terminal, then run its `candidate.py --run <candidate-FILES-SHA256>`. The candidate binding remains null here because fresh original evidence does not yet exist. Historical fifteen-case results are provenance only. Neither owner updates the canonical epoch or accepted count.

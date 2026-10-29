@@ -1,0 +1,122 @@
+--- artifacts/css-contextual-easing-reversible-browser-v4/baseline.py
++++ artifacts/css-contextual-easing-after-moves-browser-v1/baseline.py
+@@ -46,6 +46,8 @@
+     assert set(roles) == set(policy['source_paths']) and len(roles) == 8
+     assert set(roles) & set(policy['accepted_current_payloads']) == {'servo/components/style/values/specified/easing.rs'}
+     assert 'servo/components/style/values/generics/calc.rs' not in roles and 'servo/components/style/custom_properties.rs' not in roles
++    assert policy['wpt']['expected_subtests'] == read(ROOT / 'artifacts/css-contextual-easing-after-cache-plan-v1/EXPERIMENT.json')['target_subtests']
++    assert policy['wpt']['target_subtests'] == policy['wpt']['expected_subtests']
+     return policy, ownership, roles
+ 
+ 
+@@ -61,6 +63,10 @@
+     assert epoch['accepted_round_context_quotient'] == policy['accepted_round_context_quotient']
+     assert epoch['round_context_quotient_transition'] == policy['round_context_quotient_transition']
+     assert epoch['accepted_round_special_knowledge'] == policy['accepted_round_special_knowledge']
++    for name, record in policy['accepted_epoch_records'].items():
++        assert epoch[name] == record
++    for name in policy['preserved_absent_metadata']:
++        assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()
+     for name, record in policy['accepted_current_payloads'].items():
+         ownership.claim(ROOT, name, record['sha256'], record['identity'])
+         assert hashlib.sha256(state.h.git(ROOT, env, 'show', policy['head'] + ':' + name)).hexdigest() == record['sha256']
+@@ -71,10 +77,17 @@
+     assert inner['exit'] == 0 and inner['owned_group_absent'] and inner['cleanup_errors'] == [] and inner['error'] is None and inner['stop_reason'] is None
+     assert build_epoch['semantic_index']['head'] == policy['wpt']['phase_revisions']['original']
+     assert policy['wpt']['phase_revisions']['candidate'] == policy['head']
+-    changed = set(state.h.git(ROOT, env, 'diff', '--name-only', build_epoch['semantic_index']['head'], policy['head']).decode().splitlines())
+-    assert {name for name in changed if not name.startswith('artifacts/')} == set(policy['original_build']['later_committed_payloads'])
++    changed = set(state.h.git(ROOT, env, 'diff', '--no-renames', '--name-only', build_epoch['semantic_index']['head'], policy['head']).decode().splitlines())
++    assert {name for name in changed if not name.startswith('artifacts/')} == set(policy['original_build']['later_committed_payloads']) | set(policy['original_build']['later_removed_payloads'])
+     for name, pin in policy['original_build']['later_committed_payloads'].items():
+         assert sha(ROOT / name) == epoch['pins'][name] == build_epoch['pins'][name] == pin
++    owned = json.loads(controls['OWNED.json'])
++    for name in policy['preserved_absent_metadata']:
++        assert epoch['pins'][name] is None and build_epoch['pins'][name] is None
++        assert name not in epoch['installed_identities'] and name not in owned
++    for name, preimage in policy['original_build']['later_removed_payloads'].items():
++        assert hashlib.sha256(state.h.git(ROOT, env, 'show', build_epoch['semantic_index']['head'] + ':' + name)).hexdigest() == preimage
++        assert not state.h.git(ROOT, env, 'ls-tree', policy['head'], '--', name)
+     recorded_metadata = read(ROOT / policy['original_build']['application_metadata'])
+     assert sha(ROOT / policy['wpt']['application_ini']) == recorded_metadata['sha256']
+     assert recorded_metadata['revision'] == policy['wpt']['phase_revisions']['original']
+@@ -93,6 +106,8 @@
+     flags = {name: state.h.git(path, env, 'ls-files', '-v', '-z') for name, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]}
+     def verify():
+         assert all((RUNTIME / name).read_bytes() == body for name, body in controls.items())
++        for name in policy['preserved_absent_metadata']:
++            assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()
+         current = state.a.verify_current(state.h, ROOT, env, epoch)
+         for name, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]:
+             assert state.h.git(path, env, 'ls-files', '-v', '-z') == flags[name]
+@@ -101,11 +116,16 @@
+ 
+ 
+ def main():
+-    assert len(sys.argv) == 3 and sys.argv[1] in ('--check', '--run')
++    assert len(sys.argv) == 3 and sys.argv[1] in ('--check', '--guard', '--run')
+     policy, ownership, roles = prepare(sys.argv[2])
+     assert policy['wpt'] is not None, 'Exact reviewed WPT roster remains pending'
+     if sys.argv[1] == '--check':
+         print('Authenticated activation captures and fixed baseline recipe; no live guard')
++        return
++    if sys.argv[1] == '--guard':
++        state, env, controls, epoch, flags, verify = guard(policy, ownership, roles)
++        verify()
++        print('Live baseline bindings verified; no browser, build, or state mutation')
+         return
+     assert policy['execution_enabled']
+     state, env, controls, epoch, flags, verify = guard(policy, ownership, roles)
+--- artifacts/css-contextual-easing-reversible-browser-v4/candidate.py
++++ artifacts/css-contextual-easing-after-moves-browser-v1/candidate.py
+@@ -90,7 +90,7 @@
+     assert (app / 'Contents/Resources/application.ini').resolve() == ROOT / 'objdir-full.noindex/build/application.ini'
+     size = sum(record['size'] for record in app_before.values() if record['kind'] == 'file') + sum(record['size'] for record in extra_before.values())
+     free = lambda: os.statvfs(ROOT).f_bavail * os.statvfs(ROOT).f_frsize
+-    assert free() - size >= 30 * 1024**3
++    assert free() - size >= 27 * 1024**3
+     state.save(output / 'CANDIDATE-PRE.json', {'snapshot': before, 'controls': policy['controls'], 'sources': {name: dict(roles[name], identity=claim['identity']) for name, claim in claims.items()}, 'owned_backup_bytes': size})
+     state.save(output / 'APP-PRE.json', app_before)
+     state.save(output / 'EXTRA-PRE.json', extra_before)
+@@ -101,7 +101,7 @@
+     extra_mapping = bundle.backup(ROOT, extra_before, backups / 'extra')
+     backup_snapshot = bundle.scan(backups)
+     state.save(output / 'BACKUPS.json', {'app': app_mapping, 'extra': extra_mapping, 'bytes': size, 'owned_inventory': backup_snapshot})
+-    assert free() >= 30 * 1024**3
++    assert free() >= 27 * 1024**3
+     assert bundle.scan(app) == app_before and {name: bundle.entry(ROOT / name) for name in extra_before} == extra_before
+     assert state.a.verify_current(state.h, ROOT, env, epoch) == before
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+@@ -116,6 +116,8 @@
+     failure, phase_result, binaries = None, None, None
+     touched = []
+     def stable_controls():
++        for name in policy['preserved_absent_metadata']:
++            assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()
+         assert all((RUNTIME / name).read_bytes() == body for name, body in controls.items())
+         for record in accepted.values():
+             ownership.claim(ROOT, record['path'], record['owned_sha256'], record['identity'])
+@@ -150,7 +152,7 @@
+         build.mkdir()
+         command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'build', 'binaries', '-j2']
+         state.save(build / 'COMMAND.json', {'command': command, 'source_sha256': {name: sha(ROOT / name) for name in roles}, 'owner_manifest': sys.argv[2]})
+-        state.save(build / 'PREFLIGHT.json', {'free_bytes': free(), 'start_floor_bytes': 30 * 1024**3, 'running_stop_bytes': 15 * 1024**3, 'owned_backup_bytes': size, 'phase_helper_sha256': sha(ROOT / policy['phase_helper'])})
++        state.save(build / 'PREFLIGHT.json', {'free_bytes': free(), 'start_floor_bytes': 27 * 1024**3, 'running_stop_bytes': 15 * 1024**3, 'owned_backup_bytes': size, 'phase_helper_sha256': sha(ROOT / policy['phase_helper'])})
+         deadline = time.monotonic() + policy['timeout_seconds']
+         builder.run(ROOT, ROOT / 'objdir-full.noindex', build, env, lambda: stopped[0] or time.monotonic() >= deadline, owned, process_control, command, errors)
+         inner = read(build / 'build-RESULT.json')
+--- artifacts/css-contextual-easing-reversible-browser-v4/assess.py
++++ artifacts/css-contextual-easing-after-moves-browser-v1/assess.py
+@@ -119,8 +119,10 @@
+             original_stable = {k: v for k, v in original["run_info"].items() if k != "browser_build_id"}
+             if current_stable != original_stable:
+                 comparison_errors.append("run_info changed outside the independently bound BuildID")
+-        if not any(r.get("status") == "FAIL" for r in original.get("rows", []) if (r.get("test"), r.get("subtest")) in target_ids):
+-            comparison_errors.append("original has no demonstrated target failure")
++        current_rows = {(r.get("test"), r.get("subtest")): signature(r) for r in rows}
++        for row in original.get("rows", []):
++            if row.get("status") == "PASS" and current_rows.get((row.get("test"), row.get("subtest"))) != signature(row):
++                comparison_errors.append("originally passing callback signature changed: " + row["subtest"])
+         if any(r.get("status") != "PASS" for r in candidate):
+             comparison_errors.append("candidate target fixture still fails")
+     return {"complete": not errors, "errors": errors, "fixture_setup_errors": fixture_setup_errors, "run_info": run_info, "run_binding": run_binding,
