@@ -1,0 +1,75 @@
+--- artifacts/css-prioritary-selection-candidate-terminal-review-v4/observations.py
++++ artifacts/css-prioritary-published-candidate-terminal-review-v1/observations.py
+@@ -22,6 +22,43 @@
+ 
+ def counts(rows):
+     return {status:sum(row.get('status')==status for row in rows) for status in sorted({row.get('status') for row in rows if isinstance(row.get('status'),str)})}
++
++
++def preservation(originals, rows, endings, policy, signature, complete):
++    key = lambda row: (row['test'], row['kind'], row.get('subtest') or '')
++    old_rows = [row for lane in policy['lane_order'] for row in originals[lane]['rows']]
++    old_ends = [row for lane in policy['lane_order'] for row in originals[lane]['ends']]
++    before = {key(value): value for value in map(signature, old_rows + old_ends)}
++    assert len(before) == 89 and len(old_rows) == 77 and len(old_ends) == 12
++    keyed = [row for row in rows + endings if isinstance(row.get('test'), str) and
++             (row.get('action') == 'test_end' or isinstance(row.get('subtest'), str))]
++    after_rows = [signature(row) for row in keyed]
++    keys = [key(row) for row in after_rows]
++    ambiguous = {identity for identity in keys if keys.count(identity) != 1}
++    after = {key(row): row for row in after_rows if key(row) not in ambiguous}
++    targets = {(page, 'test_status', name) for settings in policy['wpt_lanes'].values()
++               for page, names in settings['target_subtests'].items() for name in names}
++    published = {(page, 'test_status', name) for settings in policy['wpt_lanes'].values()
++                 for page, names in settings['published_subtests'].items() for name in names}
++    assert len(targets) == 24 and len(published) == 8 and targets <= before.keys() and published <= before.keys()
++    passing = {identity for identity, row in before.items() if row['kind'] == 'test_status' and row['status'] == 'PASS'}
++    page_ends = {identity for identity, row in before.items() if row['kind'] == 'test_end'}
++    changed = lambda identities: [dict(identity=identity, original=before[identity], candidate=after.get(identity))
++                                  for identity in sorted(identities) if before[identity] != after.get(identity)]
++    if complete:
++        assert len(rows) == 77 and len(endings) == 12 and len(keys) == 89 and not ambiguous and set(after) == set(before)
++    target_states = [dict(identity=identity, original=before[identity], candidate=after.get(identity), ambiguous=identity in ambiguous)
++                     for identity in sorted(targets)]
++    return {'original_pass_count': len(passing), 'original_ending_count': len(page_ends),
++            'published_count': len(published), 'target_count': len(targets),
++            'original_pass_changes': changed(passing), 'ending_changes': changed(page_ends),
++            'published_changes': changed(published), 'target_states': target_states,
++            'ambiguous_keys': sorted(ambiguous), 'complete': complete,
++            'prior_pass_preserved': not changed(passing) if complete else None,
++            'endings_preserved': not changed(page_ends) if complete else None,
++            'published_preserved': not changed(published) if complete else None,
++            'targets_all_pass': all(after[identity]['status'] == 'PASS' for identity in targets) if complete else None,
++            'native_acceptance': False}
+ 
+ 
+ def review(root,here,pair,policy,pre,result,build,record,inputs,ownership,validate_build_phase):
+@@ -160,8 +197,8 @@
+             assert outcome['callbacks_passed']==sum(r['status']=='PASS' for r in all_rows)
+             assert outcome['callbacks_failed']==sum(r['status']=='FAIL' for r in all_rows)
+             assert outcome['provider_source_role']=='provider-cascade-value-candidate' and outcome['native_acceptance'] is False and outcome['zoom_target_correctness'] is None
+-            assert outcome['lanes']==result['candidate_phase'] and set(result['candidate_phase'])==set(policy['lane_order'])
+-            for lane,entry in result['candidate_phase'].items():
++            assert outcome['lanes']==result['phase'] and set(result['phase'])==set(policy['lane_order'])
++            for lane,entry in result['phase'].items():
+                 assert entry['lane']==lane
+                 prefix='candidate-wpt-'+lane+'/'
+                 for name,key in [('ASSESSMENT.json','assessment_sha256'),('raw.jsonl','raw_sha256'),('RESULT.json','result_sha256')]:assert inputs[prefix+name]==entry[key]
+@@ -171,13 +208,14 @@
+                     assert inputs[prefix+'ZOOM-COMPARISON.json']==entry['zoom_comparison_sha256']
+                 else:assert entry['zoom_observation_sha256'] is None
+             assert record('PHASES-POST.json')==record('PHASES-PRE.json')==record('candidate-build/RESULT.json')['snapshot']
+-            aggregate={'lanes':behaviors,'repair_observation_gate':all(v['repair_observation_gate'] for v in behaviors.values()),'all89_signatures_equal':all(v['all_signatures_equal'] for v in behaviors.values()),'zoom_comparison_sha256':result['candidate_phase']['ordinary']['zoom_comparison_sha256'],'native_acceptance':False}
++            aggregate={'lanes':behaviors,'repair_observation_gate':all(v['repair_observation_gate'] for v in behaviors.values()),'all89_signatures_equal':all(v['all_signatures_equal'] for v in behaviors.values()),'zoom_comparison_sha256':result['phase']['ordinary']['zoom_comparison_sha256'],'native_acceptance':False}
+             assert sum(len(v['candidate_signatures']) for v in behaviors.values())==89
+             assert record('COMPARISON.json')==aggregate
+             assert result['success']
+         except (AssertionError,OSError,ValueError,TypeError,KeyError) as error:
+             complete=False;errors.append('aggregate observation: '+repr(error))
+     if not result['success']:
+-        assert result['candidate_phase'] is None
++        assert result['phase'] is None
+         assert record('FAILURE-TRACEBACK.json')['error']==result['error']
+-    return {'lanes':lanes,'browser_executed':True if any(lane['browser_executed'] is True for lane in lanes.values()) else None if any(lane['wpt_process_started'] for lane in lanes.values()) else False,'observation_complete':complete,'build_exit':build['exit'],'raw_rows':all_rows,'raw_endings':all_ends,'raw_counts':counts(all_rows),'outcomes':outcome,'errors':errors,'native_acceptance':False,'zoom_target_correctness':None,'original_counts':counts([row for original in originals.values() for row in original['rows']]),'original_endings':sum(len(original['ends']) for original in originals.values()),'target_callbacks':sum(settings['expected_target_count'] for settings in policy['wpt_lanes'].values()),'behaviors':behaviors,'repair_observation_gate':all(v['repair_observation_gate'] for v in behaviors.values()) if complete else None,'all89_signatures_equal':all(v['all_signatures_equal'] for v in behaviors.values()) if complete else None}
++    independent = preservation(originals, all_rows, all_ends, policy, assessor.signature, complete)
++    return {'independent_preservation':independent,'lanes':lanes,'browser_executed':True if any(lane['browser_executed'] is True for lane in lanes.values()) else None if any(lane['wpt_process_started'] for lane in lanes.values()) else False,'observation_complete':complete,'build_exit':build['exit'],'raw_rows':all_rows,'raw_endings':all_ends,'raw_counts':counts(all_rows),'outcomes':outcome,'errors':errors,'native_acceptance':False,'zoom_target_correctness':None,'original_counts':counts([row for original in originals.values() for row in original['rows']]),'original_endings':sum(len(original['ends']) for original in originals.values()),'target_callbacks':sum(settings['expected_target_count'] for settings in policy['wpt_lanes'].values()),'behaviors':behaviors,'repair_observation_gate':all(v['repair_observation_gate'] for v in behaviors.values()) if complete else None,'all89_signatures_equal':all(v['all_signatures_equal'] for v in behaviors.values()) if complete else None}

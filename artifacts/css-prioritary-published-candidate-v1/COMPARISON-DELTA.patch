@@ -1,0 +1,56 @@
+--- a/comparison.py
++++ b/comparison.py
+@@ -40,10 +40,10 @@
+     source=read(source_owner/'POLICY.json')
+     assert source['owner_directory']==capsule['directory']
+     assert source['suite_binding']==policy['suite_binding'] and source['capture_binding']==policy['capture_binding']
+-    assert source['head']==policy['head'] and source['lane_order']==policy['lane_order']
++    assert source['head']==policy['baseline_head'] and source['lane_order']==policy['lane_order']
+     result=read(directory/'RESULT.json')
+     assert result['success'] and result['restoration_verified'] and result['runtime_controls_unchanged']
+-    assert result['provider_source_role']=='clean-original' and result['build_revision']==source['head']
++    assert result['provider_source_role']=='published-color-image-original' and result['build_revision']==source['head']
+     assert result['native_fix_acceptance'] is False
+     assert set(result['phase']) == set(policy['lane_order']) and result['phase'][lane]['lane'] == lane
+     phase=directory/('original-wpt-'+lane)
+@@ -67,7 +67,9 @@
+     build=read(directory/'original-build/RESULT.json')
+     assert build['command_success'] and build['preservation_verified'] and build['error'] is None
+     assert read(directory/'original-build/build-RESULT.json')['exit']==0
+-    assert build['native_sources']=={'servo/components/style/custom_properties.rs':policy['semantic_original_sources']['servo/components/style/custom_properties.rs']}
++    assert build['native_sources']==policy['semantic_original_sources']
++    command=read(directory/'original-build/COMMAND.json')
++    assert command['owner_manifest']==capsule['sha256'] and command['source_sha256']==build['native_sources']
+     assert read(phase/'BINARY-PINS.json')==build['binaries'] and set(build['binaries'])==set(policy['rebuilt_binaries'])
+     assert read(phase/'PRE.json')==read(phase/'POST.json')==read(directory/'PHASES-PRE.json')==read(directory/'PHASES-POST.json')==build['snapshot']
+     scope=load('original77_review_scope',root/policy['owner_directory']/'review_scope.py')
+@@ -97,7 +99,8 @@
+         assert zoom==read(phase/'ZOOM-OBSERVATION.json') and zoom['role']=='original'
+         assert sha(phase/'ZOOM-OBSERVATION.json')==result['phase'][lane]['zoom_observation_sha256']
+         assert phase_result['required_zoom_capture_complete'] is True
+-    projected=assessor.assess(events,phase_result['exit'],phase_policy(current),checks,run_binding=metadata)
++    projection = dict(current, phase_revisions=settings['phase_revisions'], harness_revision=settings['harness_revision'])
++    projected=assessor.assess(events,phase_result['exit'],phase_policy(projection),checks,run_binding=metadata)
+     assert projected['complete'] and projected['rows']==replay['rows'] and projected['ends']==replay['ends']
+     return projected
+ 
+@@ -133,6 +136,11 @@
+     for identity,row in old.items():
+         if (row['kind']=='test_end' or row['status']=='PASS') and new.get(identity)!=row:
+             errors.append('original PASS or page ending signature changed: '+str(identity))
++    published={(page,name) for page,names in settings['published_subtests'].items() for name in names}
++    published_before=[row for row in before if row['kind']=='test_status' and (row['test'],row.get('subtest')) in published]
++    published_after=[row for row in after if row['kind']=='test_status' and (row['test'],row.get('subtest')) in published]
++    if len(published_before)!=len(published) or published_before!=published_after:
++        errors.append('published callback full signatures changed or missing')
+     targets={(page,name) for page,names in settings['target_subtests'].items() for name in names}
+     target_rows=[row for row in candidate['rows'] if (row['test'],row['subtest']) in targets]
+     if len(target_rows)!=len(targets) or any(row['status']!='PASS' for row in target_rows):errors.append('target callback remains non-PASS')
+@@ -140,5 +148,6 @@
+     result = {'repair_observation_gate':not errors,'errors':errors,'all_signatures_equal':before==after,
+             'original_signatures':before,'candidate_signatures':after,
+             'differences':[{'identity':identity,'original':old.get(identity),'candidate':new.get(identity)} for identity in sorted(set(old)|set(new)) if old.get(identity)!=new.get(identity)],
+-            'target_rows':target_rows,'native_acceptance':False}
++            'target_rows':target_rows,'published_original_signatures':published_before,
++            'published_candidate_signatures':published_after,'native_acceptance':False}
+     return json.loads(json.dumps(result))

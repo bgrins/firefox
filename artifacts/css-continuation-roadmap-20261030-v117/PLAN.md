@@ -1,0 +1,22 @@
+# CSS and Stylo continuation
+
+The catalogue remains 153 committed native fixes. The selected-declaration repair now has a complete fresh native experiment, but is not yet a published fix. Keep all work local and keep research before the eventual native-plus-WPT commit.
+
+## Verified candidate evidence
+
+The cascade-only candidate built successfully and completed all 77 callbacks: 76 PASS, one known forced-color-scheme FAIL, and 12 OK endings. All 12 failing baseline selection targets improved; all 24 target states now pass. Independent replay verified all 64 prior PASS signatures, all 12 endings and all eight published color/image signatures unchanged. Appearance completed for the first time on this candidate. Genuine Zoom observations are unchanged, with no numerical correctness verdict.
+
+Source/application restoration and cleanup were independently verified; the owner removed its 1,008,605,176-byte backup. The restored application remains historical and marked built:false. Raw index bytes changed while semantic state was preserved; the accompanying raw-only refresh records that observation without changing native state or acceptance counts.
+
+The recorded repair gate is false, not silently waived. Each lane reports the same two metadata errors: the old comparator expects the original at the candidate revision, and only removes BuildID before comparing run_info. The baseline was built at 42cc and candidate at e567, separated by an authenticated research-only commit. Independently checked metadata differs only in correctly bound BuildID and harness revision. The sealed lineage finding proposes a narrowly bound comparator correction with negative checks; actual saved gates stay unchanged.
+
+## Next work
+
+1. Correct the comparator for independently authenticated per-role build and harness revisions. Validate each role's BuildID/revision before excluding precisely those two differing run_info fields; preserve exact comparison of every other field, callback, message and expectation. Reject invented revisions and unrelated environment differences.
+2. Validate exact proposed publication test bytes on both native source roles. The proposed coherent fix is cascade.rs plus five pages/24 callbacks and two Appearance pref files. The extracted seven-case portable page removes research-only Zoom transport and has not yet run. Keep the existing broader preservation controls available. Run the separate four-case LineHeight probe on both roles before promotion; it covers the additional FontSize dependency and is not counted among the original 77 or proposed 24 cases.
+3. Review the native/source prerequisites and then create one minimal native-plus-WPT fix commit if the exact tests and preservation checks pass. Tooling, proofs and research belong in preceding commits. Do not count twelve repaired callbacks as twelve separate bugs.
+4. Extend the model-to-native correspondence for preparation/application stability. The new arbitrary-list Lean theorem requires agreement at every visited eligibility decision, including skipped prefixes, and at each eligible evaluation. Four theorem audits and three rejected false controls pass. This is not native refinement; generated scheduling, state changes, deferred effects and SCC publication remain outside that theorem.
+5. Investigate the independent forced-color-scheme test51 issue after selection publication. Existing metadata has acknowledged it since a 2021 WPT sync; current text supports light dark while observed output is normal. Source Revert handling is a plausible explanation, not an instrumented causal proof. Do not conflate this known conformance lead with the selected-declaration repair.
+6. Retain the unresolved registered-unit timing question and unfinished animation-taint/contextual-attr work. The unused-unit-fallback behavior is shared by installed Firefox and Chrome; no new bug or normative resolution is claimed. The CSSWG question remains a local draft.
+
+See the [candidate evidence](../css-prioritary-published-candidate-runtime-1/ROOT-SUMMARY.md), [publication subset](../css-prioritary-native-publication-plan-v1/README.md), [lineage finding](../css-prioritary-published-lineage-comparison-finding-v1/README.md), [Lean stability model](../css-selected-declaration-preparation-stability-model-v1/README.md), [LineHeight probe](../css-prioritary-line-height-probe-v1/README.md), [known test51 triage](../css-forced-color-scheme-51-triage-v1/README.md), and [committed work table](../css-branch-work-readout-20261030-v15/README.md).

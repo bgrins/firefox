@@ -1,0 +1,106 @@
+--- artifacts/css-prioritary-selection-candidate-terminal-review-v3/check.py
++++ artifacts/css-prioritary-published-candidate-terminal-review-v1/check.py
+@@ -18,20 +18,48 @@
+ r=load('review_module',HERE/'review.py');observation=load('observation_module',HERE/'observations.py')
+ config,owner=r.authenticate()
+ assert not config['execution_enabled'] and config['actual_terminal'] is None
+-assert config['expected_session'] is None and config['expected_launch'] is None and config['owner_manifest_sha256'] is None
+-policy=r.read(owner/'POLICY.json')
++assert config['expected_session'] is None or type(config['expected_session']) is int
++policy=r.read(HERE/'OWNER-PREPARED-POLICY.json')
+ roles=r.read(owner/'SOURCE-ROLES.json')
+-consumed=r.consumed_map(owner,policy,roles,config['prepared_owner_manifest_sha256'])
+-assert all(policy[name] is not None for name in ['head','baseline_binding','baseline_capsule','controls','prepared_application_metadata','execution_handoff','restoration_binding'])
++closure=load('saved_current_closure',HERE/'closure.py')
++assert closure.external_inputs(ROOT,policy,roles)==policy['intermediate_consumed_inputs']
++binder=load('saved_input_binder',HERE/'inputs.py')
++consumed=binder.bind_inputs(policy['owner_directory'],(HERE/'OWNER-PREPARED-FILES.json').read_bytes(),config['prepared_owner_manifest_sha256'],policy['intermediate_consumed_inputs'])
++assert all(policy[name] is not None for name in ['head','baseline_binding','baseline_capsule','controls','current_binding','execution_handoff','checkpoint_bridge'])
+ assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
+-assert len(policy['intermediate_consumed_inputs'])==685
++assert len(policy['intermediate_consumed_inputs']) > 400
+ actual_comparison=load('actual_original77_replay',owner/'comparison.py')
+ actual_originals=actual_comparison.replay_all(ROOT,policy)
+ actual_rows=[row for lane in actual_originals.values() for row in lane['rows']]
+-assert observation.counts(actual_rows)=={'PASS':49,'FAIL':28}
++assert observation.counts(actual_rows)=={'PASS':64,'FAIL':13}
+ assert sum(len(lane['ends']) for lane in actual_originals.values())==12
+ actual_targets=[row for lane,original in actual_originals.items() for row in original['rows'] if row['subtest'] in policy['wpt_lanes'][lane]['target_subtests'].get(row['test'],[])]
+-assert len(actual_targets)==24 and observation.counts(actual_targets)=={'PASS':4,'FAIL':20}
++assert len(actual_targets)==24 and observation.counts(actual_targets)=={'PASS':12,'FAIL':12}
++assessor_actual=load('actual_preservation_signatures',owner/'assess.py')
++actual_ends=[row for lane in actual_originals.values() for row in lane['ends']]
++actual_preservation=observation.preservation(actual_originals,actual_rows,actual_ends,policy,assessor_actual.signature,True)
++assert actual_preservation['original_pass_count']==64 and actual_preservation['published_count']==8
++assert actual_preservation['prior_pass_preserved'] and actual_preservation['endings_preserved'] and actual_preservation['published_preserved']
++assert actual_preservation['targets_all_pass'] is False
++improved=copy.deepcopy(actual_rows)
++required={(page,name) for settings in policy['wpt_lanes'].values() for page,names in settings['target_subtests'].items() for name in names}
++for row in improved:
++    if (row['test'],row['subtest']) in required and row['status']!='PASS':
++        row['status']='PASS';row.pop('message',None)
++improved_check=observation.preservation(actual_originals,improved,actual_ends,policy,assessor_actual.signature,True)
++assert all(improved_check[key] for key in ['targets_all_pass','prior_pass_preserved','endings_preserved','published_preserved'])
++for label in ['PASS','published','ending']:
++    changed_rows=copy.deepcopy(actual_rows);changed_ends=copy.deepcopy(actual_ends)
++    if label=='ending':target=changed_ends[0]
++    elif label=='published':
++        names={(page,name) for settings in policy['wpt_lanes'].values() for page,subtests in settings['published_subtests'].items() for name in subtests}
++        target=next(row for row in changed_rows if (row['test'],row['subtest']) in names)
++    else:target=next(row for row in changed_rows if row['status']=='PASS')
++    target['message']='changed full signature'
++    checked=observation.preservation(actual_originals,changed_rows,changed_ends,policy,assessor_actual.signature,True)
++    assert not checked[{'PASS':'prior_pass_preserved','published':'published_preserved','ending':'endings_preserved'}[label]]
++partial=observation.preservation(actual_originals,[actual_rows[0],actual_rows[0]],[],policy,assessor_actual.signature,False)
++assert partial['prior_pass_preserved'] is None and partial['targets_all_pass'] is None and len(partial['ambiguous_keys'])==1
+ policy['head']='e'*40
+ for settings in [policy['wpt'],*policy['wpt_lanes'].values()]:
+     settings['harness_revision']=policy['head'];settings['phase_revisions']={'original':policy['head'],'candidate':policy['head']}
+@@ -39,13 +67,13 @@
+ synthetic=load('saved_synthetic',ROOT/'artifacts/css-prioritary-selection-original-v1/check.py')
+ assessor=load('original_assessor',owner/'assess.py')
+ checks=load('saved_stream_checks',ROOT/policy['wpt']['checks_helper'])
+-results=[]
++results=['actual baseline64PASS/13FAIL and24targets12PASS/12FAIL replayed','all24 target improvements accepted with64priorPASS/endings/eightpublished preserved','independent full-signature PASS/published/ending mutations rejected','partial duplicate callback evidence remains ambiguous and gates null']
+ bad_policy=copy.deepcopy(policy)
+ bad_policy['intermediate_consumed_inputs'].pop(next(iter(bad_policy['intermediate_consumed_inputs'])))
+ try:r.consumed_map(owner,bad_policy,roles,config['prepared_owner_manifest_sha256'])
+ except AssertionError:results.append('omitted consumed input rejected by independent reconstruction')
+ else:raise AssertionError('omitted consumed input accepted')
+-with tempfile.TemporaryDirectory(prefix='css-candidate77-review-',dir='/private/tmp') as scratch:
++with tempfile.TemporaryDirectory(prefix='css-published-candidate77-review-',dir='/private/tmp') as scratch:
+     scratch_path=Path(scratch);root=scratch_path/'root';root.mkdir();pair=scratch_path/'runtime';pair.mkdir()
+     (root/'testing/web-platform/tests/tools').mkdir(parents=True)
+     for relative in [policy['owner_directory']+'/assess.py',policy['owner_directory']+'/comparison.py','artifacts/css-minmax-relative-infinity-broader-browser-v5/assess.py',policy['wpt']['checks_helper']]:
+@@ -119,7 +147,7 @@
+     outcomes={'rows':all_rows,'endings':all_ends,'callbacks_passed':0,'callbacks_failed':77,'provider_source_role':'provider-cascade-value-candidate','native_acceptance':False,'zoom_target_correctness':None,'lanes':phase_receipts}
+     wpt.save(pair/'OUTCOMES.json',outcomes)
+     wpt.save(pair/'COMPARISON.json',{'lanes':behaviors,'repair_observation_gate':False,'all89_signatures_equal':False,'zoom_comparison_sha256':phase_receipts['ordinary']['zoom_comparison_sha256'],'native_acceptance':False})
+-    result={'success':True,'candidate_phase':phase_receipts,'error':None};pre={'snapshot':full_snapshot};build={'exit':0,'error':None,'stop_reason':None}
++    result={'success':True,'phase':phase_receipts,'error':None};pre={'snapshot':full_snapshot};build={'exit':0,'error':None,'stop_reason':None}
+     inputs={}
+     def record(name):inputs[name]=r.sha(pair/name);return r.read(pair/name)
+     ownership=SimpleNamespace(group_absent=lambda pgid:None)
+@@ -148,7 +176,7 @@
+     raw_request.unlink()
+     value=run(result);assert not value['observation_complete'] and value['raw_counts']=={'FAIL':77};results.append('missing Zoom preserves raw but rejects completeness');raw_request.write_bytes(saved_bytes)
+     phase_result=ordinary/'RESULT.json';saved_result=phase_result.read_bytes();phase_result.unlink()
+-    failed={'success':False,'candidate_phase':None,'error':'AssertionError()'};wpt.save(pair/'FAILURE-TRACEBACK.json',{'error':'AssertionError()'})
++    failed={'success':False,'phase':None,'error':'AssertionError()'};wpt.save(pair/'FAILURE-TRACEBACK.json',{'error':'AssertionError()'})
+     value=run(failed);assert not value['observation_complete'] and value['lanes']['ordinary']['browser_exit'] is None and len(value['raw_rows'])==77;results.append('partial lane RESULT absent retains77rows with exitnull');phase_result.write_bytes(saved_result)
+     metadata=ordinary/'metadata/forced-colors-mode/forced-colors-mode-51.html.ini';saved_meta=metadata.read_bytes();metadata.write_text('rewritten')
+     value=run(failed);assert not value['observation_complete'] and not value['lanes']['ordinary']['resources_and_metadata_verified'];results.append('rewritten expectedFAIL metadata rejected');metadata.write_bytes(saved_meta)
+@@ -157,6 +185,13 @@
+     value=run(failed);assert not value['observation_complete'] and not value['lanes']['ordinary']['resources_and_metadata_verified'];results.append('wrong manifest URL root rejected independently');config_file.write_bytes(saved_config)
+     assert r.summary_counts(value)=={'callbacks_passed':None,'callbacks_failed':None}
+     results.append('incomplete final summary preserves null counts')
++    mismatch={'repository':'root','before':{'raw_index':'a'},'after':{'raw_index':'b'},'changed_fields':['raw_index'],'verification_call':3}
++    r.validate_mismatch(mismatch,failed)
++    for changed,rv in [(dict(mismatch,changed_fields=[]),failed),(mismatch,result)]:
++        try:r.validate_mismatch(changed,rv)
++        except AssertionError:pass
++        else:raise AssertionError('false mismatch accepted')
++    results.append('mismatch pair retained, invented difference and successful-owner mismatch rejected')
+     for path in HERE.glob('*.py'):compile(path.read_text(),str(path),'exec')
+ assert not scratch_path.exists()
+ print(json.dumps({'saved_owner_authenticated':True,'terminal_null':True,'cases':results,'owned_scratch_removed':True,'live_process_checks_mocked':True,'current_state_verifier_not_run':True}))

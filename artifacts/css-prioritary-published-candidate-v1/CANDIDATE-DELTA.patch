@@ -1,0 +1,76 @@
+--- a/run.py
++++ b/candidate.py
+@@ -24,6 +24,12 @@
+     module = importlib.util.module_from_spec(spec)
+     spec.loader.exec_module(module)
+     return module
++
++
++def expected_modified_paths(existing, roles, head_pins):
++    assert set(roles) <= set(head_pins)
++    changed = {name for name, role in roles.items() if role['candidate_sha256'] != head_pins[name]}
++    return sorted((set(existing) - set(roles)) | changed)
+ 
+ 
+ def main():
+@@ -45,6 +51,11 @@
+     closure.require_epoch_coverage(original, policy)
+     consumed_inputs = input_binding.bind_inputs(str(HERE.relative_to(ROOT)), (HERE / 'FILES.json').read_bytes(), sys.argv[2], policy['intermediate_consumed_inputs'])
+     assert original_before == baseline.current_capture(policy)["snapshot"]
++    comparison = load('published_baseline_replay', str((HERE / 'comparison.py').relative_to(ROOT)))
++    comparison.replay_all(ROOT, policy)
++    assert baseline.current_capture(policy)['snapshot'] == original_before
++    for lane in policy['lane_order']:
++        ownership.group_absent(read(ROOT / policy['baseline_binding']['directory'] / ('original-wpt-' + lane) / 'PROCESS.json')['pgid'])
+     output = ROOT / policy['runtime_output']
+     assert output.parent == ROOT / 'artifacts' and not output.exists() and not output.is_symlink()
+     output.mkdir()
+@@ -82,7 +93,7 @@
+     size = sum(record['size'] for record in app_before.values() if record['kind'] == 'file') + sum(record['size'] for record in extra_before.values())
+     free = lambda: os.statvfs(ROOT).f_bavail * os.statvfs(ROOT).f_frsize
+     assert free() - size >= 27 * 1024**3
+-    state.save(output / 'BUILD-PRE.json', {'snapshot': before, 'controls': policy['controls'], 'sources': {name: dict(roles[name], identity=claim['identity']) for name, claim in claims.items()}, 'owned_backup_bytes': size})
++    state.save(output / 'CANDIDATE-PRE.json', {'snapshot': before, 'controls': policy['controls'], 'sources': {name: dict(roles[name], identity=claim['identity']) for name, claim in claims.items()}, 'owned_backup_bytes': size})
+     state.save(output / 'APP-PRE.json', app_before)
+     state.save(output / 'EXTRA-PRE.json', extra_before)
+     backups = output / 'backups'
+@@ -98,7 +109,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'prioritary-published-original77-v1'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'prioritary-published-candidate77-v1'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+@@ -125,8 +136,7 @@
+         for name, record in roles.items():
+             assert sha(ROOT / name) == record['candidate_sha256']
+             local['pins'][name] = record['candidate_sha256']
+-        local['modified_native_paths'] = sorted(name for name in state.h.git(ROOT, env, 'diff', '--name-only').decode().splitlines() if not name.startswith('artifacts/'))
+-        assert local['modified_native_paths'] == []
++        local['modified_native_paths'] = expected_modified_paths(epoch['modified_native_paths'], roles, policy['committed_source_preimages'])
+         local['counts']['native_modified_paths'] = len(local['modified_native_paths'])
+         assert binaries and set(binaries) == set(policy['rebuilt_binaries'])
+         for name, pin in binaries.items():
+@@ -150,8 +160,9 @@
+         stable_controls()
+         for name in roles:
+             touched.append(name)
+-            assert bases[name] == candidates[name] and sha(ROOT / name) == roles[name]["base_sha256"]
+-        build = output / 'original-build'
++            if bases[name] != candidates[name]:
++                ownership.write_owned(ROOT, claims[name], candidates[name])
++        build = output / 'candidate-build'
+         build.mkdir()
+         command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'build', 'binaries', '-j2']
+         state.save(build / 'COMMAND.json', {'command': command, 'source_sha256': {name: sha(ROOT / name) for name in roles}, 'owner_manifest': sys.argv[2]})
+@@ -218,7 +229,7 @@
+     state.save(output / 'BACKUP-CLEANUP.json', {'removed': success and not backups.exists(), 'verified_original_restoration': True, 'owned_backup_bytes': size, 'retained_after_failure': not success})
+     assert (lock.stat().st_dev, lock.stat().st_ino) == lock_identity
+     lock.unlink()
+-    state.save(output / 'RESULT.json', {'success': success, 'error': failure, 'publication_errors': errors, 'phase': phase_result, 'provider_source_role': policy['provider_source_role'], 'build_revision': policy['head'], 'restoration_verified': True, 'runtime_controls_unchanged': True, 'empty_staging_preserved': True, 'native_fix_acceptance': False, 'full_epoch_copies_saved': 0, 'success_scope': 'build, complete observation and restoration; callback PASS is separate'})
++    state.save(output / 'CANDIDATE-RESULT.json', {'success': success, 'error': failure, 'publication_errors': errors, 'phase': phase_result, 'provider_source_role': policy['provider_source_role'], 'build_revision': policy['head'], 'restoration_verified': True, 'runtime_controls_unchanged': True, 'empty_staging_preserved': True, 'native_fix_acceptance': False, 'full_epoch_copies_saved': 0, 'success_scope': 'build, complete observation and restoration; callback PASS is separate'})
+     assert success, failure
+     print('Activation paired observation complete; original source and application restored', flush=True)
+ 

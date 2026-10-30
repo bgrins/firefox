@@ -1,0 +1,71 @@
+--- a/registered-prioritary-selection.tentative.html
++++ b/registered-prioritary-selection.tentative.html
+@@ -5,13 +5,12 @@
+ <link rel="help" href="https://drafts.csswg.org/css-cascade-5/#cascade-sort">
+ <script src="/resources/testharness.js"></script>
+ <script src="/resources/testharnessreport.js"></script>
+-<script src="/__research__/zoom/record.js"></script>
+ <body>
+ <pre id="observations" hidden></pre>
+ <script>
+ window.prioritaryObservations = [];
+ for (const kind of ["winning-variable", "fallback-revert", "fallback-revert-layer",
+-  "fallback-revert-rule", "active-cycle", "font-family-ordering", "writing-mode-ordering", "zoom-observation"]) {
++  "fallback-revert-rule", "active-cycle", "font-family-ordering", "writing-mode-ordering"]) {
+   promise_test(async t => {
+     const frame = document.createElement("iframe");
+     t.add_cleanup(() => frame.remove());
+@@ -27,7 +26,7 @@
+     const initial = win.getComputedStyle(target).getPropertyValue("--actual").trim();
+     const sheet = doc.createElement("style");
+     doc.head.append(sheet);
+-    const row = {kind, initial, phases: [], diagnosticOnly: kind === "zoom-observation"};
++    const row = {kind, initial, phases: []};
+     window.prioritaryObservations.push(row);
+     for (const phase of [0, 1]) {
+       const parentFont = phase === 0 ? 11 : 17;
+@@ -69,16 +68,10 @@
+           rules = `.target { font-size:${size}px; line-height:${line}px; writing-mode:var(--actual) }`;
+           expected = `${line}px`;
+           break;
+-        case "zoom-observation":
+-          value = "1em";
+-          rules = `.target { font-size:${size}px; zoom:calc(var(--actual) / 1px) }`;
+-          expected = null;
+-          expectedFont = null;
+-          break;
+       }
+       sheet.textContent = `#parent { font-size:${parentFont}px; line-height:19px; font-family:monospace; writing-mode:horizontal-tb }
+         .target { --actual:${value} }
+-        #reference { font-size:${size}px; width:${size * 2}px; line-height:${line}px; zoom:1 }
++        #reference { font-size:${size}px; width:${size * 2}px; line-height:${line}px; }
+         ${rules}`;
+       const samples = [win.getComputedStyle(target).getPropertyValue("--actual").trim()];
+       for (let index = 0; index < 3; index++) {
+@@ -88,24 +81,17 @@
+       const actual = win.getComputedStyle(target);
+       const control = win.getComputedStyle(reference);
+       row.phases.push({phase, value, samples, expected, expectedFont, font:actual.fontSize,
+-        line:actual.lineHeight, family:actual.fontFamily, writingMode:actual.writingMode, zoom:actual.zoom,
++        line:actual.lineHeight, family:actual.fontFamily, writingMode:actual.writingMode,
+         referenceFont:control.fontSize, referenceWidth:control.width, size,
+-        keywordSupported: !kind.startsWith("fallback-") || win.CSS.supports("font-size", kind.slice(9)),
+-        zoomSyntaxSupported: win.CSS.supports("zoom", "calc(20px / 1px)")});
++        keywordSupported: !kind.startsWith("fallback-") || win.CSS.supports("font-size", kind.slice(9))});
+       document.getElementById("observations").textContent = JSON.stringify(window.prioritaryObservations);
+     }
+-    if (row.diagnosticOnly) await window.capturePrioritaryZoom(row);
+     const diagnostic = JSON.stringify(row);
+     assert_equals(initial, "0px", `Registration calibration: ${diagnostic}`);
+     for (const phase of row.phases) {
+       assert_true(phase.keywordSupported, `Rollback syntax: ${diagnostic}`);
+       assert_equals(phase.referenceFont, `${phase.size}px`, `Literal font calibration: ${diagnostic}`);
+       assert_equals(phase.referenceWidth, `${phase.size * 2}px`, `Literal length calibration: ${diagnostic}`);
+-      if (row.diagnosticOnly) {
+-        assert_true(phase.zoomSyntaxSupported, `Zoom syntax calibration: ${diagnostic}`);
+-        assert_equals(phase.samples.length, 4, `Diagnostic collection only: ${diagnostic}`);
+-        continue;
+-      }
+       assert_equals(phase.font, phase.expectedFont, `Effective font size: ${diagnostic}`);
+       if (kind === "font-family-ordering") assert_equals(phase.family, "monospace", diagnostic);
+       if (kind === "writing-mode-ordering") assert_equals(phase.writingMode, "horizontal-tb", diagnostic);

@@ -1,0 +1,48 @@
+--- a/baseline.py
++++ b/baseline.py
+@@ -22,6 +22,16 @@
+     return module
+ 
+ 
++def owner_terminal(directory, binding, capsule):
++    terminal_path = directory / binding['terminal_path']
++    assert sha(terminal_path) == binding['terminal_sha256']
++    terminal = read(terminal_path)
++    assert terminal == binding['terminal'] and terminal['exit'] == 0
++    assert terminal['result_sha256'] == binding['result_sha256']
++    assert sha(ROOT / capsule['directory'] / 'FILES.json') == capsule['sha256']
++    return terminal
++
++
+ def current_capture(policy):
+     binding = policy['current_binding']
+     assert binding and sha(ROOT / binding['path']) == binding['sha256']
+@@ -40,7 +50,7 @@
+ def require_ready(policy):
+     assert policy['execution_enabled'] and policy['candidate_execution_enabled']
+     assert policy['activation_pending'] == []
+-    assert policy['current_binding'] is not None
++    assert policy['current_binding'] is not None and policy['baseline_binding'] is not None and policy['execution_handoff'] is not None
+     load('published_checks', str((HERE / 'check.py').relative_to(ROOT))).validate_policy(policy)
+ 
+ 
+@@ -90,7 +100,7 @@
+         assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()
+     sources = {}
+     for name, record in roles.items():
+-        assert record['base_sha256'] == record['candidate_sha256'] == epoch['pins'][name]
++        assert record['base_sha256'] == epoch['pins'][name]
+         sources[name] = ownership.claim(ROOT, name, record['base_sha256'], epoch['installed_identities'][name])
+         assert hashlib.sha256(state.h.git(ROOT, env, 'show', checkpoint['head'] + ':' + name)).hexdigest() == record['base_sha256']
+     for name, pin in policy['source_context_pins'].items():
+@@ -109,6 +119,10 @@
+     capture = current_capture(policy)
+     state, env, controls, epoch, role, sources, flags, snapshot = observe(policy, ownership, roles, capture['checkpoint'])
+     assert {name: hashlib.sha256(body).hexdigest() for name, body in controls.items()} == policy['controls'] == capture['controls']
++    assert state.h.git(ROOT, env, 'rev-parse', policy['head'] + '^').decode().strip() == policy['baseline_head']
++    changed = state.h.git(ROOT, env, 'diff-tree', '--no-commit-id', '--name-only', '-r', policy['head']).decode().splitlines()
++    assert sorted(changed) == policy['checkpoint_bridge']['committed_paths']
++    state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', policy['head'])
+     assert snapshot == capture['snapshot'] and sources == capture['sources'] and role == capture['role']
+     assert epoch['pins'] == capture['epoch_payload_pins']
+     assert epoch['installed_identities'] == capture['installed_identities']

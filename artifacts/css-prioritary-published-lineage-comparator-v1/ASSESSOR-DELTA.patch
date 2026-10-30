@@ -1,0 +1,56 @@
+--- artifacts/css-minmax-relative-infinity-broader-browser-v5/assess.py
++++ artifacts/css-prioritary-published-lineage-comparator-v1/assess.py
+@@ -23,6 +23,18 @@
+             and isinstance(binding.get("harness_revision"), str) and len(binding["harness_revision"]) == 40
+             and binding.get("build_revision") == binding["revision"]
+             and run_info.get("revision") == binding["harness_revision"])
++
++
++def bound_phase(run_info, binding, policy, role):
++    if role not in ("original", "candidate") or not bound_run_info(run_info, binding):
++        return False
++    lineage = policy.get("phase_lineages", {}).get(role)
++    expected = policy.get("phase_metadata", {}).get(role)
++    return (isinstance(lineage, dict) and binding == expected
++            and binding.get("source_role") == role
++            and binding.get("revision") == binding.get("build_revision") == lineage.get("build_revision")
++            and binding.get("revision") == policy.get("phase_revisions", {}).get(role)
++            and binding.get("harness_revision") == lineage.get("harness_revision"))
+ 
+ 
+ def assess(events, code, policy, checks, original=None, run_binding=None):
+@@ -80,7 +92,9 @@
+     run_info = suites[0].get("run_info") if len(suites) == 1 else None
+     if not isinstance(run_info, dict) or not {"os", "debug"} <= set(run_info):
+         errors.append("missing platform/build run_info")
+-    if not isinstance(run_binding, dict) or run_binding.get("harness_revision") != policy["harness_revision"] or run_binding.get("build_revision") != policy["phase_revisions"].get(run_binding.get("source_role")):
++    if (not isinstance(run_binding, dict)
++            or not bound_phase(run_info, run_binding, policy, run_binding.get("source_role"))
++            or run_binding.get("harness_revision") != policy["harness_revision"]):
+         errors.append("independent harness HEAD or application build lineage mismatch")
+     if not bound_run_info(run_info, run_binding):
+         errors.append("run_info BuildID/revision not bound to phase application metadata and epoch")
+@@ -122,15 +136,16 @@
+             comparison_errors.append("regression identities/status/expectations/intermittents changed")
+         if not bound_run_info(original.get("run_info"), original.get("run_binding")):
+             comparison_errors.append("original run_info lacks matching metadata/epoch binding")
+-        if isinstance(run_binding, dict) and isinstance(original.get("run_binding"), dict):
+-            if (original["run_binding"].get("revision") != policy["phase_revisions"]["original"] or
+-                    run_binding.get("revision") != policy["phase_revisions"]["candidate"]):
+-                comparison_errors.append("phase revision differs from authenticated build lineage")
++        pair_bound = (bound_phase(original.get("run_info"), original.get("run_binding"), policy, "original")
++                      and bound_phase(run_info, run_binding, policy, "candidate"))
++        if not pair_bound:
++            comparison_errors.append("phase metadata differs from authenticated per-role build/harness lineage")
+         if isinstance(run_info, dict) and isinstance(original.get("run_info"), dict):
+-            current_stable = {k: v for k, v in run_info.items() if k != "browser_build_id"}
+-            original_stable = {k: v for k, v in original["run_info"].items() if k != "browser_build_id"}
++            ignored = {"browser_build_id", "revision"} if pair_bound else {"browser_build_id"}
++            current_stable = {k: v for k, v in run_info.items() if k not in ignored}
++            original_stable = {k: v for k, v in original["run_info"].items() if k not in ignored}
+             if current_stable != original_stable:
+-                comparison_errors.append("run_info changed outside the independently bound BuildID")
++                comparison_errors.append("run_info changed outside independently bound phase metadata")
+         current_rows = {(r.get("test"), r.get("subtest")): signature(r) for r in rows}
+         for row in original.get("rows", []):
+             if row.get("status") == "PASS" and current_rows.get((row.get("test"), row.get("subtest"))) != signature(row):

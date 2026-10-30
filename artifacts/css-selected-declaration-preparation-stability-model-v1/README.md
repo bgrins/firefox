@@ -1,0 +1,23 @@
+# Stability of prepared declaration selection
+
+The existing selected-declaration model already proves that terminal/blocked evaluation ignores every lower declaration, and that evaluated rollback reads remain. The new gap is agreement between a prepared selection and application after intervening dependency work. Merely checking that retained declarations are still eligible is weaker than checking the selection decisions that produced that list.
+
+`Stability.lean` imports the unchanged `Selection.scan`; it does not add a second cascade or fallback evaluator. Its arbitrary-list theorem `scan_eq_of_reached_agreement` proves equality of the complete result, evaluated-declaration list and read trace between two scans when eligibility agrees at every visited state/declaration pair, and evaluation agrees only at eligible visited pairs. The visited decision trace includes skipped candidates, follows the returned rollback state, and stops at terminal or blocked evaluation. Evaluation of skipped or unvisited declarations need not agree. `unvisited_evaluator_may_change` demonstrates that this is weaker than global equality of the evaluators, for an arbitrary suffix.
+
+The premise requires equality of each eligible evaluation's complete result, including rollback state and read list. It is not a proof that two CSS contexts satisfying a smaller set of field equalities meet that premise. `visited` is an abstract decision trace, not a claim that skipped declarations contribute CSS dependency edges. The functions are deterministic; changes in context are represented by changing the eligibility/evaluation functions while keeping the model's rollback-state representation fixed.
+
+Two concrete witnesses reject weaker arguments. First, a higher candidate is initially gated out and a lower literal is retained; all retained entries remain eligible, but enabling the skipped candidate changes both value and reads. This is Appearance-shaped, not evidence that the current Rust patch permits this transition. Second, unchanged eligibility does not permit re-evaluating an adjustment that previously produced rollback: the terminal result and subsequent reads change. Three independently compiled false propositions reject equality in these two witnesses and the claim that a skipped higher candidate was not visited.
+
+## Connection to the frozen repair
+
+`SOURCE-MAP.json` quotes exact portions of the cascade-only published-base patch. Before application, `apply_prepared_priority` ensures generated computation prerequisites and debug-asserts eligibility of retained entries. Those assertions alone do not establish stability of previously skipped entries. The actual traversal additionally visits Appearance for a reached otherwise-eligible gated entry, then rechecks eligibility; it excludes the Appearance self-dependency. That is a concrete mechanism intended to establish the premise, not something this model proves complete. Skipped-entry exclusion due to rollback, seen state and other flags also needs correspondence.
+
+For forced-color adjustment, the patch retains owned substituted input, visits the conditional ForcedColorAdjust prerequisite, then adjusts once and stores the adjusted declaration plus deferred effects. Application consumes that stored result without repeating substitution or adjustment. This is consistent with the second witness, but the theorem does not model Rust ownership, deferred accumulator effects, cache bookkeeping, generated scheduling, lowlinks, SCC invalidation or default publication. An actual repair proof must also show that prerequisite work between preparation and application cannot invalidate the visited decisions. No native counterexample has been established here.
+
+This is a bounded abstract extension, not native refinement, a new observed bug, candidate acceptance, or an accepted-fix increment. Existing rollback parsing and eligibility contracts remain premises. The complete fresh published-base candidate comparison is still required.
+
+## Actual verification
+
+Pinned Lean4.35.0-rc4 compiled the existing seven imported source files and this extension in owned scratch. Actual session88282 (launch e0b460, terminal7db56e, exit0) audited four theorems using only `propext` or no axioms, and rejected all three semantic false controls. The new source compiled without warnings; inherited dependency diagnostics are retained. Scratch was removed and no canonical/native source was written. `run1` preserves exact compiled sources, commands, diagnostics and hashes. The existing small replay script was adapted; no browser or execution owner was added.
+
+To replay with a fresh output name: `python3 -I -S -B artifacts/css-selected-declaration-preparation-stability-model-v1/replay.py run2`.

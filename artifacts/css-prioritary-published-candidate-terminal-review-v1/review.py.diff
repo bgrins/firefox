@@ -1,0 +1,76 @@
+--- artifacts/css-prioritary-published-original-terminal-review-v1/review.py
++++ artifacts/css-prioritary-published-candidate-terminal-review-v1/review.py
+@@ -35,8 +35,8 @@
+     assert metadata == metadata_after
+     assert metadata["revision"] == metadata["build_revision"] == policy["head"]
+     assert metadata["harness_revision"] == policy["wpt"]["harness_revision"] == policy["head"]
+-    assert metadata["source_role"] == "original"
+-    assert policy["wpt"]["phase_revisions"]["original"] == policy["head"]
++    assert metadata["source_role"] == "candidate"
++    assert policy["wpt"]["phase_revisions"]["candidate"] == policy["head"]
+     assert all(snapshot == built["snapshot"] for snapshot in snapshots) and len(snapshots) >= 3
+     assert binaries == built["binaries"] and set(binaries) == set(policy["rebuilt_binaries"])
+     assert built["browser_build_performed"]
+@@ -44,7 +44,6 @@
+     scope.require_intermediate(built["snapshot"], consumed_inputs)
+     scope.require_full(pre["snapshot"])
+     assert built["snapshot"]["current_raw_stable_during_check"]
+-    assert built["snapshot"]["index"]["working_diff"] == hashlib.sha256(b"").hexdigest()
+     assert built["snapshot"]["nested_index"] == pre["snapshot"]["nested_index"]
+     for key in ("head", "entries", "cached_diff"):
+         assert built["snapshot"]["index"][key] == pre["snapshot"]["index"][key]
+@@ -122,12 +121,12 @@
+         assert path.is_file() and not path.is_symlink()
+         inputs[name] = sha(path)
+         return read(path)
+-    result = record("RESULT.json")
+-    assert inputs["RESULT.json"] == terminal["result_sha256"]
++    result = record("CANDIDATE-RESULT.json")
++    assert inputs["CANDIDATE-RESULT.json"] == terminal["result_sha256"]
+     assert result["success"] == (terminal["exit"] == 0)
+     assert result["restoration_verified"] and result["runtime_controls_unchanged"] and result["empty_staging_preserved"]
+     assert result["native_fix_acceptance"] is False and result["publication_errors"] == []
+-    assert result["provider_source_role"] == "published-color-image-original"
++    assert result["provider_source_role"] == "published-baseline-prioritary-candidate"
+     assert (result["error"] is None) == result["success"]
+     baseline = load("terminal_baseline", here / "baseline.py")
+     policy, ownership, roles = baseline.prepare(config["owner_manifest_sha256"])
+@@ -140,12 +139,13 @@
+     assert result["build_revision"] == policy["head"] == capture["checkpoint"]["head"]
+     assert set(roles) == set(capture["sources"]) == set(read(here / "SOURCE-ROLES.json"))
+     for name, role in roles.items():
+-        assert role["base_sha256"] == role["candidate_sha256"] == capture["sources"][name]["owned_sha256"]
++        assert role["base_sha256"] == capture["sources"][name]["owned_sha256"]
++    assert {name for name, role in roles.items() if role["base_sha256"] != role["candidate_sha256"]} == {"servo/components/style/properties/cascade.rs"}
+     assert policy["source_context_pins"]["servo/components/style/values/generics/calc.rs"] == capture["epoch_payload_pins"]["servo/components/style/values/generics/calc.rs"]
+     state = load("terminal_state", ROOT / policy["state_helper"])
+     bundle = load("terminal_bundle", ROOT / policy["bundle_helper"])
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1")
+-    pre = record("BUILD-PRE.json")
++    pre = record("CANDIDATE-PRE.json")
+     restoration = record("RESTORATION.json")
+     backup = record("BACKUP-CLEANUP.json")
+     inventory = record("BACKUPS.json")
+@@ -156,17 +156,17 @@
+     admission = capture
+     for name, role in roles.items():
+         assert pre["sources"][name] == dict(role, identity=admission["sources"][name]["identity"])
+-    build = record("original-build/build-RESULT.json")
+-    command = record("original-build/COMMAND.json")
++    build = record("candidate-build/build-RESULT.json")
++    command = record("candidate-build/COMMAND.json")
+     assert command["owner_manifest"] == config["owner_manifest_sha256"]
+     assert command["source_sha256"] == {name: role["candidate_sha256"] for name, role in roles.items()}
+     assert command["command"] == ["/Users/bgrins/venvs/firefox/bin/python", "./mach", "build", "binaries", "-j2"]
+     assert build["owned_group_absent"] and build["cleanup_errors"] == []
+     for name in ("build", "wake"):
+-        assert record("original-build/" + name + "-GROUP-CLEANUP.json")["owned_group_absent"]
+-    assert record("original-build/WAKE-RESULT.json")["owned_group_absent"]
++        assert record("candidate-build/" + name + "-GROUP-CLEANUP.json")["owned_group_absent"]
++    assert record("candidate-build/WAKE-RESULT.json")["owned_group_absent"]
+     for name in ("build-PROCESS.json", "WAKE-PROCESS.json"):
+-        ownership.group_absent(record("original-build/" + name)["pgid"])
++        ownership.group_absent(record("candidate-build/" + name)["pgid"])
+     mismatch = record("INTERMEDIATE-INDEX-MISMATCH.json") if (pair / "INTERMEDIATE-INDEX-MISMATCH.json").exists() else None
+     validate_mismatch(mismatch, result)
+     lane_review = load("published_observation_review", HERE / "observations.py")

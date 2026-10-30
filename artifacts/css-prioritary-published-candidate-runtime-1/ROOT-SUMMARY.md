@@ -1,0 +1,9 @@
+# Published-source cascade candidate
+
+Actual owner 70364/ee9196/d8ef1a/0 built the cascade-only a6f4 candidate at signed e5677cd6. Build exit 0; all 77 callbacks and 12 endings completed: ordinary 68 PASS / 0 FAIL, forced colors 2 PASS / 1 known FAIL, Appearance 6 PASS / 0 FAIL. The candidate improves all 12 failing baseline selection targets. Independent review 7487/8bce15/52a045/0 verifies all 24 targets PASS, all 64 prior PASS signatures, all 12 endings and all eight published color/image case signatures unchanged. Genuine Zoom samples are unchanged; numerical correctness remains unset.
+
+The recorded repair comparison gate is false in every lane. Its only errors are the original-phase revision and run_info revision checks: the lower comparator assumes one revision despite the authenticated artifact-only V88-to-V89 transition. ROOT-METADATA-DIFF.json records that each lane differs only in independently bound BuildID and harness revision. The original false gate is preserved. The separate lineage finding proposes a correction; it is not retroactively applied to this run.
+
+Source, application, flags, archived payloads and semantic index restoration were independently verified. The owner removed its 1,008,605,176-byte backup. Raw index bytes changed, so a separately verified raw-index observation refresh is required before further canonical work. This does not diagnose the older missing intermediate mismatch. No mismatch occurred in this run.
+
+The restored application remains the historical build and ROLE remains built:false. This is native experiment evidence, not a new published fix. Before promotion: correct the revision comparator, validate exact extracted publication WPT bytes on both source roles, run the separate four-case LineHeight probe on both roles, and review the resulting native/WPT patch. The committed fix count remains 153.
