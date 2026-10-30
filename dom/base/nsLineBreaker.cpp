@@ -246,6 +246,23 @@ nsresult nsLineBreaker::FlushCurrentWord() {
   return NS_OK;
 }
 
+static void ApplyBreakSuppression(uint8_t* aBreaks, uint32_t aOffset,
+                                  uint32_t aLength, uint32_t aFlags) {
+  if (!aLength) {
+    return;
+  }
+  if (!aOffset) {
+    if (aFlags & nsLineBreaker::BREAK_SUPPRESS_INITIAL) {
+      *aBreaks = gfxTextRun::CompressedGlyph::FLAG_BREAK_TYPE_NONE;
+    }
+    ++aBreaks;
+    --aLength;
+  }
+  if (aFlags & nsLineBreaker::BREAK_SUPPRESS_INSIDE) {
+    memset(aBreaks, gfxTextRun::CompressedGlyph::FLAG_BREAK_TYPE_NONE, aLength);
+  }
+}
+
 // If the aFlags parameter to AppendText has all these bits set,
 // then we don't need to worry about finding break opportunities
 // in the appended text.
@@ -410,6 +427,8 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
 
   if (aSink) {
     if (!noBreaksNeeded) {
+      ApplyBreakSuppression(breakState.Elements() + start, start,
+                            offset - start, aFlags);
       aSink->SetBreaks(start, offset - start, breakState.Elements() + start);
     }
     if (!noCapitalizationNeeded) {
@@ -665,6 +684,8 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
   }
 
   if (!noBreaksNeeded) {
+    ApplyBreakSuppression(breakState.Elements() + start, start, offset - start,
+                          aFlags);
     aSink->SetBreaks(start, offset - start, breakState.Elements() + start);
   }
   return NS_OK;
