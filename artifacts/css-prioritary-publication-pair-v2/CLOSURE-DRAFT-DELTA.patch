@@ -1,0 +1,23 @@
+--- a/closure.py
++++ b/closure.py
+@@ -9,7 +9,7 @@
+         assert not Path(path).is_absolute() and '..' not in Path(path).parts
+         assert path not in result or result[path] == pin
+         result[path] = pin
+-    for key in ('suite_binding', 'diagnostic_binding', 'assessor_binding', 'prerequisite_binding', 'capture_owner'):
++    for key in ('suite_binding', 'diagnostic_binding', 'assessor_binding', 'prerequisite_binding', 'capture_owner', 'supplement_binding'):
+         binding = policy[key]
+         path = root / binding['directory'] / 'FILES.json'
+         assert hashlib.sha256(path.read_bytes()).hexdigest() == binding['manifest_sha256']
+@@ -25,7 +25,10 @@
+                 add(record['path'], record['sha256'])
+         for records in settings['metadata'].values():
+             for record in records.values():
+-                add(record['path'], record['sha256'])
++                if record['path'] is not None:
++                    add(record['path'], record['sha256'])
++                else:
++                    assert record['sha256'] is None and record['require_absent_in_staged_root'] is True
+         add(settings['server_config']['path'], settings['server_config']['sha256'])
+         if settings['capture'] is not None:
+             add(settings['capture']['path'], settings['capture']['sha256'])

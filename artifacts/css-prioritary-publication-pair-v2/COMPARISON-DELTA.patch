@@ -1,0 +1,229 @@
+--- a/comparison.py
++++ b/comparison.py
+@@ -3,151 +3,97 @@
+ import importlib.util
+ import json
+ 
+-read = lambda path: json.loads(path.read_bytes())
+-sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
++read=lambda p:json.loads(p.read_bytes())
++sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+ 
+ 
+-def load(name, path):
+-    spec = importlib.util.spec_from_file_location(name, path)
+-    module = importlib.util.module_from_spec(spec)
+-    spec.loader.exec_module(module)
++def load(name,path):
++    spec=importlib.util.spec_from_file_location(name,path)
++    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+     return module
+ 
+ 
+-def phase_policy(settings):
+-    result = dict(settings, tests={page:'testharness' for page in settings['expected_subtests']}, held_subtests={})
+-    result['regression_subtests'] = {page:[name for name in names if name not in settings['target_subtests'].get(page,[])] for page,names in settings['expected_subtests'].items()}
+-    result['cardinality_description'] = 'Exact sealed target and control names; existing control failures retain full signatures.'
++def build_binding(root,here,output,policy,role):
++    assert role in ('original','candidate')
++    assert here == root / policy['owner_directory']
++    directory=output/(role+'-build')
++    build=read(directory/'RESULT.json')
++    assert build['command_success'] and build['preservation_verified'] and build['browser_build_performed'] and build['error'] is None
++    inner=read(directory/'build-RESULT.json')
++    assert inner['exit']==0 and inner['owned_group_absent'] and inner['cleanup_errors']==[] and inner['error'] is None and inner['stop_reason'] is None
++    command=read(directory/'COMMAND.json')
++    assert command['command'] == ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'build', 'binaries', '-j2']
++    assert command['owner_manifest']==sha(here/'FILES.json') and command['source_role']==role
++    roles=read(here/'SOURCE-ROLES.json')
++    expected={name:row['base_sha256' if role=='original' else 'candidate_sha256'] for name,row in roles.items()}
++    assert command['source_sha256']==build['native_sources']==expected
++    assert set(build['binaries'])==set(policy['rebuilt_binaries'])
++    metadata=build['application_metadata']
++    assert metadata['source_role']==role
++    assert metadata['revision']==metadata['build_revision']==metadata['harness_revision']==policy['head']
++    assert len(metadata['sha256'])==64 and metadata['browser_build_id']
++    closure=load('pair_consumed_closure',here/'closure.py')
++    inputs=load('pair_input_binding',here/'inputs.py')
++    external=closure.external_inputs(root,policy,roles)
++    assert external==policy['intermediate_consumed_inputs']
++    effective=inputs.bind_inputs(policy['owner_directory'],(here/'FILES.json').read_bytes(),sha(here/'FILES.json'),external)
++    scope=load('pair_scope',here/'review_scope.py')
++    scope.require_intermediate(build['snapshot'],effective)
++    assert build['snapshot']['index']['head']==policy['head']
++    return build
++
++
++def phase_policy(settings,builds,head):
++    result=dict(settings,tests={page:'testharness' for page in settings['expected_subtests']},held_subtests={})
++    result['regression_subtests']={page:[name for name in names if name not in settings['target_subtests'].get(page,[])] for page,names in settings['expected_subtests'].items()}
++    result['cardinality_description']='Exact publication roster, all completed PASS and FAIL observations retained.'
++    result['phase_metadata']={role:row['application_metadata'] for role,row in builds.items()}
++    result['phase_lineages']={role:{'build_revision':head,'harness_revision':head} for role in builds}
+     return result
+ 
+ 
+-def admit_snapshot(historical, current):
+-    expected = copy.deepcopy(historical)
+-    expected['index']['raw_index'] = current['index']['raw_index']
+-    assert expected == current
++def replay_original(root,here,output,policy,lane,assessor,checks):
++    settings=policy['wpt_lanes'][lane]
++    build=build_binding(root,here,output,policy,'original')
++    phase=output/('original-wpt-'+lane)
++    result=read(phase/'RESULT.json')
++    assert result['success'] and result['preservation_verified'] and result['execution_error'] is None
++    outcomes = read(output/'original-OUTCOMES.json')
++    phases = outcomes['lanes' if lane in policy['lane_order'] else 'diagnostics']
++    for name,key in [('ASSESSMENT.json','assessment_sha256'),('raw.jsonl','raw_sha256'),('RESULT.json','result_sha256')]:assert sha(phase/name)==phases[lane][key]
++    assert read(phase/'APPLICATION-METADATA.json')==read(phase/'APPLICATION-METADATA-POST.json')==build['application_metadata']
++    assert read(phase/'BINARY-PINS.json')==build['binaries']
++    assert read(phase/'PRE.json')==read(phase/'POST.json')==build['snapshot']==read(output/'original-PHASES-PRE.json')==read(output/'original-PHASES-POST.json')
++    assert read(phase/'CLEANUP.json')['owned_group_absent'] and read(phase/'CLEANUP.json')['temporary_root_removed']
++    staged=read(phase/'STAGED-RESOURCES.json')
++    assert all(sha(phase/name)==pin for name,pin in staged.items())
++    for url,row in settings['resources'].items():
++        path=phase/'mozilla-tests'/url[len('/_mozilla/'):] if url.startswith('/_mozilla/') else phase/'tests'/url[1:]
++        assert sha(path)==row['sha256']
++    for kind,folder in [('portable','metadata'),('mozilla','mozilla-metadata')]:
++        assert sha(phase/folder/'MANIFEST.json')==settings['manifests'][kind]['sha256']
++        for name,row in settings['metadata'][kind].items():
++            if row['sha256'] is not None:assert sha(phase/folder/name)==row['sha256']
++            else:assert not (phase/folder/name).exists()
++    expected=phase_policy(settings,{'original':build},policy['head'])
++    assert expected==read(phase/'ASSESSMENT-POLICY.json')
++    events=[json.loads(line) for line in (phase/'raw.jsonl').read_text().splitlines()]
++    replay=assessor.assess(events,result['exit'],expected,checks,run_binding=build['application_metadata'])
++    assert replay==read(phase/'ASSESSMENT.json') and replay['complete']
++    return replay
+ 
+ 
+-def replay_original(root, policy, assessor, checks, lane):
+-    binding, capsule = policy['baseline_binding'], policy['baseline_capsule']
+-    assert binding is not None and capsule is not None
+-    ownership = load('original74_ownership',root/policy['ownership_helper'])
+-    directory, source_owner = root/binding['directory'], root/capsule['directory']
+-    ownership.authenticate(directory,binding['manifest_sha256'])
+-    ownership.authenticate(source_owner,capsule['sha256'])
+-    assert sha(directory/'RESULT.json') == binding['result_sha256']
+-    baseline=load('original74_terminal_schema',root/policy['owner_directory']/'baseline.py')
+-    baseline.owner_terminal(directory,binding,capsule)
+-    source=read(source_owner/'POLICY.json')
+-    assert source['owner_directory']==capsule['directory']
+-    assert source['suite_binding']==policy['suite_binding'] and source['capture_binding']==policy['capture_binding']
+-    assert source['head']==policy['baseline_head'] and source['lane_order']==policy['lane_order']
+-    result=read(directory/'RESULT.json')
+-    assert result['success'] and result['restoration_verified'] and result['runtime_controls_unchanged']
+-    assert result['provider_source_role']=='published-color-image-original' and result['build_revision']==source['head']
+-    assert result['native_fix_acceptance'] is False
+-    assert set(result['phase']) == set(policy['lane_order']) and result['phase'][lane]['lane'] == lane
+-    phase=directory/('original-wpt-'+lane)
+-    settings=source['wpt_lanes'][lane]
+-    current=policy['wpt_lanes'][lane]
+-    for key in ['resources','metadata','manifests','capture','install_managed_resources','expected_subtests']:
+-        assert settings[key]==current[key]
+-    for url,record in settings['resources'].items():
+-        path=phase/'mozilla-tests'/url[len('/_mozilla/'):] if url.startswith('/_mozilla/') else phase/'tests'/url[1:]
+-        assert sha(path)==record['sha256']
+-    for kind,folder in [('portable','metadata'),('mozilla','mozilla-metadata')]:
+-        assert sha(phase/folder/'MANIFEST.json')==settings['manifests'][kind]['sha256']
+-        for name,pin in settings['metadata'][kind].items():
+-            path=phase/folder/name
+-            if pin['sha256'] is None:assert not path.exists() and not path.is_symlink()
+-            else:assert sha(path)==pin['sha256']
+-    staged=read(phase/'STAGED-RESOURCES.json')
+-    assert all(sha(phase/name)==digest for name,digest in staged.items())
+-    for name,key in [('ASSESSMENT.json','assessment_sha256'),('raw.jsonl','raw_sha256'),('RESULT.json','result_sha256')]:
+-        assert sha(phase/name)==result['phase'][lane][key]
+-    build=read(directory/'original-build/RESULT.json')
+-    assert build['command_success'] and build['preservation_verified'] and build['error'] is None
+-    assert read(directory/'original-build/build-RESULT.json')['exit']==0
+-    assert build['native_sources']==policy['semantic_original_sources']
+-    command=read(directory/'original-build/COMMAND.json')
+-    assert command['owner_manifest']==capsule['sha256'] and command['source_sha256']==build['native_sources']
+-    assert read(phase/'BINARY-PINS.json')==build['binaries'] and set(build['binaries'])==set(policy['rebuilt_binaries'])
+-    assert read(phase/'PRE.json')==read(phase/'POST.json')==read(directory/'PHASES-PRE.json')==read(directory/'PHASES-POST.json')==build['snapshot']
+-    scope=load('original77_review_scope',root/policy['owner_directory']/'review_scope.py')
+-    inputs=load('original77_input_binding',root/policy['owner_directory']/'inputs.py')
+-    closure=load('original77_closure',source_owner/'closure.py')
+-    expected_inputs=closure.external_inputs(root,source,read(source_owner/'SOURCE-ROLES.json'))
+-    assert source['intermediate_consumed_inputs']==expected_inputs
+-    effective=inputs.bind_inputs(capsule['directory'],(source_owner/'FILES.json').read_bytes(),capsule['sha256'],expected_inputs)
+-    scope.require_intermediate(build['snapshot'],effective)
+-    assert build['snapshot']['index']['working_diff']==hashlib.sha256(b'').hexdigest()
+-    metadata=read(phase/'APPLICATION-METADATA.json')
+-    assert metadata==read(phase/'APPLICATION-METADATA-POST.json')
+-    assert metadata['revision']==metadata['build_revision']==metadata['harness_revision']==source['head']
+-    assert metadata['source_role']=='original'
+-    assert read(phase/'ASSESSMENT-POLICY.json')==phase_policy(settings)
+-    phase_result=read(phase/'RESULT.json')
+-    assert phase_result['success'] and phase_result['preservation_verified'] and phase_result['execution_error'] is None
+-    cleanup=read(phase/'CLEANUP.json')
+-    assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
+-    events=[json.loads(line) for line in (phase/'raw.jsonl').read_text().splitlines()]
+-    source_assessor=load('original74_assessor',source_owner/'assess.py')
+-    replay=source_assessor.assess(events,phase_result['exit'],phase_policy(settings),checks,run_binding=metadata)
+-    assert replay==read(phase/'ASSESSMENT.json') and replay['complete']
+-    if lane=='ordinary':
+-        capture=load('original74_zoom',root/settings['capture']['path'])
+-        zoom=capture.replay(phase,events)
+-        assert zoom==read(phase/'ZOOM-OBSERVATION.json') and zoom['role']=='original'
+-        assert sha(phase/'ZOOM-OBSERVATION.json')==result['phase'][lane]['zoom_observation_sha256']
+-        assert phase_result['required_zoom_capture_complete'] is True
+-    projection = dict(current, phase_revisions=settings['phase_revisions'], harness_revision=settings['harness_revision'])
+-    projected=assessor.assess(events,phase_result['exit'],phase_policy(projection),checks,run_binding=metadata)
+-    assert projected['complete'] and projected['rows']==replay['rows'] and projected['ends']==replay['ends']
+-    return projected
+-
+-
+-def replay_all(root, policy):
+-    assert policy['baseline_binding'] is not None
+-    here=root/policy['owner_directory']
+-    assessor=load('candidate74_assessor',here/'assess.py')
+-    checks=load('candidate74_checks',root/policy['wpt']['checks_helper'])
+-    lanes={lane:replay_original(root,policy,assessor,checks,lane) for lane in policy['lane_order']}
+-    rows=[row for lane in policy['lane_order'] for row in lanes[lane]['rows']]
+-    ends=[row for lane in policy['lane_order'] for row in lanes[lane]['ends']]
+-    outcomes=read(root/policy['baseline_binding']['directory']/'OUTCOMES.json')
+-    assert outcomes['rows']==rows and outcomes['endings']==ends
+-    result=read(root/policy['baseline_binding']['directory']/'RESULT.json')
+-    assert outcomes['lanes']==result['phase']
+-    assert outcomes['provider_source_role']=='clean-original' and outcomes['native_acceptance'] is False
+-    assert outcomes['zoom_target_correctness'] is None
+-    assert len(rows)==77 and len(ends)==12
+-    assert outcomes['callbacks_passed']==sum(row['status']=='PASS' for row in rows)
+-    assert outcomes['callbacks_failed']==sum(row['status']=='FAIL' for row in rows)
+-    return lanes
+-
+-
+-def behavior(original, candidate, settings, signature):
++def behavior(original,candidate,signature):
+     key=lambda row:(row['test'],row['kind'],row.get('subtest') or '')
+     before=sorted([signature(row) for row in original['rows']+original['ends']],key=key)
+     after=sorted([signature(row) for row in candidate['rows']+candidate['ends']],key=key)
+     old={key(row):row for row in before};new={key(row):row for row in after}
+-    errors=[]
++    errors=list(candidate['comparison_errors'])
+     if not original['complete'] or not candidate['complete']:errors.append('incomplete observation')
+     if set(old)!=set(new):errors.append('callback/page identities changed')
+     for identity,row in old.items():
+         if (row['kind']=='test_end' or row['status']=='PASS') and new.get(identity)!=row:
+-            errors.append('original PASS or page ending signature changed: '+str(identity))
+-    published={(page,name) for page,names in settings['published_subtests'].items() for name in names}
+-    published_before=[row for row in before if row['kind']=='test_status' and (row['test'],row.get('subtest')) in published]
+-    published_after=[row for row in after if row['kind']=='test_status' and (row['test'],row.get('subtest')) in published]
+-    if len(published_before)!=len(published) or published_before!=published_after:
+-        errors.append('published callback full signatures changed or missing')
+-    targets={(page,name) for page,names in settings['target_subtests'].items() for name in names}
+-    target_rows=[row for row in candidate['rows'] if (row['test'],row['subtest']) in targets]
+-    if len(target_rows)!=len(targets) or any(row['status']!='PASS' for row in target_rows):errors.append('target callback remains non-PASS')
+-    errors.extend(error for error in candidate['comparison_errors'] if error!='regression identities/status/expectations/intermittents changed')
+-    result = {'repair_observation_gate':not errors,'errors':errors,'all_signatures_equal':before==after,
+-            'original_signatures':before,'candidate_signatures':after,
+-            'differences':[{'identity':identity,'original':old.get(identity),'candidate':new.get(identity)} for identity in sorted(set(old)|set(new)) if old.get(identity)!=new.get(identity)],
+-            'target_rows':target_rows,'published_original_signatures':published_before,
+-            'published_candidate_signatures':published_after,'native_acceptance':False}
++            errors.append('original PASS or ending full signature changed: '+str(identity))
++    if any(row['status']!='PASS' for row in candidate['rows']):errors.append('candidate publication callback remains non-PASS')
++    result={'publication_observation_gate':not errors,'errors':errors,'all_signatures_equal':before==after,'original_signatures':before,'candidate_signatures':after,'differences':[{'identity':identity,'original':old.get(identity),'candidate':new.get(identity)} for identity in sorted(set(old)|set(new)) if old.get(identity)!=new.get(identity)],'native_acceptance':False}
+     return json.loads(json.dumps(result))

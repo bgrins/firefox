@@ -1,0 +1,60 @@
+--- a/wpt.py
++++ b/wpt.py
+@@ -57,7 +57,8 @@
+         for relative, record in settings['metadata'][name].items():
+             assert not Path(relative).is_absolute() and '..' not in Path(relative).parts
+             if record['sha256'] is None:
+-                assert not (root / record['path']).exists()
++                assert record.get('require_absent_in_staged_root') is True and record['path'] is None
++                assert not (metadata / relative).exists() and not (metadata / relative).is_symlink()
+             else:
+                 assert sha(root / record['path']) == record['sha256']
+                 target = metadata / relative
+@@ -106,14 +107,15 @@
+     targets = settings['target_subtests']
+     assert expected and set(targets) <= set(expected)
+     assert all(set(names) <= set(expected[test]) for test, names in targets.items())
+-    phase_policy = dict(settings, tests={test: 'testharness' for test in expected}, held_subtests={})
+-    phase_policy['regression_subtests'] = {test: [name for name in names if name not in targets.get(test, [])] for test, names in expected.items()}
+-    phase_policy['cardinality_description'] = 'Exact sealed target and control names; existing control failures retain full signatures.'
++    comparison = load('paired_comparison', here / 'comparison.py')
++    builds = {name: comparison.build_binding(root, here, output.parent, policy, name) for name in (('original',) if role == 'original' else ('original', 'candidate'))}
++    phase_policy = comparison.phase_policy(settings, builds, policy['head'])
+     output.mkdir()
+     before = verify()
+     app_before = metadata_helper.application_metadata(root / settings['application_ini'], settings['phase_revisions'][role])
+     app_before.update(build_revision=app_before['revision'], harness_revision=settings['harness_revision'], source_role=role)
+     binaries = {name: sha(root / name) for name in policy['rebuilt_binaries']}
++    assert app_before == builds[role]['application_metadata'] and binaries == builds[role]['binaries']
+     save(output / 'PRE.json', before)
+     save(output / 'APPLICATION-METADATA.json', app_before)
+     save(output / 'BINARY-PINS.json', binaries)
+@@ -158,11 +160,11 @@
+     staged = json.loads((output / 'STAGED-RESOURCES.json').read_bytes())
+     assert all(sha(output / name) == digest for name, digest in staged.items())
+     events = [json.loads(line) for line in (output / 'raw.jsonl').read_text().splitlines()]
+-    if original is not None:
+-        assert original == root / policy['baseline_binding']['directory'] / ('original-wpt-' + lane)
+-        comparison = load('strict_original_comparison', here / 'comparison.py')
+-        replay = comparison.replay_original(root, policy, assessor, checks, lane)
++    if role == 'candidate':
++        assert original == output.parent / ('original-wpt-' + lane)
++        replay = comparison.replay_original(root, here, output.parent, policy, lane, assessor, checks)
+     else:
++        assert original is None
+         replay = None
+     capture_result = None
+     if capture is not None:
+@@ -176,10 +178,9 @@
+         save(output / 'ZOOM-COMPARISON.json', capture.compare(original_capture, capture_result))
+     assessment = assessor.assess(events, code, phase_policy, checks, original=replay, run_binding=app_before)
+     save(output / 'ASSESSMENT.json', assessment)
+-    assert replay is not None
+-    behavior = comparison.behavior(replay, assessment, settings, assessor.signature)
++    behavior = comparison.behavior(replay, assessment, assessor.signature) if replay is not None else None
+     save(output / 'BEHAVIOR-COMPARISON.json', behavior)
+     success = error is None and preserved and cleanup and cleanup.get('temporary_root_removed') and assessment['complete']
+-    save(output / 'RESULT.json', {'success': bool(success), 'exit': code, 'execution_error': error, 'preservation_verified': preserved, 'comparison_gate_passed': assessment['comparison_gate_passed'], 'repair_observation_gate': behavior['repair_observation_gate'], 'all_signatures_equal': behavior['all_signatures_equal'], 'required_zoom_capture_complete': capture_result is not None if capture is not None else None, 'lane': lane, 'native_fix_acceptance': False, 'success_scope': 'complete observation and preservation; comparison verdict retained separately'})
++    save(output / 'RESULT.json', {'success': bool(success), 'exit': code, 'execution_error': error, 'preservation_verified': preserved, 'comparison_gate_passed': assessment['comparison_gate_passed'], 'publication_observation_gate': behavior['publication_observation_gate'] if behavior is not None else None, 'all_signatures_equal': behavior['all_signatures_equal'] if behavior is not None else None, 'required_zoom_capture_complete': capture_result is not None if capture is not None else None, 'lane': lane, 'native_fix_acceptance': False, 'success_scope': 'complete observation and preservation; comparison verdict retained separately'})
+     assert success, (error, preserved, assessment['errors'], assessment['comparison_errors'])
+     return {'lane': lane, 'behavior_sha256': sha(output / 'BEHAVIOR-COMPARISON.json'), 'zoom_comparison_sha256': sha(output / 'ZOOM-COMPARISON.json') if capture_result is not None else None, 'zoom_observation_sha256': sha(output / 'ZOOM-OBSERVATION.json') if capture_result is not None else None, 'assessment_sha256': sha(output / 'ASSESSMENT.json'), 'raw_sha256': sha(output / 'raw.jsonl'), 'result_sha256': sha(output / 'RESULT.json')}

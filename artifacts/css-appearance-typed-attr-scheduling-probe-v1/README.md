@@ -1,0 +1,13 @@
+# Portable typed-attribute scheduling probe
+
+Four callbacks on one ordinary portable WPT page (five callback/ending signatures), with no preferences or privileged API. This is a separate unexecuted follow-up to the Mozilla scheduling discriminator; the running 28+5 pair and all sealed suites remain unchanged.
+
+The first three cases use a button with `--len:1em`, literal font-size 20px then 30px, and `appearance:attr(data-length type(<length>), auto)`. Attribute input is `var(--len)`, literal px, or missing. The expected appearances are none, none, and auto. The fourth uses literal `appearance:none` and `font-family:attr(data-font type(<custom-ident>), serif)` with monospace attribute text. SPEC.md derives the endpoints from current primary specs.
+
+Each callback owns a fresh iframe/registry. The initial registered value is calibrated before styles. Each phase reads the target custom value first, then three further samples separated by animation frames, before reading appearance, family, font size and reference controls. Both phases are captured before numerical assertions. An independent absolute-px typed-attribute width checks nested var support; literal appearance/family/width controls calibrate serialization. No assertion depends on platform font metrics or button appearance pixels.
+
+Failure messages contain the entire collected row. Standard PASS callbacks establish the asserted endpoints but do not archive the hidden observation array. There is no custom transport or testharness state modification. Syntax or registration failure remains an explicit setup failure.
+
+Source prediction remains unverified: generated FontSize scheduling may reach ordinary Appearance or FontFamily application before graph-owned typed-attribute preparation. The published path may consume unresolved raw var text; the candidate may additionally see an absent attribute cache because prioritary discovery was deferred. Neither browser outcome nor joint native reachability is asserted here. The literal attribute and family cases distinguish that possible regression from the existing unresolved-var path. No fix is included, and generated scheduling edges are not treated as semantic CSS cycle edges.
+
+Static preparation e8f6bb/0 generated a genuine explicit-file WPT manifest, collected four unique callback names through inert Node evaluation, and passed upstream path/content lint with no findings. It ran no browser, Git command, native build or profile. The existing checker was minimally adapted to the portable root and four callbacks. INPUTS pins the page, two frozen harness bodies and manifest; the external harness bodies must be staged at their declared URLs by any future owner. No native outcome or execution admission is supplied.

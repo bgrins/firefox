@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Appearance-base eligibility does not invalidate its own bootstrap declaration</title>
+<link rel="help" href="https://drafts.csswg.org/css-ui-4/#appearance-switching">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<pre id="observations" hidden></pre>
+<script>
+window.prioritaryObservations = [];
+for (const kind of ["gated-self-variable", "gated-self-literal", "no-gated-self"]) {
+  promise_test(async t => {
+    assert_true(typeof SpecialPowers !== "undefined", "Mozilla WPT SpecialPowers capability");
+    const frame = document.createElement("iframe");
+    let removeSheet = () => {};
+    t.add_cleanup(() => {
+      try { removeSheet(); } finally { frame.remove(); }
+    });
+    const loaded = new Promise(resolve => { frame.onload = resolve; });
+    frame.srcdoc = "<!doctype html><body><button class='target'>Target</button><div id='reference'></div>";
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    assert_true(win.CSS.supports("appearance", "base"), "appearance-base pref enabled in this lane");
+    win.CSS.registerProperty({name:"--actual", syntax:"<length>", inherits:false, initialValue:"0px"});
+    const target = doc.querySelector(".target");
+    const reference = doc.getElementById("reference");
+    const initial = win.getComputedStyle(target).getPropertyValue("--actual").trim();
+    const utils = SpecialPowers.wrap(win).windowUtils;
+    const lower = kind === "gated-self-literal" ? "base" : "var(--missing,base)";
+    const gated = kind === "no-gated-self" ? "" : "appearance:var(--missing,base);";
+    const ua = `data:text/css,${encodeURIComponent(`.target { appearance:${lower}; font-size:13px; outline:0 solid; }
+      @appearance-base { .target { ${gated} font-size:var(--size); outline-width:7px; } }`)}`;
+    utils.loadSheetUsingURIString(ua, utils.AGENT_SHEET);
+    removeSheet = () => utils.removeSheetUsingURIString(ua, utils.AGENT_SHEET);
+    const sheet = doc.createElement("style");
+    doc.head.append(sheet);
+    const row = {kind, initial, phases:[]};
+    window.prioritaryObservations.push(row);
+    for (const size of [20, 30]) {
+      sheet.textContent = `.target { --actual:2em; --size:${size}px; }
+        #reference { font-size:${size}px; width:${size * 2}px; }`;
+      const samples = [win.getComputedStyle(target).getPropertyValue("--actual").trim()];
+      for (let index = 0; index < 3; index++) {
+        await new Promise(resolve => win.requestAnimationFrame(resolve));
+        samples.push(win.getComputedStyle(target).getPropertyValue("--actual").trim());
+      }
+      const actual = win.getComputedStyle(target);
+      const control = win.getComputedStyle(reference);
+      row.phases.push({size, samples, font:actual.fontSize, appearance:actual.appearance,
+        marker:actual.outlineWidth, referenceFont:control.fontSize, referenceWidth:control.width});
+      document.getElementById("observations").textContent = JSON.stringify(window.prioritaryObservations);
+    }
+    const diagnostic = JSON.stringify(row);
+    assert_equals(initial, "0px", `Registration calibration: ${diagnostic}`);
+    for (const phase of row.phases) {
+      assert_equals(phase.referenceFont, `${phase.size}px`, diagnostic);
+      assert_equals(phase.referenceWidth, `${phase.size * 2}px`, diagnostic);
+      assert_equals(phase.appearance, "base", diagnostic);
+      assert_equals(phase.marker, "7px", `UA gated rule calibration: ${diagnostic}`);
+      assert_equals(phase.font, `${phase.size}px`, diagnostic);
+      for (const sample of phase.samples) assert_equals(sample, phase.referenceWidth, diagnostic);
+    }
+  }, `Appearance eligibility self-edge preservation: ${kind}`);
+}
+</script>

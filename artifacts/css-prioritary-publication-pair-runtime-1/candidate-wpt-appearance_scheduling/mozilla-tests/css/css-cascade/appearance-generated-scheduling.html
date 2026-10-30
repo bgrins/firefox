@@ -1,0 +1,81 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Appearance preparation and generated font scheduling</title>
+<link rel="help" href="https://drafts.csswg.org/css-ui-4/#appearance-switching">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<pre id="observations" hidden></pre>
+<script>
+window.appearanceSchedulingObservations = [];
+for (const kind of ["length-a", "length-b", "literal-length", "literal-none", "missing-attribute"]) {
+  promise_test(async t => {
+    let row = null;
+    assert_true(typeof SpecialPowers !== "undefined", "Mozilla WPT SpecialPowers capability");
+    const frame = document.createElement("iframe");
+    let removeSheet = () => {};
+    t.add_cleanup(() => { try { removeSheet(); } finally { frame.remove(); } });
+    const loaded = new Promise(resolve => { frame.onload = resolve; });
+    frame.srcdoc = "<!doctype html><body><button class='target'>Target</button><div id='reference'></div>";
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow, doc = frame.contentDocument;
+    const supports = {base:win.CSS.supports("appearance", "base"),
+      attr:win.CSS.supports("appearance", "attr(data-length type(<length>), base)")};
+    assert_true(supports.base && supports.attr, "Appearance preference and typed-attribute grammar");
+    const lengthName = kind === "length-b" ? "--b" : "--a";
+    const colorName = kind === "length-b" ? "--a" : "--b";
+    for (const name of ["--a", "--b"]) {
+      win.CSS.registerProperty({name, syntax:name === lengthName ? "<length>" : "<color>",
+        inherits:false, initialValue:name === lengthName ? "0px" : "lime"});
+    }
+    const target = doc.querySelector(".target"), reference = doc.getElementById("reference");
+    const initialStyle = win.getComputedStyle(target);
+    const initial = {length:initialStyle.getPropertyValue(lengthName).trim(), color:initialStyle.getPropertyValue(colorName).trim()};
+    const utils = SpecialPowers.wrap(win).windowUtils;
+    const appearance = kind === "literal-none" ? "none" : "attr(data-length type(<length>), base)";
+    const ua = `data:text/css,${encodeURIComponent(`.target { appearance:${appearance}; color-scheme:light; font-family:serif; outline:0 solid; }
+      @appearance-base { .target { color-scheme:dark; font-family:monospace; outline-width:7px; } }`)}`;
+    utils.loadSheetUsingURIString(ua, utils.AGENT_SHEET);
+    removeSheet = () => utils.removeSheetUsingURIString(ua, utils.AGENT_SHEET);
+    const sheet = doc.createElement("style");
+    doc.head.append(sheet);
+    row = {kind, lengthName, colorName, supports, initial, phases:[]};
+    window.appearanceSchedulingObservations.push(row);
+    for (const size of [20, 30]) {
+      if (kind === "missing-attribute") target.removeAttribute("data-length");
+      else target.setAttribute("data-length", kind === "literal-length" ? `${size}px` : `var(${lengthName})`);
+      const values = {[lengthName]:"1em", [colorName]:"light-dark(red, blue)"};
+      const base = kind === "missing-attribute";
+      sheet.textContent = `.target { --a:${values["--a"]}; --b:${values["--b"]}; font-size:${size}px; }
+        #reference { color-scheme:${base ? "dark" : "light"}; color:light-dark(red, blue); width:${size}px; }`;
+      const samples = [win.getComputedStyle(target).getPropertyValue(colorName).trim()];
+      for (let index = 0; index < 3; index++) {
+        await new Promise(resolve => win.requestAnimationFrame(resolve));
+        samples.push(win.getComputedStyle(target).getPropertyValue(colorName).trim());
+      }
+      const actual = win.getComputedStyle(target), control = win.getComputedStyle(reference);
+      row.phases.push({size, attribute:target.getAttribute("data-length"), samples,
+        length:actual.getPropertyValue(lengthName).trim(), appearance:actual.appearance,
+        scheme:actual.colorScheme, family:actual.fontFamily, font:actual.fontSize,
+        marker:actual.outlineWidth, referenceColor:control.color, referenceWidth:control.width});
+      document.getElementById("observations").textContent = JSON.stringify(window.appearanceSchedulingObservations);
+    }
+    const diagnostic = JSON.stringify(row);
+    assert_equals(initial.length, "0px", diagnostic);
+    assert_equals(initial.color, "rgb(0, 255, 0)", diagnostic);
+    for (const phase of row.phases) {
+      const base = kind === "missing-attribute";
+      assert_equals(phase.referenceWidth, `${phase.size}px`, diagnostic);
+      assert_equals(phase.referenceColor, base ? "rgb(0, 0, 255)" : "rgb(255, 0, 0)", diagnostic);
+      assert_equals(phase.font, `${phase.size}px`, diagnostic);
+      assert_equals(phase.length, phase.referenceWidth, diagnostic);
+      assert_equals(phase.appearance, base ? "base" : "none", diagnostic);
+      assert_equals(phase.marker, base ? "7px" : "0px", diagnostic);
+      assert_equals(phase.family, base ? "monospace" : "serif", diagnostic);
+      assert_equals(phase.scheme, base ? "dark" : "light", diagnostic);
+      for (const sample of phase.samples) assert_equals(sample, phase.referenceColor, diagnostic);
+    }
+  }, `Appearance generated scheduling: ${kind}`);
+}
+</script>

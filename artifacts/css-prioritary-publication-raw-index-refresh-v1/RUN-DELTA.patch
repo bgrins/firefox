@@ -1,0 +1,126 @@
+--- a/run.py
++++ b/run.py
+@@ -38,43 +38,66 @@
+ 
+ def saved(policy):
+     owner = load('refresh_ownership', ROOT / 'artifacts/css-registered-number-source-transition-v4/transition.py')
+-    for name,pin in policy['references'].items(): assert sha(ROOT / name) == pin, name
++    for name, pin in policy['references'].items():
++        assert sha(ROOT / name) == pin, name
+     owner.authenticate(ROOT / policy['owner']['directory'], policy['owner']['manifest_sha256'])
+-    assert policy['reviewer'] and policy['review'] and policy['reviewer_terminal']
++    assert policy['reviewer'] and policy['review'] and policy['live_audit'] and policy['live_audit_terminal']
+     reviewer = ROOT / policy['reviewer']['directory']
+     owner.authenticate(reviewer, policy['reviewer']['manifest_sha256'])
+-    report = read(ROOT / policy['review']['path'])
++    for name, record in read(reviewer / 'REFERENCES.json').items():
++        assert sha(ROOT / name) == record['sha256'] and (ROOT / name).stat().st_size == record['bytes']
+     assert sha(ROOT / policy['review']['path']) == policy['review']['sha256']
+-    terminal = read(ROOT / policy['reviewer_terminal']['path'])
+-    assert sha(ROOT / policy['reviewer_terminal']['path']) == policy['reviewer_terminal']['sha256']
+-    assert terminal['exit'] == 0 and terminal['review_sha256'] == policy['review']['sha256']
+-    config = read(reviewer / 'POLICY.json')
+-    assert config['execution_enabled'] and not config['mutations_allowed'] and not config['epoch_publication_allowed']
+-    assert config['owner_manifest_sha256'] == report['owner_manifest_sha256'] == policy['owner']['manifest_sha256']
+-    assert config['owner_directory'] == policy['owner']['directory'] and config['runtime_directory'] == policy['runtime']
++    review = read(ROOT / policy['review']['path'])
++    assert review == read(reviewer / 'AUDIT.json')
++    assert review['active_owner'] == policy['owner']['manifest_sha256'] and review['head'] == policy['head']
++    assert review['all33_rows_and7_endings_replayed_per_role'] and review['saved_restoration_claims_verified']
++    assert not review['independent_live_restoration_verified_by_this_audit'] and not review['native_acceptance']
+     runtime = ROOT / policy['runtime']
+     owner.authenticate(runtime, policy['runtime_manifest_sha256'])
+-    for name,pin in report['input_hashes'].items(): assert sha(runtime / name) == pin, name
+     outer = read(runtime / 'ROOT-OWNER-TERMINAL.json')
+-    assert outer == report['actual_terminal'] and outer['exit'] == 0
+-    assert outer['session'] == config['expected_session'] and outer['launch_chunk'] == config['expected_launch']
+-    result = read(runtime / 'CANDIDATE-RESULT.json')
+-    assert outer['result_sha256'] == sha(runtime / 'CANDIDATE-RESULT.json')
+-    assert result == report['owner_result'] and result['restoration_verified'] and result['runtime_controls_unchanged']
+-    assert result['empty_staging_preserved'] and result['publication_errors'] == []
+-    assert report['restoration_independently_verified'] and not report['canonical_updated'] and not report['backup_deleted_by_reviewer']
+-    pre = read(runtime / 'CANDIDATE-PRE.json')
+-    post,raw = read(runtime / 'POST.json'),read(runtime / 'RAW-INDEX-OBSERVATION.json')
+-    assert pre['controls'] == policy['controls'] and post == report['snapshot'] and raw == report['raw_index_observation']
++    assert outer == review['owner_terminal'] and outer['exit'] == 0
++    assert (outer['session'], outer['launch'], outer['terminal']) == (29781, '8c881c', '84081a')
++    assert outer['owner_manifest_sha256'] == policy['owner']['manifest_sha256']
++    result = read(runtime / 'RESULT.json')
++    assert outer['result_sha256'] == sha(runtime / 'RESULT.json')
++    assert result['success'] and result['restoration_verified'] and result['runtime_controls_unchanged']
++    assert result['empty_staging_preserved'] and result['publication_errors'] == [] and not result['native_fix_acceptance']
++    assert sha(ROOT / policy['live_audit']['path']) == policy['live_audit']['sha256']
++    live = read(ROOT / policy['live_audit']['path'])
++    assert live == read(runtime / 'ROOT-LIVE-RESTORATION.json')
++    assert sha(ROOT / policy['live_audit_terminal']['path']) == policy['live_audit_terminal']['sha256']
++    terminal = read(ROOT / policy['live_audit_terminal']['path'])
++    assert terminal == read(runtime / 'ROOT-LIVE-AUDIT-TERMINAL.json')
++    assert terminal['exit'] == 0 and terminal['live_audit_sha256'] == policy['live_audit']['sha256']
++    assert terminal['script_sha256'] == live['audit_script_sha256'] == sha(ROOT / 'artifacts/css-prioritary-publication-pair-live-audit-v1.py')
++    assert (terminal['session'], terminal['launch'], terminal['terminal']) == (40968, '2286c3', 'c371db')
++    authority = review['independent_live_restoration_authority']
++    assert not review['root_live_audit_pending'] and authority['saved_process_group_join_verified']
++    assert authority['report'] == policy['live_audit']['path'] and authority['report_sha256'] == policy['live_audit']['sha256']
++    assert authority['report_content'] == live and authority['terminal'] == terminal
++    assert authority['script_path'] == 'artifacts/css-prioritary-publication-pair-live-audit-v1.py'
++    for name in ('independent_live_restoration_verified', 'application_and_extras_semantically_restored', 'source_and_binary_hashes_restored', 'flags_restored', 'controls_unchanged', 'backup_removed'):
++        assert live[name] is True
++    assert not live['native_acceptance'] and live['owner_result_sha256'] == outer['result_sha256']
++    assert len(live['independently_absent_process_groups']) == 12
++    pre = read(runtime / 'PAIR-PRE.json')
++    post, raw = read(runtime / 'POST.json'), read(runtime / 'RAW-INDEX-OBSERVATION.json')
++    assert pre['controls'] == policy['controls'] and post == live['snapshot'] and raw == review['raw_index']
+     restored = read(runtime / 'RESTORATION.json')
+     assert restored['errors'] == [] and restored['owned_processes'] == {}
+-    assert restored['sources'] == report['source_identities']
++    source_roles = read(ROOT / policy['owner']['directory'] / 'SOURCE-ROLES.json')
++    assert restored['sources'] == {name: {'sha256': row['base_sha256'], 'identity': pre['sources'][name]['identity']} for name, row in source_roles.items()}
+     cleanup = read(runtime / 'BACKUP-CLEANUP.json')
+-    assert cleanup == report['backup'] and cleanup['removed'] and cleanup['verified_original_restoration'] and not cleanup['retained_after_failure']
++    assert cleanup == review['backup_cleanup'] and cleanup['removed'] and cleanup['verified_original_restoration'] and not cleanup['retained_after_failure']
++    assert read(runtime / 'COMPARISON.json')['publication_observation_gate'] == review['publication28_gate']
++    diagnostic = read(runtime / 'DIAGNOSTIC-COMPARISON.json')
++    assert diagnostic['diagnostic_observation_gate'] == review['diagnostic5_gate']
++    assert diagnostic['combined_observation_gate'] == review['combined_gate']
+     receipt = read(ROOT / policy['signed_receipt']['path'])
+     assert sha(ROOT / policy['signed_receipt']['path']) == policy['signed_receipt']['sha256']
+     assert receipt['committed'] and receipt['signature_verified'] and receipt['head'] == policy['head']
+     assert receipt['epoch_sha256'] == policy['controls']['CURRENT-EPOCH.json'] and receipt['accepted_fix_increment'] == 0
++    report = {'source_identities': restored['sources'], 'restored_application_metadata': live['restored_application_metadata'], 'input_hashes': {name: row['sha256'] for name, row in read(runtime / 'FILES.json').items()}}
+     return owner, report, pre, post, raw
+ 
+ 
+@@ -100,6 +123,10 @@
+     assert before == post
+     flags = {n:state.h.git(p,env,'ls-files','-v','-z') for n,p in [('root',ROOT),('nested',ROOT/'artifacts/css-spec-lean')]}
+     owner_policy = read(ROOT / policy['owner']['directory'] / 'POLICY.json')
++    baseline = load('refresh_baseline', ROOT / policy['owner']['directory'] / 'baseline.py')
++    baseline.metadata_guard(owner_policy)
++    for name in owner_policy['preserved_absent_metadata'] + owner_policy['preserved_absent_resources']:
++        assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()
+     current = read(ROOT / owner_policy['current_binding']['path'])
+     assert {n:digest(b) for n,b in flags.items()} == current['flag_hashes']
+     for name,record in report['source_identities'].items(): owner.claim(ROOT,name,record['sha256'],record['identity'])
+@@ -112,6 +139,13 @@
+     assert not (runtime/'backups').exists() and not (runtime/'backups').is_symlink()
+     for path in report['input_hashes']:
+         if path.endswith(('PROCESS.json','WAKE-PROCESS.json')): owner.group_absent(read(runtime/path)['pgid'])
++    for role in ('original', 'candidate'):
++        for lane in owner_policy['lane_order'] + owner_policy['diagnostic_lane_order']:
++            phase = runtime / (role + '-wpt-' + lane)
++            cleanup = read(phase / 'CLEANUP.json')
++            assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
++            temporary = Path(read(phase / 'COMMAND.json')['temporary_root'])
++            assert not temporary.exists() and not temporary.is_symlink()
+     owner.quiescent(CONTROL)
+     state.h.git(ROOT,env,'-c','gpg.ssh.allowedSignersFile='+str(ROOT/'artifacts/css-local-signing-20261027-v1/allowed-signers'),'verify-commit',policy['head'])
+     lock = CONTROL / 'SOURCE-TRANSITION.lock'
+@@ -122,7 +156,7 @@
+     output.mkdir()
+     (output/'PRE-CURRENT-EPOCH.json').write_bytes(controls['CURRENT-EPOCH.json'])
+     state.save(output/'PRE.json',before)
+-    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'published candidate raw observation refresh'})+'\n')
++    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'published pair raw observation refresh'})+'\n')
+     lock_identity = (lock.stat().st_dev,lock.stat().st_ino)
+     def check_controls(body):
+         for name,claim in claims.items():

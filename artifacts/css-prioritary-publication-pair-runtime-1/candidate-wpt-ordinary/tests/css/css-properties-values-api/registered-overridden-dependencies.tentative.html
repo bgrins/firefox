@@ -1,0 +1,79 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Overridden declarations must not introduce registered-property cycles</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#dependency-cycles">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#cascade-sort">
+<link rel="help" href="https://drafts.csswg.org/css-color-5/#light-dark">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<pre id="observations" hidden></pre>
+<script>
+window.overriddenSchemeObservations = [];
+const cases = ["color-no-loser", "color-literal", "color-normal-before-important",
+  "color-normal-after-important", "color-normal-before-normal", "color-important-before-important",
+  "length-no-loser", "length-literal", "length-normal-before-important"];
+for (const caseName of cases) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => { frame.onload = resolve; });
+    frame.srcdoc = "<!doctype html><body><div id='parent'><div class='target'></div><div id='reference'></div></div>";
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    const length = caseName.startsWith("length-");
+    const literal = caseName.endsWith("-literal");
+    win.CSS.registerProperty({name: "--actual", syntax: length ? "<length>" : "<color>",
+      inherits: false, initialValue: length ? "0px" : "red"});
+    const style = doc.createElement("style");
+    doc.head.append(style);
+    const target = doc.querySelector(".target");
+    const reference = doc.getElementById("reference");
+    const initial = win.getComputedStyle(target).getPropertyValue("--actual").trim();
+    const observation = {caseName, initial, phases: []};
+    window.overriddenSchemeObservations.push(observation);
+    for (const phase of [0, 1]) {
+      const scheme = phase === 0 ? "dark" : "light";
+      const font = phase === 0 ? 20 : 30;
+      const expected = length ? `${font * 2}px` : phase === 0 ? "rgb(0, 0, 255)" : "rgb(0, 128, 0)";
+      const declared = literal ? expected : length ? "2em" : "light-dark(green, blue)";
+      const property = length ? "font-size" : "color-scheme";
+      const winner = length ? `${font}px` : scheme;
+      const important = !caseName.endsWith("-before-normal");
+      const winningRule = `.target { ${property}: ${winner}${important ? " !important" : ""}; }`;
+      const losingValue = length ? "var(--actual)" : "var(--actual, attr(data-unused type(<custom-ident>), light))";
+      const losingRule = `.target { ${property}: ${losingValue}${caseName.includes("important-before-important") ? " !important" : ""}; }`;
+      const rules = caseName.endsWith("-no-loser") || literal ? winningRule :
+        caseName.includes("-after-") ? winningRule + losingRule : losingRule + winningRule;
+      style.textContent = `#parent { color-scheme: light; font-size: 11px; }
+        .target { --actual: ${declared}; }
+        #reference { color-scheme: ${scheme}; color: light-dark(green, blue); width: ${font * 2}px; }
+        ${rules}`;
+      const samples = [win.getComputedStyle(target).getPropertyValue("--actual").trim()];
+      for (let index = 0; index < 3; index++) {
+        await new Promise(resolve => win.requestAnimationFrame(resolve));
+        samples.push(win.getComputedStyle(target).getPropertyValue("--actual").trim());
+      }
+      const actualStyle = win.getComputedStyle(target);
+      const referenceStyle = win.getComputedStyle(reference);
+      observation.phases.push({phase, declared, property, winner, expected, samples,
+        computedWinner: length ? actualStyle.fontSize : actualStyle.colorScheme,
+        reference: length ? referenceStyle.width : referenceStyle.color,
+        supportedLosingValue: win.CSS.supports(property, losingValue)});
+      document.getElementById("observations").textContent = JSON.stringify(window.overriddenSchemeObservations);
+    }
+    const diagnostic = JSON.stringify(observation);
+    assert_equals(initial, length ? "0px" : "rgb(255, 0, 0)", `Registration calibration: ${diagnostic}`);
+    for (const phase of observation.phases) {
+      assert_true(phase.supportedLosingValue, `Losing declaration grammar: ${diagnostic}`);
+      assert_equals(phase.computedWinner, phase.winner, `Cascade winner: ${diagnostic}`);
+      assert_equals(phase.reference, phase.expected, `Literal reference: ${diagnostic}`);
+      for (const value of phase.samples) {
+        assert_equals(value, phase.reference, `Overridden dependency: ${diagnostic}`);
+      }
+    }
+  }, `Overridden registered dependency: ${caseName}`);
+}
+</script>

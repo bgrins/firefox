@@ -1,0 +1,69 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Overridden line-height declarations do not create registered-property cycles</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#dependency-cycles">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#lh">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#cascade-sort">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const name of ["no-loser", "literal", "overridden", "active-cycle"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => { frame.onload = resolve; });
+    frame.srcdoc = "<!doctype html><body><div id='parent'><div id='target'></div></div>";
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    win.CSS.registerProperty({
+      name: "--actual",
+      syntax: "<length>",
+      inherits: false,
+      initialValue: "0px",
+    });
+    const target = doc.getElementById("target");
+    assert_equals(win.getComputedStyle(target).getPropertyValue("--actual").trim(), "0px");
+    assert_true(win.CSS.supports("line-height", "var(--actual)"));
+    assert_true(win.CSS.supports("width", "1lh"));
+    const style = doc.createElement("style");
+    doc.head.append(style);
+    const observations = [];
+    for (const [winner, inherited] of [[20, 13], [30, 17]]) {
+      const cyclic = name === "active-cycle";
+      const value = name === "literal" ? `${winner}px` : "1lh";
+      const variableRule = name === "no-loser" ? "" :
+        "#target { line-height: var(--actual); }";
+      const winningRule = cyclic ? "" :
+        `#target { line-height: ${winner}px !important; }`;
+      style.textContent = `
+        #parent { font-size: 10px; line-height: ${inherited}px; }
+        #target { --actual: ${value}; }
+        ${variableRule}
+        ${winningRule}
+      `;
+      const samples = [];
+      for (let index = 0; index < 4; index++) {
+        if (index) {
+          await new Promise(resolve => win.requestAnimationFrame(resolve));
+        }
+        const computed = win.getComputedStyle(target);
+        samples.push({actual: computed.getPropertyValue("--actual").trim(),
+          lineHeight: computed.lineHeight, fontSize: computed.fontSize});
+      }
+      observations.push({winner, inherited, cyclic, samples});
+    }
+    const diagnostic = JSON.stringify(observations);
+    for (const phase of observations) {
+      for (const sample of phase.samples) {
+        assert_equals(sample.fontSize, "10px", diagnostic);
+        assert_equals(sample.lineHeight,
+          `${phase.cyclic ? phase.inherited : phase.winner}px`, diagnostic);
+        assert_equals(sample.actual, `${phase.cyclic ? 0 : phase.winner}px`, diagnostic);
+      }
+    }
+  }, `Registered line-height dependency: ${name}`);
+}
+</script>

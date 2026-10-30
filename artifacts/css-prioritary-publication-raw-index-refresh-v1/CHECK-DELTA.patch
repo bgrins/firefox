@@ -1,0 +1,14 @@
+--- a/check.py
++++ b/check.py
+@@ -26,9 +26,9 @@
+ try:m.derive(epoch,pre['snapshot'],changed,raw)
+ except AssertionError:negative+=1
+ else:raise AssertionError('semantic mutation admitted')
+-for key in ['review','reviewer','reviewer_terminal']:
++for key in ['review','reviewer','live_audit','live_audit_terminal','runtime_manifest_sha256']:
+  changed=copy.deepcopy(p);changed[key]=None
+  try:m.saved(changed)
+- except (AssertionError,TypeError):negative+=1
++ except (AssertionError,TypeError,RuntimeError):negative+=1
+  else:raise AssertionError(key)
+ print(json.dumps({'saved_restoration_authenticated':True,'raw_before':raw['before'],'raw_after':raw['after'],'negative_checks':negative,'only_changed_field':'raw_index_observation.current','live_state_read':False,'publication_executed':False}))
