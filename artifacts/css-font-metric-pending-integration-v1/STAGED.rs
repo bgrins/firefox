@@ -1,0 +1,187 @@
+struct PreparedMetricDeclaration {
+    declaration: PropertyDeclaration,
+    priority: CascadePriority,
+}
+
+struct MetricPreparation<'a, 'b> {
+    id: PrioritaryPropertyId,
+    declarations: &'a Declarations<'b>,
+    cursor: DeclarationIndex,
+    flags: RuleCascadeFlags,
+    initial_revert: Option<(CascadePriority, RevertKind)>,
+    revert: Option<(CascadePriority, RevertKind)>,
+    waiting: Option<Arc<UnparsedValue>>,
+    prepared: SmallVec<[PreparedMetricDeclaration; 2]>,
+    complete: bool,
+}
+
+enum MetricPreparationStep {
+    Prerequisites(&'static PrioritaryPropertyIdSet),
+    References(LonghandId, Arc<UnparsedValue>),
+    Complete,
+    Invalidated,
+}
+
+impl MetricPreparation<'_, '_> {
+    fn retain(&mut self, declaration: PropertyDeclaration, priority: CascadePriority) {
+        debug_assert!(!matches!(
+            declaration,
+            PropertyDeclaration::WithVariables(..)
+        ));
+        let revert = declaration
+            .get_css_wide_keyword()
+            .and_then(|keyword| keyword.revert_kind());
+        self.prepared.push(PreparedMetricDeclaration {
+            declaration,
+            priority,
+        });
+        if let Some(revert) = revert {
+            self.revert = Some((priority, revert));
+            self.advance();
+        } else {
+            self.complete = true;
+        }
+    }
+
+    fn advance(&mut self) {
+        let next = self.declarations.longhand_declarations[self.cursor as usize].next_index;
+        self.cursor = if next == 0 {
+            DeclarationIndex::MAX
+        } else {
+            next
+        };
+    }
+}
+
+impl Cascade<'_> {
+    fn begin_metric_preparation<'a, 'b>(
+        &self,
+        context: &computed::Context,
+        declarations: &'a Declarations<'b>,
+        id: PrioritaryPropertyId,
+    ) -> MetricPreparation<'a, 'b> {
+        use PrioritaryPropertyId::*;
+        assert!(matches!(
+            id,
+            FontWeight
+                | FontWidth
+                | FontStyle
+                | FontSizeAdjust
+                | Direction
+                | WritingMode
+                | TextOrientation
+        ));
+        let initial_revert = self.reverted.longhands.get(&id.to_longhand()).copied();
+        MetricPreparation {
+            id,
+            declarations,
+            cursor: declarations.prioritary_positions[id as usize].most_important,
+            flags: context.included_cascade_flags,
+            initial_revert,
+            revert: initial_revert,
+            waiting: None,
+            prepared: SmallVec::new(),
+            complete: false,
+        }
+    }
+
+    // `completed` is supplied by the readiness scheduler, not the existing early-set ensured bit.
+    fn resume_metric_preparation(
+        &self,
+        context: &mut computed::Context,
+        cache: &mut ShorthandsWithPropertyReferencesCache,
+        attribute_tracker: &mut AttributeTracker,
+        state: &mut MetricPreparation,
+        completed: &PrioritaryPropertyIdSet,
+        mut resolved_reference: Option<Arc<UnparsedValue>>,
+    ) -> MetricPreparationStep {
+        let longhand = state.id.to_longhand();
+        if self.ensured_prioritary.contains(state.id)
+            || state.flags != context.included_cascade_flags
+            || self.seen.longhands.contains(longhand)
+            || self.reverted.longhands.get(&longhand).copied() != state.initial_revert
+        {
+            return MetricPreparationStep::Invalidated;
+        }
+        let prerequisites = state.id.dependencies();
+        if !completed.contains_all(prerequisites) {
+            return MetricPreparationStep::Prerequisites(prerequisites);
+        }
+        loop {
+            if state.complete {
+                return MetricPreparationStep::Complete;
+            }
+            if state.cursor == DeclarationIndex::MAX {
+                state.complete = true;
+                continue;
+            }
+            let entry = state.declarations.longhand_declarations[state.cursor as usize];
+            if let Some(value) = state.waiting.as_ref() {
+                let Some(resolved) = resolved_reference.take() else {
+                    return MetricPreparationStep::References(longhand, value.clone());
+                };
+                if !std::ptr::eq(value.as_ref(), resolved.as_ref()) {
+                    return MetricPreparationStep::Invalidated;
+                }
+                let declaration = self
+                    .substitute_variables_if_needed(context, cache, entry.decl, attribute_tracker)
+                    .into_owned();
+                state.waiting = None;
+                resolved_reference = None;
+                state.retain(declaration, entry.priority);
+                continue;
+            }
+            if !(entry.priority.flags() - state.flags).is_empty()
+                || state.revert.is_some_and(|(priority, kind)| {
+                    !priority.allows_when_reverted(&entry.priority, kind)
+                })
+            {
+                state.advance();
+                continue;
+            }
+            if let PropertyDeclaration::WithVariables(value) = entry.decl {
+                state.waiting = Some(value.value.clone());
+                resolved_reference = None;
+                continue;
+            }
+            state.retain(entry.decl.clone(), entry.priority);
+        }
+    }
+
+    fn publish_prepared_metric<'a, 'b>(
+        &mut self,
+        context: &mut computed::Context,
+        cache: &mut ShorthandsWithPropertyReferencesCache,
+        attribute_tracker: &mut AttributeTracker,
+        state: MetricPreparation<'a, 'b>,
+        completed: &PrioritaryPropertyIdSet,
+    ) -> Result<(), MetricPreparation<'a, 'b>> {
+        let longhand = state.id.to_longhand();
+        if self.ensured_prioritary.contains(state.id)
+            || !state.complete
+            || state.waiting.is_some()
+            || !completed.contains_all(state.id.dependencies())
+            || state.flags != context.included_cascade_flags
+            || self.seen.longhands.contains(longhand)
+            || self.reverted.longhands.get(&longhand).copied() != state.initial_revert
+        {
+            return Err(state);
+        }
+        for entry in state.prepared {
+            self.apply_one_longhand(
+                context,
+                longhand,
+                &entry.declaration,
+                entry.priority,
+                cache,
+                attribute_tracker,
+            );
+        }
+        if self.seen.longhands.contains(longhand) {
+            self.did_apply_prioritary_property(context, state.id);
+        }
+        self.ensured_prioritary.insert(state.id);
+        Ok(())
+    }
+}
+

@@ -1,0 +1,18 @@
+{
+  "native_source": "artifacts/css-nowrap-standalone-formatted-v1/candidate.cpp",
+  "sha256": "a87f4210c39f99f27e78df7827b2836362098ff7cd5290a88660d5f943052e03",
+  "helper_excerpt": "static void ApplyBreakSuppression(uint8_t* aBreaks, uint32_t aOffset,\n                                  uint32_t aLength, uint32_t aFlags) {\n  if (!aLength) {\n    return;\n  }\n  if (!aOffset) {\n    if (aFlags & nsLineBreaker::BREAK_SUPPRESS_INITIAL) {\n      *aBreaks = gfxTextRun::CompressedGlyph::FLAG_BREAK_TYPE_NONE;\n    }\n    ++aBreaks;\n    --aLength;\n  }\n  if (aFlags & nsLineBreaker::BREAK_SUPPRESS_INSIDE) {\n    memset(aBreaks, gfxTextRun::CompressedGlyph::FLAG_BREAK_TYPE_NONE, aLength);\n  }\n}\n\n",
+  "assumptions": [
+    "same original chunk flags and absolute offset across partition",
+    "valid allocated range and representable native arithmetic",
+    "Boolean flag and NONE projections",
+    "supplied break list already produced by unchanged upstream logic"
+  ],
+  "excluded": [
+    "machine/pointer refinement",
+    "all-path AppendText or FlushCurrentWord correspondence",
+    "glyph zero-write erasure",
+    "arbitrary restyle/invalidation",
+    "new browser results"
+  ]
+}

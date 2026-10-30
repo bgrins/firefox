@@ -1,0 +1,179 @@
+--- executed/run.py
++++ nowrap/run.py
+@@ -4,7 +4,6 @@
+ import json
+ import os
+ from pathlib import Path
+-import signal
+ import subprocess
+ import sys
+ import tempfile
+@@ -70,20 +69,19 @@
+     assert git('rev-parse', 'HEAD').decode().strip() == binding['head']
+     assert git('symbolic-ref', 'HEAD').decode().strip() == binding['branch']
+     prior = authenticated_receipt(binding, 'predecessor_receipt')
+-    assert prior['commit'] == binding['head'] and prior['signature_verified']
+-    if stage['stage'] == 'union':
+-        assert binding['predecessor_kind'] == 'log'
+-        assert set(prior['files']) == set(policy['log_predecessor_files'])
+-    else:
+-        assert prior['stage'] == 'union'
+-        assert binding['predecessor_kind'] == prior['stage']
++    assert prior['head'] == binding['head'] and prior['signature_verified']
++    assert prior['committed'] and prior['accepted_fix_increment'] == 0 and prior['native_working_diff_preserved']
++    assert binding['predecessor_kind'] == 'signed-research' and stage['stage'] == 'nowrap'
++    evidence = load('nowrap_pair_evidence', HERE / 'evidence.py')
++    evidence.verify(ROOT, policy['pair_binding'], stage)
++    pair_head = read(ROOT / policy['pair_binding']['owner_directory'] / 'POLICY.json')['head']
++    assert not git('merge-base', '--is-ancestor', pair_head, binding['head'])
++    assert all(path.startswith('artifacts/') for path in git('diff', '--name-only', pair_head, binding['head']).decode().splitlines())
+     git('-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / policy['allowed_signers']), 'verify-commit', binding['head'])
+     controls = {n: (RUNTIME / n).read_bytes() for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+     assert {n: digest(b) for n, b in controls.items()} == binding['controls']
+     epoch, ownership, role = (json.loads(controls[n]) for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json'))
+     assert epoch['semantic_index']['head'] == binding['head'] and epoch['staged_working'] == {}
+-    if stage['stage'] == 'union':
+-        assert epoch['log_clear_special_values_transition']['native_commit'] == binding['head']
+     before = state.a.verify_current(state.h, ROOT, ENV, epoch)
+     assert before == binding['snapshot']
+     for path, pin in stage['head_preimages'].items():
+@@ -98,42 +96,43 @@
+     owner.quiescent(RUNTIME)
+     owner.quiescent(ROOT / 'artifacts/css-page-selector-native-runtime-v1')
+     output = ROOT / policy['runtime_output']
+-    assert output.parent == ROOT / 'artifacts' and output.name.startswith('css-registered-color-image-publication-')
++    assert output.parent == ROOT / 'artifacts' and output.name.startswith('css-nowrap-publication-')
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not os.path.lexists(lock)
+     sources = set(stage['head_preimages'])
+     tests = set(stage['files']) - sources
+     assert {p.replace('testing/web-platform/tests/', 'testing/web-platform/meta/') + '.ini' for p in tests} <= set(binding['absent_metadata'])
+-    source_claims, parents = {}, {}
+-    held = 'servo/components/style/custom_properties.rs'
++    source_claims, parents, adopted = {}, {}, {}
+     if action == 'install':
+         assert not os.path.lexists(output)
+-        expected_dirty = [held] if stage['stage'] == 'union' else []
+-        assert epoch['modified_native_paths'] == expected_dirty
++        assert epoch['modified_native_paths'] == []
++        assert prior['epoch_sha256'] == binding['controls']['CURRENT-EPOCH.json']
++        assert set(binding['adopted_tests']) == tests == set(stage['adopt_existing_tests'])
+         for path in sources:
+             pin = stage.get('working_preimages', stage['head_preimages'])[path]
+             assert epoch['pins'][path] == pin
+             source_claims[path] = owner.claim(ROOT, path, pin, epoch['installed_identities'][path])
+-        if stage['stage'] == 'union':
+-            archive = read(HERE / 'STAGES.json')['held_provider_archive_capture']
+-            assert sha(ROOT / archive) == policy['held_provider_sha256']
+-            assert digest(git('show', binding['head'] + ':' + archive)) == policy['held_provider_sha256']
+         for path in tests:
+-            assert not os.path.lexists(ROOT / path) and epoch['pins'].get(path) is None
++            assert epoch['pins'].get(path) is None
+             assert path not in epoch['installed_identities'] and path not in ownership
+             assert not git('ls-files', '--stage', '--', path) and not git('ls-tree', binding['head'], '--', path)
++            expected = binding['adopted_tests'][path]
++            adopted[path] = owner.claim(ROOT, path, stage['files'][path]['sha256'], expected['claim']['identity'])
++            assert adopted[path] == expected['claim']
+             parents[path] = creation.parent_pins(ROOT, ROOT / path)
++            assert parents[path] == expected['parents']
++            assert digest(git('show', binding['head'] + ':' + stage['files'][path]['path'])) == stage['files'][path]['sha256']
+     else:
+         installed = read(output / 'INSTALL-RESULT.json')
+         assert installed['stage'] == stage['stage'] and installed['installed'] and not installed['app_rebuilt']
+         assert installed['manifest_sha256'] == binding['installation_manifest']
+         assert installed['epoch_sha256'] == binding['controls']['CURRENT-EPOCH.json']
+-        assert epoch['registered_color_image_publication'][stage['stage']]['installation_manifest'] == binding['installation_manifest']
++        assert epoch['nowrap_publication'][stage['stage']]['installation_manifest'] == binding['installation_manifest']
+         assert epoch['modified_native_paths'] == sorted(sources)
+         for path, record in stage['files'].items():
+             assert epoch['pins'][path] == record['sha256']
+             owner.claim(ROOT, path, record['sha256'], epoch['installed_identities'][path])
+-        assert not role['built'] and role['variant'] == 'registered-' + stage['stage']
++        assert not role['built'] and role['variant'] == stage['stage']
+         if tests:
+             delivery = authenticated_receipt(binding, 'delivery_receipt')
+             assert delivery['lint_exit'] == 0 and delivery['lint_errors'] == 0
+@@ -150,9 +149,10 @@
+         assert git('config', '--get', 'commit.gpgsign').strip() == b'true'
+     control_claims = {n: owner.claim(ROOT, str((RUNTIME / n).relative_to(ROOT)), digest(body)) for n, body in controls.items()}
+     untracked = git('ls-files', '--others', '--exclude-standard', '-z')
++    assert {path.encode() for path in tests} <= set(untracked.split(b'\0'))
+     lock.mkdir()
+     lock_identity = [lock.stat().st_dev, lock.stat().st_ino]
+-    safe, created, originals = False, {}, {}
++    safe, originals = False, {}
+     try:
+         assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+         if action == 'install':
+@@ -161,21 +161,17 @@
+                 with (output / ('PRE-' + name)).open('xb') as stream:
+                     stream.write(body)
+             save(output / 'PRE.json', before)
+-            save(output / 'INITIAL-CLAIMS.json', {'sources': source_claims, 'controls': control_claims, 'parents': parents})
++            save(output / 'INITIAL-CLAIMS.json', {'sources': source_claims, 'controls': control_claims, 'parents': parents, 'adopted_tests': adopted})
+             for number, path in enumerate(sorted(sources)):
+                 originals[path] = (ROOT / path).read_bytes()
+                 with (output / ('SOURCE-PRE-' + str(number))).open('xb') as stream:
+                     stream.write(originals[path])
+                 owner.write_owned(ROOT, source_claims[path], (ROOT / stage['files'][path]['path']).read_bytes())
+-            for path in sorted(tests):
+-                blocked = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
+-                try:
+-                    created[path] = creation.create_owned(owner, ROOT, path, parents[path])
+-                    save(output / 'CREATED.json', created)
+-                finally:
+-                    signal.pthread_sigmask(signal.SIG_SETMASK, blocked)
+-                owner.write_owned(ROOT, created[path], (ROOT / stage['files'][path]['path']).read_bytes())
+-            claims = {**source_claims, **created}
++            for path, claim in adopted.items():
++                assert owner.claim(ROOT, path, claim['owned_sha256'], claim['identity']) == claim
++                assert creation.parent_pins(ROOT, ROOT / path) == parents[path]
++            save(output / 'ADOPTED-TESTS.json', adopted)
++            claims = {**source_claims, **adopted}
+             save(output / 'OWNERSHIP.json', claims)
+             index = state.h.index_state(ROOT, ENV)
+             semantic = state.h.semantic_index(index)
+@@ -190,10 +186,10 @@
+             state.a.verify_current(state.h, ROOT, ENV, current)
+             save(output / 'INSTALL-RESULT.json', {'stage': stage['stage'], 'installed': True, 'accepted': False,
+                  'manifest_sha256': manifest, 'epoch_sha256': digest(owner.encoded(current)),
+-                 'files': sorted(stage['files']), 'app_rebuilt': False, 'held_provider_parked': True})
++                 'files': sorted(stage['files']), 'app_rebuilt': False, 'existing_test_adopted_without_write': True})
+             safe = True
+         else:
+-            with tempfile.TemporaryDirectory(prefix='css-color-image-native-', dir='/private/tmp') as temporary:
++            with tempfile.TemporaryDirectory(prefix='css-nowrap-native-', dir='/private/tmp') as temporary:
+                 temporary = Path(temporary)
+                 index_env = dict(ENV, GIT_INDEX_FILE=str(temporary / 'index'))
+                 git('read-tree', binding['head'], env=index_env)
+@@ -210,7 +206,7 @@
+                 message.write_text(policy['messages'][stage['stage']] + '\n')
+                 assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+                 with (output / 'native-signing.log').open('x') as stream:
+-                    result = subprocess.run(GIT + ['commit', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
++                    result = subprocess.run(GIT + ['commit', '--quiet', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
+                 if result.returncode:
+                     assert git('rev-parse', 'HEAD').decode().strip() == binding['head']
+                     assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+@@ -243,10 +239,9 @@
+     except BaseException as error:
+         if action == 'install':
+             try:
+-                for path, claim in reversed(list(created.items())):
+-                    owner.claim(ROOT, path, claim['owned_sha256'], claim['identity'])
++                for path, claim in adopted.items():
++                    assert owner.claim(ROOT, path, claim['owned_sha256'], claim['identity']) == claim
+                     assert creation.parent_pins(ROOT, ROOT / path) == parents[path]
+-                    (ROOT / path).unlink()
+                 for path, body in originals.items():
+                     owner.write_owned(ROOT, source_claims[path], body)
+                 restored = copy.deepcopy(epoch)
+@@ -264,7 +259,7 @@
+             finally:
+                 if output.exists():
+                     save(output / 'INSTALL-FAILURE.json', {'error': repr(error), 'rollback_verified': safe,
+-                         'manual_recovery_required': not safe, 'sources': source_claims, 'created': created})
++                         'manual_recovery_required': not safe, 'sources': source_claims, 'adopted_tests_preserved': adopted})
+         raise
+     finally:
+         if safe:

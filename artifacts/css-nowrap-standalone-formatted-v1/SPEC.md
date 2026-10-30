@@ -1,0 +1,9 @@
+# Narrow fixture oracle
+
+Verdict: **REACHED** for this fixture's nowrap and intrinsic-width assertions; this is not a complete CSS text-processing proof.
+
+1. `white-space: nowrap` selects collapsing whitespace with no wrapping. The fixture's `ABC D` has one interior space and no forced break. The current CSS Text 4 definition says: “Lines only break at forced line breaks”. Break-all and anywhere introduce soft opportunities; they do not turn those opportunities into forced breaks. Thus each nowrap target remains one line. [CSS Text 4](https://drafts.csswg.org/css-text-4/#valdef-text-wrap-mode-nowrap)
+2. Adjacent text nodes and an unstyled nested inline do not add line-breaking opportunities. The same characters and inherited policies therefore retain the same nowrap result. The separate prefix control has an existing wrapping space outside the nowrap span; the fixture preserves that external opportunity rather than requiring a break introduced solely by an inline boundary. [CSS Text 3 line-breaking details](https://drafts.csswg.org/css-text-3/#line-break-details)
+3. Min-content inline sizing uses the available soft wrapping opportunities. Without wrapping the calibrated five Ahem advances total 100px; normal/keep-all Latin text has the longest segment `ABC` at 60px, while break-all/anywhere permits 20px single-character segments. The trailing-space trimming model does not remove the fixture's interior space from the unwrapped content. [CSS Sizing 3](https://drafts.csswg.org/css-sizing-3/#min-content-inline-size)
+
+Primary pages were read on 2026-10-30 (CSS Text 4 draft 2026-10-26, CSS Text 3 draft 2026-08-14, CSS Sizing 3 draft 2026-10-08). Access receipts were web reads turn3156view0–2, turn3157view0/2, turn3159view1/2 and turn3160view0. `INDEX.log` retains the failed local indexed query. No exhaustive issue/duplicate search or whole-engine normative correspondence is claimed.

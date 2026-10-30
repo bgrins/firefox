@@ -1,0 +1,47 @@
+  80:   // Break opportunities exist at the end of each run of breakable whitespace
+  81:   // (see IsSpace above). Break opportunities can also exist between pairs of
+  82:   // non-whitespace characters, as determined by mozilla::intl::LineBreaker.
+  83:   // We pass a whitespace-
+  84:   // delimited word to LineBreaker if it contains at least one character
+  85:   // that has breakable line breaking classes.
+  86:   // We provide flags to control on a per-chunk basis where breaks are allowed.
+  87:   // At any character boundary, exactly one text chunk governs whether a
+  88:   // break is allowed at that boundary.
+  89:   //
+  90:   // We operate on text after whitespace processing has been applied, so
+  91:   // other characters (e.g. tabs and newlines) may have been converted to
+  92:   // spaces.
+  93: 
+  94:   /**
+  95:    * Flags passed with each chunk of text.
+  96:    */
+  97:   enum {
+  98:     /*
+  99:      * Do not introduce a break opportunity at the start of this chunk of text.
+ 100:      */
+ 101:     BREAK_SUPPRESS_INITIAL = 0x01,
+ 102:     /**
+ 103:      * Do not introduce a break opportunity in the interior of this chunk of
+ 104:      * text. Also, whitespace in this chunk is treated as non-breakable.
+ 105:      */
+ 106:     BREAK_SUPPRESS_INSIDE = 0x02,
+ 107:     /**
+ 108:      * The sink currently is already set up to have no breaks in it;
+ 109:      * if no breaks are possible, nsLineBreaker does not need to call
+ 110:      * SetBreaks on it. This is useful when handling large quantities of
+ 111:      * preformatted text; the textruns will never have any breaks set on them,
+ 112:      * and there is no need to ever actually scan the text for breaks, except
+ 113:      * at the end of textruns in case context is needed for following breakable
+ 114:      * text.
+ 115:      */
+ 116:     BREAK_SKIP_SETTING_NO_BREAKS = 0x04,
+ 117:     /**
+ 118:      * We need to be notified of characters that should be capitalized
+ 119:      * (as in text-transform:capitalize) in this chunk of text.
+ 120:      */
+ 121:     BREAK_NEED_CAPITALIZATION = 0x08,
+ 122:     /**
+ 123:      * Auto-hyphenation is enabled, so we need to get a hyphenator
+ 124:      * (if available) and use it to find breakpoints.
+ 125:      */
+ 126:     BREAK_USE_AUTO_HYPHENATION = 0x10

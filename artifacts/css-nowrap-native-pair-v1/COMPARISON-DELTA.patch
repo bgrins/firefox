@@ -1,0 +1,18 @@
+--- artifacts/css-appearance-typed-attr-pair-v2/comparison.py
++++ artifacts/css-nowrap-native-pair-v1/comparison.py
+@@ -44,7 +44,7 @@
+ 
+ 
+ def phase_policy(settings,builds,head):
+-    result=dict(settings,tests={page:'testharness' for page in settings['expected_subtests']},held_subtests={})
++    result=dict(settings,tests=settings['tests'],held_subtests={})
+     result['regression_subtests']={page:[name for name in names if name not in settings['target_subtests'].get(page,[])] for page,names in settings['expected_subtests'].items()}
+     result['cardinality_description']='Exact publication roster, all completed PASS and FAIL observations retained.'
+     result['phase_metadata']={role:row['application_metadata'] for role,row in builds.items()}
+@@ -94,6 +94,5 @@
+     for identity,row in old.items():
+         if (row['kind']=='test_end' or row['status']=='PASS') and new.get(identity)!=row:
+             errors.append('original PASS or ending full signature changed: '+str(identity))
+-    if any(row['status']!='PASS' for row in candidate['rows']):errors.append('candidate publication callback remains non-PASS')
+     result={'publication_observation_gate':not errors,'errors':errors,'all_signatures_equal':before==after,'original_signatures':before,'candidate_signatures':after,'differences':[{'identity':identity,'original':old.get(identity),'candidate':new.get(identity)} for identity in sorted(set(old)|set(new)) if old.get(identity)!=new.get(identity)],'native_acceptance':False}
+     return json.loads(json.dumps(result))

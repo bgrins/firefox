@@ -1,0 +1,42 @@
+--- artifacts/css-appearance-typed-attr-pair-v2/admission.py
++++ artifacts/css-nowrap-native-pair-v1/admission.py
+@@ -40,9 +40,11 @@
+         module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+     local('baseline').require_role(policy,capture['role'],{'prototype_overlay_state':capture['prototype_overlay_state']})
+     local('review_scope').require_full(capture['snapshot'])
+-    assert set(capture['sources'])==set(roles)
++    assert set(capture['sources'])==set(read(owner/'SOURCE-ROLES.json'))
++    assert all(claim==capture['payload_claims'][name] for name,claim in capture['sources'].items())
++    assert set(roles)<=set(capture['payload_claims'])
+     for name,row in roles.items():
+-        claim=capture['sources'][name]
++        claim=capture['payload_claims'][name]
+         assert claim['path']==name and claim['owned_sha256']==row['base_sha256']
+         assert claim==capture['payload_claims'][name]
+     assert set(capture['payload_claims'])==set(capture['installed_identities'])
+@@ -59,25 +61,3 @@
+     assert set(capture['flag_hashes'])=={'root','nested'}
+     return capture
+ 
+-
+-def validate_prerequisite(root,policy,roles):
+-    runtime=authenticate(root,policy['prerequisite_binding'])
+-    report=read(runtime/'ROOT-REVIEW.json')
+-    terminal=read(runtime/'ROOT-REVIEW-TERMINAL.json')
+-    assert terminal['exit']==0 and terminal['review_sha256']==sha(runtime/'ROOT-REVIEW.json')
+-    assert report['restoration_independently_verified'] and report['observation_complete']
+-    assert not report['native_acceptance'] and not report['canonical_updated']
+-    assert report['actual_terminal']==read(runtime/'ROOT-OWNER-TERMINAL.json')
+-    assert report['actual_terminal']['exit']==0 and report['actual_terminal']['result_sha256']==sha(runtime/'CANDIDATE-RESULT.json')
+-    assert read(runtime/'candidate-build/RESULT.json')['native_sources']=={name:row['candidate_sha256'] for name,row in roles.items()}
+-    original=read(runtime/'CANDIDATE-PRE.json')['sources']
+-    assert {name:row['base_sha256'] for name,row in original.items()}=={name:row['base_sha256'] for name,row in roles.items()}
+-    corrected=authenticate(root,policy['assessor_binding'])
+-    replay=read(corrected/'REPLAY.json')
+-    assert not replay['native_acceptance'] and not replay['live_records_modified']
+-    lanes=replay['lanes']
+-    assert all(row['corrected_assessment_gate'] and row['corrected_behavior_gate'] for row in lanes.values())
+-    assert sum(row['targets_PASS'] for row in lanes.values())==24
+-    assert sum(row['preserved_original_PASS'] for row in lanes.values())==64
+-    assert sum(row['published_signatures_preserved'] for row in lanes.values())==8
+-    assert sum(row['endings_OK'] for row in lanes.values())==12

@@ -1,0 +1,90 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Changing hyphenation limits removes obsolete hyphenation opportunities</title>
+<link rel="help" href="https://drafts.csswg.org/css-text-4/#hyphenate-char-limits">
+<link rel="stylesheet" href="/fonts/ahem.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.sample {
+  font: 20px/20px Ahem;
+  width: 60px;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphenate-character: "-";
+}
+</style>
+<div id="log"></div>
+<script>
+const fontReady = document.fonts.load("20px Ahem", "example-x");
+
+function wordLines(target) {
+  const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+  const result = [];
+  while (walker.nextNode() && result.length < 7) {
+    for (let i = 0; i < walker.currentNode.length && result.length < 7; ++i) {
+      const range = document.createRange();
+      range.setStart(walker.currentNode, i);
+      range.setEnd(walker.currentNode, i + 1);
+      result.push(range.getBoundingClientRect().top);
+    }
+  }
+  assert_equals(result.length, 7, "All letters were measured");
+  return result.map(top => top - result[0]);
+}
+
+function fixture(t, limit, partition, hyphens) {
+  const sample = document.createElement("div");
+  sample.className = "sample";
+  sample.lang = "en-us";
+  sample.style.hyphens = hyphens;
+  sample.style.hyphenateLimitChars = limit;
+  if (partition === "single") {
+    sample.textContent = "example ";
+  } else if (partition === "adjacent") {
+    sample.append(document.createTextNode("exa"), document.createTextNode("mple "));
+  } else {
+    for (const text of ["exa", "mple "]) {
+      const span = document.createElement("span");
+      span.textContent = text;
+      sample.append(span);
+    }
+  }
+  document.body.append(sample);
+  t.add_cleanup(() => sample.remove());
+  return sample;
+}
+
+promise_test(async t => {
+  assert_equals((await fontReady).length, 1, "Ahem loaded");
+  const sample = fixture(t, "5 2 2", "single", "auto");
+  assert_implements_optional(wordLines(sample).some(top => top !== 0),
+    "The English dictionary hyphenates example at this width");
+}, "English hyphenation dictionary calibration");
+
+for (const limit of ["100", "5 100 2", "5 2 100"]) {
+  for (const partition of ["single", "adjacent", "spans"]) {
+    for (const hyphens of ["auto", "none"]) {
+      promise_test(async t => {
+        assert_equals((await fontReady).length, 1, "Ahem loaded");
+        const sample = fixture(t, "5 2 2", partition, hyphens);
+        const observations = [{stage: "permissive", lines: wordLines(sample)}];
+        sample.style.hyphenateLimitChars = limit;
+        observations.push({stage: "restricted", lines: wordLines(sample)});
+        sample.style.hyphenateLimitChars = "5 2 2";
+        observations.push({stage: "permissive again", lines: wordLines(sample)});
+        sample.style.hyphenateLimitChars = limit;
+        observations.push({stage: "restricted again", lines: wordLines(sample)});
+        const fresh = fixture(t, limit, partition, hyphens);
+        observations.push({stage: "fresh restricted", lines: wordLines(fresh)});
+        const detail = JSON.stringify(observations);
+        for (const index of [1, 3, 4]) {
+          assert_array_equals(observations[index].lines, [0, 0, 0, 0, 0, 0, 0],
+            observations[index].stage + " must not hyphenate: " + detail);
+        }
+      }, `limit=${limit}; ${partition}; hyphens=${hyphens}`);
+    }
+  }
+}
+</script>
