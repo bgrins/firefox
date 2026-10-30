@@ -1,0 +1,9 @@
+# WPT triage after standalone nowrap adoption
+
+Verified signed commit `28bbc39fb8fec210ff9ee9880eeedc77be3f6d52` adopts `nowrap-inline-break-policies.html`. Removing that one member from the immutable historical53-file triage leaves **52 remaining untracked WPT files**: **26 completed-fix-associated probes/controls, 17 pending candidate/control files, 8 unresolved/rejected/withdrawn leads, and 1 passing control**.
+
+Only the nowrap member is removed from the remaining-untracked list. Its original recovery bytes are adopted unchanged as the committed 169-case WPT. All other historical per-file categories and evidence remain unchanged. `UNTRACKED-WPT-DELTA.json` pins the original inventory and enumerates the remaining paths; this subtraction is not a fresh content audit or a bug-count change.
+
+The original `css-untracked-wpt-triage-20261030-v1` stays immutable, including its then-current 53-file count and older nowrap evidence. Its completed-associated category still describes exploratory probes/controls, not 26 new bugs or 26 exact copies of landed tests. No bulk staging, deletion, native acceptance or reading of unrelated untracked contents is performed here.
+
+Root’s separate [post-publication inventory audit](../css-nowrap-publication-untracked-audit-v1.json), actual33832/d3f6ef/287649/0, verifies562 untracked paths:67 project files (52 WPTs and15 support files) matching committed recovery, plus495 unrelated paths whose metadata is unchanged and whose contents were not read. Tracked/staged changes are empty; the nested Lean checkout retains only its known `.DS_Store`. The corrected inventory subtracts six historical recovery page files already tracked before this publication; the initial count assertion failed before body reads. This saved readout authenticates root’s report rather than claiming another live audit.
