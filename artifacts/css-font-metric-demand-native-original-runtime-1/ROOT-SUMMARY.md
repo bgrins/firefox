@@ -1,0 +1,5 @@
+# Published-branch metric observation
+
+Actual owner80766/c53f82/a2c1fe exited0. The single published-original native build succeeded at HEADa1e0ffba3651cf27853c33d22bb7b1b5368f658f, BuildID20261030123747. The exact13callbacks give3PASS10FAIL1OK. Twelve status/message pairs equal the completed release run. Typedattr changes from constant8px to20/20/30/30, retaining the selected-weight mismatch. These are observed failures, not accepted native fixes.
+
+The native source was never overlaid. The owner restored the preexisting historical application and preserved canonical controls, source bytes/identities, staging and flags. Its1,008,605,176-byte backup was removed. Raw index observation is unchanged. Independent root live audit39554/f94eb9/1cdcda exited0, rechecking restoration, three absent owned process groups and removed temporary/backup paths. The built browser is not left installed as the current application. Full evidence and mixed release/Nightly profile limits remain separate from causal refinement or repair acceptance.

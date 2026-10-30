@@ -1,0 +1,20 @@
+--- v2/run.py
++++ v3/run.py
+@@ -14,7 +14,7 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ sys.dont_write_bytecode = True
+ ROOT = Path(__file__).resolve().parents[2]
+-OUTPUT = ROOT / 'artifacts/css-font-metric-demand-installed-release-runtime-2'
++OUTPUT = ROOT / 'artifacts/css-font-metric-demand-installed-release-runtime-3'
+ PHASE = ROOT / 'artifacts/css-font-metric-demand-installed-stage-v2'
+ APP = Path('/Applications/Firefox.app/Contents')
+ PAGE = '/css/css-properties-values-api/registered-font-metric-demand.tentative.html'
+@@ -62,7 +62,7 @@
+     run_info.mkdir()
+     temporary = Path(tempfile.mkdtemp(prefix='css-font-metric-matrix-', dir='/private/tmp'))
+     identity = [temporary.stat().st_dev, temporary.stat().st_ino]
+-    command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'wpt', '--headless', '--processes=1', '--no-manifest-update', '--no-manifest-download', '--no-install-fonts', '--browser-channel=stable', '--binary=' + str(APP / 'MacOS/firefox'), '--config=' + str(PHASE / 'wptrunner.ini'), '--run-info=' + str(run_info), '--prefs-root=' + str(ROOT / 'testing/profiles'), '--log-raw=' + str(OUTPUT / 'raw.jsonl'), '--include=' + PAGE]
++    command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'wpt', '--headless', '--processes=1', '--no-manifest-update', '--no-manifest-download', '--no-install-fonts', '--no-enable-webtransport-h3', '--browser-channel=stable', '--binary=' + str(APP / 'MacOS/firefox'), '--config=' + str(PHASE / 'wptrunner.ini'), '--run-info=' + str(run_info), '--prefs-root=' + str(ROOT / 'testing/profiles'), '--log-raw=' + str(OUTPUT / 'raw.jsonl'), '--include=' + PAGE]
+     save('COMMAND.json', {'command': command, 'temporary_root': str(temporary), 'temporary_identity': identity, 'timeout_seconds': 180, 'script_sha256': sha(Path(__file__))})
+     profiles = json.loads((ROOT / 'testing/profiles/profiles.json').read_bytes())['web-platform-tests']
+     save('PROFILE-INPUTS.json', {name: {'sha256': sha(ROOT / 'testing/profiles' / name / 'user.js')} for name in profiles if name != 'unittest-features'})

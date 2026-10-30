@@ -1,0 +1,1 @@
+Executed installed-release runner adapted to the thirteen-case metric matrix. Only pinned fixture/stage paths, hashes, expected count and temporary prefix differ. Same fresh stable WPT profile, critical app snapshots, actual BuildID check, 180-second watchdog and owned process cleanup. Native source, Git and canonical state are not mutated. No run is claimed until RESULT exists.

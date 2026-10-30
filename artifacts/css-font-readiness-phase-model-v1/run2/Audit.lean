@@ -1,0 +1,10 @@
+import Phase
+#print axioms FontReadinessPhase.request_batches_exact
+#print axioms FontReadinessPhase.later_requests_preserve_completed_answers
+#print axioms FontReadinessPhase.size_complete_metrics_pending
+#print axioms FontReadinessPhase.served_reads_are_final
+#print axioms FontReadinessPhase.completion_preserves_served_answers
+#print axioms FontReadinessPhase.path_decreases
+#print axioms FontReadinessPhase.separated_dependencies_acyclic
+#print axioms FontReadinessPhase.merging_creates_false_cycle
+#print axioms FontReadinessPhase.genuine_metric_wait_cycle

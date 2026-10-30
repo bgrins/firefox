@@ -1,0 +1,57 @@
+--- artifacts/css-appearance-typed-attr-pair-v2/run.py
++++ artifacts/css-font-metric-demand-native-original-v1/run.py
+@@ -38,9 +38,9 @@
+     policy, ownership, roles = baseline.prepare(sys.argv[2])
+     assert policy['wpt'] is not None
+     if sys.argv[1] == '--check':
+-        print('Authenticated paired recipe; no live guard')
++        print('Authenticated original-only recipe; no live guard')
+         return
+-    assert policy['execution_enabled'] and policy['candidate_execution_enabled']
++    assert policy['execution_enabled'] and not policy['candidate_execution_enabled']
+     assert policy['activation_pending'] == []
+     baseline.require_ready(policy)
+     state, env, controls, original, flags, original_verify = baseline.guard(policy, ownership, roles)
+@@ -104,7 +104,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'appearance-typed-attr-pair4-v1'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'font-metric-original13-v1'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+@@ -156,14 +156,9 @@
+     try:
+         phases = load('publication_pair_phases', str((HERE / 'phases.py').relative_to(ROOT)))
+         phase_result = {}
+-        for role in ('original', 'candidate'):
++        for role in ('original',):
+             active_role[0] = role
+             stable_controls()
+-            if role == 'candidate':
+-                for name in roles:
+-                    touched.append(name)
+-                    if bases[name] != candidates[name]:
+-                        ownership.write_owned(ROOT, claims[name], candidates[name])
+             assert free() >= 27 * 1024**3
+             build = output / (role + '-build')
+             build.mkdir()
+@@ -227,7 +222,7 @@
+         assert state.h.git(path, env, 'ls-files', '-v', '-z') == flags[name]
+     state.save(output / 'POST.json', after)
+     state.save(output / 'RAW-INDEX-OBSERVATION.json', {'before': original_before['index']['raw_index'], 'after': index['raw_index'], 'semantic_index_unchanged': True, 'canonical_updated': False})
+-    success = failure is None and not errors and phase_result is not None and set(phase_result) == {'original', 'candidate'}
++    success = failure is None and not errors and phase_result is not None and set(phase_result) == {'original'}
+     if success:
+         assert bundle.scan(backups) == backup_snapshot
+         shutil.rmtree(backups)
+@@ -236,7 +231,7 @@
+     lock.unlink()
+     state.save(output / 'RESULT.json', {'success': success, 'error': failure, 'publication_errors': errors, 'phase': phase_result, 'provider_source_role': policy['provider_source_role'], 'build_revision': policy['head'], 'restoration_verified': True, 'runtime_controls_unchanged': True, 'empty_staging_preserved': True, 'native_fix_acceptance': False, 'full_epoch_copies_saved': 0, 'success_scope': 'build, complete observation and restoration; callback PASS is separate'})
+     assert success, failure
+-    print('Activation paired observation complete; original source and application restored', flush=True)
++    print('Original-only observation complete; source and application restored', flush=True)
+ 
+ 
+ if __name__ == '__main__':

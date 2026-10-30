@@ -1,0 +1,11 @@
+--- artifacts/css-appearance-typed-attr-pair-v2/wpt.py
++++ artifacts/css-font-metric-demand-native-original-v1/wpt.py
+@@ -124,7 +124,7 @@
+     temporary = Path(tempfile.mkdtemp(prefix='css-easing-paired-', dir='/private/tmp'))
+     identity = (temporary.stat().st_dev, temporary.stat().st_ino)
+     phase_env = dict(env, TMPDIR=str(temporary), TMP=str(temporary), TEMP=str(temporary), MOZ_DISABLE_SAFE_MODE_KEY='1', MOZ_DISABLE_UPDATE_PROCESSING='1')
+-    command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'wpt', '--headless', '--processes=1', '--no-manifest-update', '--no-manifest-download', '--binary=' + str(root / settings['binary']), '--config=' + str(config_path), '--run-info=' + str(root / 'objdir-full.noindex'), '--prefs-root=' + str(root / 'testing/profiles'), '--log-raw=' + str(output / 'raw.jsonl')]
++    command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'wpt', '--headless', '--processes=1', '--no-manifest-update', '--no-manifest-download', '--no-install-fonts', '--no-enable-webtransport-h3', '--binary=' + str(root / settings['binary']), '--config=' + str(config_path), '--run-info=' + str(root / 'objdir-full.noindex'), '--prefs-root=' + str(root / 'testing/profiles'), '--log-raw=' + str(output / 'raw.jsonl')]
+     command.extend('--include=' + test for test in expected)
+     save(output / 'COMMAND.json', {'command': command, 'temporary_root': str(temporary), 'temporary_identity': identity, 'timeout_seconds': settings['timeout_seconds']})
+     process, code, error, cleanup = None, None, None, None

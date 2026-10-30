@@ -1,0 +1,77 @@
+--- artifacts/css-appearance-typed-attr-pair-v2/check.py
++++ artifacts/css-font-metric-demand-native-original-v1/check.py
+@@ -24,25 +24,26 @@
+ 
+ def validate_policy(policy):
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-appearance-typed-attr-pair-runtime-2'
+-    assert policy['head'] == '0217759e518c6c234b50f74250bd31ae3c4c26be'
++    assert not policy['candidate_execution_enabled']
++    assert policy['runtime_output'] == 'artifacts/css-font-metric-demand-native-original-runtime-1'
++    assert policy['head'] == 'a1e0ffba3651cf27853c33d22bb7b1b5368f658f'
+     admission = load('admission')
+     suite = admission.authenticate(ROOT, policy['suite_binding'])
+-    assert policy['suite_binding']['manifest_sha256'] == '940fdda04d54d73778a608cb32dfa6274922ae9d93ac9ed3de3fabd5b9bfb759'
++    assert policy['suite_binding']['manifest_sha256'] == 'a727bc557153226f1f8ab12f7547c1a2e28a380e8291139b75e36aae62c12ed7'
+     data, roster = (read(suite / name) for name in ('INPUTS.json', 'ROSTER.json'))
+-    assert (data['callbacks'], data['pages'], data['signatures'], len(data['resources'])) == (4, 1, 5, 3)
++    assert (data['callbacks'], data['pages'], data['signatures'], len(data['resources'])) == (13, 1, 14, 6)
+     assert policy['lane_order'] == ['ordinary'] and policy['diagnostic_lane_order'] == []
+     assert set(policy['wpt_lanes']) == {'ordinary'}
+     prior = read(ROOT / 'artifacts/css-prioritary-publication-pair-v2/POLICY.json')
+     for key in ('image_commit', 'ownership_helper', 'phase_helper', 'process_helper', 'state_helper', 'bundle_helper', 'bundle_path', 'extra_backup_paths', 'rebuilt_binaries', 'metadata_current_pins', 'preserved_absent_metadata', 'source_context_pins', 'restored_application_revision', 'timeout_seconds'):
+         assert policy[key] == prior[key], key
+-    assert policy['preserved_absent_resources'] == sorted(set(prior['preserved_absent_resources']) | {'testing/web-platform/meta/css/css-ui/appearance-typed-attr-scheduling.tentative.html.ini'})
++    assert policy['preserved_absent_resources'] == sorted(set(prior['preserved_absent_resources']) | {'testing/web-platform/meta/css/css-ui/appearance-typed-attr-scheduling.tentative.html.ini', 'testing/web-platform/meta/css/css-properties-values-api/registered-font-metric-demand.tentative.html.ini'})
+     changing = {'expected_subtests', 'target_subtests', 'expected_subtest_count', 'expected_target_count', 'expected_control_count', 'expected_page_count', 'expected_regression_signature_count', 'fixture_target_pages', 'candidate_required_pass_pages', 'phase_revisions', 'harness_revision', 'resources', 'manifests', 'metadata', 'capture', 'install_managed_resources'}
+     settings = policy['wpt']
+     assert settings == policy['wpt_lanes']['ordinary']
+     assert {k: v for k, v in settings.items() if k not in changing} == {k: v for k, v in prior['wpt'].items() if k not in changing}
+     assert settings['expected_subtests'] == settings['target_subtests'] == roster
+-    assert (settings['expected_subtest_count'], settings['expected_target_count'], settings['expected_control_count'], settings['expected_page_count'], settings['expected_regression_signature_count']) == (4, 4, 0, 1, 1)
++    assert (settings['expected_subtest_count'], settings['expected_target_count'], settings['expected_control_count'], settings['expected_page_count'], settings['expected_regression_signature_count']) == (13, 13, 0, 1, 1)
+     assert settings['fixture_target_pages'] == settings['candidate_required_pass_pages'] == sorted(roster)
+     assert settings['phase_revisions'] == {'original': policy['head'], 'candidate': policy['head']}
+     assert settings['harness_revision'] == policy['head']
+@@ -56,10 +57,14 @@
+ 
+     old_run = (ROOT / 'artifacts/css-prioritary-published-candidate-v1/candidate.py').read_text()
+     new_run = (HERE / 'run.py').read_text()
++    assert "for role in ('original',):" in new_run
++    assert "if role == 'candidate':" not in new_run
+     start, end = '    finally:\n        if owned:', '    success = failure is None'
+     assert old_run[old_run.index(start):old_run.index(end)] == new_run[new_run.index(start):new_run.index(end)]
+     old_wpt = (ROOT / 'artifacts/css-prioritary-published-candidate-v1/wpt.py').read_text()
+     new_wpt = (HERE / 'wpt.py').read_text()
++    assert "'--no-enable-webtransport-h3'" in new_wpt
++    assert "'--no-install-fonts'" in new_wpt
+     start, end = '    process, code, error, cleanup =', '    after = verify()'
+     assert old_wpt[old_wpt.index(start):old_wpt.index(end)] == new_wpt[new_wpt.index(start):new_wpt.index(end)]
+     roles = read(HERE / 'SOURCE-ROLES.json')
+@@ -92,7 +97,7 @@
+         assert not policy['execution_enabled'] and not policy['candidate_execution_enabled'] and policy['activation_pending']
+     else:
+         capture = admission.validate_current(ROOT, policy, roles)
+-        assert capture['checkpoint_receipt']['sha256'] == '83cc5700c7541e2c766a1e8cc8f39a7ba5af5ead0ca46067cfc7087fff3579a6'
++        assert capture['checkpoint_receipt']['sha256'] == '806dc96850cb3f9b3896de4ba36c63f1a2f64bfafb34ea0c6f0e53b4c8806569'
+     return len(external)
+ 
+ 
+@@ -194,7 +199,7 @@
+         capture = read(ROOT / policy['current_binding']['path'])
+         snapshot = {'index': capture['snapshot']['index'], 'nested_index': capture['snapshot']['nested_index'], 'current_raw_stable_during_check': True, 'working_sources_binaries_preserved': True, 'archival_research_not_rechecked': True, 'verification_scope': 'intermediate-consumed-inputs-v1', 'consumed_inputs_sha256': hashlib.sha256(json.dumps(effective, sort_keys=True, separators=(',', ':')).encode()).hexdigest()}
+         builds = {}
+-        for role in ('original', 'candidate'):
++        for role in ('original',):
+             folder = output / (role + '-build'); folder.mkdir()
+             _, _, metadata = synthetic(policy, 'ordinary', 'PASS', role)
+             sources = {name: row['base_sha256' if role == 'original' else 'candidate_sha256'] for name, row in read(HERE / 'SOURCE-ROLES.json').items()}
+@@ -234,7 +239,7 @@
+     finally:
+         shutil.rmtree(directory)
+     assert not directory.exists()
+-    return {'original_lanes_replayed': 1, 'build_positives': 2, 'build_and_replay_negatives': 6, 'scratch_removed': True}
++    return {'original_lanes_replayed': 1, 'build_positives': 1, 'build_and_replay_negatives': 6, 'scratch_removed': True}
+ 
+ 
+ if __name__ == '__main__':

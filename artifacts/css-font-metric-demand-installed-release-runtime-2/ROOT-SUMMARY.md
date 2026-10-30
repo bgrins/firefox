@@ -1,0 +1,1 @@
+The first thirteen-case installed-release attempt ended without a complete test stream after an optional HTTP/3 server UDP bind collision. Actual28224/a5d7f7/b590d0 exited1. Saved RESULT reports intact app/stage inputs and owned process/temp cleanup. No CSS outcome is attributed to this attempt.
