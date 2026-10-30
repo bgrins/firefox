@@ -2194,6 +2194,16 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
                     }
                 }
 
+                if children.iter().any(|child| {
+                    child.as_leaf().is_some_and(|leaf| {
+                        leaf.unitless_value().is_some_and(f32::is_infinite)
+                            && leaf.canonical_value().is_none()
+                            && child != &children[result]
+                    })
+                }) {
+                    return SimplificationResult::Unchanged;
+                }
+
                 replace_self_with!(&mut children[result]);
                 SimplificationResult::Simplified
             },
