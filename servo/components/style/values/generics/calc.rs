@@ -34,6 +34,16 @@ fn pow(a: f32, b: f32) -> f32 {
     a.powf(b)
 }
 
+fn log(a: f32, b: f32) -> f32 {
+    if b == 1.0 {
+        return f32::NAN;
+    }
+    if a == 1.0 && b > 0.0 {
+        return 0.0;
+    }
+    a.log(b)
+}
+
 fn hypot(a: f32, b: f32) -> f32 {
     let a = a as f64;
     let b = b as f64;
@@ -1611,7 +1621,7 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
                         if !b_ty.is_number() {
                             return Err(());
                         }
-                        a.log(b)
+                        log(a, b)
                     },
                     Optional::None => a.ln(),
                 };
@@ -2478,7 +2488,7 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
                     let folded = match b {
                         &mut Optional::Some(ref b) => {
                             if let CalcNode::Leaf(ref lb) = **b {
-                                lb.as_number().map(|b_val| a_val.log(b_val))
+                                lb.as_number().map(|b_val| log(a_val, b_val))
                             } else {
                                 None
                             }
