@@ -28,6 +28,7 @@ use crate::typed_om::{
     ToTyped, TypedValue, UnparsedSegment, UnparsedValue, VariableReferenceValue,
 };
 use crate::values::computed;
+use crate::values::computed::ToComputedValue;
 use crate::values::generics::calc::SortKey as AttrUnit;
 use crate::values::specified::{NoCalcLength, ParsedNamespace};
 use crate::{Atom, LocalName, Namespace, Prefix, derives::*};
@@ -1675,17 +1676,44 @@ pub fn substitute_references_if_needed_and_apply(
     }
 
     let url_data = &value.url_data;
-    let substitution = substitute_internal(
-        value,
-        Some(PropertyIdRef::from(name)),
-        &context.builder.substitution_functions,
+    apply_substituted_value(
+        name,
+        namespace,
+        url_data,
+        SubstitutionInput::Unresolved(value, attribute_tracker),
         stylist,
         context,
-        attribute_tracker,
-        &mut SmallVec::new(),
-        None,
     );
+}
 
+enum SubstitutionInput<'a, 'b> {
+    Unresolved(&'a VariableValue, &'a mut AttributeTracker<'b>),
+    Prepared(Result<Substitution<'static>, ()>),
+}
+
+fn apply_substituted_value(
+    name: &Name,
+    namespace: Option<&Namespace>,
+    url_data: &UrlExtraData,
+    input: SubstitutionInput<'_, '_>,
+    stylist: &Stylist,
+    context: &mut computed::Context,
+) {
+    let is_var = namespace.is_none();
+    let registration = stylist.get_custom_property_registration(name);
+    let substitution = match input {
+        SubstitutionInput::Unresolved(value, attribute_tracker) => substitute_internal(
+            value,
+            Some(PropertyIdRef::from(name)),
+            &context.builder.substitution_functions,
+            stylist,
+            context,
+            attribute_tracker,
+            &mut SmallVec::new(),
+            None,
+        ),
+        SubstitutionInput::Prepared(substitution) => substitution,
+    };
     let Ok(substitution) = substitution else {
         if is_var {
             handle_invalid_at_computed_value_time(name, registration, context);
@@ -1793,6 +1821,167 @@ pub fn substitute_references_if_needed_and_apply(
                 .substitution_functions
                 .insert_attr(name, namespace, value);
         },
+    }
+}
+
+enum PreparedCustomKind {
+    Existing,
+    Typed(SpecifiedRegisteredValue),
+    Initial(SpecifiedRegisteredValue),
+    Invalid,
+}
+
+pub(crate) struct PreparedCustomValue {
+    substitution: Result<Substitution<'static>, ()>,
+    url_data: UrlExtraData,
+    kind: PreparedCustomKind,
+}
+
+impl PreparedCustomValue {
+    pub fn depends_on_color_scheme(&self) -> bool {
+        match &self.kind {
+            PreparedCustomKind::Typed(value) | PreparedCustomKind::Initial(value) => {
+                value.depends_on_color_scheme()
+            },
+            PreparedCustomKind::Existing | PreparedCustomKind::Invalid => false,
+        }
+    }
+
+    pub fn apply(self, name: &Name, stylist: &Stylist, context: &mut computed::Context) {
+        let registration = stylist.get_custom_property_registration(name);
+        match self.kind {
+            PreparedCustomKind::Typed(specified) => {
+                let mut value = specified.to_computed_value(context);
+                value.attr_tainted |= self.substitution.unwrap().attr_tainted;
+                context
+                    .builder
+                    .substitution_functions
+                    .insert_var(registration, name, value);
+            },
+            PreparedCustomKind::Initial(specified) => {
+                let value = specified.to_computed_value(context);
+                context
+                    .builder
+                    .substitution_functions
+                    .insert_var(registration, name, value);
+            },
+            PreparedCustomKind::Invalid => {
+                handle_invalid_at_computed_value_time(name, registration, context)
+            },
+            PreparedCustomKind::Existing => apply_substituted_value(
+                name,
+                None,
+                &self.url_data,
+                SubstitutionInput::Prepared(self.substitution),
+                stylist,
+                context,
+            ),
+        }
+    }
+}
+
+pub(crate) fn prepare_custom_value(
+    name: &Name,
+    value: &VariableValue,
+    stylist: &Stylist,
+    context: &computed::Context,
+    attribute_tracker: &mut AttributeTracker,
+) -> PreparedCustomValue {
+    let url_data = value.url_data.clone();
+    let substitution = substitute_internal(
+        value,
+        Some(PropertyIdRef::from(name)),
+        &context.builder.substitution_functions,
+        stylist,
+        context,
+        attribute_tracker,
+        &mut SmallVec::new(),
+        None,
+    )
+    .map(|value| Substitution {
+        css: Cow::Owned(value.css.into_owned()),
+        first_token_type: value.first_token_type,
+        last_token_type: value.last_token_type,
+        attr_tainted: value.attr_tainted,
+    });
+    let registration = stylist.get_custom_property_registration(name);
+    let mut kind = match substitution.as_ref() {
+        Err(()) => PreparedCustomKind::Invalid,
+        Ok(value) => {
+            let mut parser = Parser::new(&value.css);
+            if parser.try_parse(CSSWideKeyword::parse).is_ok() || registration.is_universal() {
+                PreparedCustomKind::Existing
+            } else if let Some(syntax) = registration.syntax.as_ref() {
+                let taint = if value.attr_tainted {
+                    AttrTaint::new_fully_tainted(value.css.len())
+                } else {
+                    AttrTaint::default()
+                };
+                let mut parser = Parser::new(&value.css);
+                match SpecifiedRegisteredValue::parse(
+                    &mut parser,
+                    syntax,
+                    &url_data,
+                    None,
+                    AllowComputationallyDependent::Yes,
+                    taint,
+                    Some(PropertyIdRef::from(name)),
+                ) {
+                    Ok(parsed) => PreparedCustomKind::Typed(parsed),
+                    Err(_) => PreparedCustomKind::Invalid,
+                }
+            } else {
+                PreparedCustomKind::Invalid
+            }
+        },
+    };
+    if matches!(kind, PreparedCustomKind::Invalid) {
+        kind = prepare_invalid_custom_kind(name, registration, context);
+    }
+    PreparedCustomValue {
+        substitution,
+        url_data: value.url_data.clone(),
+        kind,
+    }
+}
+
+fn prepare_invalid_custom_kind(
+    name: &Name,
+    registration: &PropertyDescriptors,
+    context: &computed::Context,
+) -> PreparedCustomKind {
+    if !registration.is_universal()
+        && (!registration.inherits() || context.builder.is_root_element)
+        && let (Some(initial), Some(syntax)) = (&registration.initial_value, &registration.syntax)
+    {
+        let mut parser = Parser::new(&initial.css);
+        if let Ok(parsed) = SpecifiedRegisteredValue::parse(
+            &mut parser,
+            syntax,
+            &initial.url_data,
+            None,
+            AllowComputationallyDependent::Yes,
+            AttrTaint::default(),
+            Some(PropertyIdRef::from(name)),
+        ) {
+            return PreparedCustomKind::Initial(parsed);
+        }
+    }
+    PreparedCustomKind::Invalid
+}
+
+pub(crate) fn invalid_custom_value_depends_on_color_scheme(
+    name: &Name,
+    stylist: &Stylist,
+    context: &computed::Context,
+) -> bool {
+    match prepare_invalid_custom_kind(
+        name,
+        stylist.get_custom_property_registration(name),
+        context,
+    ) {
+        PreparedCustomKind::Initial(value) => value.depends_on_color_scheme(),
+        _ => false,
     }
 }
 

@@ -308,6 +308,66 @@ pub type SpecifiedValue = Value<SpecifiedValueComponent>;
 pub type ComputedValue = Value<ComputedValueComponent>;
 
 impl SpecifiedValue {
+    /// Whether computing this selected value reads the element's used color scheme.
+    pub(crate) fn depends_on_color_scheme(&self) -> bool {
+        fn color(value: &specified::Color) -> bool {
+            use specified::Color;
+            match value {
+                Color::System(_) | Color::LightDark(_) => true,
+                Color::ColorFunction(function) => function.origin_color().is_some_and(color),
+                Color::ColorMix(mix) => mix.items.iter().any(|item| color(&item.color)),
+                Color::ContrastColor(inner) => color(inner),
+                Color::CurrentColor | Color::Absolute(_) | Color::InheritFromBodyQuirk => false,
+            }
+        }
+        fn stops<T>(
+            items: &[crate::values::generics::image::GradientItem<specified::Color, T>],
+        ) -> bool {
+            use crate::values::generics::image::GradientItem;
+            items.iter().any(|item| match item {
+                GradientItem::SimpleColorStop(value)
+                | GradientItem::ComplexColorStop { color: value, .. } => color(value),
+                GradientItem::InterpolationHint(_) => false,
+            })
+        }
+        fn image(value: &specified::Image) -> bool {
+            use crate::values::generics::image::{CrossFadeImage, Gradient, Image};
+            match value {
+                Image::LightDark(_) => true,
+                Image::Image(value) => color(value),
+                Image::Gradient(gradient) => match &**gradient {
+                    Gradient::Linear { items, .. } | Gradient::Radial { items, .. } => stops(items),
+                    Gradient::Conic { items, .. } => stops(items),
+                },
+                Image::CrossFade(fade) => fade.elements.iter().any(|item| match &item.image {
+                    CrossFadeImage::Image(value) => image(value),
+                    CrossFadeImage::Color(value) => color(value),
+                }),
+                Image::ImageSet(set) => set.items.iter().any(|item| image(&item.image)),
+                Image::None | Image::Url(_) => false,
+                #[cfg(feature = "gecko")]
+                Image::Element(_) | Image::MozSymbolicIcon(_) => false,
+                #[cfg(feature = "servo")]
+                Image::PaintWorklet(_) => false,
+            }
+        }
+        fn component(value: &SpecifiedValueComponent) -> bool {
+            use GenericValueComponent::*;
+            match value {
+                Color(value) => color(value),
+                Image(value) => image(value),
+                TransformList(list) => list.components.iter().any(component),
+                Length(_) | Number(_) | Percentage(_) | LengthPercentage(_) | Url(_)
+                | Integer(_) | Angle(_) | Time(_) | Resolution(_) | TransformFunction(_)
+                | CustomIdent(_) | String(_) => false,
+            }
+        }
+        match &self.v {
+            ValueInner::Component(value) => component(value),
+            ValueInner::List(list) => list.components.iter().any(component),
+            ValueInner::Universal(_) => false,
+        }
+    }
     /// Convert a registered custom property to a Computed custom property value, given input and a
     /// property registration.
     pub fn compute(
