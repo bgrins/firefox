@@ -1,0 +1,110 @@
+>>> 2900: void BuildTextRunsScanner::SetupBreakSinksForTextRun(gfxTextRun* aTextRun,
+    2901:                                                      const void* aTextPtr) {
+    2902:   using mozilla::intl::LineBreakRule;
+    2903:   using mozilla::intl::WordBreakRule;
+    2904: 
+    2905:   // textruns have uniform language
+    2906:   const nsStyleFont* styleFont = mMappedFlows[0].mStartFrame->StyleFont();
+    2907:   // We should only use a language for hyphenation if it was specified
+    2908:   // explicitly.
+    2909:   nsAtom* hyphenationLanguage =
+    2910:       styleFont->mExplicitLanguage ? styleFont->GetLangAtom() : nullptr;
+    2911:   // We keep this pointed at the skip-chars data for the current mappedFlow.
+    2912:   // This lets us cheaply check whether the flow has compressed initial
+    2913:   // whitespace...
+    2914:   gfxSkipCharsIterator iter(aTextRun->GetSkipChars());
+    2915: 
+    2916:   for (uint32_t i = 0; i < mMappedFlows.Length(); ++i) {
+    2917:     MappedFlow* mappedFlow = &mMappedFlows[i];
+    2918:     // The CSS word-break value may change within a word, so we reset it for
+    2919:     // each MappedFlow. The line-breaker will flush its text if the property
+    2920:     // actually changes.
+    2921:     const auto* styleText = mappedFlow->mStartFrame->StyleText();
+    2922:     auto wordBreak = styleText->EffectiveWordBreak();
+    2923:     switch (wordBreak) {
+    2924:       case StyleWordBreak::BreakAll:
+    2925:         mLineBreaker.SetWordBreak(WordBreakRule::BreakAll);
+    2926:         break;
+    2927:       case StyleWordBreak::KeepAll:
+    2928:         mLineBreaker.SetWordBreak(WordBreakRule::KeepAll);
+    2929:         break;
+    2930:       case StyleWordBreak::Normal:
+    2931:       default:
+    2932:         MOZ_ASSERT(wordBreak == StyleWordBreak::Normal);
+    2933:         mLineBreaker.SetWordBreak(WordBreakRule::Normal);
+    2934:         break;
+    2935:     }
+    2936:     switch (styleText->mLineBreak) {
+    2937:       case StyleLineBreak::Auto:
+    2938:         mLineBreaker.SetStrictness(LineBreakRule::Auto);
+    2939:         break;
+    2940:       case StyleLineBreak::Normal:
+    2941:         mLineBreaker.SetStrictness(LineBreakRule::Normal);
+    2942:         break;
+    2943:       case StyleLineBreak::Loose:
+    2944:         mLineBreaker.SetStrictness(LineBreakRule::Loose);
+    2945:         break;
+    2946:       case StyleLineBreak::Strict:
+    2947:         mLineBreaker.SetStrictness(LineBreakRule::Strict);
+    2948:         break;
+    2949:       case StyleLineBreak::Anywhere:
+    2950:         mLineBreaker.SetStrictness(LineBreakRule::Anywhere);
+    2951:         break;
+    2952:     }
+    2953: 
+    2954:     uint32_t offset = iter.GetSkippedOffset();
+    2955:     gfxSkipCharsIterator iterNext = iter;
+    2956:     iterNext.AdvanceOriginal(mappedFlow->GetContentEnd() -
+    2957:                              mappedFlow->mStartFrame->GetContentOffset());
+    2958: 
+    2959:     UniquePtr<BreakSink>* breakSink = mBreakSinks.AppendElement(
+    2960:         std::make_unique<BreakSink>(aTextRun, mDrawTarget, offset));
+    2961: 
+    2962:     uint32_t length = iterNext.GetSkippedOffset() - offset;
+    2963:     uint32_t flags = 0;
+    2964:     nsIFrame* initialBreakController =
+    2965:         mappedFlow->mAncestorControllingInitialBreak;
+    2966:     if (!initialBreakController) {
+    2967:       initialBreakController = mLineContainer;
+    2968:     }
+    2969:     if (!initialBreakController->StyleText()->WhiteSpaceCanWrap(
+    2970:             initialBreakController)) {
+    2971:       flags |= nsLineBreaker::BREAK_SUPPRESS_INITIAL;
+    2972:     }
+    2973:     nsTextFrame* startFrame = mappedFlow->mStartFrame;
+    2974:     const nsStyleText* textStyle = startFrame->StyleText();
+    2975:     if (!textStyle->WhiteSpaceCanWrap(startFrame)) {
+    2976:       flags |= nsLineBreaker::BREAK_SUPPRESS_INSIDE;
+    2977:     }
+    2978:     if (aTextRun->GetFlags2() & nsTextFrameUtils::Flags::NoBreaks) {
+    2979:       flags |= nsLineBreaker::BREAK_SKIP_SETTING_NO_BREAKS;
+    2980:     }
+    2981:     if (textStyle->mTextTransform & StyleTextTransform::CAPITALIZE) {
+    2982:       flags |= nsLineBreaker::BREAK_NEED_CAPITALIZATION;
+    2983:     }
+    2984:     if (textStyle->mHyphens == StyleHyphens::Auto &&
+    2985:         textStyle->mLineBreak != StyleLineBreak::Anywhere) {
+    2986:       flags |= nsLineBreaker::BREAK_USE_AUTO_HYPHENATION;
+    2987:     }
+    2988: 
+    2989:     if (HasCompressedLeadingWhitespace(startFrame, textStyle,
+    2990:                                        mappedFlow->GetContentEnd(), iter)) {
+    2991:       mLineBreaker.AppendInvisibleWhitespace(flags);
+    2992:     }
+    2993: 
+    2994:     if (length > 0) {
+    2995:       BreakSink* sink = mSkipIncompleteTextRuns ? nullptr : (*breakSink).get();
+    2996:       if (mDoubleByteText) {
+    2997:         const char16_t* text = reinterpret_cast<const char16_t*>(aTextPtr);
+    2998:         mLineBreaker.AppendText(hyphenationLanguage, text + offset, length,
+    2999:                                 flags, sink);
+    3000:       } else {
+    3001:         const uint8_t* text = reinterpret_cast<const uint8_t*>(aTextPtr);
+    3002:         mLineBreaker.AppendText(hyphenationLanguage, text + offset, length,
+    3003:                                 flags, sink);
+    3004:       }
+    3005:     }
+    3006: 
+    3007:     iter = iterNext;
+    3008:   }
+    3009: }

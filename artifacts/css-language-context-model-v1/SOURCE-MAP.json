@@ -1,0 +1,15 @@
+{
+  "path": "artifacts/css-language-partition-formatted-v1/candidate.cpp",
+  "sha256": "a1ae4b3afd12908b882d3a6e34c4fd1d078c5b66dff9b06a75c31a6624ad4d9d",
+  "excerpts": {
+    "helper": "static mozilla::Maybe<bool> IsChineseOrJapanese(nsAtom* aLanguage) {\n  if (!aLanguage) {\n    return mozilla::Some(false);\n  }\n\n  static mozilla::StaticRefPtr<nsAtom> sLastLanguage;\n  static bool sLastScriptIsChineseOrJapanese = false;\n  static bool sInit = false;\n\n  if (!sInit) {\n    mozilla::ClearOnShutdown(&sLastLanguage);\n    sInit = true;\n  }\n\n  if (sLastLanguage == aLanguage) {\n    return mozilla::Some(sLastScriptIsChineseOrJapanese);\n  }\n\n  Locale loc;\n  if (LocaleParser::TryParse(nsAtomCString(aLanguage), loc).isErr() ||\n      (loc.Script().Missing() && loc.AddLikelySubtags().isErr())) {\n    return mozilla::Nothing();\n  }\n\n  sLastScriptIsChineseOrJapanese =\n      loc.Script().EqualTo(\"Hans\") || loc.Script().EqualTo(\"Hant\") ||\n      loc.Script().EqualTo(\"Jpan\") || loc.Script().EqualTo(\"Hrkt\");\n  sLastLanguage = aLanguage;\n  return mozilla::Some(sLastScriptIsChineseOrJapanese);\n}",
+    "updater": "void nsLineBreaker::UpdateCurrentWordLanguage(nsAtom* aHyphenationLanguage) {\n  if (mCurrentWordLanguage && mCurrentWordLanguage != aHyphenationLanguage) {\n    mCurrentWordContainsMixedLang = true;\n    mScriptIsChineseOrJapanese = false;\n    return;\n  }\n\n  if (!mCurrentWordLanguage) {\n    auto script = IsChineseOrJapanese(aHyphenationLanguage);\n    if (script.isNothing()) {\n      mScriptIsChineseOrJapanese = false;\n      return;\n    }\n    mScriptIsChineseOrJapanese = *script;\n  }\n  mCurrentWordLanguage = aHyphenationLanguage;\n}"
+  },
+  "premises": [
+    "Classifier is stable over a query sequence; its successful cache entry is valid initially.",
+    "Natural keys stand for stable atom identities, not raw pointers or strings whose lifetimes are proved here.",
+    "beginWord represents only a fresh buffered word with a non-null supplied language, after FlushCurrentWord cleared the prior language/mixed state.",
+    "Null language is handled separately by native Some(false) with no atom; no theorem here claims Some(false) commits a null atom.",
+    "Parser, likely-subtags mapping, thread/lifetime safety, caller grouping, and browser geometry are not modeled."
+  ]
+}

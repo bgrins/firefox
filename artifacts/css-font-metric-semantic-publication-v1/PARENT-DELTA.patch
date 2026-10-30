@@ -1,0 +1,392 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -9,7 +9,8 @@
+ use crate::computed_value_flags::ComputedValueFlags;
+ use crate::context::TreeCountingCaches;
+ use crate::custom_properties::{
+-    ComputedCustomProperties, ComputedSubstitutionFunctions, Name, NonCustomReferenceMap,
++    ComputedCustomProperties, ComputedSubstitutionFunctions,
++    ComputedValue as ComputedPropertyValue, Name, NonCustomReferenceMap, PreparedCustomValue,
+     ReferenceFlags, References, SingleNonCustomReference, SubstitutionFunctionKind, VariableValue,
+     get_attr_value_for_cycle_resolution, handle_invalid_at_computed_value_time,
+     invalid_custom_value_depends_on_color_scheme, prepare_custom_value,
+@@ -2588,8 +2589,86 @@
+         }
+     }
+ 
++    enum ClosedValue {
++        Prepared(Name, PreparedCustomValue),
++        Substitute(VarType, Arc<ComputedPropertyValue>),
++        Prioritary(PrioritaryPropertyId),
++    }
++
++    enum NodePublication<T> {
++        SemanticOpen,
++        CycleUnsettled,
++        Pending(T),
++        Applying,
++        Complete,
++        CycleSettled,
++    }
++
++    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
++    enum NodeReadiness {
++        SemanticOpen,
++        ComputationPending,
++        Complete,
++        CycleSettled,
++    }
++
++    impl<T> NodePublication<T> {
++        fn readiness(&self) -> NodeReadiness {
++            match self {
++                Self::SemanticOpen => NodeReadiness::SemanticOpen,
++                Self::CycleUnsettled | Self::Pending(_) | Self::Applying => {
++                    NodeReadiness::ComputationPending
++                },
++                Self::Complete => NodeReadiness::Complete,
++                Self::CycleSettled => NodeReadiness::CycleSettled,
++            }
++        }
++
++        fn close(&mut self, value: T) {
++            assert!(matches!(self, Self::SemanticOpen));
++            *self = Self::Pending(value);
++        }
++
++        fn take_ready(&mut self, prerequisites_ready: bool) -> Option<T> {
++            if !prerequisites_ready {
++                return None;
++            }
++            assert!(matches!(self, Self::Pending(_)));
++            let Self::Pending(value) = std::mem::replace(self, Self::Applying) else {
++                unreachable!()
++            };
++            Some(value)
++        }
++
++        fn finish(&mut self) {
++            assert!(matches!(self, Self::Applying));
++            *self = Self::Complete;
++        }
++
++        fn begin_cycle(&mut self) {
++            assert!(matches!(self, Self::SemanticOpen));
++            *self = Self::CycleUnsettled;
++        }
++
++        fn settle_cycle(&mut self) {
++            assert!(matches!(self, Self::CycleUnsettled));
++            *self = Self::CycleSettled;
++        }
++
++        fn can_retire(&self) -> bool {
++            matches!(self, Self::Complete | Self::CycleSettled)
++        }
++    }
++
++    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
++    enum VisitResult {
++        SemanticOpen(usize),
++        ComputationPending(usize),
++        Complete,
++        CycleSettled,
++    }
++
+     /// Struct recording necessary information for each variable.
+-    #[derive(Debug)]
+     struct VarInfo {
+         /// The name of the variable. It will be taken when the corresponding variable is popped
+         /// from the stack, which serves as a mark for whether the variable is currently in the
+@@ -2599,6 +2678,7 @@
+         /// corresponds to a variable in the same strong connected component, which is known to be
+         /// accessible from this variable. It is not necessarily the root, though.
+         lowlink: usize,
++        publication: NodePublication<ClosedValue>,
+     }
+ 
+     #[derive(Debug, Default)]
+@@ -2649,11 +2729,61 @@
+ 
+     impl<'a, 'b: 'a, 'c, 'd> Context<'a, 'b, 'c, 'd> {
+         fn reset(&mut self) {
++            assert!(self.stack.is_empty());
++            assert!(
++                self.var_info
++                    .iter()
++                    .all(|info| info.publication.can_retire())
++            );
+             self.count = 0;
+             self.index_map.clear();
+             self.non_custom_index_map = Default::default();
+             self.var_info.clear();
+             self.stack.clear();
++        }
++
++        fn visited(&self, var: &VarType) -> Option<VisitResult> {
++            let index = match var {
++                VarType::Custom(name) => self.index_map.var.get(name).copied(),
++                VarType::Attr(name, namespace) => self
++                    .index_map
++                    .attr
++                    .get(namespace)
++                    .and_then(|map| map.get(name))
++                    .copied(),
++                VarType::NonCustom(reference) => self.non_custom_index_map[*reference],
++            }?;
++            Some(match self.var_info[index].publication.readiness() {
++                NodeReadiness::SemanticOpen => VisitResult::SemanticOpen(index),
++                NodeReadiness::ComputationPending => VisitResult::ComputationPending(index),
++                NodeReadiness::Complete => VisitResult::Complete,
++                NodeReadiness::CycleSettled => VisitResult::CycleSettled,
++            })
++        }
++
++        fn publish_closed(&mut self, index: usize, attr_tracker: &mut AttributeTracker) {
++            let value = self.var_info[index].publication.take_ready(true).unwrap();
++            match value {
++                ClosedValue::Prepared(name, prepared) => {
++                    prepared.apply(&name, self.stylist, self.computed_context);
++                },
++                ClosedValue::Substitute(var, value) => {
++                    let name = match &var {
++                        VarType::Custom(name) | VarType::Attr(name, _) => name,
++                        VarType::NonCustom(_) => unreachable!(),
++                    };
++                    substitute_references_if_needed_and_apply(
++                        name,
++                        var.namespace(),
++                        &value,
++                        self.stylist,
++                        self.computed_context,
++                        attr_tracker,
++                    );
++                },
++                ClosedValue::Prioritary(id) => self.apply_prioritary_property(id, attr_tracker),
++            }
++            self.var_info[index].publication.finish();
+         }
+ 
+         fn map(&self) -> &ComputedSubstitutionFunctions {
+@@ -3019,10 +3149,11 @@
+         attr_tracker: &mut AttributeTracker,
+     ) {
+         let next_index = match traverse(var, non_custom_references, context, attr_tracker) {
+-            Some(index) => index,
+-            // There is nothing to do if the next variable has been
+-            // fully resolved at this point.
+-            None => return,
++            VisitResult::SemanticOpen(index) => index,
++            VisitResult::Complete | VisitResult::CycleSettled => return,
++            VisitResult::ComputationPending(_) => {
++                unreachable!("Recursive traversal cannot resume a suspended publication")
++            },
+         };
+         let next_info = &context.var_info[next_index];
+         if next_index > index {
+@@ -3039,30 +3170,16 @@
+         }
+     }
+ 
+-    /// This function combines the traversal for cycle removal and value
+-    /// substitution. It returns either a signal None if this variable
+-    /// has been fully resolved (to either having no reference or being
+-    /// marked invalid), or the order index for the given name.
+-    ///
+-    /// When it returns, the variable corresponds to the name would be
+-    /// in one of the following states:
+-    /// * It is still in context.stack, which means it is part of an
+-    ///   potentially incomplete dependency circle.
+-    /// * It has been removed from the map.  It can be either that the
+-    ///   substitution failed, or it is inside a dependency circle.
+-    ///   When this function removes a variable from the map because
+-    ///   of dependency circle, it would put all variables in the same
+-    ///   strong connected component to the set together.
+-    /// * It doesn't have any reference, because either this variable
+-    ///   doesn't have reference at all in specified value, or it has
+-    ///   been completely resolved.
+-    /// * There is no such variable at all.
++    /// Separates semantic ancestry from completed map outcomes.
+     fn traverse<'a, 'b, 'c, 'd>(
+         var: VarType,
+         references_from_non_custom_properties: &NonCustomPropertyReferences,
+         context: &mut Context<'a, 'b, 'c, 'd>,
+         attribute_tracker: &mut AttributeTracker,
+-    ) -> Option<usize> {
++    ) -> VisitResult {
++        if let Some(result) = context.visited(&var) {
++            return result;
++        }
+         // Some shortcut checks.
+         // The non-custom (font/line-height/color-scheme) dependencies of this value, carried out
+         // of the match so we can create the corresponding nodes once we've pushed this variable.
+@@ -3076,15 +3193,26 @@
+                     let registration = context.stylist.get_custom_property_registration(name);
+                     (
+                         registration,
+-                        map.get_var(registration, name)?.as_universal()?,
++                        match map
++                            .get_var(registration, name)
++                            .and_then(|value| value.as_universal())
++                        {
++                            Some(value) => value,
++                            None => return VisitResult::Complete,
++                        },
+                         SubstitutionFunctionKind::Var,
+                     )
+                 } else {
+                     // `attr()` is always treated as unregistered.
+                     (
+                         PropertyDescriptors::unregistered(),
+-                        map.get_attr(name, var.namespace().unwrap())?
+-                            .as_universal()?,
++                        match map
++                            .get_attr(name, var.namespace().unwrap())
++                            .and_then(|value| value.as_universal())
++                        {
++                            Some(value) => value,
++                            None => return VisitResult::Complete,
++                        },
+                         SubstitutionFunctionKind::Attr,
+                     )
+                 };
+@@ -3127,7 +3255,7 @@
+                             attribute_tracker,
+                         );
+                     }
+-                    return None;
++                    return VisitResult::Complete;
+                 }
+ 
+                 // Has this variable been visited?
+@@ -3142,7 +3270,7 @@
+                 };
+                 match index_map.entry_ref(name) {
+                     EntryRef::Occupied(entry) => {
+-                        return Some(*entry.get());
++                        return VisitResult::SemanticOpen(*entry.get());
+                     },
+                     EntryRef::Vacant(entry) => {
+                         entry.insert(context.count);
+@@ -3155,7 +3283,7 @@
+             VarType::NonCustom(ref non_custom) => {
+                 let entry = &mut context.non_custom_index_map[*non_custom];
+                 if let Some(v) = entry {
+-                    return Some(*v);
++                    return VisitResult::SemanticOpen(*v);
+                 }
+                 *entry = Some(context.count);
+                 None
+@@ -3169,6 +3297,7 @@
+         context.var_info.push(VarInfo {
+             var: Some(var.clone()),
+             lowlink: index,
++            publication: NodePublication::SemanticOpen,
+         });
+         context.stack.push(index);
+ 
+@@ -3320,11 +3449,12 @@
+             //
+             // This cannot be removed from the map here, because otherwise the shortcut check at the
+             // beginning of this function would return the wrong value.
+-            return Some(index);
++            return VisitResult::SemanticOpen(index);
+         }
+ 
+         // This is the root of a strong-connected component.
+         let mut in_loop = self_ref;
++        let mut cycle_members = SmallVec::<[usize; 5]>::new();
+         loop {
+             let var_index = context
+                 .stack
+@@ -3342,6 +3472,8 @@
+                 in_loop = true;
+             }
+             if in_loop {
++                context.var_info[var_index].publication.begin_cycle();
++                cycle_members.push(var_index);
+                 context.handle_loop(&var_name);
+             }
+             if var_index == index {
+@@ -3351,33 +3483,30 @@
+         }
+ 
+         if in_loop {
+-            return None;
+-        }
+-
+-        // Not in a loop, apply the value.
+-        match var {
++            for member in cycle_members {
++                context.var_info[member].publication.settle_cycle();
++            }
++            return VisitResult::CycleSettled;
++        }
++
++        let publication = match var {
+             VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
+                 if let Some(prepared) = prepared_custom {
+-                    prepared.apply(name, context.stylist, context.computed_context);
+-                } else if let Some(ref v) = value {
+-                    // We know we're not in a loop now, perform substitution.
+-                    // TODO(emilio): Merge with the cycle detection loop instead?
+-                    substitute_references_if_needed_and_apply(
+-                        name,
+-                        var.namespace(),
+-                        v,
+-                        context.stylist,
+-                        context.computed_context,
+-                        attribute_tracker,
+-                    );
++                    ClosedValue::Prepared(name.clone(), prepared)
++                } else {
++                    ClosedValue::Substitute(
++                        var,
++                        value.expect("Custom and attr nodes retain their value"),
++                    )
+                 }
+             },
+             VarType::NonCustom(non_custom) => {
+-                context.apply_prioritary_property(non_custom.to_prioritary_id(), attribute_tracker);
++                ClosedValue::Prioritary(non_custom.to_prioritary_id())
+             },
+-        }
+-        // All resolved, so return the signal value.
+-        None
++        };
++        context.var_info[index].publication.close(publication);
++        context.publish_closed(index, attribute_tracker);
++        VisitResult::Complete
+     }
+ 
+     let mut context = Context {
+@@ -3398,12 +3527,16 @@
+             context.reset();
+         }
+         first = false;
+-        traverse(
++        let result = traverse(
+             var,
+             references_from_non_custom_properties,
+             &mut context,
+             attr_tracker,
+         );
++        assert!(matches!(
++            result,
++            VisitResult::Complete | VisitResult::CycleSettled
++        ));
+     };
+     // Note that `seen` doesn't contain names inherited from our parent, but
+     // those can't have variable references (since we inherit the computed
+@@ -3421,4 +3554,11 @@
+             run_one(VarType::Attr((*attr).clone(), (*namespace).clone()));
+         }
+     }
++    assert!(context.stack.is_empty());
++    assert!(
++        context
++            .var_info
++            .iter()
++            .all(|info| info.publication.can_retire())
++    );
+ }

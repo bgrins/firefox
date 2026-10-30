@@ -1,0 +1,32 @@
+--- artifacts/css-nowrap-native-pair-v1/baseline.py
++++ artifacts/css-language-partition-native-pair-v1/baseline.py
+@@ -50,17 +50,9 @@
+ 
+ 
+ def require_role(policy, role, epoch):
+-    assert role['role'] == 'published-native' and role['variant'] == 'registered-image'
+-    assert role['built'] is False and role['paired_head'] == policy['image_commit']
+-    assert role['pending_gtest_overlay_installed'] is False
+-    assert 'last_build' not in role and 'last_install' not in role
+-    retirement = epoch['prototype_overlay_state']
+-    assert retirement['installed'] is False and retirement['held_provider_parked'] is True
+-    assert retirement['old_restoration_recipes_require_rebase'] is True
+-    path = 'artifacts/css-registered-color-image-publication-union-runtime-1/PRE-ROLE.json'
+-    assert retirement['original_role_preserved_in'] == path
+-    claims = read(ROOT / 'artifacts/css-registered-color-image-publication-union-runtime-1/INITIAL-CLAIMS.json')
+-    assert claims['controls']['ROLE.json']['owned_sha256'] == sha(ROOT / path)
++    adapter = load('language_capture_role', policy['capture_owner']['directory'] + '/baseline.py')
++    assert adapter.binding['nowrap_commit'] == policy['nowrap_commit']
++    adapter.require_role(policy, role, epoch)
+ 
+ 
+ def require_app_inventory(policy, app, extra):
+@@ -85,6 +77,8 @@
+     assert epoch['staged_working'] == {} and epoch['modified_native_paths'] == []
+     require_role(policy, role, epoch)
+     assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['image_commit'], checkpoint['head'])
++    assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['nowrap_commit'], checkpoint['head'])
++    state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', policy['nowrap_commit'])
+     metadata_guard(policy)
+     for name in policy['preserved_absent_metadata'] + policy['preserved_absent_resources']:
+         assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()

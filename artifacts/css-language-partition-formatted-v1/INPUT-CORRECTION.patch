@@ -1,0 +1,78 @@
+--- reviewed-input.cpp
++++ unformatted.cpp
+@@ -7,6 +7,7 @@
+ #include "gfxTextRun.h"  // for the gfxTextRun::CompressedGlyph::FLAG_BREAK_TYPE_* values
+ #include "mozilla/AutoRestore.h"
+ #include "mozilla/ClearOnShutdown.h"
++#include "mozilla/Maybe.h"
+ #include "mozilla/ScopeExit.h"
+ #include "mozilla/Utf16.h"
+ #include "mozilla/intl/LineBreaker.h"  // for LineBreaker::ComputeBreakPositions
+@@ -270,9 +271,9 @@
+   (BREAK_SUPPRESS_INITIAL | BREAK_SUPPRESS_INSIDE | \
+    BREAK_SKIP_SETTING_NO_BREAKS)
+ 
+-static bool IsChineseOrJapanese(nsAtom* aLanguage) {
++static mozilla::Maybe<bool> IsChineseOrJapanese(nsAtom* aLanguage) {
+   if (!aLanguage) {
+-    return false;
++    return mozilla::Some(false);
+   }
+ 
+   static mozilla::StaticRefPtr<nsAtom> sLastLanguage;
+@@ -285,20 +286,20 @@
+   }
+ 
+   if (sLastLanguage == aLanguage) {
+-    return sLastScriptIsChineseOrJapanese;
++    return mozilla::Some(sLastScriptIsChineseOrJapanese);
+   }
+ 
+   Locale loc;
+   if (LocaleParser::TryParse(nsAtomCString(aLanguage), loc).isErr() ||
+       (loc.Script().Missing() && loc.AddLikelySubtags().isErr())) {
+-    return false;
++    return mozilla::Nothing();
+   }
+ 
+   sLastScriptIsChineseOrJapanese =
+       loc.Script().EqualTo("Hans") || loc.Script().EqualTo("Hant") ||
+       loc.Script().EqualTo("Jpan") || loc.Script().EqualTo("Hrkt");
+   sLastLanguage = aLanguage;
+-  return sLastScriptIsChineseOrJapanese;
++  return mozilla::Some(sLastScriptIsChineseOrJapanese);
+ }
+ 
+ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
+@@ -412,7 +413,7 @@
+             LineBreaker::ComputeBreakPositions(
+                 Span<const char16_t>(aText + wordStart, offset - wordStart),
+                 mWordBreak, mLineBreak,
+-                IsChineseOrJapanese(aHyphenationLanguage),
++                IsChineseOrJapanese(aHyphenationLanguage).valueOr(false),
+                 Span<uint8_t>(breakState.Elements() + wordStart,
+                               offset - wordStart));
+           }
+@@ -677,7 +678,7 @@
+           AutoRestore<uint8_t> saveWordStartBreakState(breakState[wordStart]);
+           LineBreaker::ComputeBreakPositions(
+               Span<const uint8_t>(aText + wordStart, offset - wordStart),
+-              mWordBreak, mLineBreak, IsChineseOrJapanese(aHyphenationLanguage),
++              mWordBreak, mLineBreak, IsChineseOrJapanese(aHyphenationLanguage).valueOr(false),
+               Span<uint8_t>(breakState.Elements() + wordStart,
+                             offset - wordStart));
+         }
+@@ -733,7 +734,12 @@
+   }
+ 
+   if (!mCurrentWordLanguage) {
+-    mScriptIsChineseOrJapanese = IsChineseOrJapanese(aHyphenationLanguage);
++    auto script = IsChineseOrJapanese(aHyphenationLanguage);
++    if (script.isNothing()) {
++      mScriptIsChineseOrJapanese = false;
++      return;
++    }
++    mScriptIsChineseOrJapanese = *script;
+   }
+   mCurrentWordLanguage = aHyphenationLanguage;
+ }

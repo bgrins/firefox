@@ -1,0 +1,25 @@
+ 108: typedef LinkedList<ShutdownObserver> ShutdownList;
+ 109: extern Array<StaticAutoPtr<ShutdownList>,
+ 110:              static_cast<size_t>(ShutdownPhase::ShutdownPhase_Length)>
+ 111:     sShutdownObservers;
+ 112: extern ShutdownPhase sCurrentClearOnShutdownPhase;
+ 113: 
+ 114: }  // namespace ClearOnShutdown_Internal
+ 115: 
+ 116: template <class SmartPtr>
+ 117: inline void ClearOnShutdown(
+ 118:     SmartPtr* aPtr, ShutdownPhase aPhase = ShutdownPhase::XPCOMShutdownFinal,
+ 119:     const std::source_location& aLocation = std::source_location::current()) {
+ 120:   using namespace ClearOnShutdown_Internal;
+ 121: 
+ 122:   MOZ_ASSERT(NS_IsMainThread());
+ 123:   MOZ_ASSERT(aPhase != ShutdownPhase::ShutdownPhase_Length);
+ 124: 
+ 125:   InsertIntoShutdownList(new PointerClearer<SmartPtr>(aPtr, aLocation), aPhase);
+ 126: }
+ 127: 
+ 128: template <typename CallableT>
+ 129: inline void RunOnShutdown(
+ 130:     CallableT&& aCallable,
+ 131:     ShutdownPhase aPhase = ShutdownPhase::XPCOMShutdownFinal,
+ 132:     const std::source_location& aLocation = std::source_location::current()) {

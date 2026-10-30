@@ -1,0 +1,21 @@
+# Hyphenation ownership after the language fix
+
+The next concrete candidate is the existing v4 ownership repair, rebased onto the proposed language source `a1ae4b3a`. This preparation is not a current-HEAD admission, formatted/native validation, or an accepted fix. It copies no historical full-source overlay: sixteen old native hunks are applied to three exact preimages. Two Latin-1 hunk contexts retain the language patch's newly placed `UpdateCurrentWordLanguage` calls. All other hunk bodies are unchanged. Current header/text-frame bytes were read without writes; the breaker preimage comes from the sealed future-language capsule, not the active checkout.
+
+The six-file patch comprises `nsLineBreaker.cpp`, `nsLineBreaker.h`, `nsTextFrame.cpp`, and these exact existing WPTs:
+
+| Test | Role | Existing evidence |
+| --- | --- | --- |
+| `hyphenate-limit-chars-inline-ownership.html` | 289 callbacks: uniform target-word limits versus unrelated sibling limits, partition/delimiter controls and dictionary calibration | Historical combined v4: 54 FAIL/235 PASS → 289 PASS |
+| `hyphenate-limit-chars-pseudo-ownership.html` | Four first-line/first-letter continuation controls | Pre-repair PASS, naive candidate1 FAIL, corrected v4 PASS |
+| `hyphenate-limit-chars-dynamic.html` | 19 own-limit mutation controls, including calibration | Original and v4 PASS; not a separate invalidation bug |
+
+The ownership and pseudo pages are the necessary bug/regression witnesses. Keeping the small dynamic page in the same commit documents retained own-style invalidation. All three exact bodies already occur in the preserved suite and existing untracked files; later publication must adopt them after identity checks, not overwrite them. No new test semantics are introduced here.
+
+The scoped implementation separates current-range limits from buffered-word limits. Only a nonempty contribution replaces the buffered triple; delimiters and invisible-whitespace flushing retain the word's previous owner. Immediate words consume current limits. The text scanner resolves limits for adjacent continuation ranges without splitting shaping or creating additional mapped-flow identities. Both endpoints stay clamped, sinks retain each transformed offset, empty ranges keep finalization, and only the first nonempty range uses the outer initial-break controller. The four pseudo regressions show why merely moving the setter to the mapped-flow start is insufficient.
+
+The old independent report already reviews these local invariants and records the corrected empty-range lifecycle. Its broad Unicode/dictionary, arbitrary fragmentation, memory-safety and full-CSS formal obligations are not evidence that this scoped fix is wrong. They should remain explicit assurance limits, not an automatic demand to finish every global proof before a native bug commit. Conversely, the range/clamp/sink/pseudo invariants are substantive and must survive review and fresh tests. Mixed-style words retain the explicitly chosen last-nonempty-contributor policy; the asserted oracle uses uniformly styled words. Existing byte saturation and dictionary policy are unchanged.
+
+Remaining promotion gates are concrete: review the rebased three-file delta; run configured formatting and zero-fuzz patch roundtrips; after language publication, authenticate the actual source preimages and build both roles; run the existing 897-callback/23-page language suite with ownership's 289 callbacks as targets and preserve the other 608 callbacks plus 23 endings, using the same narrow port correction for reftests. Require dictionary calibration PASS, all target PASS, and unchanged four pseudo/19 dynamic controls, language368 and nowrap169 results. Do not demand historical 722 PASS from a different combined binary, or silently accept optional dictionary NOTRUN. Confirm exact packaged dictionary/resources and restoration. No new owner or browser run was prepared here.
+
+Historical evidence is from a combined old build, not the rebased candidate. The current language experiment is not read or claimed complete in this package. The initial preparation attempt rejected an ambiguous context before writing payloads; the corrected rebase scopes the two adapted hunks to the Latin-1 overload. Formatting, independent peer review and fresh paired validation remain pending.

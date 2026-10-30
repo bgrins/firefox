@@ -1,0 +1,8 @@
+import Language
+#print axioms LanguageContext.query_correct
+#print axioms LanguageContext.queryAll_correct
+#print axioms LanguageContext.failed_query_preserves_cache
+#print axioms LanguageContext.preceding_script_irrelevant
+#print axioms LanguageContext.failure_clears_script_without_committing_language
+#print axioms LanguageContext.valid_false_commits_language
+#print axioms LanguageContext.failure_cannot_be_quotiented_to_false

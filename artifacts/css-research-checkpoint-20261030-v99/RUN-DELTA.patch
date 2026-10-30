@@ -1,0 +1,60 @@
+--- artifacts/css-research-checkpoint-20261030-v98/commit.py
++++ artifacts/css-research-checkpoint-20261030-v99/commit.py
+@@ -15,7 +15,7 @@
+ BINDINGS = json.loads((HERE / 'BINDINGS.json').read_bytes())
+ HEAD = BINDINGS['head']
+ EPOCH = BINDINGS['epoch_sha256']
+-EXECUTION_ENABLED = True
++EXECUTION_ENABLED = False
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+@@ -81,18 +81,9 @@
+     body = (ROOT / BINDINGS['prior_receipt']).read_bytes()
+     assert sha(body) == BINDINGS['prior_receipt_sha256']
+     receipt = json.loads(body)
+-    assert set(receipt) == {'stage', 'commit', 'parent', 'signature_verified', 'files', 'epoch_sha256', 'accepted', 'accepted_fix_increment', 'app_rebuilt'}
+-    assert receipt['stage'] == 'nowrap' and receipt['signature_verified'] is True
+-    assert receipt['commit'] == HEAD and receipt['epoch_sha256'] == EPOCH
+-    assert receipt['accepted'] is False and receipt['accepted_fix_increment'] == 0
+-    assert receipt['app_rebuilt'] is False
+-    assert receipt['files'] == ['dom/base/nsLineBreaker.cpp', 'testing/web-platform/tests/css/css-text/white-space/nowrap-inline-break-policies.html']
+-    research_body = (ROOT / BINDINGS['prior_research_receipt']).read_bytes()
+-    assert sha(research_body) == BINDINGS['prior_research_receipt_sha256']
+-    research = json.loads(research_body)
+-    assert research['committed'] and research['signature_verified']
+-    assert receipt['parent'] == research['head'] == BINDINGS['native_parent']
+-    assert receipt['commit'] != receipt['parent']
++    assert receipt['committed'] and receipt['signature_verified']
++    assert receipt['head'] == HEAD and receipt['epoch_sha256'] == EPOCH
++    assert receipt['accepted_fix_increment'] == 0 and receipt['native_working_diff_preserved']
+     body = (ROOT / BINDINGS['current_capture']).read_bytes()
+     assert sha(body) == BINDINGS['current_capture_sha256']
+     current = json.loads(body)
+@@ -146,7 +137,7 @@
+         assert file.stat().st_size == record['bytes'] and sha(file.read_bytes()) == record['sha256'], path
+     tracked = set(git('ls-files', '-z').decode().split('\0'))
+     skipped = [path for path in selected if path in tracked]
+-    assert not skipped, 'V98 must not reselect already committed payloads'
++    assert not skipped, 'V99 must not reselect already committed payloads'
+     for path in skipped:
+         del selected[path]
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+@@ -170,7 +161,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v98-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v99-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)
+@@ -183,7 +174,7 @@
+             tree = git('write-tree', env=index_env).decode().strip()
+             assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+             message = directory / 'message'
+-            message.write_text('No bug - Record signed nowrap publication and close validation evidence. r?#firefox-style-system-reviewers\n')
++            message.write_text('No bug - Record isolated language validation and metric publication ownership. r?#firefox-style-system-reviewers\n')
+             with (HERE / 'signing.log').open('x') as stream:
+                 result = subprocess.run(GIT + ['commit', '--quiet', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
+             if result.returncode:

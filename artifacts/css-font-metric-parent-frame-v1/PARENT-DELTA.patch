@@ -1,0 +1,595 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -2708,6 +2708,9 @@
+         non_custom_index_map: NonCustomReferenceMap<usize>,
+         /// Information of each variable indexed by the order index.
+         var_info: SmallVec<[VarInfo; 5]>,
++        frames: Vec<TraversalFrame>,
++        frame_root: Option<VarType>,
++        frame_reply: Option<(VarType, VisitResult)>,
+         /// The stack of order index of visited variables. It contains
+         /// all unfinished strong connected components.
+         stack: SmallVec<[usize; 5]>,
+@@ -2729,6 +2732,9 @@
+ 
+     impl<'a, 'b: 'a, 'c, 'd> Context<'a, 'b, 'c, 'd> {
+         fn reset(&mut self) {
++            assert!(
++                self.frames.is_empty() && self.frame_root.is_none() && self.frame_reply.is_none()
++            );
+             assert!(self.stack.is_empty());
+             assert!(
+                 self.var_info
+@@ -2740,6 +2746,66 @@
+             self.non_custom_index_map = Default::default();
+             self.var_info.clear();
+             self.stack.clear();
++        }
++
++        fn poll_root(
++            &mut self,
++            var: VarType,
++            references: &NonCustomPropertyReferences,
++            attribute_tracker: &mut AttributeTracker,
++            publication_ready: &mut impl FnMut(&VarType) -> bool,
++        ) -> VisitResult {
++            if let Some(root) = &self.frame_root {
++                assert_eq!(*root, var);
++            } else {
++                assert!(self.frames.is_empty() && self.frame_reply.is_none());
++                self.frame_root = Some(var.clone());
++                match start_frame(var, self, attribute_tracker) {
++                    Ok(frame) => self.frames.push(frame),
++                    Err(result) => {
++                        self.frame_root = None;
++                        return result;
++                    },
++                }
++            }
++            loop {
++                let mut frame = self.frames.pop().expect("Active root owns a frame");
++                if let Some((target, _)) = &frame.waiting {
++                    if let Some((target, result)) = self.frame_reply.take() {
++                        assert!(frame.receive(target, result, self));
++                    } else {
++                        let target = target.clone();
++                        self.frames.push(frame);
++                        match start_frame(target.clone(), self, attribute_tracker) {
++                            Ok(child) => self.frames.push(child),
++                            Err(VisitResult::ComputationPending(index)) => {
++                                return VisitResult::ComputationPending(index);
++                            },
++                            Err(result) => self.frame_reply = Some((target, result)),
++                        }
++                        continue;
++                    }
++                } else {
++                    assert!(self.frame_reply.is_none());
++                }
++                match frame.step(references, self, attribute_tracker, publication_ready) {
++                    FrameStep::Link(_) => self.frames.push(frame),
++                    FrameStep::Pending => {
++                        let index = frame.index;
++                        self.frames.push(frame);
++                        return VisitResult::ComputationPending(index);
++                    },
++                    FrameStep::Complete(result) => {
++                        if self.frames.is_empty() {
++                            assert_eq!(self.frame_root.as_ref(), Some(&frame.var));
++                            self.frame_root = None;
++                            return result;
++                        }
++                        assert!(self.frame_reply.is_none());
++                        self.frame_reply = Some((frame.var, result));
++                    },
++                }
++            }
+         }
+ 
+         fn visited(&self, var: &VarType) -> Option<VisitResult> {
+@@ -2843,6 +2909,7 @@
+     #[derive(Clone, Copy, Eq, PartialEq)]
+     enum ReferenceReadiness {
+         Ready,
++        SemanticOpen,
+         SemanticCycle,
+         ComputationPending,
+     }
+@@ -3171,6 +3238,458 @@
+     }
+ 
+     /// Separates semantic ancestry from completed map outcomes.
++    #[derive(Clone, Copy)]
++    enum FramePhase {
++        References,
++        Prepare,
++        Units,
++        PrioritySize,
++        PriorityReferences,
++        LateDefault,
++        Close,
++        Publish,
++    }
++
++    #[derive(Clone, Copy)]
++    enum LinkPurpose {
++        Reference,
++        Unit,
++        PrioritySize,
++        LateDefault,
++    }
++
++    struct TraversalFrame {
++        var: VarType,
++        index: usize,
++        lowlink: usize,
++        self_ref: bool,
++        registered: bool,
++        selected_dependency_eligible: bool,
++        value_non_custom_refs: ReferenceFlags,
++        value: Option<Arc<ComputedPropertyValue>>,
++        prepared_custom: Option<PreparedCustomValue>,
++        phase: FramePhase,
++        walk: Option<ReferenceWalk>,
++        unit_links: SmallVec<[SingleNonCustomReference; 3]>,
++        unit_cursor: usize,
++        priority_cursor: usize,
++        waiting: Option<(VarType, LinkPurpose)>,
++        reference_reply: Option<(VarType, ReferenceReadiness)>,
++    }
++
++    enum FrameStep {
++        Link(VarType),
++        Complete(VisitResult),
++        Pending,
++    }
++
++    impl TraversalFrame {
++        fn link(&mut self, target: VarType, purpose: LinkPurpose) -> FrameStep {
++            assert!(self.waiting.is_none());
++            self.waiting = Some((target.clone(), purpose));
++            FrameStep::Link(target)
++        }
++
++        fn receive(&mut self, target: VarType, result: VisitResult, context: &Context) -> bool {
++            let Some((waiting, purpose)) = self.waiting.as_ref() else {
++                return false;
++            };
++            if *waiting != target || matches!(result, VisitResult::ComputationPending(_)) {
++                return false;
++            }
++            if let VisitResult::SemanticOpen(next_index) = result {
++                let next = &context.var_info[next_index];
++                assert!(matches!(
++                    next.publication.readiness(),
++                    NodeReadiness::SemanticOpen
++                ));
++                if next_index > self.index {
++                    self.lowlink = cmp::min(self.lowlink, next.lowlink);
++                } else if next_index == self.index {
++                    self.self_ref = true;
++                } else if next.var.is_some() {
++                    self.lowlink = cmp::min(self.lowlink, next_index);
++                }
++            }
++            match purpose {
++                LinkPurpose::Reference => {
++                    assert!(self.reference_reply.is_none());
++                    self.reference_reply = Some((
++                        target,
++                        match result {
++                            VisitResult::SemanticOpen(_) => ReferenceReadiness::SemanticOpen,
++                            VisitResult::Complete => ReferenceReadiness::Ready,
++                            VisitResult::CycleSettled => ReferenceReadiness::SemanticCycle,
++                            VisitResult::ComputationPending(_) => unreachable!(),
++                        },
++                    ));
++                },
++                LinkPurpose::Unit => self.unit_cursor += 1,
++                LinkPurpose::PrioritySize | LinkPurpose::LateDefault => {},
++            }
++            self.waiting = None;
++            true
++        }
++
++        fn step(
++            &mut self,
++            references: &NonCustomPropertyReferences,
++            context: &mut Context,
++            attribute_tracker: &mut AttributeTracker,
++            publication_ready: &mut impl FnMut(&VarType) -> bool,
++        ) -> FrameStep {
++            assert!(self.waiting.is_none());
++            loop {
++                match self.phase {
++                    FramePhase::References => {
++                        let value = self.value.as_ref().unwrap();
++                        let name = match &self.var {
++                            VarType::Custom(name) | VarType::Attr(name, _) => name,
++                            VarType::NonCustom(_) => unreachable!(),
++                        };
++                        let walk = self
++                            .walk
++                            .get_or_insert_with(|| ReferenceWalk::new(&value.references));
++                        match walk.resume(
++                            &value.url_data,
++                            Some(PropertyIdRef::from(name)),
++                            context,
++                            attribute_tracker,
++                            self.reference_reply.take(),
++                        ) {
++                            ReferenceWalkStep::Link(target) => {
++                                return self.link(target, LinkPurpose::Reference);
++                            },
++                            ReferenceWalkStep::WrongReply => {
++                                unreachable!("Frame owns its reference reply")
++                            },
++                            ReferenceWalkStep::Complete => {},
++                        }
++                        self.value_non_custom_refs |= walk.flags;
++                        self.walk = None;
++                        self.phase = FramePhase::Prepare;
++                    },
++                    FramePhase::Prepare => {
++                        if let VarType::Custom(ref name) = self.var {
++                            if self.selected_dependency_eligible {
++                                let may_compute_color = self
++                                    .value_non_custom_refs
++                                    .intersects(ReferenceFlags::COLOR_SCHEME);
++                                self.value_non_custom_refs
++                                    .remove(ReferenceFlags::COLOR_SCHEME);
++                                if self.registered
++                                    && may_compute_color
++                                    && self.lowlink == self.index
++                                    && !self.self_ref
++                                    && context.stack.last() == Some(&self.index)
++                                {
++                                    let prepared = prepare_custom_value(
++                                        name,
++                                        self.value.as_ref().unwrap(),
++                                        context.stylist,
++                                        context.computed_context,
++                                        attribute_tracker,
++                                    );
++                                    if prepared.depends_on_color_scheme() {
++                                        self.value_non_custom_refs |= ReferenceFlags::COLOR_SCHEME;
++                                    }
++                                    self.prepared_custom = Some(prepared);
++                                }
++                            }
++                        }
++                        if self.registered && !self.value_non_custom_refs.is_empty() {
++                            self.value_non_custom_refs.for_each_non_custom(
++                                context.computed_context.is_root_element(),
++                                |reference| self.unit_links.push(reference),
++                            );
++                        }
++                        self.phase = FramePhase::Units;
++                    },
++                    FramePhase::Units => {
++                        if let Some(reference) = self.unit_links.get(self.unit_cursor) {
++                            return self.link(VarType::NonCustom(*reference), LinkPurpose::Unit);
++                        }
++                        self.phase = FramePhase::LateDefault;
++                    },
++                    FramePhase::PrioritySize => {
++                        self.phase = FramePhase::PriorityReferences;
++                        if self.var == VarType::NonCustom(SingleNonCustomReference::LhUnits) {
++                            return self.link(
++                                VarType::NonCustom(SingleNonCustomReference::FontUnits),
++                                LinkPurpose::PrioritySize,
++                            );
++                        }
++                    },
++                    FramePhase::PriorityReferences => {
++                        let VarType::NonCustom(reference) = self.var else {
++                            unreachable!()
++                        };
++                        let entry = references[reference]
++                            .as_ref()
++                            .and_then(|values| values.get(self.priority_cursor));
++                        let Some((longhand, value)) = entry else {
++                            self.phase = FramePhase::LateDefault;
++                            continue;
++                        };
++                        let walk = self.walk.get_or_insert_with(|| {
++                            ReferenceWalk::new(&value.variable_value.references)
++                        });
++                        match walk.resume(
++                            &value.variable_value.url_data,
++                            Some(value.substitution_property_id(*longhand)),
++                            context,
++                            attribute_tracker,
++                            self.reference_reply.take(),
++                        ) {
++                            ReferenceWalkStep::Link(target) => {
++                                return self.link(target, LinkPurpose::Reference);
++                            },
++                            ReferenceWalkStep::WrongReply => {
++                                unreachable!("Frame owns its reference reply")
++                            },
++                            ReferenceWalkStep::Complete => {},
++                        }
++                        self.walk = None;
++                        self.priority_cursor += 1;
++                    },
++                    FramePhase::LateDefault => {
++                        self.phase = FramePhase::Close;
++                        if let VarType::Custom(ref name) = self.var {
++                            let cyclic = self.self_ref
++                                || self.lowlink < self.index
++                                || context.stack.last() != Some(&self.index);
++                            if self.registered
++                                && self.selected_dependency_eligible
++                                && cyclic
++                                && !self
++                                    .value_non_custom_refs
++                                    .intersects(ReferenceFlags::COLOR_SCHEME)
++                                && invalid_custom_value_depends_on_color_scheme(
++                                    name,
++                                    context.stylist,
++                                    context.computed_context,
++                                )
++                            {
++                                return self.link(
++                                    VarType::NonCustom(SingleNonCustomReference::ColorScheme),
++                                    LinkPurpose::LateDefault,
++                                );
++                            }
++                        }
++                    },
++                    FramePhase::Close => {
++                        context.var_info[self.index].lowlink = self.lowlink;
++                        if self.lowlink != self.index {
++                            return FrameStep::Complete(VisitResult::SemanticOpen(self.index));
++                        }
++                        let mut in_loop = self.self_ref;
++                        let mut members = SmallVec::<[usize; 5]>::new();
++                        loop {
++                            let index = context.stack.pop().expect("Frame's SCC remains owned");
++                            let var = context.var_info[index].var.take().expect("Node pops once");
++                            if index != self.index {
++                                in_loop = true;
++                            }
++                            if in_loop {
++                                context.var_info[index].publication.begin_cycle();
++                                members.push(index);
++                                context.handle_loop(&var);
++                            }
++                            if index == self.index {
++                                assert_eq!(var, self.var);
++                                break;
++                            }
++                        }
++                        if in_loop {
++                            for index in members {
++                                context.var_info[index].publication.settle_cycle();
++                            }
++                            return FrameStep::Complete(VisitResult::CycleSettled);
++                        }
++                        let publication = match &self.var {
++                            VarType::Custom(name) | VarType::Attr(name, _) => {
++                                if let Some(prepared) = self.prepared_custom.take() {
++                                    ClosedValue::Prepared(name.clone(), prepared)
++                                } else {
++                                    ClosedValue::Substitute(
++                                        self.var.clone(),
++                                        self.value.take().unwrap(),
++                                    )
++                                }
++                            },
++                            VarType::NonCustom(reference) => {
++                                ClosedValue::Prioritary(reference.to_prioritary_id())
++                            },
++                        };
++                        context.var_info[self.index].publication.close(publication);
++                        self.phase = FramePhase::Publish;
++                    },
++                    FramePhase::Publish => {
++                        if !publication_ready(&self.var) {
++                            return FrameStep::Pending;
++                        }
++                        context.publish_closed(self.index, attribute_tracker);
++                        return FrameStep::Complete(VisitResult::Complete);
++                    },
++                }
++            }
++        }
++    }
++
++    fn start_frame<'a, 'b, 'c, 'd>(
++        var: VarType,
++        context: &mut Context<'a, 'b, 'c, 'd>,
++        attribute_tracker: &mut AttributeTracker,
++    ) -> Result<TraversalFrame, VisitResult> {
++        if let Some(result) = context.visited(&var) {
++            return Err(result);
++        }
++        // Some shortcut checks.
++        // The non-custom (font/line-height/color-scheme) dependencies of this value, carried out
++        // of the match so we can create the corresponding nodes once we've pushed this variable.
++        let mut value_non_custom_refs = ReferenceFlags::empty();
++        let mut registered = false;
++        let mut selected_dependency_eligible = false;
++        let value = match var {
++            VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
++                let map = &context.computed_context.builder.substitution_functions;
++                let (registration, value, kind) = if matches!(var, VarType::Custom(..)) {
++                    let registration = context.stylist.get_custom_property_registration(name);
++                    (
++                        registration,
++                        match map
++                            .get_var(registration, name)
++                            .and_then(|value| value.as_universal())
++                        {
++                            Some(value) => value,
++                            None => return Err(VisitResult::Complete),
++                        },
++                        SubstitutionFunctionKind::Var,
++                    )
++                } else {
++                    // `attr()` is always treated as unregistered.
++                    (
++                        PropertyDescriptors::unregistered(),
++                        match map
++                            .get_attr(name, var.namespace().unwrap())
++                            .and_then(|value| value.as_universal())
++                        {
++                            Some(value) => value,
++                            None => return Err(VisitResult::Complete),
++                        },
++                        SubstitutionFunctionKind::Attr,
++                    )
++                };
++                let is_root = context.computed_context.is_root_element();
++                value_non_custom_refs = find_non_custom_references(registration, value, is_root);
++                registered = !registration.is_universal();
++                selected_dependency_eligible = registration.syntax.as_ref().is_some_and(|syntax| {
++                    syntax.dependent_types().intersects(
++                        crate::properties_and_values::syntax::data_type::DependentDataTypes::COLOR,
++                    ) || syntax.components.iter().any(|component| {
++                        use crate::properties_and_values::syntax::{
++                            ComponentName, data_type::DataType,
++                        };
++                        matches!(component.name(), ComponentName::DataType(DataType::Image))
++                    })
++                });
++                let has_dependency = value
++                    .references
++                    .flags
++                    .intersects(ReferenceFlags::ATTR | ReferenceFlags::VAR)
++                    || !value_non_custom_refs.is_empty();
++                // Nothing to resolve.
++                if !has_dependency {
++                    debug_assert!(
++                        !value.references.flags.intersects(ReferenceFlags::ENV),
++                        "Should've been handled earlier"
++                    );
++                    if kind == SubstitutionFunctionKind::Attr || registered {
++                        // We might still need to compute the value if this is not an universal
++                        // registration but we thought it had a dependency during the cascade and it
++                        // turned out not to. Note that if this was already computed we would've
++                        // bailed out in the as_universal() check.
++                        let value = value.clone();
++                        substitute_references_if_needed_and_apply(
++                            name,
++                            var.namespace(),
++                            &value,
++                            context.stylist,
++                            context.computed_context,
++                            attribute_tracker,
++                        );
++                    }
++                    return Err(VisitResult::Complete);
++                }
++
++                // Has this variable been visited?
++                let index_map = if kind == SubstitutionFunctionKind::Var {
++                    &mut context.index_map.var
++                } else {
++                    context
++                        .index_map
++                        .attr
++                        .entry(var.namespace().unwrap().clone())
++                        .or_default()
++                };
++                match index_map.entry_ref(name) {
++                    EntryRef::Occupied(entry) => {
++                        return Err(VisitResult::SemanticOpen(*entry.get()));
++                    },
++                    EntryRef::Vacant(entry) => {
++                        entry.insert(context.count);
++                    },
++                }
++                // Hold a strong reference to the value so that we don't
++                // need to keep reference to context.map.
++                Some(value.clone())
++            },
++            VarType::NonCustom(ref non_custom) => {
++                let entry = &mut context.non_custom_index_map[*non_custom];
++                if let Some(v) = entry {
++                    return Err(VisitResult::SemanticOpen(*v));
++                }
++                *entry = Some(context.count);
++                None
++            },
++        };
++
++        // Add new entry to the information table.
++        let index = context.count;
++        context.count += 1;
++        debug_assert_eq!(index, context.var_info.len());
++        context.var_info.push(VarInfo {
++            var: Some(var.clone()),
++            lowlink: index,
++            publication: NodePublication::SemanticOpen,
++        });
++        context.stack.push(index);
++
++        let phase = if value.is_some() {
++            FramePhase::References
++        } else {
++            FramePhase::PrioritySize
++        };
++        Ok(TraversalFrame {
++            var,
++            index,
++            lowlink: index,
++            self_ref: false,
++            registered,
++            selected_dependency_eligible,
++            value_non_custom_refs,
++            value,
++            prepared_custom: None,
++            phase,
++            walk: None,
++            unit_links: SmallVec::new(),
++            unit_cursor: 0,
++            priority_cursor: 0,
++            waiting: None,
++            reference_reply: None,
++        })
++    }
++
+     fn traverse<'a, 'b, 'c, 'd>(
+         var: VarType,
+         references_from_non_custom_properties: &NonCustomPropertyReferences,
+@@ -3515,6 +4034,9 @@
+         non_custom_index_map: NonCustomReferenceMap::default(),
+         stack: SmallVec::new(),
+         var_info: SmallVec::new(),
++        frames: Vec::new(),
++        frame_root: None,
++        frame_reply: None,
+         stylist,
+         computed_context: &mut *computed_context,
+         cascade: &mut *cascade,
+@@ -3527,12 +4049,22 @@
+             context.reset();
+         }
+         first = false;
+-        let result = traverse(
+-            var,
+-            references_from_non_custom_properties,
+-            &mut context,
+-            attr_tracker,
+-        );
++        let use_retained_frames = true;
++        let result = if use_retained_frames {
++            context.poll_root(
++                var,
++                references_from_non_custom_properties,
++                attr_tracker,
++                &mut |_| true,
++            )
++        } else {
++            traverse(
++                var,
++                references_from_non_custom_properties,
++                &mut context,
++                attr_tracker,
++            )
++        };
+         assert!(matches!(
+             result,
+             VisitResult::Complete | VisitResult::CycleSettled

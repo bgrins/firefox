@@ -1,0 +1,50 @@
+--- executed/publish.py
++++ language/publish.py
+@@ -32,7 +32,7 @@
+ 
+ def main():
+     parser = argparse.ArgumentParser()
+-    parser.add_argument('stage', choices=('nowrap',))
++    parser.add_argument('stage', choices=('language',))
+     parser.add_argument('action', choices=('install', 'delivery', 'commit'))
+     parser.add_argument('--manifest', required=True)
+     parser.add_argument('--predecessor', type=Path)
+@@ -49,12 +49,12 @@
+         assert sha(ROOT / path) == pin
+     stage = next(s for s in read(HERE / 'STAGES.json')['stages'] if s['stage'] == args.stage)
+     policy['stage'] = args.stage
+-    policy['runtime_output'] = 'artifacts/css-nowrap-publication-' + args.stage + '-runtime-1'
++    policy['runtime_output'] = 'artifacts/css-language-partition-publication-' + args.stage + '-runtime-1'
+     for name, record in records.items():
+         policy['references'][str((HERE / name).relative_to(ROOT))] = record['sha256']
+     policy['references'][str((HERE / 'FILES.json').relative_to(ROOT))] = args.manifest
+     output = ROOT / policy['runtime_output']
+-    install_owner = ROOT / ('artifacts/css-nowrap-publication-' + args.stage + '-install-v1')
++    install_owner = ROOT / ('artifacts/css-language-partition-publication-' + args.stage + '-install-v1')
+     installed = None
+     assert policy['pair_binding'] is None
+     if args.action != 'install':
+@@ -103,18 +103,21 @@
+                                          for p in stage['files'] if p.startswith('testing/'))}
+     if installed is None:
+         creation = load('adoption_parents', ROOT / 'artifacts/css-registered-admission-wpt-install-v1/install.py')
+-        binding['adopted_tests'] = {path: {'claim': owner.claim(ROOT, path, record['sha256']), 'parents': creation.parent_pins(ROOT, ROOT / path)} for path, record in stage['files'].items() if path.startswith('testing/')}
++        binding['adopted_tests'] = {path: {'claim': owner.claim(ROOT, path, record['sha256']), 'parents': creation.parent_pins(ROOT, ROOT / path)} for path, record in stage['files'].items() if path in stage['adopt_existing_tests']}
++        binding['created_test_parents'] = {path: creation.parent_pins(ROOT, ROOT/path) for path in stage['create_tests']}
++        assert all(not os.path.lexists(ROOT/path) for path in stage['create_tests'])
+         for name, record in records.items():
+             assert hashlib.sha256(runner.git('show', head + ':' + str((HERE/name).relative_to(ROOT)))).hexdigest() == record['sha256']
+     else:
+         binding['adopted_tests'] = prior_policy['bindings']['adopted_tests']
++        binding['created_test_parents'] = prior_policy['bindings']['created_test_parents']
+     if installed is not None:
+         assert controls['CURRENT-EPOCH.json'] == installed['epoch_sha256']
+         binding['installation_manifest'] = installed['manifest_sha256']
+         path = output / 'delivery/DELIVERY.json'
+         binding['delivery_receipt'] = {'path': str(path.relative_to(ROOT)), 'sha256': sha(path)}
+     policy.update(bindings=binding, enabled_modes=[args.action])
+-    directory = ROOT / ('artifacts/css-nowrap-publication-' + args.stage + '-' + args.action + '-v1')
++    directory = ROOT / ('artifacts/css-language-partition-publication-' + args.stage + '-' + args.action + '-v1')
+     directory.mkdir()
+     for name in ('run.py', 'transform.py', 'evidence.py', 'STAGES.json'):
+         with (directory / name).open('xb') as stream:
