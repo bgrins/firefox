@@ -1,0 +1,22 @@
+[
+  {
+    "before": "    const nsStyleUIReset& aStyle, uint32_t animIdx,\n    ServoCSSAnimationBuilder& aBuilder,",
+    "after": "    const nsStyleUIReset& aStyle,\n    const nsTArray<StyleAnimationDuration>& aDurationInput, uint32_t animIdx,\n    ServoCSSAnimationBuilder& aBuilder,"
+  },
+  {
+    "before": "  const StyleAnimationDuration& duration = aStyle.GetAnimationDuration(animIdx);",
+    "after": "  const StyleAnimationDuration& duration =\n      aDurationInput.IsEmpty()\n          ? aStyle.GetAnimationDuration(animIdx)\n          : aDurationInput[animIdx % aDurationInput.Length()];"
+  },
+  {
+    "before": "    const nsStyleUIReset& aStyle, ServoCSSAnimationBuilder& aBuilder,\n    nsAnimationManager::CSSAnimationCollection* aCollection,",
+    "after": "    const nsStyleUIReset& aStyle,\n    const nsTArray<StyleAnimationDuration>& aDurationInput,\n    ServoCSSAnimationBuilder& aBuilder,\n    nsAnimationManager::CSSAnimationCollection* aCollection,"
+  },
+  {
+    "before": "        BuildAnimation(aPresContext, aTarget, aStyle, animIdx, aBuilder,\n                       aCollection, aTimelineNamesToAnimationMap);",
+    "after": "        BuildAnimation(aPresContext, aTarget, aStyle, aDurationInput, animIdx,\n                       aBuilder, aCollection, aTimelineNamesToAnimationMap);"
+  },
+  {
+    "before": "      BuildAnimations(mPresContext, aTarget, aStyle, aBuilder, collection,\n                      mMaybeReferencedAnimations, mAnimationsWithNamedTimeline);",
+    "after": "      BuildAnimations(mPresContext, aTarget, aStyle, durationInput, aBuilder,\n                      collection, mMaybeReferencedAnimations,\n                      mAnimationsWithNamedTimeline);"
+  }
+]

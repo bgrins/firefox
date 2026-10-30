@@ -1,0 +1,45 @@
+<script>
+for (const [expression, reference, sign] of [
+  ["min(infinity * 1em, infinity * 1em)", "calc(infinity * 1em)", 1],
+  ["max(-infinity * 1em, -infinity * 1em)", "calc(-infinity * 1em)", -1],
+]) {
+  test(t => {
+    const target = document.createElement("div");
+    target.style.position = "relative";
+    target.style.left = expression;
+    assert_not_equals(target.style.left, "", "Declaration parses");
+    const specified = target.style.left;
+    const comparison = document.createElement("div");
+    comparison.style.position = "relative";
+    comparison.style.left = reference;
+    assert_not_equals(comparison.style.left, "", "Reference parses");
+    const calibration = document.createElement("div");
+    calibration.style.width = "1em";
+    target.append(comparison, calibration);
+    document.body.append(target);
+    t.add_cleanup(() => target.remove());
+    const sizes = ["0px", "16px", "0px"];
+    const rows = sizes.map(size => {
+      target.style.fontSize = size;
+      return {
+        font: getComputedStyle(target).fontSize,
+        basis: getComputedStyle(calibration).width,
+        first: getComputedStyle(target).left,
+        repeat: getComputedStyle(target).left,
+        reference: getComputedStyle(comparison).left,
+      };
+    });
+    const details = JSON.stringify(rows);
+    assert_equals(specified, reference, "Identical min/max children collapse during simplification");
+    for (let i = 0; i < rows.length; ++i) {
+      assert_equals(rows[i].font, sizes[i], `font at stage ${i}: ${details}`);
+      assert_equals(rows[i].basis, sizes[i], `em basis at stage ${i}: ${details}`);
+      assert_equals(rows[i].repeat, rows[i].first, `repeat at stage ${i}: ${details}`);
+      assert_equals(rows[i].first, rows[i].reference, `reference at stage ${i}: ${details}`);
+    }
+    assert_equals(rows[0].first, "0px", details);
+    assert_equals(Math.sign(parseFloat(rows[1].first)), sign, details);
+    assert_equals(rows[2].first, "0px", details);
+  }, `${expression} preserves duplicate-only simplification and contextual computation`);
+}
+</script>

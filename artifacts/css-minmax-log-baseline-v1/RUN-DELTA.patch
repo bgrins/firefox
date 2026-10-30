@@ -1,0 +1,34 @@
+--- log-baseline/run.py
++++ combined-baseline/run.py
+@@ -40,7 +40,7 @@
+     policy = authenticate(sys.argv[2])
+     if sys.argv[1] == "--check":
+         load("log_static_check", str(HERE / "check.py")).check(policy)
+-        print("Static log baseline checks passed; no browser or full state verification performed")
++        print("Static combined baseline checks passed; no browser or full state verification performed")
+         return
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1",
+                MOZCONFIG=str(ROOT / "mozconfig"), MOZ_OBJDIR=str(ROOT / "objdir-full.noindex"),
+@@ -78,11 +78,11 @@
+                        env, verify, owned, lambda: stopped[0])
+     assert not owned
+     assessment = read(output / "original-wpt/ASSESSMENT.json")
+-    assert assessment["complete"] and assessment["observed_subtest_count"] == 102
++    assert assessment["complete"] and assessment["observed_subtest_count"] == 578
+     observed = {page: [row["subtest"] for row in assessment["rows"] if row["test"] == page]
+                 for page in policy["wpt"]["expected_subtests"]}
+     runner.save(output / "OBSERVED-ROSTER.json", {
+-        "expected_subtests": observed, "observed_subtest_count": 102,
++        "expected_subtests": observed, "observed_subtest_count": 578,
+         "phase": phase, "owner_sha256": sys.argv[2],
+         "source_roster_sha256": policy["references"][policy["source_roster"]],
+         "candidate_authorized": False,
+@@ -92,7 +92,7 @@
+         "preservation_verified": True, "native_fix_accepted": False,
+         "source_or_canonical_mutation": False,
+     })
+-    print("Completed original log observation; outcomes recorded without acceptance", flush=True)
++    print("Completed original combined MinMax/log observation; outcomes recorded without acceptance", flush=True)
+ 
+ 
+ if __name__ == "__main__":

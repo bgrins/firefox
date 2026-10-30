@@ -1,0 +1,13 @@
+# CSS verification continuation
+
+The latest signed research checkpoint failed in 1Password. V79 owner 98813/41c786/1 returned Git exit 128 with `failed to fill whole buffer`; no commit was created. Independent full verification 83099/35d2ab/0 reproduced the prior restored snapshot exactly. HEAD ecfe313d582a335c04d80bfd360fd3a591defdb7, epoch 1c63d31d and raw index40772332 remain unchanged. The transition lock and owned temporary index are gone. Do not rerun this completed attempt or substitute an unsigned commit.
+
+Completed research now includes the 17-theorem/seven-negative finite-chain completion model, independent review, exact first-read trace witnesses, and a new original-build same-element reproducer. Its acyclic opacity remains 0.75 instead of 6/11, while font size 22px and CSS duration 1375ms disagree with the retained effect duration 1000ms. Literal controls pass. The stepped self-feedback diagnostic returns without an observed hang or alternation; its endpoint has no normative oracle here. Counts remain 149 accepted fixes, with held ID 120 excluded.
+
+Next actions:
+
+1. Finish concrete admission for the prepared original/candidate same-element comparison. The compact completed diagnostic cannot supply missing historical full-lifecycle receipts, so run a fresh original through the existing lifecycle, then the exact three-source tri-state candidate. Both recipes remain disabled pending root review. The fresh post-signing application capture matches the restored app identities exactly.
+2. Use those observations and the captured transaction boundaries to choose a completion repair. Preserve immediate acyclic freshness; do not infer a native pass bound or cycle policy from the finite-chain theorem. Existing container-query iteration limits are a structural precedent, not a ready-made animation rule.
+3. Publish completed research when the configured signer is available, then the independently validated min/max and logarithm native/WPT fixes. Their successful combined/provider-free comparisons need not be repeated for identical source bytes. Min/max has an existing journal-corrected publisher; logarithm still needs the corresponding publication adaptation and metadata retirement. Neither is accepted yet.
+
+The preceding [detailed roadmap](../css-continuation-roadmap-20261029-v80/PLAN.md) retains the complete trace/model results and verification limits. [Current work table](WORK-TABLE.md), [signing failure and preservation](../css-research-checkpoint-20261029-v79-root-terminal.json), [browser observations](../css-contextual-duration-feedback-spec-review-v1/OBSERVED.md), [next comparison](../css-contextual-duration-same-element-candidate-v1/README.md).

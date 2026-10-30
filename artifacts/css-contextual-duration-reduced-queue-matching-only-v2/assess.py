@@ -1,0 +1,18 @@
+import importlib.util
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+path = ROOT / "artifacts/css-minmax-relative-infinity-broader-browser-v5/assess.py"
+spec = importlib.util.spec_from_file_location("executed_strict_assessor", path)
+base = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(base)
+signature = base.signature
+bound_run_info = base.bound_run_info
+
+
+def assess(*args, **kwargs):
+    result = base.assess(*args, **kwargs)
+    result["oracle_caveat"] = "Original reduced queue observation: two exact callbacks; PASS and ordinary assertion FAIL are measured without a required outcome. Fixed script/literal calibration is required before attribution; no self-feedback numeric oracle."
+    if (kwargs.get("run_binding") or {}).get("source_role") == "candidate":
+        result["oracle_caveat"] = "Matching-only reduced queue comparison: outcomes retain their actual status; a complete regression against the passing original is diagnostic evidence, not success or acceptance."
+    return result

@@ -1,0 +1,59 @@
+--- prioritary-appearance-selection.html
++++ prioritary-appearance-self-selection.html
+@@ -1,6 +1,6 @@
+ <!doctype html>
+ <meta charset="utf-8">
+-<title>Prioritary selection reads reached appearance-base eligibility</title>
++<title>Appearance-base eligibility does not invalidate its own bootstrap declaration</title>
+ <link rel="help" href="https://drafts.csswg.org/css-ui-4/#appearance-switching">
+ <script src="/resources/testharness.js"></script>
+ <script src="/resources/testharnessreport.js"></script>
+@@ -8,7 +8,7 @@
+ <pre id="observations" hidden></pre>
+ <script>
+ window.prioritaryObservations = [];
+-for (const kind of ["reached-base", "earlier-author-winner", "literal-control"]) {
++for (const kind of ["gated-self-variable", "gated-self-literal", "no-gated-self"]) {
+   promise_test(async t => {
+     assert_true(typeof SpecialPowers !== "undefined", "Mozilla WPT SpecialPowers capability");
+     const frame = document.createElement("iframe");
+@@ -28,9 +28,10 @@
+     const reference = doc.getElementById("reference");
+     const initial = win.getComputedStyle(target).getPropertyValue("--actual").trim();
+     const utils = SpecialPowers.wrap(win).windowUtils;
+-    const gated = kind === "earlier-author-winner" ? "var(--actual)" : "var(--size)";
+-    const ua = `data:text/css,${encodeURIComponent(`.target { font-size:13px; outline:0 solid; }
+-      @appearance-base { .target { font-size:${gated}; outline-width:7px; } }`)}`;
++    const lower = kind === "gated-self-literal" ? "base" : "var(--missing,base)";
++    const gated = kind === "no-gated-self" ? "" : "appearance:var(--missing,base);";
++    const ua = `data:text/css,${encodeURIComponent(`.target { appearance:${lower}; font-size:13px; outline:0 solid; }
++      @appearance-base { .target { ${gated} font-size:var(--size); outline-width:7px; } }`)}`;
+     utils.loadSheetUsingURIString(ua, utils.AGENT_SHEET);
+     removeSheet = () => utils.removeSheetUsingURIString(ua, utils.AGENT_SHEET);
+     const sheet = doc.createElement("style");
+@@ -38,9 +39,7 @@
+     const row = {kind, initial, phases:[]};
+     window.prioritaryObservations.push(row);
+     for (const size of [20, 30]) {
+-      const winner = kind === "earlier-author-winner";
+-      sheet.textContent = `.target { --actual:${kind === "literal-control" ? `${size * 2}px` : "2em"}; --size:${size}px;
+-          appearance:${winner ? "var(--actual)" : "base"}; ${winner ? `font-size:${size}px;` : ""} }
++      sheet.textContent = `.target { --actual:2em; --size:${size}px; }
+         #reference { font-size:${size}px; width:${size * 2}px; }`;
+       const samples = [win.getComputedStyle(target).getPropertyValue("--actual").trim()];
+       for (let index = 0; index < 3; index++) {
+@@ -58,11 +57,11 @@
+     for (const phase of row.phases) {
+       assert_equals(phase.referenceFont, `${phase.size}px`, diagnostic);
+       assert_equals(phase.referenceWidth, `${phase.size * 2}px`, diagnostic);
+-      assert_equals(phase.appearance, kind === "earlier-author-winner" ? "none" : "base", diagnostic);
+-      assert_equals(phase.marker, kind === "earlier-author-winner" ? "0px" : "7px", `UA gated rule calibration: ${diagnostic}`);
++      assert_equals(phase.appearance, "base", diagnostic);
++      assert_equals(phase.marker, "7px", `UA gated rule calibration: ${diagnostic}`);
+       assert_equals(phase.font, `${phase.size}px`, diagnostic);
+       for (const sample of phase.samples) assert_equals(sample, phase.referenceWidth, diagnostic);
+     }
+-  }, `Prioritary appearance selection: ${kind}`);
++  }, `Appearance eligibility self-edge preservation: ${kind}`);
+ }
+ </script>

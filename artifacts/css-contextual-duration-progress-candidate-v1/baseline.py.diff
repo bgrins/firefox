@@ -1,0 +1,38 @@
+--- executed-broader/baseline.py
++++ disabled-progress-candidate/baseline.py
+@@ -44,18 +44,13 @@
+             path = Path(record[kind + '_capture'])
+             assert not path.is_absolute() and '..' not in path.parts and not (ROOT / path).is_symlink()
+             assert policy['references'][str(path)] == sha(ROOT / path) == record[kind + '_sha256']
+-    for capsule_key,binding_key in (('baseline_capsule','baseline_binding'),('inactive_capsule','inactive_binding'),('reduced_capsule','reduced_binding')):
+-        if policy[binding_key] is not None:
+-            capsule,binding = policy[capsule_key],policy[binding_key]
+-            ownership.authenticate(ROOT / capsule['directory'],capsule['sha256'])
+-            directory = ROOT / binding['directory']
+-            ownership.authenticate(directory,binding['manifest_sha256'])
+-            assert read(directory / binding['terminal_path']) == binding['terminal'] and binding['terminal']['exit'] == 0
+-            assert sha(directory / 'RESULT.json') == binding['result_sha256']
+-    if policy['target_binding'] is not None:
+-        target = policy['target_binding']
+-        ownership.authenticate(ROOT / target['owner'],target['owner_sha256'])
+-        ownership.authenticate(ROOT / target['directory'],target['manifest_sha256'])
++    if policy['baseline_binding'] is not None:
++        capsule, binding = policy['baseline_capsule'], policy['baseline_binding']
++        ownership.authenticate(ROOT / capsule['directory'], capsule['sha256'])
++        directory = ROOT / binding['directory']
++        ownership.authenticate(directory, binding['manifest_sha256'])
++        assert read(directory / binding['terminal_path']) == binding['terminal'] and binding['terminal']['exit'] == 0
++        assert sha(directory / 'RESULT.json') == binding['result_sha256']
+     comparison = load('broader_complete_replay', str((HERE / 'comparison.py').relative_to(ROOT)))
+     comparison.replay_all(ROOT, policy)
+     return policy, ownership, roles
+@@ -65,8 +60,7 @@
+     assert policy['execution_enabled'] and policy['candidate_execution_enabled']
+     assert policy['activation_pending'] == []
+     assert policy['controls']['CURRENT-EPOCH.json'] and policy['prepared_application_metadata']
+-    assert policy['prepared_state_evidence'] and policy['target_binding']
+-    assert policy['reduced_capsule'] and policy['reduced_binding'] and policy['phases']['reduced']
++    assert policy['baseline_binding'] is not None
+     checks = load('broader_activation_checks', str((HERE / 'check.py').relative_to(ROOT)))
+     checks.validate_actual_bindings(policy)
+ 

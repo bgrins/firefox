@@ -1,0 +1,42 @@
+--- registered-defaulting-independent-review-v1/review.py
++++ registered-ordering-independent-review-v1/review.py
+@@ -8,8 +8,8 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+-FIXTURE = ROOT / 'artifacts/css-animation-taint-registered-defaulting-probe-v1'
+-OWNER = ROOT / 'artifacts/css-animation-taint-registered-defaulting-installed-v1'
++FIXTURE = ROOT / 'artifacts/css-animation-taint-registered-ordering-probe-v1'
++OWNER = ROOT / 'artifacts/css-animation-taint-registered-ordering-installed-v1'
+ sha = lambda body: hashlib.sha256(body).hexdigest()
+ read = lambda path: json.loads(path.read_bytes())
+ 
+@@ -29,7 +29,7 @@
+     URLSearchParams,
+     location: {search: '?' + new URLSearchParams({run: binding.run_id, nonce: binding.nonce})},
+     navigator: {userAgent: payload.report.userAgent},
+-    window: {registeredDefaultingObservations: Object.fromEntries(payload.report.observations.map(row => [row.mode, row.record]))},
++    window: {registeredOrderingObservations: Object.fromEntries(payload.report.observations.map(row => [row.mode, row.record]))},
+     add_completion_callback: fn => { if (completion) throw Error('duplicate completion'); completion = fn; },
+     fetch: async (url, options) => {
+       if (captured || url !== '/report/' + binding.nonce || options.method !== 'POST' ||
+@@ -60,7 +60,7 @@
+         assert sha((OWNER / name).read_bytes()) == (pin['sha256'] if isinstance(pin, dict) else pin), name
+     for name, pin in read(FIXTURE / 'FILES.json').items():
+         assert sha((FIXTURE / name).read_bytes()) == (pin['sha256'] if isinstance(pin, dict) else pin), name
+-    runtime = ROOT / f'artifacts/css-animation-taint-registered-defaulting-{browser}-runtime-1'
++    runtime = ROOT / f'artifacts/css-animation-taint-registered-ordering-{browser}-runtime-1'
+     inputs = {}
+     def record(name):
+         path = runtime / name
+@@ -112,8 +112,8 @@
+     owner = importlib.util.module_from_spec(spec)
+     spec.loader.exec_module(owner)
+     report = owner.validate(payload, binding['run_id'], browser)
+-    html = (FIXTURE / 'tests/css/css-variables/animation-taint-registered-defaulting.tentative.html').read_text()
+-    reference = 'function referenceChecks(record) {' + html.split('function referenceChecks(record) {', 1)[1].split('\nfor (const mode', 1)[0]
++    html = (FIXTURE / 'tests/css/css-variables/animation-taint-registered-ordering.tentative.html').read_text()
++    reference = 'function configuration(mode) {' + html.split('function configuration(mode) {', 1)[1].split('\nfor (const mode', 1)[0]
+     assert reference in (OWNER / 'report.js').read_text()
+     reconstructed = reconstruct(payload, binding)
+     assert reconstructed == payload

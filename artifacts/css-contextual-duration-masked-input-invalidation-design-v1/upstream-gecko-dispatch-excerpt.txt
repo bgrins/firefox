@@ -1,0 +1,43 @@
+      const nsStyleAutoArray<StyleScrollTimeline>* aB) {
+    return *aA == *aB;
+  }
+  
+  bool Gecko_StyleViewTimelinesEquals(
+      const nsStyleAutoArray<StyleViewTimeline>* aA,
+      const nsStyleAutoArray<StyleViewTimeline>* aB) {
+    return *aA == *aB;
+  }
+  
+layout/style/GeckoBindings.cpp:525: void Gecko_UpdateAnimations(const Element* aElement,
+                              const ComputedStyle* aOldComputedData,
+                              const ComputedStyle* aComputedData,
+                              UpdateAnimationsTasks aTasks) {
+    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_ASSERT(aElement);
+  
+    if (!aElement->IsInComposedDoc()) {
+      return;
+    }
+  
+          TimelineManager::ProgressTimelineType::View);
+      presContext->AnimationManager()->UpdateNamedTimelineAnimations(affected);
+    }
+  
+    if (aTasks & UpdateAnimationsTasks::CSSAnimations) {
+      presContext->AnimationManager()->UpdateAnimations(
+          const_cast<Element*>(element), pseudoRequest, aComputedData);
+    }
+  
+    // aComputedData might be nullptr if the target element is now in a
+layout/style/GeckoBindings.cpp:578:   // display:none subtree. We still call Gecko_UpdateAnimations in this case
+    // because we need to stop CSS animations in the display:none subtree.
+    // However, we don't need to update transitions since they are stopped by
+    // RestyleManager::AnimationsWithDestroyedFrame so we just return early
+    // here.
+    if (!aComputedData) {
+      return;
+    }
+  
+    if (aTasks & UpdateAnimationsTasks::CSSTransitions) {
+      MOZ_ASSERT(aOldComputedData);
+Total matches: 2

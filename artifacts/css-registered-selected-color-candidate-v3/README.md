@@ -1,0 +1,13 @@
+# Selected-color candidate V3
+
+Disabled successor using proposal V4 fab11046: provider6002115f plus unchanged cascadeb3c220b1/value6624c2a5. The same exact 42-case suite and actual clean-original29PASS/13FAIL/3OK remain the comparison baseline. No candidate passing count is predetermined. New output is candidate-runtime-3; prior owner/runtime2 are immutable.
+
+Prior candidate85310/e7082d/51ecf0/1 failed at build exit2 with E0502; no browser ran. Its source/app restoration was independently verified72917/51f609/3abddc/0. Root subsequently verified and removed the1,008,605,176-byte backup, preserving the failed result. Frozen runtimefd1e00f7 binds all receipts. Current epochcdc34994 and raw9e1295fd follow only the raw-index refresh; OWNED/ROLE and semantic snapshot are unchanged. The restored20ab application has unchanged bytes/BuildID, entryinode279897805 and targetinode279913156.
+
+The original admission is replayed against its historical verified app/controls. A separate narrow failure handoff then authenticates the failed owner/reviewer/result, build2/noWPT, all three restored source identities and heldprovider2675, actual root backup cleanup, raw-only snapshot/epoch, flags and current application. Only the two app identity fields are excluded from historical semantic equality; current identities must exactly match the new review. No old snapshot or original raw record is rewritten. Fresh original tests are not inferred from restoration.
+
+Baseline, comparison, WPT, phases and assessor are byte-identical V2. Candidate lifecycle changes only the operation label. The terminal-schema correction remains intact at both saved preparation and pre-install checks. Source/app/index/process restoration is unchanged. The heldprovider restoration preimage stays2675 while clean semantic base is8a4; V4 fixes borrow ownership without introducing a new clone. Actual Stylo compilation is still required.
+
+Saved check: `python3 -I -S -B artifacts/css-registered-selected-color-candidate-v3/check.py`. It replays29/13/3, rejects15 invalid bindings and3 terminal-schema negatives, and retains all42FAIL output. No live guard runs.
+
+Root saved entrypoint: `python3 -I -S -B artifacts/css-registered-selected-color-candidate-v3/candidate.py --check MANIFEST_SHA`. After independent review, root preserves disabled POLICY/FILES, enables both gates, clears activation_pending and reseals. Actual execution is `python3 -I -S -B artifacts/css-registered-selected-color-candidate-v3/candidate.py --run ACTIVE_MANIFEST_SHA`; it performs the inherited live guard before installation. Both gates remain false here. No native/app/Git/index/browser/build action occurred during preparation.

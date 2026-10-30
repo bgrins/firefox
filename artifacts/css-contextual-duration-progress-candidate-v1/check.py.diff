@@ -1,0 +1,258 @@
+--- executed-broader/check.py
++++ disabled-progress-candidate/check.py
+@@ -5,130 +5,146 @@
+ from pathlib import Path
+ import sys
+ 
+-sys.dont_write_bytecode = True
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+ read = lambda path: json.loads(path.read_bytes())
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+ 
+ 
+-def load(name,path):
+-    spec = importlib.util.spec_from_file_location(name,path)
+-    result = importlib.util.module_from_spec(spec)
+-    spec.loader.exec_module(result)
+-    return result
++def load(name, path):
++    spec = importlib.util.spec_from_file_location(name, path)
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module
++
++
++def validate_policy(policy):
++    source_dir = ROOT / policy['baseline_capsule']['directory']
++    assert sha(source_dir / 'FILES.json') == policy['baseline_capsule']['sha256']
++    assert sha(source_dir / 'POLICY.json') == policy['original_admission_policy_sha256']
++    source = read(source_dir / 'POLICY.json')
++    load('original_saved_binding_check', source_dir / 'check.py').check_binding(source)
++    assert policy['controls'] == source['controls'] and policy['head'] == source['head']
++    assert policy['prepared_application_metadata'] == {key: value for key, value in source['prepared_application_metadata'].items() if key not in ('build_revision', 'harness_revision', 'source_role')}
++    assert policy['accepted_current_payloads'] == source['accepted_current_payloads'] and len(policy['accepted_current_payloads']) == 29
++    assert policy['source_context_pins'] == source['source_role_pins']
++    assert policy['record_kinds'] == source['record_kinds'] and len(policy['record_kinds']) == 9
++    roles = read(HERE / 'SOURCE-ROLES.json')
++    assert set(roles) == set(policy['source_paths']) == {'dom/animation/EffectCompositor.cpp', 'dom/animation/EffectCompositor.h', 'servo/components/style/matching.rs'}
++    landing = ROOT / policy['landing_package']['directory']
++    assert sha(landing / 'FILES.json') == policy['landing_package']['manifest_sha256']
++    payloads = read(landing / 'PAYLOADS.json')
++    built = read(ROOT / policy['original_build']['epoch'])
++    for name, role in roles.items():
++        assert role['base_sha256'] == source['source_role_pins'][name] == built['pins'][name] == payloads[name]['base_sha256']
++        assert name not in built['modified_native_paths']
++        assert role['candidate_sha256'] == sha(ROOT / role['candidate_capture']) == sha(landing / payloads[name]['payload']) == payloads[name]['candidate_sha256']
++    comparison = load('progress_comparison_check', HERE / 'comparison.py')
++    assert policy['wpt'] == comparison.expected_wpt(ROOT, policy)
++    assert len(policy['wpt']['expected_subtests']) == 3 and sum(map(len, policy['wpt']['expected_subtests'].values())) == 9
++    if policy['baseline_binding'] is None:
++        assert not policy['execution_enabled'] and not policy['candidate_execution_enabled'] and policy['activation_pending']
+ 
+ 
+ def validate_actual_bindings(policy):
+-    assert policy['target_binding'] and policy['reduced_binding'] and policy['reduced_capsule']
+-    assert policy['prepared_state_evidence'] and policy['controls']['CURRENT-EPOCH.json'] and policy['prepared_application_metadata']
+-    load('actual_target_binding',HERE / 'target.py').verify(ROOT,policy,HERE)
+-    load('actual_reduced_binding',HERE / 'reduced.py').replay_all(ROOT,policy)
++    validate_policy(policy)
++    assert policy['baseline_binding'] is not None
++    return load('progress_actual_original', HERE / 'comparison.py').replay_all(ROOT, policy)
+ 
+ 
+-def validate_policy(policy):
+-    assert policy['execution_enabled'] == policy['candidate_execution_enabled']
+-    if policy['execution_enabled']:
+-        assert policy['activation_pending'] == []
+-        validate_actual_bindings(policy)
+-    else:
+-        assert policy['activation_pending']
+-    roles = read(HERE / 'SOURCE-ROLES.json')
+-    assert roles == read(ROOT / 'artifacts/css-contextual-duration-restyle-tristate-browser-v1/SOURCE-ROLES.json')
+-    assert set(roles) == set(policy['source_paths']) == {'dom/animation/EffectCompositor.cpp','dom/animation/EffectCompositor.h','servo/components/style/matching.rs'}
+-    assert policy['runtime_output'] == 'artifacts/css-contextual-duration-restyle-tristate-broader-runtime-1'
+-    assert set(policy['phases']) == {'normative','reftest','inactive','reduced'}
+-    assert policy['wpt'] == policy['phases']['normative']
+-    assert (policy['wpt']['expected_subtest_count'],policy['phases']['inactive']['expected_subtest_count']) == (49,1)
+-    assert 'feedback_transport' not in policy and 'record_kinds' not in policy
+-    predecessor = read(ROOT / 'artifacts/css-contextual-duration-restyle-tristate-browser-v1/POLICY.json')
+-    for key in ('accepted_current_payloads','accepted_epoch_records','source_context_pins','resource_policy','rebuilt_binaries','original_build','prepared_flag_hashes','source_equivalence'):
+-        assert policy[key] == predecessor[key], key
+-    proposal = ROOT / policy['proposal']['directory']
+-    assert sha(proposal / 'FILES.json') == policy['proposal']['manifest_sha256']
+-    for name,pin in read(proposal / 'FILES.json').items():
+-        assert sha(proposal / name) == (pin['sha256'] if isinstance(pin,dict) else pin)
+-    for name,record in roles.items():
+-        for kind in ('base','candidate'):
+-            assert sha(ROOT / record[kind + '_capture']) == record[kind + '_sha256']
+-        if name.startswith('dom/'):
+-            assert b'DURATION_RESTYLE_TRACE' not in (ROOT / record['candidate_capture']).read_bytes()
+-    projection = policy['restyle_projection']
+-    assert sha(ROOT / projection['manifest']) == projection['sha256']
+-    old = ROOT / policy['broader_predecessor']['directory']
+-    assert (HERE / 'wpt.py').read_bytes() == (old / 'wpt.py').read_bytes()
+-    assert (HERE / 'assess.py').read_bytes() == (old / 'assess.py').read_bytes()
+-    comparison = load('broader_comparison_checks',HERE / 'comparison.py')
+-    comparison.historical(ROOT,policy)
+-    reduced = load('reduced_source_join',HERE / 'reduced.py')
+-    reduced_source = read(ROOT / policy['reduced_capsule']['directory'] / 'POLICY.json')
+-    assert reduced_source['source_role_pins'] == reduced.joined_source_pins(policy,roles)
+-    conflict = copy.deepcopy(policy)
+-    conflict['source_context_pins']['servo/components/style/matching.rs'] = '0' * 64
+-    try:
+-        reduced.joined_source_pins(conflict,roles)
+-    except AssertionError:
+-        pass
+-    else:
+-        raise AssertionError('Conflicting context/overlay base accepted')
+-    for name in ('dom/animation/EffectCompositor.cpp','dom/animation/EffectCompositor.h'):
+-        missing = dict(reduced_source['source_role_pins']);missing.pop(name)
+-        assert missing != reduced.joined_source_pins(policy,roles)
+-    for kind in ('normative','reftest','inactive','reduced'):
+-        current = dict(policy,phase_kind=kind,wpt=policy['phases'][kind])
+-        assert comparison.expected_wpt(ROOT,current) == current['wpt']
++def check(policy):
++    validate_policy(policy)
++    for name, digest in policy['references'].items():
++        assert sha(ROOT / name) == digest, name
++    source = read(ROOT / policy['baseline_capsule']['directory'] / 'POLICY.json')
++    comparison = load('progress_static_comparison', HERE / 'comparison.py')
++    assessor = load('progress_static_assessor', HERE / 'assess.py')
++    checks = load('progress_static_streams', ROOT / policy['wpt']['checks_helper'])
++    settings = copy.deepcopy(policy['wpt'])
++    settings['harness_revision'] = 'a' * 40
++    settings['phase_revisions'] = {'original': 'b' * 40, 'candidate': 'a' * 40}
++    app = {'browser_build_id': 'original-build', 'revision': 'b' * 40, 'build_revision': 'b' * 40, 'harness_revision': 'a' * 40, 'source_role': 'original', 'sha256': 'c' * 64, 'path': 'synthetic/application.ini', 'resolved': 'synthetic/application.ini'}
++    candidate_app = dict(app, browser_build_id='candidate-build', revision='a' * 40, build_revision='a' * 40, source_role='candidate', sha256='d' * 64)
++    events = [{'action': 'suite_start', 'run_info': {'os': 'mac', 'debug': False, 'browser_build_id': 'original-build', 'revision': 'a' * 40}}]
++    for page, names in settings['expected_subtests'].items():
++        events.append({'action': 'test_start', 'test': page})
++        for name in names:
++            events.append({'action': 'test_status', 'test': page, 'subtest': name, 'status': 'PASS'})
++        events.append({'action': 'test_end', 'test': page, 'status': 'OK'})
++    events.append({'action': 'suite_end'})
++    original = copy.deepcopy(events)
++    rows = [row for row in original if row['action'] == 'test_status']
++    for row in rows[1:6]:
++        row.update(status='FAIL', expected='PASS', message='synthetic ordinary or animated failure')
++    settings['target_subtests'] = {page: [row['subtest'] for row in rows if row['test'] == page and row['status'] == 'FAIL'] for page in settings['expected_subtests']}
++    settings.update(expected_target_count=5, expected_control_count=4, expected_regression_signature_count=7)
++    configuration = comparison.phase_policy(settings)
++    saved = assessor.assess(original, 1, configuration, checks, run_binding=app)
++    assert saved['complete'] and len(saved['regression_signature']) == 7
++    candidate = copy.deepcopy(events)
++    candidate[0]['run_info']['browser_build_id'] = 'candidate-build'
++
++    def evaluate(stream, code=0):
++        return assessor.assess(stream, code, configuration, checks, original=saved, run_binding=candidate_app)
++
++    assert evaluate(candidate)['comparison_gate_passed']
++    rejected = []
++
++    def reject(label, mutation, code=0):
++        value = copy.deepcopy(candidate)
++        mutation(value)
++        assert not evaluate(value, code)['comparison_gate_passed'], label
++        rejected.append(label)
++
++    def row(value):
++        return next(item for item in value if item.get('action') == 'test_status')
++
++    reject('original PASS changed', lambda value: row(value).update(status='FAIL', expected='PASS', message='regression'), 1)
++    reject('repair still FAIL', lambda value: [item for item in value if item.get('action') == 'test_status'][1].update(status='FAIL', expected='PASS', message='still stale'), 1)
++    reject('PASS message changed', lambda value: row(value).update(message='new diagnostic'))
++    reject('expected field presence changed', lambda value: row(value).update(expected='PASS'))
++    reject('intermittent field presence changed', lambda value: row(value).update(known_intermittent=[]))
++    reject('missing callback', lambda value: value.remove(row(value)))
++    reject('duplicate callback', lambda value: value.insert(2, copy.deepcopy(row(value))))
++    reject('ending changed', lambda value: next(item for item in value if item.get('action') == 'test_end').update(message='different'))
++    reject('wrong build', lambda value: value[0]['run_info'].update(browser_build_id='wrong'))
++    reject('crash', lambda value: value.append({'action': 'crash'}))
++    reject('wrong exit', lambda value: None, 1)
++    check_failure_retention(policy)
++    print(json.dumps({'synthetic_five_failure_projection_repaired': True, 'ordinary_or_animated_failure_names_treated_equally': True, 'negative_checks': rejected, 'references_authenticated': len(policy['references']), 'baseline_actual_binding_pending': policy['baseline_binding'] is None, 'browser_or_live_guard_executed': False}))
+ 
+ 
+-def check():
+-    policy = read(HERE / 'POLICY.json')
+-    validate_policy(policy)
+-    for path in HERE.glob('*.py'):
+-        compile(path.read_bytes(),str(path),'exec')
+-    authenticated, deferred = 0, []
+-    for name,pin in policy['references'].items():
+-        if not name.startswith('artifacts/'):
+-            deferred.append(name)
+-            continue
+-        assert sha(ROOT / name) == pin, name
+-        authenticated += 1
+-    comparison = load('broader_saved_replay',HERE / 'comparison.py')
+-    comparison.replay_all(ROOT,policy)
+-    if policy['reduced_binding'] is None:
++def check_failure_retention(policy):
++    import tempfile
++    from types import SimpleNamespace
++    phases = load('progress_phase_failure_test', HERE / 'phases.py')
++    collector = load('progress_collector_failure_test', HERE / 'records.py')
++    rows = [{'test': rule['page'], 'subtest': rule['subtest'], 'status': 'FAIL'} for rule in policy['record_kinds'].values()]
++    def save(path, value):
++        with path.open('x') as stream:
++            json.dump(value, stream)
++    def fail_run(root, here, phase, *args):
++        phase.mkdir()
++        save(phase / 'ASSESSMENT.json', {'complete': True, 'rows': rows})
++        (phase / 'raw.jsonl').write_text('retained synthetic raw evidence')
++        raise AssertionError('synthetic comparison failure')
++    fake = SimpleNamespace(save=save, run=fail_run)
++    phases.load = lambda name, path: fake if path.name == 'wpt.py' else collector
++    with tempfile.TemporaryDirectory(prefix='css-progress-phase-check-', dir='/private/tmp') as temporary:
++        output = Path(temporary)
++        current = dict(policy, baseline_binding={'directory': 'synthetic-original'})
+         try:
+-            validate_actual_bindings(policy)
+-        except AssertionError:
+-            pass
++            phases.run(ROOT, HERE, output, current, {}, lambda: {'synthetic': True}, {}, lambda: False)
++        except AssertionError as error:
++            assert str(error) == 'synthetic comparison failure'
+         else:
+-            raise AssertionError('Missing reduced baseline permitted activation')
+-    if policy['target_binding'] is not None:
+-        target = load('completed_target_binding',HERE / 'target.py')
+-        target.verify(ROOT,policy,HERE)
+-        for field in ('owner_sha256','manifest_sha256','terminal_sha256','result_sha256'):
+-            changed = copy.deepcopy(policy)
+-            changed['target_binding'][field] = '0' * 64
+-            try:
+-                target.verify(ROOT,changed,HERE)
+-            except AssertionError:
+-                pass
+-            else:
+-                raise AssertionError('Wrong target binding accepted: ' + field)
+-    load('broader_synthetic_assessment',HERE / 'check_assess.py')
+-    load('sealed_projection_saved_controls',ROOT / 'artifacts/css-contextual-duration-restyle-projection-v1/check.py')
+-    old = {'index':{'raw_index':'old','entries':'same'},'nested_index':{'raw_index':'unchanged'}}
+-    new = copy.deepcopy(old);new['index']['raw_index']='new'
+-    comparison.admit_snapshot(old,new)
+-    for key in ('entries','nested'):
+-        changed = copy.deepcopy(new)
+-        if key == 'entries': changed['index']['entries']='wrong'
+-        else: changed['nested_index']['raw_index']='wrong'
+-        try:
+-            comparison.admit_snapshot(old,changed)
+-        except AssertionError:
+-            pass
+-        else:
+-            raise AssertionError(key)
+-    print(json.dumps({'artifact_references_authenticated':authenticated,'deferred_nonartifact_references':deferred,'historical_raw_replayed':True,'actual_target_restoration_bound':policy['target_binding'] is not None,'actual_reduced_baseline_bound':policy['reduced_binding'] is not None,'live_guard_build_browser_or_native_execution':False},indent=2))
++            raise AssertionError('failed comparison was relabeled successful')
++        receipt = read(output / 'PROGRESS-RECORDS.json')
++        assert len(receipt['missing']) == 9 and not receipt['errors'] and not receipt['complete']
++        assert (output / 'candidate-wpt/raw.jsonl').read_text() == 'retained synthetic raw evidence'
++    assert not output.exists()
+ 
+ 
+ if __name__ == '__main__':
+-    check()
++    assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
++    check(read(HERE / 'POLICY.json'))

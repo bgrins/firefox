@@ -1,0 +1,74 @@
+--- artifacts/css-registered-color-image-common-only-candidate-v1/check.py
++++ artifacts/css-registered-color-image-common-only-candidate-v2/check.py
+@@ -25,7 +25,7 @@
+     mutable = {'owner_directory','runtime_output','predecessor','proposal','references','source_paths','execution_enabled','candidate_execution_enabled','activation_pending','head','controls','prepared_application_metadata','prepared_flag_hashes','prepared_flag_capture','execution_handoff','baseline_binding','baseline_capsule','original_admission_policy_sha256','restoration_binding','preparation_predecessor','correction_predecessor','suite_binding','wpt','source_roster','preserved_absent_resources','proposal_independent_review','restoration_handoff','signing_failure'}
+     assert {k:v for k,v in policy.items() if k not in mutable} == {k:v for k,v in old.items() if k not in mutable}
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-registered-color-image-common-only-candidate-runtime-1'
++    assert policy['runtime_output'] == 'artifacts/css-registered-color-image-common-only-candidate-runtime-2'
+     assert type(policy['execution_enabled']) is bool and policy['execution_enabled'] == policy['candidate_execution_enabled']
+     assert bool(policy['activation_pending']) != policy['execution_enabled']
+     assert all(policy[k] is not None for k in ('head','controls','prepared_application_metadata','prepared_flag_hashes','prepared_flag_capture','execution_handoff','baseline_binding','baseline_capsule','original_admission_policy_sha256'))
+@@ -75,7 +75,42 @@
+     load('selected_color_pending_admission', HERE / 'admission.py').validate(ROOT,policy)
+ 
+ 
++def modified_paths_check():
++    import ast
++    source = (HERE / 'candidate.py').read_text()
++    module = ast.parse(source)
++    node = next(node for node in module.body if isinstance(node, ast.FunctionDef) and node.name == 'expected_modified_paths')
++    namespace = {}
++    exec(compile(ast.Module(body=[node], type_ignores=[]), 'modified_paths', 'exec'), namespace)
++    expected = namespace['expected_modified_paths']
++    role = lambda pin: {'candidate_sha256': pin}
++    cases = [
++        ([], {'same': role('h')}, {'same': 'h'}, []),
++        ([], {'changed': role('c')}, {'changed': 'h'}, ['changed']),
++        (['held'], {'same': role('h')}, {'same': 'h'}, ['held']),
++        (['owned'], {'owned': role('h')}, {'owned': 'h'}, []),
++        (['owned'], {'owned': role('held')}, {'owned': 'head'}, ['owned']),
++        (['held', 'same', 'changed'], {'same': role('h'), 'changed': role('c')}, {'same': 'h', 'changed': 'h'}, ['changed', 'held']),
++    ]
++    for existing, roles, pins, result in cases:
++        assert expected(existing, roles, pins) == result
++    try: expected([], {'missing': role('c')}, {})
++    except AssertionError: pass
++    else: raise AssertionError('Missing authenticated HEAD pin accepted')
++    policy = read(HERE / 'POLICY.json')
++    for name, pin in policy['references'].items(): assert sha(ROOT / name) == pin
++    roles = read(HERE / 'SOURCE-ROLES.json')
++    for record in roles.values():
++        for kind in ('base', 'candidate'):
++            assert sha(ROOT / record[kind + '_capture']) == record[kind + '_sha256']
++    result = expected(['servo/components/style/custom_properties.rs'], roles, policy['committed_source_preimages'])
++    assert result == ['servo/components/style/custom_properties.rs', 'servo/components/style/properties_and_values/value.rs']
++    assert sorted(set(['servo/components/style/custom_properties.rs']) | set(roles)) != result
++    print(json.dumps({'modified_path_cases': len(cases), 'missing_head_negative': True, 'actual_common_roles': len(roles), 'actual_modified_paths': result, 'old_union_rejected': True, 'live_operations': False}))
++
++
+ def check():
++    modified_paths_check()
+     policy = read(HERE / 'POLICY.json')
+     actual = validate_policy(policy)
+     baseline = load('corrected_terminal_prepare', HERE / 'baseline.py')
+@@ -105,6 +140,9 @@
+         lambda p: p['prepared_flag_hashes'].update(root='0' * 64),
+         lambda p: p['restoration_handoff'].update(manifest_sha256='0' * 64),
+         lambda p: p['restoration_handoff'].update(review_sha256='0' * 64),
++        lambda p: p['restoration_handoff'].update(backup_cleanup_sha256='0' * 64),
++        lambda p: p['restoration_handoff'].update(failure_trace_sha256='0' * 64),
++        lambda p: p['restoration_handoff'].update(failure_terminal_sha256='0' * 64),
+         lambda p: p.update(restoration_handoff=None),
+     )
+     for change in mutations:
+@@ -148,4 +186,8 @@
+ if __name__ == '__main__':
+     import sys
+     assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+-    check()
++    if sys.argv[1:] == ['--source-check']:
++        modified_paths_check()
++    else:
++        assert len(sys.argv) == 1
++        check()

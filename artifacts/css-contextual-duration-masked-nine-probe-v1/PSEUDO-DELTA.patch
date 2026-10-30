@@ -1,0 +1,61 @@
+--- css/css-animations/animation-duration-masked-font-update.tentative.html
++++ css/css-animations/animation-duration-masked-pseudo-font-update.tentative.html
+@@ -1,6 +1,6 @@
+ <!doctype html>
+ <meta charset="utf-8">
+-<title>Updating a font masked by an animation updates contextual duration</title>
++<title>An inherited host variable updates masked pseudo-element duration</title>
+ <link rel="help" href="https://drafts.csswg.org/web-animations-1/#model-liveness">
+ <link rel="help" href="https://drafts.csswg.org/css-animations-1/#animation-duration">
+ <script src="/resources/testharness.js"></script>
+@@ -16,16 +16,17 @@
+   iframe.srcdoc = `<!doctype html><style>
+     @keyframes fixed-font { from { font-size: 32px; } to { font-size: 32px; } }
+     @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+-    #target { font-size: 16px; animation-name: fixed-font, fade;
++    #host::before { content: "x"; display: block;
++      font-size: var(--font); animation-name: fixed-font, fade;
+       animation-duration: 2s, calc(1em / 16px * 1s);
+       animation-timing-function: linear; animation-fill-mode: both;
+       animation-play-state: paused; }
+-  </style><body><div id="target"></div>`;
++  </style><body><div id="host" style="--font: 16px"></div>`;
+   document.body.append(iframe);
+   await loaded;
+   const win = iframe.contentWindow;
+-  const target = iframe.contentDocument.getElementById("target");
+-  const acquired = target.getAnimations();
++  const target = iframe.contentDocument.getElementById("host");
++  const acquired = target.getAnimations({subtree: true});
+   assert_equals(acquired.length, 2, "Two CSS animations acquired");
+   const animations = ["fixed-font", "fade"].map(
+     name => acquired.find(animation => animation.animationName === name));
+@@ -38,16 +39,17 @@
+   for (let index = 0; index < 3; index++) {
+     await new Promise(resolve => win.requestAnimationFrame(resolve));
+   }
+-  assert_equals(win.getComputedStyle(target).fontSize, "32px",
++  assert_equals(win.getComputedStyle(target, "::before").fontSize, "32px",
+                 "Animated font masks the initial authored font");
+ 
+-  target.style.fontSize = "32px";
+-  const firstOpacity = Number(win.getComputedStyle(target).opacity);
++  target.style.setProperty("--font", "32px");
++  const firstOpacity = Number(win.getComputedStyle(target, "::before").opacity);
+   const duration = effects[1].getTiming().duration;
+   const progress = effects[1].getComputedTiming().progress;
+-  const current = target.getAnimations();
++  const current = target.getAnimations({subtree: true});
+   const observed = `opacity=${firstOpacity}, duration=${duration}, progress=${progress}`;
+   assert_approx_equals(firstOpacity, 0.375, 0.0001, `First read: ${observed}`);
++  assert_equals(current.length, 2, "Two CSS animations remain");
+   assert_equals(duration, 2000, "Final contextual duration is 2s");
+   assert_approx_equals(progress, 0.375, 0.0001, "Final effect progress");
+   for (let index = 0; index < animations.length; index++) {
+@@ -56,5 +58,5 @@
+     assert_equals(animations[index].currentTime, 750, "Current time retained");
+     assert_equals(animations[index].playState, "paused", "Animation stays paused");
+   }
+-}, "Changing a masked authored font updates contextual animation duration on the first read");
++}, "Changing an inherited host variable updates masked ::before duration on the first opacity read");
+ </script>

@@ -1,0 +1,58 @@
+--- artifacts/css-animation-taint-registered-independent-review-v1/review.py
++++ artifacts/css-animation-taint-registered-independent-review-v2/review.py
+@@ -8,8 +8,8 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+-FIXTURE = ROOT / 'artifacts/css-animation-taint-registered-scope-v1'
+-OWNER = ROOT / 'artifacts/css-animation-taint-registered-installed-v1'
++FIXTURE = ROOT / 'artifacts/css-animation-taint-registered-scope-v2'
++OWNER = ROOT / 'artifacts/css-animation-taint-registered-installed-v2'
+ sha = lambda body: hashlib.sha256(body).hexdigest()
+ read = lambda path: json.loads(path.read_bytes())
+ 
+@@ -56,9 +56,11 @@
+     refs = read(HERE / 'REFERENCES.json')
+     for name, expected in refs.items():
+         assert sha((ROOT / name).read_bytes()) == expected, name
++    for name, pin in read(OWNER / 'FILES.json').items():
++        assert sha((OWNER / name).read_bytes()) == (pin['sha256'] if isinstance(pin, dict) else pin), name
+     for name, pin in read(FIXTURE / 'FILES.json').items():
+         assert sha((FIXTURE / name).read_bytes()) == (pin['sha256'] if isinstance(pin, dict) else pin), name
+-    runtime = ROOT / f'artifacts/css-animation-taint-registered-{browser}-runtime-1'
++    runtime = ROOT / f'artifacts/css-animation-taint-registered-{browser}-runtime-2'
+     inputs = {}
+     def record(name):
+         path = runtime / name
+@@ -94,6 +96,11 @@
+     from urllib.parse import urlencode
+     assert command[-1] == binding['origin'] + '/observe.html?' + urlencode({'run': binding['run_id'], 'nonce': binding['nonce']})
+     assert temporary['profile'] in command or '--user-data-dir=' + temporary['profile'] in command
++    process = record('PROCESS.json')
++    assert type(process['pid']) is int and process['pid'] == process['pgid']
++    assert temporary['profile'] == temporary['path'] + '/profile'
++    assert cleanup['initial_group']['owned_group_absent'] and not cleanup['initial_group']['remaining_members']
++    assert not cleanup['remaining_profile_commands']
+     environment = record('ENVIRONMENT.json')
+     assert environment['feature_environment_overrides'] is False and environment['user_js_created'] is False
+     payload = record('REPORT.json')
+@@ -115,6 +122,19 @@
+     assert result['observation_complete'] == (report['status'] == 'complete')
+     assert result['cleanup_complete'] == cleanup.get('temporary_removed', False)
+     assert result['execution_complete'] == (result['error'] is None and not errors and cleanup.get('temporary_removed', False))
++    seals = read(HERE / 'RUNTIME-SEALS.json')
++    seal = seals.get(browser)
++    if seal is not None:
++        manifest = runtime / 'FILES.json'
++        assert sha(manifest.read_bytes()) == seal['sha256']
++        frozen = read(manifest)
++        assert len(frozen) == seal['payloads']
++        for name, pin in frozen.items():
++            path = runtime / name
++            assert path.is_file() and not path.is_symlink()
++            expected = pin['sha256'] if isinstance(pin, dict) else pin
++            assert sha(path.read_bytes()) == expected
++            inputs[str(path.relative_to(ROOT))] = {'sha256': expected, 'bytes': path.stat().st_size}
+     for name, pin in inputs.items():
+         assert sha((ROOT / name).read_bytes()) == pin['sha256']
+     return {'browser': browser, 'inputs': inputs, 'collection': report['status'],

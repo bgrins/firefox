@@ -1,0 +1,48 @@
+<h4 class="heading settled" data-level="4.7.4" id="calculating-the-simple-iteration-progress"><span class="secno">4.7.4. </span><span class="content">Calculating the simple iteration progress</span><a class="self-link" href="#calculating-the-simple-iteration-progress"></a></h4>
+   <p>The <dfn class="dfn-paneled" data-dfn-type="dfn" data-noexport id="simple-iteration-progress">simple iteration progress</dfn>
+  is a fraction of the progress through the current iteration
+  that ignores transformations to the time introduced by
+  the <a data-link-type="dfn" href="#playback-direction" id="ref-for-playback-direction②">playback direction</a> or <a data-link-type="dfn" href="https://drafts.csswg.org/css-easing-2/#easing-function" id="ref-for-easing-function④">easing functions</a> applied to the effect,
+  and is calculated as follows:</p>
+   <ol>
+    <li data-md>
+     <p>If the <a data-link-type="dfn" href="#overall-progress" id="ref-for-overall-progress②">overall progress</a> is <a data-link-type="dfn" href="#unresolved" id="ref-for-unresolved①⓪③">unresolved</a>,
+  return <span id="ref-for-unresolved①⓪④">unresolved</span>.</p>
+    <li data-md>
+     <p>If <a data-link-type="dfn" href="#overall-progress" id="ref-for-overall-progress③">overall progress</a> is infinity,
+  let the <var>simple iteration progress</var> be
+  <code><a data-link-type="dfn" href="#iteration-start" id="ref-for-iteration-start⑨">iteration start</a> % 1.0</code>;
+  otherwise,
+  let the <var>simple iteration progress</var> be
+  <code><a data-link-type="dfn" href="#overall-progress" id="ref-for-overall-progress④">overall progress</a> % 1.0</code>.</p>
+    <li data-md>
+     <p>If <em>all</em> of the following conditions are true:</p>
+     <ul>
+      <li data-md>
+       <p>the <var>simple iteration progress</var> calculated above is zero,
+  <em>and</em></p>
+      <li data-md>
+       <p>the animation effect is in the <a data-link-type="dfn" href="#animation-effect-active-phase" id="ref-for-animation-effect-active-phase⑥">active phase</a>
+  <em>or</em> the <a data-link-type="dfn" href="#animation-effect-after-phase" id="ref-for-animation-effect-after-phase⑦">after phase</a>,
+  <em>and</em></p>
+      <li data-md>
+       <p>the <a data-link-type="dfn" href="#active-time" id="ref-for-active-time①⑤">active time</a> is equal to the <a data-link-type="dfn" href="#active-duration" id="ref-for-active-duration①⑥">active duration</a>,
+  <em>and</em></p>
+      <li data-md>
+       <p>the <a data-link-type="dfn" href="#iteration-count" id="ref-for-iteration-count①⑤">iteration count</a> is <em>not</em> equal to zero.</p>
+     </ul>
+     <p>Let the <var>simple iteration progress</var> be 1.0.</p>
+     <div class="note" role="note">
+      <p>The above step implements the behavior that
+    when an animation’s active interval ends
+    precisely at the end of an iteration,
+    it fills by holding the endpoint of the final iteration
+    rather than the start of the next iteration.</p>
+      <p>The final condition prevents this from applying
+    when we never played any iterations of the animation to begin with
+    because the <a data-link-type="dfn" href="#iteration-count" id="ref-for-iteration-count①⑥">iteration count</a> was zero.</p>
+     </div>
+    <li data-md>
+     <p>Return <var>simple iteration progress</var>.</p>
+   </ol>
+   

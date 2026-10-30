@@ -1,0 +1,32 @@
+--- artifacts/css-contextual-duration-feedback-consistency-candidate-v1/candidate.py
++++ artifacts/css-contextual-duration-restyle-tristate-browser-v1/candidate.py
+@@ -46,9 +46,9 @@
+     ownership.authenticate(original_directory, binding['manifest_sha256'])
+     assert read(original_directory / binding['terminal_path']) == binding['terminal'] and binding['terminal']['exit'] == 0
+     assert sha(original_directory / 'RESULT.json') == binding['result_sha256']
+-    assert read(original_directory / 'PRE.json') == read(original_directory / 'POST.json') == original_before
+     comparison = load('broader_original_replay', str((HERE / 'comparison.py').relative_to(ROOT)))
+     comparison.replay_all(ROOT, policy)
++    comparison.admit_snapshot(read(original_directory / 'POST.json'), original_before)
+     for kind in ('feedback',):
+         ownership.group_absent(read(original_directory / (kind + '-wpt') / 'PROCESS.json')['pgid'])
+     assert output.parent == ROOT / 'artifacts' and not output.exists() and not output.is_symlink()
+@@ -101,7 +101,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'contextual-duration-feedback-consistency-candidate-v1'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'contextual-duration-restyle-tristate-browser-v1'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+@@ -113,6 +113,9 @@
+         for name in policy['preserved_absent_metadata'] + policy['preserved_absent_resources']:
+             assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()
+         assert all((RUNTIME / name).read_bytes() == body for name, body in controls.items())
++        for name, pin in policy['source_context_pins'].items():
++            if name not in roles:
++                assert sha(ROOT / name) == pin
+         for record in accepted.values():
+             ownership.claim(ROOT, record['path'], record['owned_sha256'], record['identity'])
+     def candidate_verify():

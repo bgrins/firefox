@@ -1,0 +1,22 @@
+# Independent frozen first-read trace review
+
+The instrumented run confirms a late-work boundary inside all four stale first queries. It does not show initial flush admission failing: every first query passes its recorded PresShell gate. Nine historical callbacks still PASS with three OK endings; their bounded assertions do not assert the first value.
+
+Authenticated all 71 regular runtime payloads (33,724,048 bytes), manifest e4fd2432. Independent original/candidate raw replay exactly reproduces the stored assessment and all twelve uninstrumented callback/ending signatures (589120/0). Rerunning the sealed strict joiner reproduces the entire root join JSON exactly (d71220/0): 258 queries, 204 posted CSS fields, nine stable groups, no cap/truncation/ambiguous scope. The initial reviewer authentication c57698/1 assumed scalar manifest entries; correcting support for `{sha256, bytes}` resolved that checker error without changing evidence.
+
+| First query | PID / query | Middle consumed marker | Child first Pending | Child deferred | Query exit / returned opacity |
+| --- | --- | --- | --- | --- | --- |
+| lh ordinary | 9699 / 45 | 1512 | 1514 | 1516 | 1539 / 0.428571 |
+| lh animated | 9699 / 81 | 2776 | 2778 | 2780 | 2803 / 0.428571 |
+| rem ordinary | 9701 / 39 | 1377 | 1379 | 1381 | 1404 / 0.428571 |
+| rem animated | 9701 / 70 | 2537 | 2539 | 2541 | 2564 / 0.428571 |
+
+Sequence numbers are process-local. WITNESS retains each complete PID/window/document/compositor/target/pseudo/identifier/cascade key; no cross-process or cross-document interval is inferred. Its checker compares every first-query event with the exact frozen parser query, not merely a filtered root summary. Child Animations entries are absent in the entry snapshots, become Pending during Servo traversal with style refresh active, and remain Pending in the return snapshots. After that creation there is no matching child post-attempt, explicit animation hint, WillCompose marker, removal or map-clear before return. The additional Layer request keeps Pending. The child and middle identities are distinct and stable. All four return with null restyle root, style-flush flag 0, throttled-flush flag 0 and layout-flush flag 1.
+
+Controls sharpen the distinction. Both literal chains create the child request before their in-query consumption: lh child consumed at 342 and rem child at 333, then return 0.545455 with no child entry. Property ordinary and animated create Layer requests, consume the child at 888 and 1659 respectively, and return 56px; property literal has no child request in its first query. All width queries also have a second admitted gate (flush enum 6), while the opacity queries have one (enum 3). This difference does not prove that extra layout work caused correctness. The separate captured source explains the property-dependent flush choices.
+
+Posted samples independently retain the same latency pattern as the uninstrumented run: lh reaches 0.545455 at passive sample 1; rem remains 0.428571 at sample 1 and reaches 0.545455 at sample 2. Literal chains and every width control are correct immediately. WITNESS preserves all four samples, rather than summarizing eventual PASS as first-read correctness.
+
+The observation rules out the specific hypothesis that these four stale reads never admitted their initial flush. It supports investigating work generated after the last observed middle consumption and surviving the getter's return. It does not establish which exact traversal iteration created the child update, that WillCompose or removal actually composed a value, the effective timing change at each event, or that the surviving map entry alone caused the stale return. The trace has no complete style-generation/refinement or counterfactual repair proof. Instrumentation can perturb scheduling; matching the earlier first/passive values is supporting evidence, not proof of zero perturbation. No unconditional extra pass, drain loop, general dependency ordering or cycle policy follows from this witness.
+
+The frozen owner terminal is 61350/6fb92f/0. Root independently verified restoration with 44172/bb8547/0 and removed the verified 1,008,605,176-byte backup. This review authenticates those saved receipts; it does not repeat a live restoration guard. Native acceptance remains false. No current source, application, Git/index, canonical state or browser was accessed or changed.

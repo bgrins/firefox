@@ -1,0 +1,12 @@
+--- artifacts/css-contextual-duration-masked-controls-candidate-disabled-v1/comparison.py
++++ artifacts/css-contextual-duration-masked-controls-candidate-v1/comparison.py
+@@ -77,6 +77,9 @@
+     assert replay == read(phase / 'ASSESSMENT.json') and replay['complete'] and len(replay['rows']) == 7
+     assert all(row['status'] in ('PASS', 'FAIL') for row in replay['rows'])
+     assert result['observation_complete'] and result['all_callbacks_passed'] == all(row['status'] == 'PASS' for row in replay['rows'])
++    assert phase_result['exit'] == binding['terminal']['browser_exit']
++    assert result['callbacks_passed'] == binding['terminal']['callbacks_passed']
++    assert result['callbacks_failed'] == binding['terminal']['callbacks_failed']
+     assert result['callbacks_passed'] == sum(row['status'] == 'PASS' for row in replay['rows'])
+     assert result['callbacks_failed'] == sum(row['status'] == 'FAIL' for row in replay['rows'])
+     projected = assessor.assess(events, phase_result['exit'], phase_policy(policy['wpt']), checks, run_binding=metadata)

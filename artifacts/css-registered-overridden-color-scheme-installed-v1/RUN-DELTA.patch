@@ -1,0 +1,103 @@
+--- artifacts/css-registered-color-initial-independence-installed-v1/run.py
++++ artifacts/css-registered-overridden-color-scheme-installed-v1/run.py
+@@ -82,43 +82,55 @@
+     assert isinstance(payload, dict) and set(payload) == {'run_id', 'report'} and payload['run_id'] == run_id
+     report = payload['report']
+     assert set(report) == {'schema', 'status', 'userAgent', 'policyVerdict', 'observations', 'harness'}
+-    assert report['schema'] == 'registered-initial-independence-observation-v1' and report['policyVerdict'] is None
++    assert report['schema'] == 'registered-overridden-dependency-observation-v1' and report['policyVerdict'] is None
+     assert report['status'] in ('complete', 'incomplete')
+     pattern = r'Firefox/158\.0(?:\s|$)' if browser == 'firefox' else r'(?:Headless)?Chrome/156\.0\.\d+\.\d+(?:\s|$)'
+     assert isinstance(report['userAgent'], str) and re.search(pattern, report['userAgent'])
+     assert set(report['harness']) == {'status', 'message'} and type(report['harness']['status']) is int
+     assert report['harness']['message'] is None or isinstance(report['harness']['message'], str)
+-    modes = ['red', 'CanvasText', 'light-dark(red, blue)']
++    modes = ['color-no-loser', 'color-literal', 'color-normal-before-important', 'color-normal-after-important', 'color-normal-before-normal', 'color-important-before-important', 'length-no-loser', 'length-literal', 'length-normal-before-important']
+     assert isinstance(report['observations'], list) and len(report['observations']) == len(modes)
+     complete = True
+     for row, mode in zip(report['observations'], modes):
+         assert set(row) == {'mode', 'record', 'wpt', 'referenceChecks', 'activeExpectation', 'policyVerdict'}
+         assert row['mode'] == mode and row['policyVerdict'] is None
+         assert set(row['wpt']) == {'name', 'status', 'message'}
+-        assert row['wpt']['name'] == 'Registered color initial independence: ' + mode
++        assert row['wpt']['name'] == 'Overridden registered dependency: ' + mode
+         assert row['wpt']['status'] is None or type(row['wpt']['status']) is int
+         assert row['wpt']['message'] is None or isinstance(row['wpt']['message'], str)
+         record = row['record']
++        length = mode.startswith('length-')
+         if record is not None:
+-            assert set(record) == {'initialValue', 'syntaxSupported', 'controlInitial', 'literalRed', 'accepted', 'exception'}
+-            assert record['initialValue'] == mode and type(record['syntaxSupported']) is bool and type(record['accepted']) is bool
+-            assert isinstance(record['controlInitial'], str) and isinstance(record['literalRed'], str)
+-            exception = record['exception']
+-            assert exception is None or (isinstance(exception, dict) and set(exception) == {'name', 'message'} and all(isinstance(v, str) for v in exception.values()))
+-            assert record['accepted'] == (exception is None)
+-        complete &= record is not None and row['wpt']['status'] is not None
++            assert set(record) == {'caseName', 'initial', 'phases'} and record['caseName'] == mode
++            assert isinstance(record['initial'], str) and isinstance(record['phases'], list) and len(record['phases']) <= 2
++            for index, phase in enumerate(record['phases']):
++                assert set(phase) == {'phase','declared','property','winner','expected','samples','computedWinner','reference','supportedLosingValue'}
++                assert type(phase['phase']) is int and phase['phase'] == index
++                expected = str((20 if index == 0 else 30) * 2) + 'px' if length else ('rgb(0, 0, 255)' if index == 0 else 'rgb(0, 128, 0)')
++                winner = ('20px' if index == 0 else '30px') if length else ('dark' if index == 0 else 'light')
++                declared = expected if mode.endswith('-literal') else ('2em' if length else 'light-dark(green, blue)')
++                assert phase['declared'] == declared and phase['property'] == ('font-size' if length else 'color-scheme')
++                assert phase['winner'] == winner and phase['expected'] == expected
++                assert type(phase['supportedLosingValue']) is bool
++                assert isinstance(phase['samples'], list) and len(phase['samples']) <= 4 and all(isinstance(v, str) for v in phase['samples'])
++                assert isinstance(phase['computedWinner'], str) and isinstance(phase['reference'], str)
++        collected = record is not None and len(record['phases']) == 2 and all(len(p['samples']) == 4 for p in record['phases'])
++        complete &= collected and row['wpt']['status'] is not None
++        expected_checks = [
++            record is not None and record['initial'] == ('0px' if length else 'rgb(255, 0, 0)'),
++            collected and all(p['supportedLosingValue'] for p in record['phases']),
++            collected and all(p['computedWinner'] == p['winner'] for p in record['phases']),
++            collected and all(p['reference'] == p['expected'] for p in record['phases']),
++        ]
+         checks = row['referenceChecks']
+-        assert isinstance(checks, list) and len(checks) == 2
++        assert isinstance(checks, list) and len(checks) == 4
+         assert all(set(v) == {'name', 'passed'} and type(v['passed']) is bool for v in checks)
+-        assert [v['name'] for v in checks] == ['ordinary color syntax supported', 'independent red registration']
+-        expected_checks = [record is not None and record['syntaxSupported'], record is not None and record['controlInitial'] == record['literalRed']]
++        assert [v['name'] for v in checks] == ['independent initial registration','losing declaration grammar','literal cascade winner','literal reference']
+         assert [v['passed'] for v in checks] == expected_checks
+         expectation = row['activeExpectation']
+-        assert type(expectation['matches']) is bool and type(expectation['expectedAcceptance']) is bool
+-        acceptance = mode == 'red'
+-        exception = None if acceptance else 'SyntaxError'
+-        matches = record is not None and record['accepted'] == acceptance and (record['exception'] is None if acceptance else record['exception'] is not None and record['exception']['name'] == exception)
+-        assert expectation == {'expectedAcceptance': acceptance, 'expectedException': exception, 'kind': 'control' if acceptance else 'tentative-registration-rejection', 'matches': matches}
++        assert type(expectation['matches']) is bool
++        matches = collected and all(all(v == p['reference'] for v in p['samples']) for p in record['phases'])
++        assert expectation == {'kind': 'control' if mode.endswith(('-literal','-no-loser')) else 'overridden-dependency', 'matches': matches}
+     assert (report['status'] == 'complete') == complete
+     return report
+ 
+@@ -263,7 +275,7 @@
+     selected = policy['browsers'][args.browser]
+     output = ROOT / selected['output']
+     output.mkdir(mode=0o700)
+-    temporary = Path(tempfile.mkdtemp(prefix='css-initial-independence-', dir='/private/tmp'))
++    temporary = Path(tempfile.mkdtemp(prefix='css-overridden-dependency-', dir='/private/tmp'))
+     info = temporary.lstat()
+     identity = [info.st_dev, info.st_ino]
+     profile = temporary / 'profile'
+@@ -338,7 +350,7 @@
+     reference_checks_pass = receiver.report is not None and all(check['passed'] for item in receiver.report['observations'] for check in item['referenceChecks'])
+     active_controls_pass = receiver.report is not None and all(
+         row['activeExpectation'] is not None and row['activeExpectation']['matches']
+-        for row in receiver.report['observations'] if row['mode'] == 'red')
++        for row in receiver.report['observations'] if row['activeExpectation']['kind'] == 'control')
+     all_callbacks_pass = receiver.report is not None and all(row['wpt']['status'] == 0 for row in receiver.report['observations'])
+     harness_ok = receiver.report is not None and receiver.report['harness']['status'] == 0
+     complete = error is None and not receiver.errors and receiver.report is not None and cleanup.get('temporary_removed', False)
+@@ -346,7 +358,7 @@
+         'reference_checks_pass': reference_checks_pass, 'active_control_expectations_pass': active_controls_pass,
+         'all_callbacks_pass': all_callbacks_pass, 'harness_ok': harness_ok,
+         'suite_pass': observation_complete and all_callbacks_pass and harness_ok,
+-        'registration_initial_policy_verdict': None, 'error': error,
++        'overridden_dependency_policy_verdict': None, 'error': error,
+         'report_received': receiver.report is not None, 'cleanup_complete': cleanup.get('temporary_removed', False),
+         'native_acceptance': False, 'launcher_returncode_after_cleanup': process.returncode if process else None})
+     return 0 if complete else 1

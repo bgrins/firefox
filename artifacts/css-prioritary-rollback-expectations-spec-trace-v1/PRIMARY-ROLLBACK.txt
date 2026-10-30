@@ -1,0 +1,311 @@
+CSS Cascading and Inheritance Module Level 5 (https://drafts.csswg.org/css-cascade-5/)
+citeturn3060view0 [wordlim: 200] Crawled: today; Content type: text/html; Source: open({"ref_id":"https://drafts.csswg.org/css-cascade-5/#valdef-all-revert-rule","lineno":778}); Total lines: 1419
+L747: However, 【121†@import】 and 【122†@namespace】 rules must be consecutive, without any intervening rules. The following is invalid:
+L748: 
+L749:     @import url(default.css) layer(default);
+L750:     @layer theme;
+L751:     @import url(components.css) layer(components);
+L752: 
+L753:     @layer theme {
+L754:       audio[controls] {
+L755:         display: block;
+L756:       }
+L757:     }
+L758: ### 6.5. Precedence of Non-CSS Presentational Hints
+L759: The UA may choose to honor presentational hints in a source document’s markup, for example the `bgcolor` attribute or `【294†s†html.spec.whatwg.org】` element in 【274†[HTML]】. All document language-based styling must be translated to corresponding CSS rules and enter the cascade as rules in either the 【259†UA-origin】 or a special-purpose author presentational hint origin between the regular 【260†user origin】 and the 【261†author origin】.
+L760: For the purpose of 【111†cascading】 this 【295†author presentational hint origin】 is treated as an independent 【151†origin】; however for the purpose of the 【296†revert】 keyword (but not for the 【27†revert-layer】 keyword) it is considered part of the author origin.
+L761: A document language may define whether such a presentational hint enters the 【111†cascade】 as 【259†UA-origin】 or 【261†author-origin】; if so, the UA must behave accordingly. For example, 【297†[SVG11]】 maps its presentation attributes into the author origin.
+L762: Note: Presentational hints entering the 【111†cascade】 as 【259†UA-origin】 rules can be overridden by 【261†author-origin】 or 【260†user-origin】 styles. Presentational hints entering the cascade as 【295†author presentational hint origin】 rules can be overridden by author-origin styles, but not by non-【257†important】 user-origin styles. Host languages should choose the appropriate origin for presentational hints with these considerations in mind.
+L763: ## 7. Defaulting
+L764: 
+L765: When the 【111†cascade】 does not result in a value, the 【115†specified value】 must be found some other way. 【298†Inherited properties】 draw their defaults from their parent element through 【113†inheritance】; all other properties take their 【114†initial value】. Authors can explicitly request inheritance or initialization via the 【299†inherit】 and 【300†initial】 keywords.
+L766: ### 7.1. Initial Values
+L767: 
+L768: Each property has an initial value, defined in the property’s definition table. If the property is not an 【298†inherited property】, and the 【111†cascade】 does not result in a value, then the 【115†specified value】 of the property is its 【114†initial value】.
+L769: ### 7.2. Inheritance
+L770: 
+L771: Inheritance propagates property values from parent elements to their children. The inherited value of a property on an element is the 【203†computed value】 of the property on the element’s parent element. For the root element, which has no parent element, the 【301†inherited value】 is the 【114†initial value】 of the property.
+L772: For a 【266†[DOM]】 tree with shadows, inheritance operates on the 【199†flattened element tree】. This means that slotted elements inherit from the `【302†slot†html.spec.whatwg.org】` they’re assigned to, rather than directly from their 【303†light tree†dom.spec.whatwg.org】 parent. 【232†Pseudo-elements】 inherit according to the fictional tag sequence described for each pseudo-element. 【235†[CSS-PSEUDO-4]】
+L773: Some properties are inherited properties, as defined in their property definition table. This means that, unless the 【111†cascade】 results in a value, the value will be determined by 【113†inheritance】.
+L774: 
+L775: A property can also be explicitly inherited. See the 【299†inherit】 keyword.
+L776: 
+L777: Note: Inheritance follows the document tree and is not intercepted by 【304†anonymous boxes†www.w3.org】, or otherwise affected by manipulations of the box tree.
+L778: ### 7.3. Explicit Defaulting
+L779: 
+L780: Several CSS-wide property values are defined below; declaring a property to have these values explicitly specifies a particular defaulting behavior. As specified in 【173†CSS Values and Units†www.w3.org】 【174†[css-values-3]】, all CSS properties can accept these values.
+L781: 
+L782: The keywords 【296†revert】, 【27†revert-layer】, and 【305†revert-rule】 are cascade-dependent keywords; some contexts may restrict their use while allowing the other 【209†CSS-wide keywords】.
+L783: #### 7.3.1. Resetting a Property: the 【300†initial】 keyword
+L784: 
+L785: The initial 【209†CSS-wide keyword】 represents the value defined as the property’s 【114†initial value】.
+L786: 
+L787: If the 【202†cascaded value】 of a property is the 【300†initial】 keyword, the property’s 【115†specified value】 is its 【114†initial value】.
+L788: #### 7.3.2. Explicit Inheritance: the 【299†inherit】 keyword
+L789: 
+L790: The inherit 【209†CSS-wide keyword】 represents the property’s 【203†computed value】 on the parent element.
+L791: 
+L792: If the 【202†cascaded value】 of a property is the 【299†inherit】 keyword, the property’s 【115†specified】 and 【203†computed values】 are the 【301†inherited value】.
+L793: #### 7.3.3. Erasing All Declarations: the 【306†unset】 keyword
+L794: 
+L795: The unset 【209†CSS-wide keyword】 acts as either 【299†inherit】 or 【300†initial】, depending on whether the property is 【298†inherited】 or not.
+L796: If the 【202†cascaded value】 of a property is the 【306†unset】 keyword, then if it is an inherited property, this is treated as 【299†inherit】, and if it is not, this is treated as 【300†initial】. This keyword effectively erases all 【201†declared values】 occurring earlier in the 【111†cascade】, correctly inheriting or not as appropriate for the property (or all longhands of a 【159†shorthand】).
+L797: #### 7.3.4. Rolling Back Cascade Origins: the 【296†revert】 keyword
+L798: 
+L799: The revert 【209†CSS-wide keyword】 rolls back the cascade to the 【202†cascaded value】 of the earlier 【151†origin】.
+L800: 
+L801: If the 【202†cascaded value】 of a property is the 【296†revert】 keyword, the behavior depends on the 【151†cascade origin】 to which the 【176†declaration】 belongs:
+L802: 【259†user-agent origin】
+L803:     Equivalent to 【306†unset】.
+L804: 【260†user origin】
+L805:     Rolls back the 【202†cascaded value】 to the user-agent level, so that the 【115†specified value】 is calculated as if no 【261†author-origin】 or 【260†user-origin】 rules were specified for this property on this element.
+L806: 【261†author origin】
+L807:     Rolls back the 【202†cascaded value】 to the user level, so that the 【115†specified value】 is calculated as if no 【261†author-origin】 rules were specified for this property on this element. For the purpose of 【296†revert】, this origin includes the Animation 【151†origin】.
+L808: Note: Effectively the 【296†revert】 keyword is substituted with the value from the earlier 【151†cascade origin】. Thus, reverting a 【159†shorthand property】 reverts all its longhands; reverting any 【35†property alias】 of a property reverts all of them; reverting one of the paired properties in a 【307†logical property group】 also reverts the other one; etc.
+L809: #### 7.3.5. Rolling Back Cascade Layers: the 【27†revert-layer】 keyword
+L810: 
+L811: The revert-layer 【209†CSS-wide keyword】 rolls back the cascade similar to 【296†revert】, except it works by 【21†cascade layer】 rather than by 【151†cascade origin】.
+L812: If the 【202†cascaded value】 of a property is the 【27†revert-layer】 keyword, the cascaded value is rolled back to the earlier 【21†layer】, so that the 【115†specified value】 is calculated as if no rules were specified in the current cascade layer—​or between its 【263†normal】 and 【257†important】 levels in the 【111†cascade】—​for this property on this element.
+L813: For revert-layer in important 【308†element-attached styles】, however, it only reverts the 【308†element-attached styles】 and the intervening 【309†animation origin】, and not any of the intervening 【261†author-origin】 important rules.
+L814: For example, applying 【27†revert-layer】 to the 【245†height】 in layer `two`, reverts the height property to the value defined in layer `one`, yielding a height of `100px`.
+L815: 
+L816:     @layer one {
+L817:       div { height: 100px }
+L818:     }
+L819: 
+L820:     @layer two {
+L821:       div { height: 200px }
+L822:       div { height: revert-layer }
+L823:     }
+L824: Note that since 【245†height】 and 【310†block-size】 are paired properties in a 【307†logical property group】, the following layer `two` declaration would also revert to the height defined in layer `one`.
+L825: 
+L826:     @layer two {
+L827:       div { height: 200px }
+L828:       div { block-size: revert-layer }
+L829:     }
+L830: 
+L831: 
+L832: Note: If there are no lower-precedence 【112†declarations】 in the same 【151†cascade origin】 as the 【27†revert-layer】 value, the 【202†cascaded value】 will roll back to the previous origin.
+L833: Note: The 【309†animation origin】 is not collapsed with the 【261†author origin】 for this purpose as it is for 【296†revert】, and thus effectively forms its own 【21†cascade layer】.
+L834: #### 7.3.6. Rolling Back Rules: the 【305†revert-rule】 keyword
+L835: 
+L836: The revert-rule 【209†CSS-wide keyword】 rolls back the cascade similar to 【296†revert】 and 【27†revert-layer】, except it works by 【311†style rule】 rather than 【151†cascade origin】 or 【21†cascade layer】.
+L837: 
+L838: If the 【202†cascaded value】 of a property is the 【305†revert-rule】 keyword, the cascaded value is rolled back such that the 【115†specified value】 is calculated as if the current 【311†style rule】 had not been present at all.
+L839: The 【305†revert-rule】 keyword can be combined with 【312†if()】 to conditionally ignore a declaration:
+L840: 
+L841:     div {
+L842:       border-radius: 5px;
+L843:     }
+L844:     .apply-sharp {
+L845:       border-radius: if(style(--mode:sharp): 0px; else: revert-rule);
+L846:     }
+L847: 
+L848: 
+L849: Given an element `<div class=apply-sharp>`, the above style sets border-radius to `0px` only when the 【203†computed value】 of `--mode` is `sharp`.
+L850: 
+L851: The 【305†revert-rule】 keyword behaves like 【27†revert-layer】 in the 【309†animation origin】.
+L852: ## 8. Layer APIs
+L853: ### 8.1. The `CSSLayerBlockRule` interface
+L854: 
+L855: The `【313†CSSLayerBlockRule】` interface represents the 【135†@layer】 【59†block rule】:
+L856: 
+L857:     [【314†Exposed†webidl.spec.whatwg.org】=Window]
+L858:     interface `CSSLayerBlockRule` : 【315†CSSGroupingRule】 {
+L859:       readonly attribute 【316†CSSOMString】 【317†name】;
+L860:     };
+L861: 
+L862: 
+L863: Its `name` attribute represents the 【286†layer name】 declared by the at-rule itself, and is an empty string if the layer is anonymous.
+L864: For example, additional nested context is not added from wrapping layer rules.
+L865: 
+L866:     @layer outer {
+L867:       @layer foo.bar { }
+L868:     }
+L869: 
+L870: 
+L871: in this case the `【317†name】` of the inner 【135†@layer】 rule is “foo.bar” (and not “outer.foo.bar”).
+L872: ### 8.2. The `CSSLayerStatementRule` interface
+L873: 
+L874: The `【318†CSSLayerStatementRule】` interface represents the 【135†@layer】 【60†statement】:
+L875: 
+L876:     [【314†Exposed†webidl.spec.whatwg.org】=Window]
+L877:     interface `CSSLayerStatementRule` : 【319†CSSRule】 {
+L878:       readonly attribute 【320†FrozenArray†webidl.spec.whatwg.org】<【316†CSSOMString】> 【321†nameList】;
+L879:     };
+L880: Its `nameList` attribute represents the list of 【286†layer names】 declared by the at-rule, normalized following the same rule as the `【313†CSSLayerBlockRule】`’s `【317†name】` attribute.
+L881: ## 9. Changes
+L882: ### 9.1. Changes since the 13 Jan 2022 Candidate Recommendation Snapshot
+L883: 
+L884: Non-trivial changes since the 【322†13 January 2022 Candidate Recommendation Snapshot】:
+L885: 
+L886:   * Added the 【305†revert-rule】 keyword. (【323†Issue 10443†github.com】)
+L887: 
+L888:   * Clarify that all “aliases” of a property are reverted by 【296†revert】/【27†revert-layer】.
+L889: 
+L890:   * Clarify that style sheets are ordered in 【272†final CSS style sheets】 order.
+L891:   * Clarify that only 【135†@layer】 statement rules are ignored when checking validity of 【121†@import】, not empty @layer block rules.
+L892: ### 9.2. Changes since the 15 Oct 2021 Working Draft
+L893: 
+L894: Non-trivial changes since the 【4†15 October 2021 Working Draft†www.w3.org】:
+L895: 
+L896:   * Updated grammar style for @import media queries and supports conditions
+L897: 
+L898:   * Allowed functional notation parse-time aliases (【324†Issue 6193†github.com】)
+L899: 
+L900:   * Made CSSImportRule.layerName nullable (【325†Issue 6576†github.com】)
+L901: 
+L902:   * Clarified that revert-layer in style attr does not revert author layers (【326†Issue 6743†github.com】)
+L903:   * Clarified revert-layer on style attr and keyframes (【326†Issue 6743†github.com】)
+L904: 
+L905:   * Added 【39†§ 4.1.1 Value Aliasing】 section. (【324†Issue 6193†github.com】)
+L906: 
+L907:   * Added 【72†§ 8 Layer APIs】 section. (【325†Issue 6576†github.com】)
+L908: 
+L909:   * Clarified the behavior of 【27†revert-layer】 keyword when used in the style attribute or 【281†@keyframes】 at-rule. (【326†Issue 6743†github.com】)
+L910: 
+L911:   * Clarified the behavior of the layer keyword and layer() function on 【121†@import】 rules. (【327†Issue 6776†github.com】)
+--------------------------------------------------------------------------------
+CSS Values and Units Module Level 5 (https://drafts.csswg.org/css-values-5/)
+citeturn3060view1 [wordlim: 200] Crawled: today; Content type: text/html; Source: open({"ref_id":"https://drafts.csswg.org/css-values-5/#property-replacement","lineno":1742}); Total lines: 2555
+L1698: The 【866†spread syntax】 is three distinct 【157†<delim-token>】s with the value `"."`, all of which must not contain any whitespace between them, or between the group and the subsequent 【126†arbitrary substitution function】.
+L1699: 
+L1700: That is, ...var(--foo) is a valid use of the 【866†spread syntax】, but ... var(--foo) is not, nor is . . .var(--foo).
+L1701: The latter usages will result in the 【126†arbitrary substitution function】 being evaluated at the normal time, after the 【521†argument grammar】 has been applied, and the period characters being part of the function’s value.
+L1702: Note: The 【866†spread syntax】 is only used within an 【126†arbitrary substitution function’s】 value, as it’s only referenced by the 【171†substitution】 algorithm when parsing an arbitrary substitution function. Using it outside of that, such as in 【690†width: ...var(--sidebar-width);】, is not recognized as an early invocation; instead, the periods are just part of the property’s value, unrelated to the 【127†var()】 function, and would in this case make the width property invalid.
+L1703: (This is similar to JavaScript, where this syntax was borrowed from, where `[1, ...arr, 5]` is valid, but `var x = ...arr;` is not.)
+L1704: To substitute early-invoked functions in a sequence of 【168†component values】 `values`:
+L1705: 
+L1706:   1. 【526†For each†infra.spec.whatwg.org】 【126†arbitrary substitution function】 `func` in `values` (ordered via a depth-first pre-order traversal) using the 【866†spread syntax】 that is not nested in the contents of another arbitrary substitution function:
+L1707: 
+L1708:     1. 【863†Substitute early-invoked functions】 in `func`’s contents, and let `early result` be the result.
+L1709:     2. If `early result` contains the 【169†guaranteed-invalid value】, replace `func` in `values` with the guaranteed-invalid value and 【527†continue†infra.spec.whatwg.org】.
+L1710: 
+L1711:     3. 【160†Parse】 `early result` acccording to `func`’s 【521†argument grammar】. If this returns failure, replace `func` in values with the 【169†guaranteed-invalid value】 and 【527†continue†infra.spec.whatwg.org】; otherwise, let `arguments` be the result.
+L1712:     4. 【525†Replace an arbitrary substitution function】 for `func`, given `arguments`, as defined by that function. Let `result` be the returned list of 【168†component values】.
+L1713: 
+L1714:     5. If `result` contains the 【169†guaranteed-invalid value】, replace `func` in `values` with the guaranteed-invalid value. Otherwise, replace `func` in `values` with `result`.
+L1715: 
+L1716:   2. Return `values`.
+L1717: ### Resolving in Properties
+L1718: 
+L1719: Unless otherwise specified, 【126†arbitrary substitution functions】 can be used in place of any part of any property’s value (including within other 【114†functional notations】); and are not valid in any other context.
+L1720: 
+L1721: Should any of these functions be valid in contexts outside of properties?
+L1722: 
+L1723: Tests
+L1724:   * 【867†variable-external-font-face-01.html†wpt.fyi】 【868†(live test)†wpt.live】 【869†(source)†github.com】
+L1725:   * 【870†variable-font-face-01.html†wpt.fyi】 【871†(live test)†wpt.live】 【872†(source)†github.com】
+L1726:   * 【873†variable-font-face-02.html†wpt.fyi】 【874†(live test)†wpt.live】 【875†(source)†github.com】
+L1727: 
+L1728: For example, the following code incorrectly attempts to use a variable as a property name:
+L1729: 
+L1730:     .foo {
+L1731:       --side: margin-top;
+L1732:       var(--side): 20px;
+L1733:     }
+L1734: This is not equivalent to setting 【776†margin-top: 20px;】. Instead, the second declaration is simply thrown away as a syntax error for having an invalid property name.
+L1735: 
+L1736: If a property value contains one or more 【126†arbitrary substitution functions】, and all of those functions are themselves syntactically valid according to their 【521†argument grammar】s, the entire value’s grammar must be assumed to be valid at parse time.
+L1737: 
+L1738: Tests
+L1739:   * 【876†variable-reference-18.html†wpt.fyi】 【877†(live test)†wpt.live】 【878†(source)†github.com】
+L1740:   * 【879†variable-reference-19.html†wpt.fyi】 【880†(live test)†wpt.live】 【881†(source)†github.com】
+L1741:   * 【882†variable-reference-30.html†wpt.fyi】 【883†(live test)†wpt.live】 【884†(source)†github.com】
+L1742: 【126†Arbitrary substitution functions】 are 【171†substituted】 during style 【173†computation】, before any other value transformations or introspection can occur. If a property, after 【531†property replacement】, does not match its declared grammar, the declaration is 【486†invalid at computed-value time】.
+L1743: Note: Since 【126†arbitrary substitution functions】 resolve at 【173†computed value】 time, if the resulting value after substitution is invalid, the property falls back (essentially) to 【885†unset】 behavior, rather than falling back to an earlier value in the 【482†cascade】 the way declarations invalid at parse time do. See 【80†Invalid Substitution】.
+L1744: 
+L1745: Tests
+L1746:   * 【886†variable-declaration-16.html†wpt.fyi】 【887†(live test)†wpt.live】 【888†(source)†github.com】
+L1747:   * 【889†variable-declaration-17.html†wpt.fyi】 【890†(live test)†wpt.live】 【891†(source)†github.com】
+L1748:   * 【892†variable-declaration-18.html†wpt.fyi】 【893†(live test)†wpt.live】 【894†(source)†github.com】
+L1749:   * 【895†variable-declaration-19.html†wpt.fyi】 【896†(live test)†wpt.live】 【897†(source)†github.com】
+L1750:   * 【898†variable-declaration-21.html†wpt.fyi】 【899†(live test)†wpt.live】 【900†(source)†github.com】
+L1751:   * 【901†variable-transitions-transition-property-all-before-value.html†wpt.fyi】 【902†(live test)†wpt.live】 【903†(source)†github.com】
+L1752:   * 【904†variable-transitions-value-before-transition-property-all.html†wpt.fyi】 【905†(live test)†wpt.live】 【906†(source)†github.com】
+L1753: If a property value, after 【531†property replacement】, contains only a single 【484†CSS-wide keyword】 (and possibly whitespace/comments), its value is determined as if that keyword were its 【393†specified value】 all along.
+L1754: 
+L1755: Tests
+L1756:   * 【907†whitespace-in-fallback-crash.html†wpt.fyi】 【908†(live test)†wpt.live】 【909†(source)†github.com】
+L1757:   * 【910†wide-keyword-fallback-001.html†wpt.fyi】 【911†(live test)†wpt.live】 【912†(source)†github.com】
+L1758:   * 【913†wide-keyword-fallback-002.html†wpt.fyi】 【914†(live test)†wpt.live】 【915†(source)†github.com】
+L1759: For example, the following usage is fine from a syntax standpoint, but results in nonsense when the variable is substituted in:
+L1760: 
+L1761:     :root { --looks-valid: 20px; }
+L1762:     p { background-color: var(--looks-valid); }
+L1763: 
+L1764: 
+L1765: Since 20px is an invalid value for 【916†background-color】, the property becomes 【486†invalid at computed-value time】, and instead resolves to 【917†transparent】 (the 【918†initial value】 for background-color).
+L1766: If the property was one that’s inherited by default, such as 【919†color】, it would compute to the inherited value rather than the initial value.
+L1767: 
+L1768: While a 【127†var()】 function can’t get a 【484†CSS-wide keyword】 from the 【542†custom property】 itself—​if you tried to specify that, like --foo: initial;, it would just trigger 【920†explicit defaulting】 for the custom property—​it can have a CSS-wide keyword in its fallback:
+L1769: 
+L1770:     p { color: var(--does-not-exist, initial); }
+L1771: In the above code, if the --does-not-exist property didn’t exist or is 【486†invalid at computed-value time】, the 【127†var()】 will instead substitute in the 【921†initial】 keyword, making the property behave as if it was originally 【919†color: initial】. This will make it take on the document’s initial color value, rather than defaulting to inheritance, as it would if there were no fallback.
+L1772: 
+L1773: To replace substitution functions in a property `prop`:
+L1774:   1. 【171†Substitute arbitrary substitution functions】 in `prop`’s value, given «"property", `prop`’s name» as the 【529†substitution context】. Let `result` be the returned 【168†component value】 sequence.
+L1775: 
+L1776:   2. If `result` contains the 【169†guaranteed-invalid value】, `prop` is 【486†invalid at computed-value time】; return.
+L1777: 
+L1778:   3. 【160†Parse】 `result` according to `prop`’s grammar. If this returns failure, `prop` is 【486†invalid at computed-value time】; return.
+L1779:   4. Otherwise, replace `prop`’s value with the parsed result.
+L1780: 
+L1781: Tests
+L1782:   * 【922†css-variable-change-style-001.html†wpt.fyi】 【923†(live test)†wpt.live】 【924†(source)†github.com】
+L1783:   * 【925†css-variable-change-style-002.html†wpt.fyi】 【926†(live test)†wpt.live】 【927†(source)†github.com】
+L1784:   * 【928†variable-declaration-01.html†wpt.fyi】 【929†(live test)†wpt.live】 【930†(source)†github.com】
+L1785:   * 【931†variable-declaration-02.html†wpt.fyi】 【932†(live test)†wpt.live】 【933†(source)†github.com】
+L1786:   * 【934†variable-declaration-03.html†wpt.fyi】 【935†(live test)†wpt.live】 【936†(source)†github.com】
+L1787:   * 【937†variable-declaration-04.html†wpt.fyi】 【938†(live test)†wpt.live】 【939†(source)†github.com】
+L1788:   * 【940†variable-declaration-05.html†wpt.fyi】 【941†(live test)†wpt.live】 【942†(source)†github.com】
+L1789:   * 【943†variable-generated-content-dynamic-001.html†wpt.fyi】 【944†(live test)†wpt.live】 【945†(source)†github.com】
+L1790:   * 【946†variable-presentation-attribute.html†wpt.fyi】 【947†(live test)†wpt.live】 【948†(source)†github.com】
+L1791:   * 【949†variable-reference-01.html†wpt.fyi】 【950†(live test)†wpt.live】 【951†(source)†github.com】
+L1792:   * 【952†variable-reference-02.html†wpt.fyi】 【953†(live test)†wpt.live】 【954†(source)†github.com】
+L1793:   * 【955†variable-reference-03.html†wpt.fyi】 【956†(live test)†wpt.live】 【957†(source)†github.com】
+L1794:   * 【958†variable-reference-04.html†wpt.fyi】 【959†(live test)†wpt.live】 【960†(source)†github.com】
+L1795:   * 【961†variable-reference-05.html†wpt.fyi】 【962†(live test)†wpt.live】 【963†(source)†github.com】
+L1796:   * 【964†variable-reference-12.html†wpt.fyi】 【965†(live test)†wpt.live】 【966†(source)†github.com】
+L1797:   * 【967†variable-reference-16.html†wpt.fyi】 【968†(live test)†wpt.live】 【969†(source)†github.com】
+L1798:   * 【970†variable-reference-40.html†wpt.fyi】 【971†(live test)†wpt.live】 【972†(source)†github.com】
+L1799:   * 【973†variable-reference-refresh.html†wpt.fyi】 【974†(live test)†wpt.live】 【975†(source)†github.com】
+L1800:   * 【976†variable-substitution-background-properties.html†wpt.fyi】 【977†(live test)†wpt.live】 【978†(source)†github.com】
+L1801:   * 【979†variable-substitution-basic.html†wpt.fyi】 【980†(live test)†wpt.live】 【981†(source)†github.com】
+L1802:   * 【982†variable-substitution-filters.html†wpt.fyi】 【983†(live test)†wpt.live】 【984†(source)†github.com】
+L1803:   * 【985†variable-substitution-replaced-size.html†wpt.fyi】 【986†(live test)†wpt.live】 【987†(source)†github.com】
+L1804:   * 【988†variable-substitution-shadow-properties.html†wpt.fyi】 【989†(live test)†wpt.live】 【990†(source)†github.com】
+L1805:   * 【991†variable-substitution-variable-declaration.html†wpt.fyi】 【992†(live test)†wpt.live】 【993†(source)†github.com】
+L1806: CSSOM
+L1807: 
+L1808:   * 【994†variable-reference-cssom.html†wpt.fyi】 【995†(live test)†wpt.live】 【996†(source)†github.com】
+L1809: 
+L1810: * * *
+L1811: 
+L1812: Note that 【171†substitution】 takes place at the level of CSS tokens 【997†[css-syntax-3]】, not at a textual level; you can’t build up a single token where part of it is provided by a variable:
+L1813: 
+L1814:     .foo {
+L1815:       --gap: 20;
+L1816:       margin-top: var(--gap)px;
+L1817:     }
+L1818: This is not equivalent to setting 【776†margin-top: 20px;】 (a length). Instead, it’s equivalent to margin-top: 20 px; (a number followed by an ident), which is simply an invalid value for the margin-top property. Note, though, that 【420†calc()】 can be used to validly achieve the same thing, like so:
+L1819: 
+L1820:     .foo {
+L1821:       --gap: 20;
+L1822:       margin-top: calc(var(--gap) * 1px);
+L1823:     }
+L1824: This also implies that the post-substitution value might not be directly serializable as-is. Here’s a similar example to the preceding:
+L1825: 
+L1826:     .foo {
+L1827:       --gap: 20;
+L1828:       --not-px-length: var(--gap)px;
+L1829:     }
+L1830: The serialization of the computed (post-substitution) value of --not-px-length is not 20px, because that would parse back as the single combined dimension; instead, it will serialize with a comment between the two tokens, like px, to enforce that they are separate tokens even when re-parsing.
+L1831: 
+L1832: Tests
+L1833:   * 【998†variable-declaration-14.html†wpt.fyi】 【999†(live test)†wpt.live】 【1000†(source)†github.com】
+L1834:   * 【1001†variable-declaration-53.html†wpt.fyi】 【1002†(live test)†wpt.live】 【1003†(source)†github.com】
+L1835:   * 【1004†variable-declaration-54.html†wpt.fyi】 【1005†(live test)†wpt.live】 【1006†(source)†github.com】
+L1836:   * 【1007†variable-declaration-55.html†wpt.fyi】 【1008†(live test)†wpt.live】 【1009†(source)†github.com】
+L1837:   * 【1010†variable-reference-15.html†wpt.fyi】 【1011†(live test)†wpt.live】 【1012†(source)†github.com】
+

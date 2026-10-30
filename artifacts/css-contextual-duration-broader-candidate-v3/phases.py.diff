@@ -1,0 +1,21 @@
+--- artifacts/css-contextual-duration-broader-candidate-v2/phases.py
++++ artifacts/css-contextual-duration-broader-candidate-v3/phases.py
+@@ -47,7 +47,7 @@
+     initial = verify()
+     wpt.save(output / 'PHASES-PRE.json', initial)
+     results, app = {}, None
+-    for kind in ('normative','reftest','feedback'):
++    for kind in ('normative','reftest','feedback','inactive'):
+         current = dict(policy, wpt=policy['phases'][kind], phase_kind=kind)
+         phase_env = dict(env)
+         if kind=='feedback':
+@@ -56,7 +56,8 @@
+             run_id=secrets.token_hex(24)
+             wpt.save(output/'FEEDBACK-BINDING.json',{'directory':str(records),'identity':[records.stat().st_dev,records.stat().st_ino],'run_id':run_id})
+             phase_env.update(DURATION_FEEDBACK_RECORD_DIR=str(records),DURATION_FEEDBACK_RUN_ID=run_id)
+-        original = root / policy['baseline_binding']['directory'] / (kind+'-wpt')
++        comparison = load('phase_original_directory', here / 'comparison.py')
++        original = comparison.original_directory(root, current)
+         phase=output/(kind+'-wpt')
+         results[kind]=wpt.run(root,here,phase,'candidate',current,phase_env,verify,owned,cancelled,original)
+         assert not owned and read(phase/'PRE.json')==read(phase/'POST.json')==initial

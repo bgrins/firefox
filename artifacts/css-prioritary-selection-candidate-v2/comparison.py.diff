@@ -1,0 +1,12 @@
+--- candidate-v1/comparison.py
++++ candidate-v2/comparison.py
+@@ -35,7 +35,8 @@
+     ownership.authenticate(directory,binding['manifest_sha256'])
+     ownership.authenticate(source_owner,capsule['sha256'])
+     assert sha(directory/'RESULT.json') == binding['result_sha256']
+-    assert read(directory/binding['terminal_path']) == binding['terminal'] and binding['terminal']['exit']==0
++    baseline=load('original74_terminal_schema',root/policy['owner_directory']/'baseline.py')
++    baseline.owner_terminal(directory,binding,capsule)
+     source=read(source_owner/'POLICY.json')
+     assert source['suite_binding']==policy['suite_binding'] and source['capture_binding']==policy['capture_binding']
+     assert source['head']==policy['head'] and source['lane_order']==policy['lane_order']

@@ -1,0 +1,159 @@
+--- a/servo/components/style/context.rs
++++ b/servo/components/style/context.rs
+@@ -435,6 +435,15 @@
+     }
+ }
+ 
++/// The style input selected for a main-thread animation task.
++#[cfg(feature = "gecko")]
++pub enum AnimationTaskStyle {
++    /// Read the published primary style when the task executes.
++    Published,
++    /// Use an owned prepared style, or cancel for an unstyled target.
++    Prepared(Option<Arc<ComputedValues>>),
++}
++
+ /// A task to be run in sequential mode on the parent (non-worker) thread. This
+ /// is used by the style system to queue up work which is not safe to do during
+ /// the parallel traversal.
+@@ -454,6 +463,8 @@
+         /// as the initial value of its Keyframe. Required if |tasks| includes
+         /// CSSTransitions.
+         before_change_style: Option<Arc<ComputedValues>>,
++        /// The after-change style source for this task.
++        style: AnimationTaskStyle,
+         /// The tasks which are performed in this SequentialTask.
+         tasks: UpdateAnimationsTasks,
+     },
+@@ -470,9 +481,13 @@
+             UpdateAnimations {
+                 el,
+                 before_change_style,
++                style,
+                 tasks,
+-            } => {
+-                el.update_animations(before_change_style, tasks);
++            } => match style {
++                AnimationTaskStyle::Published => el.update_animations(before_change_style, tasks),
++                AnimationTaskStyle::Prepared(style) => {
++                    el.update_animations_with_style(before_change_style, style, tasks);
++                },
+             },
+         }
+     }
+@@ -489,8 +504,21 @@
+         UpdateAnimations {
+             el: unsafe { SendElement::new(el) },
+             before_change_style,
++            style: AnimationTaskStyle::Published,
+             tasks,
+         }
++    }
++
++    /// Select an owned style for execution after the preparing traversal ends.
++    #[cfg(feature = "gecko")]
++    pub fn with_prepared_style(mut self, after_change_style: Option<Arc<ComputedValues>>) -> Self {
++        match &mut self {
++            Self::UpdateAnimations { style, .. } => {
++                *style = AnimationTaskStyle::Prepared(after_change_style);
++            },
++            Self::Unused(_) => unreachable!(),
++        }
++        self
+     }
+ }
+ 
+@@ -498,6 +526,13 @@
+ pub struct SequentialTaskList<E>(Vec<SequentialTask<E>>)
+ where
+     E: TElement;
++
++impl<E: TElement> SequentialTaskList<E> {
++    /// Transfer tasks without running them while traversal contexts are alive.
++    pub fn take_tasks(&mut self) -> Vec<SequentialTask<E>> {
++        std::mem::take(&mut self.0)
++    }
++}
+ 
+ impl<E> ops::Deref for SequentialTaskList<E>
+ where
+--- a/servo/components/style/dom.rs
++++ b/servo/components/style/dom.rs
+@@ -734,6 +734,15 @@
+     fn update_animations(
+         &self,
+         before_change_style: Option<Arc<ComputedValues>>,
++        tasks: UpdateAnimationsTasks,
++    );
++
++    /// Update animation state using an owned style without borrowing ElementData.
++    #[cfg(feature = "gecko")]
++    fn update_animations_with_style(
++        &self,
++        before_change_style: Option<Arc<ComputedValues>>,
++        after_change_style: Option<Arc<ComputedValues>>,
+         tasks: UpdateAnimationsTasks,
+     );
+ 
+--- a/servo/components/style/gecko/wrapper.rs
++++ b/servo/components/style/gecko/wrapper.rs
+@@ -1480,8 +1480,16 @@
+         // We have to update animations even if the element has no computed
+         // style since it means the element is in a display:none subtree, we
+         // should destroy all CSS animations in display:none subtree.
+-        let computed_data = self.borrow_data();
+-        let computed_values = computed_data.as_ref().map(|d| d.styles.primary());
++        let computed_values = self.borrow_data().map(|d| d.styles.primary().clone());
++        self.update_animations_with_style(before_change_style, computed_values, tasks);
++    }
++
++    fn update_animations_with_style(
++        &self,
++        before_change_style: Option<Arc<ComputedValues>>,
++        computed_values: Option<Arc<ComputedValues>>,
++        tasks: UpdateAnimationsTasks,
++    ) {
+         let before_change_values = before_change_style
+             .as_ref()
+             .map_or(ptr::null(), |x| x.as_gecko_computed_style());
+--- a/servo/components/style/driver.rs
++++ b/servo/components/style/driver.rs
+@@ -94,6 +94,24 @@
+     E: TElement,
+     D: DomTraversal<E>,
+ {
++    let (root, tasks) = traverse_dom_with_tasks(traversal, token, pool);
++    for task in tasks {
++        task.execute();
++    }
++    root
++}
++
++/// Traverse and transfer sequential tasks after all traversal contexts are dropped.
++/// The caller must execute the tasks within the same owning style transaction.
++fn traverse_dom_with_tasks<E, D>(
++    traversal: &D,
++    token: PreTraverseToken<E>,
++    pool: Option<&rayon::ThreadPool>,
++) -> (E, Vec<crate::context::SequentialTask<E>>)
++where
++    E: TElement,
++    D: DomTraversal<E>,
++{
+     let root = token
+         .traversal_root()
+         .expect("Should've ensured we needed to traverse");
+@@ -168,5 +186,12 @@
+         }
+     }
+ 
+-    root
++    let mut tasks = Vec::new();
++    for slot in scoped_tls.slots() {
++        if let Some(context) = slot.get_mut() {
++            tasks.extend(context.tasks.take_tasks());
++        }
++    }
++    drop(scoped_tls);
++    (root, tasks)
+ }

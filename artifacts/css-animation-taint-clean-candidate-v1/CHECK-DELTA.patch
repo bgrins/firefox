@@ -1,0 +1,271 @@
+--- artifacts/css-animation-active-value-taint-candidate-v5/check.py
++++ artifacts/css-animation-taint-clean-candidate-v1/check.py
+@@ -6,8 +6,8 @@
+ 
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+-read = lambda path: json.loads(path.read_bytes())
+-sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
++read = lambda p: json.loads(p.read_bytes())
++sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+ 
+ 
+ def load(name, path):
+@@ -18,161 +18,114 @@
+ 
+ 
+ def validate_policy(policy):
+-    roles = read(HERE / "SOURCE-ROLES.json")
+-    assert set(roles) == set(policy["source_paths"]) == {
+-        "servo/components/style/custom_properties.rs",
+-        "servo/components/style/custom_properties_map.rs",
+-        "servo/components/style/properties/cascade.rs",
+-        "servo/components/style/properties_and_values/value.rs",
+-    }
+-    proposal = ROOT / policy["proposal"]["directory"]
+-    assert sha(proposal / "FILES.json") == policy["proposal"]["manifest_sha256"]
+-    assert roles == read(proposal / "SOURCE-ROLES.json")
+-    built = read(ROOT / policy["original_build"]["epoch"])
+-    for name, record in roles.items():
+-        for kind in ("base", "candidate"):
+-            assert sha(ROOT / record[kind + "_capture"]) == record[kind + "_sha256"]
+-        if name in built["pins"]:
+-            assert built["pins"][name] == record["base_sha256"]
+-        else:
+-            assert name == "servo/components/style/custom_properties_map.rs"
+-        assert (name in built["modified_native_paths"]) == (name == "servo/components/style/custom_properties.rs")
+-        expected = "8a4adc903e7d88e218ee087cbe44cc3548df70fac9353dd923d5c32de2c458f9" if name.endswith("/custom_properties.rs") else record["base_sha256"]
+-        assert policy["committed_source_preimages"][name] == expected
+-    validate_lineage(policy, roles)
+-    for name, digest in policy["references"].items():
+-        assert sha(ROOT / name) == digest, name
+-    if policy["baseline_capsule"] is None:
+-        assert policy["wpt"] is None and policy["baseline_binding"] is None
+-        assert not policy["execution_enabled"] and not policy["candidate_execution_enabled"]
+-        return
+-    comparison = load("taint_pair_replay", HERE / "comparison.py")
+-    original = comparison.source_policy(ROOT, policy)
+-    assert policy["wpt"] == comparison.expected_wpt(ROOT, policy)
+-    assert not policy["wpt"]["candidate_required_pass_pages"] and policy["wpt"]["target_subtests"] == {}
+-    assert policy["source_context_pins"] == original["source_role_pins"]
+-    assert policy["accepted_current_payloads"] == original["accepted_current_payloads"]
+-    assert len(policy["accepted_current_payloads"]) == 29
+-    if policy["baseline_binding"] is None:
+-        assert not policy["execution_enabled"] and not policy["candidate_execution_enabled"]
+-        assert policy["activation_pending"]
+-        assert all(policy[key] is None for key in ("head", "controls", "prepared_application_metadata", "prepared_flag_hashes"))
+-    else:
+-        validate_actual_bindings(policy)
+-
+-
+-def validate_lineage(policy, roles, receipt=None):
+-    binding = policy["source_equivalence"]
+-    assert policy["references"][binding["path"]] == sha(ROOT / binding["path"]) == binding["sha256"]
+-    observed = read(ROOT / binding["path"]) if receipt is None else receipt
+-    built = read(ROOT / policy["original_build"]["epoch"])
+-    assert observed["original_build_revision"] == built["semantic_index"]["head"]
+-    assert observed["head"] == read(ROOT / policy["native_checkpoint"]["path"])["head"]
+-    assert set(observed["sources"]) == set(roles)
+-    for name, role in roles.items():
+-        row = observed["sources"][name]
+-        assert row["working_sha256"] == role["base_sha256"]
+-        assert row["head_sha256"] == row["original_build_revision_sha256"] == policy["committed_source_preimages"][name]
+-        assert len(row["identity"]) == 2 and all(isinstance(v, int) and v > 0 for v in row["identity"])
++    owner = load('clean_candidate_ownership', ROOT / policy['ownership_helper'])
++    prior = ROOT / policy['predecessor']['directory']
++    owner.authenticate(prior, policy['predecessor']['manifest_sha256'])
++    old = read(prior / 'POLICY.json')
++    mutable = {'owner_directory', 'runtime_output', 'execution_enabled', 'candidate_execution_enabled', 'activation_pending',
++               'baseline_binding', 'baseline_capsule', 'original_admission_policy_sha256', 'head', 'controls',
++               'prepared_application_metadata', 'prepared_flag_hashes', 'prepared_flag_capture',
++               'restored_application_revision', 'execution_handoff', 'suite_binding', 'predecessor',
++               'semantic_original_sources', 'source_roster', 'wpt', 'preserved_absent_resources', 'references'}
++    assert {k: v for k, v in policy.items() if k not in mutable} == {k: v for k, v in old.items() if k not in mutable}
++    assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
++    assert policy['runtime_output'] == 'artifacts/css-animation-taint-clean-candidate-runtime-1'
++    assert type(policy['execution_enabled']) is bool and policy['execution_enabled'] == policy['candidate_execution_enabled']
++    assert bool(policy['activation_pending']) != policy['execution_enabled']
++    assert all(policy[k] is not None for k in ('baseline_binding', 'baseline_capsule', 'original_admission_policy_sha256', 'head', 'controls', 'prepared_application_metadata', 'prepared_flag_hashes', 'prepared_flag_capture', 'execution_handoff'))
++    assert policy['restored_application_revision'] == old['wpt']['phase_revisions']['original']
++    for path, digest in policy['references'].items():
++        assert sha(ROOT / path) == digest, path
++    assert all(policy['references'][path] == digest for path, digest in old['references'].items())
++    proposal = ROOT / policy['proposal']['directory']
++    owner.authenticate(proposal, policy['proposal']['manifest_sha256'])
++    clean = read(proposal / 'CLEAN-PROVIDER.json')
++    roles = read(HERE / 'SOURCE-ROLES.json')
++    expected = read(proposal / 'SOURCE-ROLES.json')
++    name = 'servo/components/style/custom_properties.rs'
++    expected[name].update(candidate_capture=clean['candidate_capture'], candidate_sha256=clean['candidate_sha256'])
++    assert roles == expected and set(roles) == set(policy['source_paths'])
++    for row in roles.values():
++        for kind in ('base', 'candidate'):
++            assert sha(ROOT / row[kind + '_capture']) == row[kind + '_sha256']
++    assert policy['semantic_original_sources'] == policy['committed_source_preimages']
++    assert policy['semantic_original_sources'][name] == clean['base_sha256'] != roles[name]['base_sha256']
++    assert policy['references'][str((proposal / 'native-clean-provider.patch').relative_to(ROOT))] == sha(proposal / 'native-clean-provider.patch')
++    load('prior_source_lineage', prior / 'check.py').validate_lineage(old, read(prior / 'SOURCE-ROLES.json'))
++    suite = ROOT / policy['suite_binding']['directory']
++    owner.authenticate(suite, policy['suite_binding']['manifest_sha256'])
++    load('clean_suite', suite / 'check.py').main()
++    union = read(suite / 'INPUTS.json')
++    assert policy['source_roster'] == str((suite / 'ROSTER.json').relative_to(ROOT))
++    assert policy['preserved_absent_resources'] == old['preserved_absent_resources'] + [read(ROOT / union['previous_suite']['directory'] / 'INPUTS.json')['new_metadata_absence'], union['new_metadata_absence']]
++    comparison = load('clean_candidate_comparison', HERE / 'comparison.py')
++    assert policy['wpt'] == comparison.expected_wpt(ROOT, policy)
++    pages = policy['wpt']['fixture_target_pages']
++    assert len(pages) == len(set(pages)) == 18 and set(pages) == set(policy['wpt']['expected_subtests'])
++    assert all((HERE / n).read_bytes() == (prior / n).read_bytes() for n in ('phases.py', 'wpt.py', 'assess.py'))
++    validate_actual_bindings(policy)
++    return comparison.replay_all(ROOT, policy)
+ 
+ 
+ def validate_actual_bindings(policy):
+-    comparison = load("taint_actual_replay", HERE / "comparison.py")
+-    original = comparison.source_policy(ROOT, policy)
+-    assert policy["baseline_binding"] is not None
+-    load("taint_original_admission", HERE / "admission.py").validate(ROOT, policy, original)
+-    flag = policy["prepared_flag_capture"]
+-    assert policy["references"][flag["path"]] == sha(ROOT / flag["path"]) == flag["sha256"]
+-    assert read(ROOT / flag["path"]) == policy["prepared_flag_hashes"]
+-    assert set(policy["prepared_flag_hashes"]) == {"root", "nested"}
+-    assert policy["source_equivalence"] is not None
+-    comparison.replay_all(ROOT, policy)
++    load('clean_candidate_admission', HERE / 'admission.py').validate(ROOT, policy)
+ 
+ 
+ def check():
+-    policy = read(HERE / "POLICY.json")
+-    validate_policy(policy)
+-    lineage = read(ROOT / policy["source_equivalence"]["path"])
+-    roles = read(HERE / "SOURCE-ROLES.json")
+-    for mutate in (
+-        lambda r: r["sources"].pop("servo/components/style/custom_properties_map.rs"),
+-        lambda r: r["sources"]["servo/components/style/custom_properties.rs"].update(head_sha256=roles["servo/components/style/custom_properties.rs"]["base_sha256"]),
+-        lambda r: r["sources"]["servo/components/style/properties_and_values/value.rs"].update(working_sha256="0" * 64),
+-    ):
+-        bad = copy.deepcopy(lineage)
+-        mutate(bad)
++    policy = read(HERE / 'POLICY.json')
++    actual = validate_policy(policy)
++    assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
++    mutations = (
++        lambda p: p.update(baseline_binding=None),
++        lambda p: p.update(execution_handoff=None),
++        lambda p: p.update(head='0' * 40),
++        lambda p: p['wpt']['fixture_target_pages'].pop(),
++        lambda p: p['baseline_binding'].update(result_sha256='0' * 64),
++        lambda p: p['baseline_binding']['terminal'].update(exit=1),
++        lambda p: p['execution_handoff'].update(review_sha256='0' * 64),
++        lambda p: p['execution_handoff'].update(epoch_refresh_sha256='0' * 64),
++        lambda p: p['controls'].update(**{'CURRENT-EPOCH.json': '0' * 64}),
++        lambda p: p['prepared_application_metadata'].update(identity=[1,2]),
++        lambda p: p['prepared_application_metadata'].update(sha256='0' * 64),
++        lambda p: p['prepared_flag_hashes'].update(root='0' * 64),
++    )
++    for change in mutations:
++        bad = copy.deepcopy(policy)
++        change(bad)
+         try:
+-            validate_lineage(policy, roles, bad)
+-        except AssertionError:
++            validate_policy(bad)
++        except (AssertionError, TypeError, KeyError):
+             pass
+         else:
+-            raise AssertionError("invalid source lineage admitted")
+-    if policy["baseline_capsule"] is None:
+-        print("Disabled source recipe checked; exact original roster pending")
+-        return
+-    original = load("masked_original_checks", ROOT / policy["baseline_capsule"]["directory"] / "check.py")
+-    original.check(read(ROOT / policy["baseline_capsule"]["directory"] / "POLICY.json"))
+-    checks = load("masked_base_stream_checks", ROOT / policy["wpt"]["checks_helper"])
+-    assessor = load("masked_observation_assessor", HERE / "assess.py")
+-    comparison = load("masked_test_projection", HERE / "comparison.py")
+-    settings = copy.deepcopy(policy["wpt"])
+-    settings.update(harness_revision="a" * 40, phase_revisions={"original": "b" * 40, "candidate": "a" * 40})
+-    app = {"browser_build_id": "synthetic", "revision": "b" * 40, "build_revision": "b" * 40, "harness_revision": "a" * 40, "source_role": "original", "sha256": "c" * 64, "path": "synthetic/application.ini", "resolved": "synthetic/application.ini"}
+-    events = [{"action": "suite_start", "run_info": {"os": "mac", "debug": False, "browser_build_id": "synthetic", "revision": "a" * 40}}]
+-    for page, names in settings["expected_subtests"].items():
+-        events.append({"action": "test_start", "test": page})
+-        events.extend({"action": "test_status", "test": page, "subtest": name, "status": "PASS"} for name in names)
+-        events.append({"action": "test_end", "test": page, "status": "OK"})
+-    events.append({"action": "suite_end"})
+-    config = comparison.phase_policy(settings)
+-    baseline = assessor.assess(events, 0, config, checks, run_binding=app)
+-    assert baseline["complete"]
+-    candidate_app = dict(app, revision="a" * 40, build_revision="a" * 40, source_role="candidate")
++            raise AssertionError('invalid actual admission accepted')
++    assessor = load('clean_observation_assessor', HERE / 'assess.py')
++    checks = load('clean_stream_checks', ROOT / policy['wpt']['checks_helper'])
++    comparison = load('clean_projection', HERE / 'comparison.py')
++    settings = copy.deepcopy(policy['wpt'])
++    settings.update(harness_revision='a' * 40, phase_revisions={'original': 'b' * 40, 'candidate': 'a' * 40})
++    app = {'browser_build_id': 'synthetic', 'revision': 'b' * 40, 'build_revision': 'b' * 40, 'harness_revision': 'a' * 40, 'source_role': 'original', 'sha256': 'c' * 64, 'path': 'synthetic/application.ini', 'resolved': 'synthetic/application.ini'}
++    events = [{'action': 'suite_start', 'run_info': {'os': 'mac', 'debug': False, 'browser_build_id': 'synthetic', 'revision': 'a' * 40}}]
++    for page, names in settings['expected_subtests'].items():
++        events.append({'action': 'test_start', 'test': page})
++        events.extend({'action': 'test_status', 'test': page, 'subtest': name, 'status': 'PASS'} for name in names)
++        events.append({'action': 'test_end', 'test': page, 'status': 'OK'})
++    events.append({'action': 'suite_end'})
++    original = assessor.assess(events, 0, comparison.phase_policy(settings), checks, run_binding=app)
++    assert original['complete']
+     failed = copy.deepcopy(events)
+-    rows = [row for row in failed if row.get("action") == "test_status"]
+-    for row in rows:
+-        row.update(status="FAIL", expected="PASS", message="synthetic ordinary assertion")
+-    observed = assessor.assess(failed, 1, config, checks, original=baseline, run_binding=candidate_app)
+-    assert observed["complete"] and not observed["comparison_gate_passed"] and len(observed["rows"]) == policy["wpt"]["expected_subtest_count"]
+-    assert all(row["status"] == "FAIL" for row in observed["rows"])
+-    phases_check(policy, baseline, observed)
+-    print(json.dumps({"references": len(policy["references"]), "all_failed_comparison_preserved": True, "actual_baseline_pending": policy["baseline_binding"] is None, "browser_or_build_executed": False}))
++    for row in failed:
++        if row.get('action') == 'test_status':
++            row.update(status='FAIL', expected='PASS', message='synthetic ordinary assertion')
++    candidate_app = dict(app, revision='a' * 40, build_revision='a' * 40, source_role='candidate')
++    observed = assessor.assess(failed, 1, comparison.phase_policy(settings), checks, original=original, run_binding=candidate_app)
++    assert observed['complete'] and len(observed['rows']) == 125 and not observed['comparison_gate_passed']
++    assert all(row['status'] == 'FAIL' for row in observed['rows'])
++    prior = ROOT / policy['predecessor']['directory']
++    load('executed_phase_test', prior / 'check.py').phases_check(policy, original, observed)
++    print(json.dumps({'references': len(policy['references']), 'actual_binding_negatives': len(mutations), 'all125FAIL_retained': True, 'actual_clean_original': {'passed': sum(row['status'] == 'PASS' for row in actual['rows']), 'failed': sum(row['status'] == 'FAIL' for row in actual['rows']), 'endings': len(actual['ends'])}, 'live_operations': False}))
+ 
+ 
+-def phases_check(policy, baseline, observed):
+-    import tempfile
+-    from types import SimpleNamespace
+-    module = load("masked_phase_test", HERE / "phases.py")
+-    with tempfile.TemporaryDirectory(prefix="css-masked-phase-", dir="/private/tmp") as temporary:
+-        root = Path(temporary)
+-        output = root / "candidate"
+-        phase = output / "candidate-wpt"
+-        phase.mkdir(parents=True)
+-        (output / "candidate-build").mkdir()
+-        original = root / "original/original-wpt"
+-        original.mkdir(parents=True)
+-        def save(path, value):
+-            path.write_text(json.dumps(value))
+-        save(original / "ASSESSMENT.json", baseline)
+-        snapshot = {"synthetic": True}
+-        for name in ("PRE.json", "POST.json"):
+-            save(phase / name, snapshot)
+-        for name in ("APPLICATION-METADATA.json", "APPLICATION-METADATA-POST.json"):
+-            save(phase / name, {"synthetic": "app"})
+-        save(phase / "BINARY-PINS.json", {"synthetic": "binary"})
+-        save(output / "candidate-build/RESULT.json", {"binaries": {"synthetic": "binary"}})
+-        save(phase / "ASSESSMENT.json", observed)
+-        receipt = {"synthetic": "completed observation with all FAIL"}
+-        module.load = lambda *args: SimpleNamespace(save=save, run=lambda *args: receipt)
+-        configured = dict(policy, baseline_binding={"directory": "original"})
+-        assert module.run(root, HERE, output, configured, {}, lambda: snapshot, {}, lambda: False) == receipt
+-        outcomes = read(output / "OUTCOMES.json")
+-        assert outcomes["callbacks_failed"] == policy["wpt"]["expected_subtest_count"] and not outcomes["all_callbacks_passed"] and not outcomes["comparison_gate_passed"] and not outcomes["native_acceptance"]
+-        assert len(outcomes["rows"]) == policy["wpt"]["expected_subtest_count"] and len(outcomes["candidate_endings"]) == policy["wpt"]["expected_page_count"]
+-    assert not root.exists()
+-
+-
+-if __name__ == "__main__":
++if __name__ == '__main__':
+     import sys
+     assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+     check()

@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Literal and generated signed zeros inside CSS math</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-ieee">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script>
+for (const [name, value, expected] of [
+  ["positive number zero", "0", "0.75"],
+  ["literal negative number zero", "-0", "0.75"],
+  ["generated negative number zero", "(-1 * 0)", "0.25"],
+  ["positive length zero", "0px", "0.75"],
+  ["literal negative length zero", "-0px", "0.75"],
+  ["generated negative length zero", "(-1 * 0px)", "0.25"],
+]) {
+  test(t => {
+    const element = document.createElement("div");
+    document.documentElement.append(element);
+    t.add_cleanup(() => element.remove());
+    element.style.opacity = "0.375";
+    assert_equals(getComputedStyle(element).opacity, "0.375", "calibration");
+    const expression = `calc((2 + sign(1 / sign(${value}))) / 4)`;
+    assert_true(CSS.supports("opacity", expression), "valid expression");
+    element.style.opacity = expression;
+    assert_not_equals(element.style.opacity, "0.375", "declaration accepted");
+    assert_equals(getComputedStyle(element).opacity, expected, expression);
+  }, name);
+}
+</script>

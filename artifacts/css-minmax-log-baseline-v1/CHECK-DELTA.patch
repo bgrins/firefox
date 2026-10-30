@@ -1,0 +1,19 @@
+--- log-baseline/check.py
++++ combined-baseline/check.py
+@@ -18,9 +18,13 @@
+     settings = policy["wpt"]
+     assert policy["original_only"] and set(settings["phase_revisions"]) == {"original"}
+     roster = json.loads((ROOT / policy["source_roster"]).read_bytes())
+-    assert settings["expected_subtests"] == {page: [r["name"] for r in rows] for page, rows in roster["pages"].items()}
+-    assert settings["target_subtests"] == {page: [r["name"] for r in rows if r["classification"] == "clear_target"] for page, rows in roster["pages"].items()}
+-    assert sum(r["classification"] == "unresolved_boundary_control" for rows in roster["pages"].values() for r in rows) == 4
++    assert settings["expected_subtests"] == roster["expected_subtests"]
++    assert settings["target_subtests"] == roster["target_subtests"]
++    plan = json.loads((ROOT / policy["integration_plan"]).read_bytes())
++    assert sum(map(len, plan["unresolved_log_boundary_controls"].values())) == 4
++    for page, names in plan["unresolved_log_boundary_controls"].items():
++        assert set(names) <= set(roster["control_subtests"][page])
++    assert (settings["expected_subtest_count"], settings["expected_target_count"], settings["expected_control_count"], settings["expected_page_count"], settings["expected_regression_signature_count"]) == (578, 33, 545, 16, 561)
+     manifest = json.loads((ROOT / settings["manifest"]["path"]).read_bytes())
+     assert set(manifest["items"]["testharness"]["css"]["css-values"]) == {Path(page).name for page in settings["expected_subtests"]}
+     metadata = load("static_metadata", ROOT / settings["metadata_helper"])

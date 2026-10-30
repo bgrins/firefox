@@ -1,0 +1,25 @@
+--- artifacts/css-contextual-duration-broader-candidate-v3/phases.py
++++ artifacts/css-contextual-duration-broader-candidate-v4/phases.py
+@@ -47,7 +47,12 @@
+     initial = verify()
+     wpt.save(output / 'PHASES-PRE.json', initial)
+     results, app = {}, None
+-    for kind in ('normative','reftest','feedback','inactive'):
++    for kind in ('normative','reftest','inactive','restyles','feedback'):
++        if kind == 'restyles':
++            restyles=load('candidate_restyle_phase',here/'restyles.py')
++            results[kind]=restyles.run(root,output/'restyles',policy,env,verify,owned,cancelled,app)
++            assert not owned and verify()==initial
++            continue
+         current = dict(policy, wpt=policy['phases'][kind], phase_kind=kind)
+         phase_env = dict(env)
+         if kind=='feedback':
+@@ -66,8 +71,6 @@
+         if app is None: app=metadata
+         assert app==metadata
+         if kind=='feedback':wpt.save(output/'FEEDBACK-RECORDS.json',feedback_records(output))
+-    restyles=load('candidate_restyle_phase',here/'restyles.py')
+-    results['restyles']=restyles.run(root,output/'restyles',policy,env,verify,owned,cancelled,app)
+     assert not owned and verify()==initial
+     wpt.save(output/'PHASES-POST.json',initial)
+     return results

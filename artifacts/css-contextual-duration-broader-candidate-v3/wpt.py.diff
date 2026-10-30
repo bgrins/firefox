@@ -1,0 +1,12 @@
+--- artifacts/css-contextual-duration-broader-candidate-v2/wpt.py
++++ artifacts/css-contextual-duration-broader-candidate-v3/wpt.py
+@@ -130,8 +130,8 @@
+     save(output / 'APPLICATION-METADATA-POST.json', app_after)
+     events = [json.loads(line) for line in (output / 'raw.jsonl').read_text().splitlines()]
+     if original is not None:
+-        assert original == root / policy['baseline_binding']['directory'] / (policy['phase_kind'] + '-wpt')
+         comparison = load('strict_original_comparison', here / 'comparison.py')
++        assert original == comparison.original_directory(root, policy)
+         replay = comparison.replay_original(root, policy, assessor, checks)
+     else:
+         replay = None

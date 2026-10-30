@@ -1,0 +1,40 @@
+--- artifacts/css-contextual-duration-masked-snapshot-candidate-v2/comparison.py
++++ artifacts/css-animation-active-value-taint-candidate-v1/comparison.py
+@@ -43,7 +43,7 @@
+ 
+ def replay_original(root, policy, assessor, checks):
+     source = source_policy(root, policy)
+-    load('snapshot_recovery_handoff', root / policy['owner_directory'] / 'handoff.py').validate(root, policy, source)
++    assert policy['head'] == source['head'] and policy['controls'] == source['controls']
+     binding = policy['baseline_binding']
+     assert binding is not None and policy['wpt'] == expected_wpt(root, policy)
+     directory = root / binding['directory']
+@@ -52,8 +52,8 @@
+     assert sha(directory / 'RESULT.json') == binding['result_sha256']
+     assert binding['terminal']['owner_sha256'] == policy['baseline_capsule']['sha256']
+     assert binding['terminal']['result_sha256'] == binding['result_sha256']
+-    assert binding['terminal']['callbacks_passed'] + binding['terminal']['callbacks_failed'] == 9
+-    assert binding['terminal']['page_endings_ok'] == 4
++    assert binding['terminal']['callbacks_passed'] + binding['terminal']['callbacks_failed'] == policy['wpt']['expected_subtest_count']
++    assert binding['terminal']['page_endings_ok'] == policy['wpt']['expected_page_count']
+     assert all(binding['terminal'][name] for name in ('raw_replay_verified', 'pre_post_equality_verified', 'current_source_binary_control_pins_verified', 'owned_process_cleanup_verified'))
+     result = read(directory / 'RESULT.json')
+     assert result['preservation_verified'] and result['lifecycle_complete'] and not result['source_or_canonical_mutation']
+@@ -64,7 +64,7 @@
+     assert read(directory / 'PRE.json') == read(directory / 'POST.json') == read(phase / 'PRE.json') == read(phase / 'POST.json')
+     metadata = read(phase / 'APPLICATION-METADATA.json')
+     assert metadata == read(phase / 'APPLICATION-METADATA-POST.json') == source['prepared_application_metadata']
+-    assert {key: value for key, value in metadata.items() if key not in ('build_revision', 'harness_revision', 'source_role', 'entry_identity', 'identity')} == {key: value for key, value in policy['prepared_application_metadata'].items() if key not in ('entry_identity', 'identity')}
++    assert {key: value for key, value in metadata.items() if key not in ('build_revision', 'harness_revision', 'source_role')} == policy['prepared_application_metadata']
+     original_settings = read(phase / 'ASSESSMENT-POLICY.json')
+     assert original_settings == phase_policy(source['wpt'])
+     phase_result = read(phase / 'RESULT.json')
+@@ -75,7 +75,7 @@
+     events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
+     original_assessor = load('progress_original_assessor', root / policy['baseline_capsule']['directory'] / 'assess.py')
+     replay = original_assessor.assess(events, phase_result['exit'], original_settings, checks, run_binding=metadata)
+-    assert replay == read(phase / 'ASSESSMENT.json') and replay['complete'] and len(replay['rows']) == 9
++    assert replay == read(phase / 'ASSESSMENT.json') and replay['complete'] and len(replay['rows']) == policy['wpt']['expected_subtest_count']
+     assert all(row['status'] in ('PASS', 'FAIL') for row in replay['rows'])
+     assert result['observation_complete'] and result['all_callbacks_passed'] == all(row['status'] == 'PASS' for row in replay['rows'])
+     assert phase_result['exit'] == binding['terminal']['browser_exit']

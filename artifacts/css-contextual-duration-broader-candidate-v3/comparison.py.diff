@@ -1,0 +1,84 @@
+--- artifacts/css-contextual-duration-broader-candidate-v2/comparison.py
++++ artifacts/css-contextual-duration-broader-candidate-v3/comparison.py
+@@ -16,6 +16,12 @@
+ 
+ def expected_wpt(root, policy):
+     kind = policy.get('phase_kind', 'normative')
++    if kind == 'inactive':
++        expected = copy.deepcopy(read(root / policy['inactive_capsule']['directory'] / 'POLICY.json')['wpt'])
++        expected['test_types'] = {page:'testharness' for page in expected['expected_subtests']}
++        expected['phase_kind'] = 'inactive'
++        expected['phase_revisions']['candidate'] = policy['head']
++        return expected
+     expected = copy.deepcopy(read(root / policy['baseline_capsule']['directory'] / 'POLICY.json')['phases'][kind])
+     assert set(expected['phase_revisions']) == {'original'}
+     expected['phase_revisions']['candidate'] = policy['head']
+@@ -32,6 +38,8 @@
+ 
+ def replay_original(root, policy, assessor, checks):
+     kind = policy.get('phase_kind', 'normative')
++    if kind == 'inactive':
++        return replay_inactive(root, policy, checks)
+     directory = root / policy['baseline_binding']['directory']
+     phase = directory / (kind + '-wpt')
+     source = read(root / policy['baseline_capsule']['directory'] / 'POLICY.json')
+@@ -74,3 +82,59 @@
+     assert read(directory / 'FEEDBACK-RECORDS.json') == records
+     restyle = load('broader_restyle_comparison', here.parent / 'restyles.py')
+     restyle.original(root, policy)
++    restyle_dir = root / policy['restyle_baseline']['directory']
++    assert read(restyle_dir / 'PRE.json') == read(directory / 'PRE.json')
++    assert read(restyle_dir / 'APPLICATION-METADATA.json') == {k:v for k,v in policy['prepared_application_metadata'].items() if k not in ('build_revision','harness_revision','source_role')}
++    restyle_source = read(restyle_dir / 'POLICY.json')
++    assert restyle_source['controls'] == policy['controls'] and restyle_source['head'] == policy['head']
++    roles = read(here.parent / 'SOURCE-ROLES.json')
++    assert restyle_source['source_pins']['servo/components/style/matching.rs'] == roles['servo/components/style/matching.rs']['base_sha256']
++    replay_inactive(root, dict(policy, phase_kind='inactive', wpt=policy['phases']['inactive']), checks)
++
++
++def original_directory(root, policy):
++    if policy['phase_kind'] == 'inactive':
++        return root / policy['inactive_binding']['directory'] / 'original-wpt'
++    return root / policy['baseline_binding']['directory'] / (policy['phase_kind'] + '-wpt')
++
++
++def replay_inactive(root, policy, checks):
++    binding = policy['inactive_binding']
++    assert binding is not None and policy['wpt'] == expected_wpt(root, policy)
++    directory = root / binding['directory']
++    phase = directory / 'original-wpt'
++    source_dir = root / policy['inactive_capsule']['directory']
++    source = read(source_dir / 'POLICY.json')
++    assert read(directory / binding['terminal_path']) == binding['terminal'] and binding['terminal']['exit'] == 0
++    assert sha(directory / 'RESULT.json') == binding['result_sha256']
++    expected = phase_policy(dict(source['wpt'], test_types={page:'testharness' for page in source['wpt']['expected_subtests']}))
++    expected.pop('test_types')
++    saved_policy = read(phase / 'ASSESSMENT-POLICY.json')
++    assert saved_policy == expected
++    assessor = load('inactive_original_assessor', source_dir / 'assess.py')
++    events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
++    result = read(phase / 'RESULT.json')
++    metadata = read(phase / 'APPLICATION-METADATA.json')
++    observed = assessor.assess(events, result['exit'], saved_policy, checks, run_binding=metadata)
++    assert json.loads(json.dumps(observed)) == read(phase / 'ASSESSMENT.json')
++    assert observed['complete'] and not observed['errors'] and result['success'] and result['preservation_verified'] and result['execution_error'] is None
++    assert read(phase / 'PRE.json') == read(phase / 'POST.json') == read(root / policy['baseline_binding']['directory'] / 'POST.json')
++    assert metadata == read(phase / 'APPLICATION-METADATA-POST.json') == source['prepared_application_metadata'] == original_metadata(policy)
++    cleanup = read(phase / 'CLEANUP.json')
++    assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
++    outer = read(directory / 'RESULT.json')
++    assert outer['preservation_verified'] and outer['source_or_canonical_mutation'] is False
++    assert outer['phase'] == {key:sha(phase / filename) for key,filename in [('assessment_sha256','ASSESSMENT.json'),('raw_sha256','raw.jsonl'),('result_sha256','RESULT.json')]}
++    roster = read(directory / 'OBSERVED-ROSTER.json')
++    assert roster['phase'] == outer['phase'] and roster['owner_sha256'] == policy['inactive_capsule']['sha256']
++    assert roster['observed_subtest_count'] == observed['observed_subtest_count'] == 1
++    assert roster['expected_subtests'] == source['wpt']['expected_subtests']
++    assert roster['source_roster_sha256'] == source['references'][source['source_roster']]
++    return observed
++
++
++def original_metadata(policy):
++    prepared = policy['prepared_application_metadata']
++    assert set(prepared) == {'browser_build_id','entry_identity','entry_type','identity','path','resolved','revision','sha256','symlink_target'}
++    assert prepared['revision'] == policy['wpt']['phase_revisions']['original']
++    return dict(prepared, build_revision=prepared['revision'], harness_revision=policy['head'], source_role='original')

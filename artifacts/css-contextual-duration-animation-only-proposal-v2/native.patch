@@ -1,0 +1,28 @@
+--- a/servo/components/style/matching.rs
++++ b/servo/components/style/matching.rs
+@@ -447,8 +447,23 @@
+         use crate::context::UpdateAnimationsTasks;
+ 
+         let old_values = &old_styles.primary;
+-        if context.shared.traversal_flags.for_animation_only() && old_values.is_some() {
+-            return;
++        if context.shared.traversal_flags.for_animation_only() {
++            if let Some(old_values) = old_values.as_deref() {
++                let new_ui_style = new_styles.primary_style().get_ui();
++                if (new_ui_style.specifies_animations()
++                    || self.has_css_animations(context.shared, None))
++                    && !old_values.get_ui().animations_equals(new_ui_style)
++                {
++                    let task = crate::context::SequentialTask::update_animations(
++                        *self,
++                        None,
++                        UpdateAnimationsTasks::CSS_ANIMATIONS
++                            | UpdateAnimationsTasks::EFFECT_PROPERTIES,
++                    );
++                    context.thread_local.tasks.push(task);
++                }
++                return;
++            }
+         }
+ 
+         // Bug 868975: These steps should examine and update the visited styles

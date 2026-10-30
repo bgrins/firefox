@@ -1,0 +1,24 @@
+--- artifacts/css-contextual-duration-same-element-candidate-v1/check.py
++++ artifacts/css-contextual-duration-same-element-candidate-v2/check.py
+@@ -25,7 +25,7 @@
+     source = read(source_dir / 'POLICY.json')
+     load('original_saved_binding_check', source_dir / 'check.py').check_binding(source)
+     assert policy['controls'] == source['controls'] and policy['head'] == source['head']
+-    assert policy['prepared_application_metadata'] is None and source['prepared_application_metadata'] is None
++    assert policy['prepared_application_metadata'] == {key: value for key, value in source['prepared_application_metadata'].items() if key not in ('build_revision', 'harness_revision', 'source_role')}
+     assert policy['accepted_current_payloads'] == source['accepted_current_payloads'] and len(policy['accepted_current_payloads']) == 29
+     assert policy['source_context_pins'] == source['source_role_pins']
+     assert policy['record_kinds'] == source['record_kinds'] and len(policy['record_kinds']) == 2
+@@ -42,8 +42,10 @@
+     comparison = load('progress_comparison_check', HERE / 'comparison.py')
+     assert policy['wpt'] == comparison.expected_wpt(ROOT, policy)
+     assert len(policy['wpt']['expected_subtests']) == 1 and sum(map(len, policy['wpt']['expected_subtests'].values())) == 2
+-    assert policy['admission_binding'] is None and policy['prepared_flag_hashes'] is None
+-    assert policy['baseline_binding'] is None, 'Actual baseline admission requires reviewed binding validation'
++    assert policy['admission_binding'] == source['admission_binding']
++    trace_policy = read(ROOT / source['restored_owner'] / 'POLICY.json')
++    assert policy['prepared_flag_hashes'] == trace_policy['prepared_flag_hashes']
++    assert policy['head'] == source['head'] == policy['wpt']['harness_revision']
+     if policy['baseline_binding'] is None:
+         assert not policy['execution_enabled'] and not policy['candidate_execution_enabled'] and policy['activation_pending']
+ 

@@ -1,0 +1,40 @@
+--- executed/comparison.py
++++ disabled-reduced/comparison.py
+@@ -10,9 +10,9 @@
+     expected = copy.deepcopy(read(root / policy['baseline_capsule']['directory'] / 'POLICY.json')['wpt'])
+     assert set(expected['phase_revisions']) == {'original'}
+     expected['phase_revisions']['candidate'] = policy['head']
+-    assert sum(map(len, expected['expected_subtests'].values())) == 3
+-    assert sum(map(len, expected['target_subtests'].values())) == 2
+-    assert sum(len(expected['expected_subtests'][page]) for page in expected['candidate_required_pass_pages']) == 3
++    assert sum(map(len, expected['expected_subtests'].values())) == 2
++    assert sum(map(len, expected['target_subtests'].values())) == 0
++    assert sum(len(expected['expected_subtests'][page]) for page in expected['candidate_required_pass_pages']) == 2
+     return expected
+ 
+ 
+@@ -30,9 +30,14 @@
+     directory = root / binding['directory']
+     phase = directory / 'original-wpt'
+     capsule = root / policy['baseline_capsule']['directory']
+-    assert sha(capsule / 'assess.py') == sha(root / policy['candidate_assessor'])
++    assert sha(capsule / 'assess.py') == policy['references'][str(capsule.relative_to(root) / 'assess.py')]
+     original_policy = read(capsule / 'POLICY.json')
+     assert policy['wpt'] == expected_wpt(root, policy)
++    terminal = read(directory / binding['terminal_path'])
++    assert terminal == binding['terminal'] and terminal['exit'] == 0
++    assert terminal['owner_sha256'] == policy['baseline_capsule']['sha256']
++    assert terminal['result_sha256'] == binding['result_sha256'] == sha(directory / 'RESULT.json')
++    assert terminal['state_and_application_preservation_independently_verified'] and terminal['raw_replay_verified']
+     saved_policy = read(phase / 'ASSESSMENT-POLICY.json')
+     assert saved_policy == phase_policy(original_policy['wpt'])
+     events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
+@@ -52,7 +57,7 @@
+     roster = read(directory / 'OBSERVED-ROSTER.json')
+     assert roster['phase'] == outer['phase'] and roster['owner_sha256'] == policy['baseline_capsule']['sha256']
+     assert roster['source_roster_sha256'] == original_policy['references'][original_policy['source_roster']]
+-    assert roster['observed_subtest_count'] == 3 and observed['observed_subtest_count'] == 3
++    assert roster['observed_subtest_count'] == 2 and observed['observed_subtest_count'] == 2
+     for page,names in roster['expected_subtests'].items():
+         assert names == [row['subtest'] for row in observed['rows'] if row['test'] == page]
+         assert set(names) == set(policy['wpt']['expected_subtests'][page])

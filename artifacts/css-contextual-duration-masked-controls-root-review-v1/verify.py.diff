@@ -1,0 +1,113 @@
+--- artifacts/css-contextual-duration-base-timing-root-review-v1/verify.py
++++ artifacts/css-contextual-duration-masked-controls-root-review-v1/verify.py
+@@ -5,7 +5,6 @@
+ import json
+ import os
+ from pathlib import Path
+-import shutil
+ import sys
+ 
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+@@ -38,23 +37,36 @@
+ def outcome_join(result, phase, assessment, terminal_exit, phase_hashes):
+     assert assessment['complete'] and assessment['errors'] == []
+     assert len(assessment['rows']) == 7 and all(r['status'] in ('PASS', 'FAIL') for r in assessment['rows'])
+-    assert len(assessment['ends']) == 3 and all(row['status'] == 'OK' for row in assessment['ends'])
++    assert len(assessment['ends']) == 2 and all(row['status'] == 'OK' for row in assessment['ends'])
+     assert phase['execution_error'] is None and phase['preservation_verified']
+     assert phase['native_fix_acceptance'] is False
+     passed = assessment['comparison_gate_passed']
+-    assert phase['comparison_gate_passed'] == phase['success'] == result['success'] == passed
++    assert phase['comparison_gate_passed'] == passed
++    assert passed == (assessment['comparison_errors'] == [])
++    assert phase['success'] and result['success'] and terminal_exit == 0
++    assert phase['exit'] == int(any(row['status'] == 'FAIL' for row in assessment['rows']))
+     assert result['restoration_verified'] and result['runtime_controls_unchanged'] and result['empty_staging_preserved']
+     assert result['publication_errors'] == [] and not result['native_fix_acceptance']
+-    if passed:
+-        assert terminal_exit == phase['exit'] == 0
+-        assert all(r['status'] == 'PASS' for r in assessment['rows']) and assessment['comparison_errors'] == []
+-        assert result['error'] is None and result['candidate_phase'] == phase_hashes
+-    else:
+-        assert terminal_exit == phase['exit'] == 1
+-        assert any(r['status'] == 'FAIL' for r in assessment['rows']) and assessment['comparison_errors']
+-        assert result['candidate_phase'] is None
+-        assert result['error'] == repr(AssertionError((None, True, assessment['errors'], assessment['comparison_errors'])))
++    assert result['error'] is None and result['candidate_phase'] == phase_hashes
++    assert result['success_scope'] == 'build, complete observation and restoration; callback PASS is separate'
++    assert phase['success_scope'] == 'complete observation and preservation; comparison verdict retained separately'
+     return passed
++
++
++def outcomes_join(original, assessment, saved):
++    by_name = {(row['test'], row['subtest']): row for row in original['rows']}
++    pairs = [{'original': by_name[(row['test'], row['subtest'])], 'candidate': row} for row in assessment['rows']]
++    expected = {
++        'callbacks_passed': sum(row['status'] == 'PASS' for row in assessment['rows']),
++        'callbacks_failed': sum(row['status'] == 'FAIL' for row in assessment['rows']),
++        'all_callbacks_passed': all(row['status'] == 'PASS' for row in assessment['rows']),
++        'comparison_gate_passed': assessment['comparison_gate_passed'],
++        'comparison_errors': assessment['comparison_errors'], 'rows': pairs,
++        'original_endings': original['ends'], 'candidate_endings': assessment['ends'],
++        'native_acceptance': False,
++    }
++    assert saved == expected
++    return expected
+ 
+ 
+ def main():
+@@ -76,7 +88,7 @@
+     baseline = load('matching_root_baseline', str((HERE / 'baseline.py').relative_to(ROOT)))
+     prepared, owner, roles = baseline.prepare(OWNER_SHA)
+     assert prepared == policy and policy['execution_enabled'] and policy['candidate_execution_enabled']
+-    assert set(roles) == {'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'dom/animation/EffectCompositor.h', 'layout/style/nsAnimationManager.cpp'}
++    assert set(roles) == {'servo/components/style/matching.rs'}
+     assert policy['runtime_output'] == str(PAIR.relative_to(ROOT))
+     state = load('matching_root_state', policy['state_helper'])
+     bundle = load('matching_root_bundle', policy['bundle_helper'])
+@@ -121,16 +133,10 @@
+     assert json.loads(json.dumps(assessment)) == read(phase / 'ASSESSMENT.json')
+     phase_hashes = {key: sha(phase / name) for key, name in [('assessment_sha256', 'ASSESSMENT.json'), ('raw_sha256', 'raw.jsonl'), ('result_sha256', 'RESULT.json')]}
+     passed = outcome_join(result, phase_result, assessment, args.exit_code, phase_hashes)
+-    collector = load('same_element_root_records', str((HERE / 'records.py').relative_to(ROOT)))
+-    collection = collector.collect(ROOT, PAIR / 'progress-records', read(PAIR / 'PROGRESS-BINDING.json'), policy, assessment)
+-    assert collection == read(PAIR / 'PROGRESS-RECORDS.json')
+-    calibration = load('root_literal_calibration', str((HERE / 'calibration.py').relative_to(ROOT))).report(PAIR / 'progress-records', collection, policy)
+-    assert calibration == read(PAIR / 'CALIBRATION.json')
+-    assert collection['complete'] and not collection['missing'] and not collection['errors'] and len(collection['records']) == 7
+-    phases = load('same_element_root_record_comparison', str((HERE / 'phases.py').relative_to(ROOT)))
+-    assert phases.record_comparison(ROOT, PAIR, policy, collection) == read(PAIR / 'RECORD-COMPARISON.json')
++    outcomes = outcomes_join(original, assessment, read(PAIR / 'OUTCOMES.json'))
+ 
+     assert read(phase / 'PRE.json') == read(phase / 'POST.json') == compiled['snapshot']
++    assert read(PAIR / 'PHASES-PRE.json') == read(PAIR / 'PHASES-POST.json') == compiled['snapshot']
+     assert metadata == read(phase / 'APPLICATION-METADATA-POST.json')
+     assert metadata['revision'] == metadata['build_revision'] == metadata['harness_revision'] == policy['head']
+     assert metadata['source_role'] == 'candidate'
+@@ -166,22 +172,14 @@
+     expected['index']['raw_index'] = observation['after']
+     assert snapshot == expected
+     assert backup['owned_backup_bytes'] == pre['owned_backup_bytes'] == read(PAIR / 'BACKUPS.json')['bytes']
+-    if passed:
+-        assert backup['removed'] and not backup['retained_after_failure']
+-        assert not (PAIR / 'backups').exists() and not (PAIR / 'backups').is_symlink()
+-    else:
+-        assert not backup['removed'] and backup['retained_after_failure']
+-        assert Path(restoration['backup_directory']) == PAIR / 'backups'
+-        assert (PAIR / 'backups').is_dir() and not (PAIR / 'backups').is_symlink()
+-        assert bundle.scan(PAIR / 'backups') == read(PAIR / 'BACKUPS.json')['owned_inventory']
+-        shutil.rmtree(PAIR / 'backups')
+-        save(PAIR / 'ROOT-BACKUP-CLEANUP.json', {'removed': not (PAIR / 'backups').exists(), 'verified_original_restoration': True, 'inventory_verified_before_removal': True, 'owner_failure_receipt_preserved': True, 'owned_backup_bytes': backup['owned_backup_bytes']})
++    assert backup['removed'] and not backup['retained_after_failure']
++    assert not (PAIR / 'backups').exists() and not (PAIR / 'backups').is_symlink()
+     assert sha(PAIR / 'CANDIDATE-RESULT.json') == result_sha
+     app_entry = ROOT / policy['wpt']['application_ini']
+-    summary = {'original_rows': original['rows'], 'candidate_rows': assessment['rows'], 'candidate_endings': assessment['ends'], 'comparison_errors': assessment['comparison_errors'], 'comparison_gate_passed': passed, 'phase': phase_hashes, 'record_comparison_sha256': sha(PAIR / 'RECORD-COMPARISON.json'), 'numeric_feedback_endpoint_oracle': False, 'native_acceptance': False}
++    summary = {'original_rows': original['rows'], 'candidate_rows': assessment['rows'], 'candidate_endings': assessment['ends'], 'comparison_errors': assessment['comparison_errors'], 'comparison_gate_passed': passed, 'phase': phase_hashes, 'outcomes_sha256': sha(PAIR / 'OUTCOMES.json'), 'observation_complete': True, 'all_callbacks_passed': outcomes['all_callbacks_passed'], 'native_acceptance': False}
+     save(PAIR / 'ROOT-REPLAY.json', summary)
+     terminal = {'session_id': args.session, 'terminal_chunk': args.terminal, 'exit': args.exit_code, 'owner_sha256': OWNER_SHA, 'result_sha256': result_sha, 'build_success': True, 'callbacks_passed': sum(r['status'] == 'PASS' for r in assessment['rows']), 'callbacks_failed': sum(r['status'] == 'FAIL' for r in assessment['rows']), 'ending': 'OK', 'comparison_gate_passed': passed, 'raw_replay_verified': True, 'state_and_application_restoration_independently_verified': True, 'raw_index_observation': observation, 'restored_application_entry': bundle.entry(app_entry), 'restored_application_target': bundle.entry(app_entry.resolve()), 'backup_removed_bytes': backup['owned_backup_bytes'], 'native_acceptance': False}
+-    terminal.update(complete_records=7, page_endings_ok=3, private_records_independently_validated=True, numeric_feedback_endpoint_oracle=False)
++    terminal.update(page_endings_ok=2, browser_exit=phase_result['exit'], observation_complete=True, all_callbacks_passed=outcomes['all_callbacks_passed'], success_scope=result['success_scope'])
+     save(PAIR / 'ROOT-TERMINAL.json', terminal)
+     symlinks, manifest = {}, {}
+     for directory, dirs, files in os.walk(PAIR, followlinks=False):

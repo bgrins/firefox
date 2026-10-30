@@ -1,0 +1,122 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Masked font restyles preserve timing inputs and script ownership</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#model-liveness">
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animation-duration">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const pseudo of [false, true]) {
+  for (const operation of ["outline", "same-value", "script-duration"]) {
+    promise_test(async t => {
+      assert_true(CSS.supports("animation-duration", "calc(1em / 16px * 1s)"),
+                  "Typed arithmetic duration is supported");
+      const iframe = document.createElement("iframe");
+      t.add_cleanup(() => iframe.remove());
+      const loaded = new Promise(resolve => iframe.onload = resolve);
+      const selector = pseudo ? "#host::before" : "#target";
+      const outlinedSelector = pseudo ? "#host.outlined::before" : "#target.outlined";
+      iframe.srcdoc = `<!doctype html><style>
+        @keyframes fixed-font { from { font-size: 32px; } to { font-size: 32px; } }
+        @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+        ${selector} { content: "x"; display: block;
+          font-size: ${pseudo ? "var(--font)" : "16px"};
+          outline: 0px solid transparent;
+          animation-name: fixed-font, fade;
+          animation-duration: 2s, calc(1em / 16px * 1s);
+          animation-timing-function: linear; animation-fill-mode: both;
+          animation-play-state: paused; }
+        ${outlinedSelector} {
+          outline: 3px solid black;
+        }
+      </style><body>${pseudo ? '<div id="host" style="--font: 16px"></div>' :
+        '<div id="target" style="font-size: 16px"></div>'}`;
+      document.body.append(iframe);
+      await loaded;
+      const win = iframe.contentWindow;
+      const target = iframe.contentDocument.getElementById(pseudo ? "host" : "target");
+      const members = () => target.getAnimations({subtree: true});
+      const acquired = members();
+      assert_equals(acquired.length, 2, "Two CSS animations acquired");
+      const animations = ["fixed-font", "fade"].map(
+        name => acquired.find(animation => animation.animationName === name));
+      assert_true(animations.every(Boolean), "Both named animations acquired");
+      for (const animation of animations) {
+        await animation.ready;
+        animation.currentTime = 750;
+      }
+      const effects = animations.map(animation => animation.effect);
+      const frame = () => new Promise(resolve => win.requestAnimationFrame(resolve));
+      const sample = () => {
+        const opacity = Number(win.getComputedStyle(target, pseudo ? "::before" : null).opacity);
+        const style = win.getComputedStyle(target, pseudo ? "::before" : null);
+        const font = style.fontSize;
+        const outline = style.outlineWidth;
+        const duration = effects.map(effect => effect.getTiming().duration);
+        const progress = effects.map(effect => effect.getComputedTiming().progress);
+        const current = members();
+        return {opacity, font, outline, duration, progress,
+          identity: animations.map((animation, index) =>
+            current.includes(animation) && animation.effect === effects[index]),
+          count: current.length,
+          time: animations.map(animation => animation.currentTime),
+          state: animations.map(animation => animation.playState)};
+      };
+      if (operation === "script-duration") {
+        effects[1].updateTiming({duration: 1250});
+      }
+      for (let index = 0; index < 3; index++) {
+        await frame();
+      }
+      const baseline = sample();
+      await frame();
+      const stable = sample();
+      if (operation === "outline") {
+        target.classList.add("outlined");
+      } else if (pseudo) {
+        target.style.setProperty("--font", operation === "same-value" ? "16px" : "32px");
+      } else {
+        target.style.fontSize = operation === "same-value" ? "16px" : "32px";
+      }
+      const first = sample();
+      await frame();
+      const later = sample();
+      const trace = JSON.stringify({baseline, stable, first, later});
+      const authoredFont = target.style.getPropertyValue(pseudo ? "--font" : "font-size");
+      assert_equals(authoredFont, operation === "script-duration" ? "32px" : "16px",
+                    `Authored input after mutation; ${trace}`);
+      for (const [stage, value] of Object.entries({baseline, stable, first, later})) {
+        assert_equals(value.font, "32px", `${stage}: masked font; ${trace}`);
+        assert_equals(value.count, 2, `${stage}: animation count; ${trace}`);
+        assert_array_equals(value.identity, [true, true], `${stage}: identities; ${trace}`);
+        assert_array_equals(value.time, [750, 750], `${stage}: held times; ${trace}`);
+        assert_array_equals(value.state, ["paused", "paused"], `${stage}: paused; ${trace}`);
+        assert_equals(value.duration[0], 2000, `${stage}: fixed font timing; ${trace}`);
+        assert_true(Number.isFinite(value.opacity), `${stage}: finite opacity; ${trace}`);
+        assert_true(Number.isFinite(value.duration[1]) && value.duration[1] > 0,
+                    `${stage}: finite active duration; ${trace}`);
+      }
+      assert_approx_equals(stable.opacity, baseline.opacity, 0.0001,
+                           `Baseline opacity is stable; ${trace}`);
+      assert_array_equals(stable.duration, baseline.duration, `Baseline timing is stable; ${trace}`);
+      for (const [stage, value] of Object.entries({first, later})) {
+        assert_array_equals(value.duration, baseline.duration, `${stage}: timing preserved; ${trace}`);
+        assert_approx_equals(value.opacity, baseline.opacity, 0.0001,
+                             `${stage}: opacity preserved; ${trace}`);
+        assert_array_equals(value.progress, baseline.progress, `${stage}: progress preserved; ${trace}`);
+      }
+      assert_equals(baseline.outline, "0px", `Initial outline calibration; ${trace}`);
+      assert_equals(first.outline, operation === "outline" ? "3px" : "0px",
+                    `Mutation calibration; ${trace}`);
+      if (operation === "script-duration") {
+        for (const [stage, value] of Object.entries({baseline, stable, first, later})) {
+          assert_equals(value.duration[1], 1250, `${stage}: script duration ownership; ${trace}`);
+          assert_approx_equals(value.progress[1], 0.6, 0.0001, `${stage}: owned progress; ${trace}`);
+          assert_approx_equals(value.opacity, 0.6, 0.0001, `${stage}: owned output; ${trace}`);
+        }
+      }
+    }, `Masked font ${pseudo ? "::before" : "element"}: ${operation} preserves timing and output`);
+  }
+}
+</script>

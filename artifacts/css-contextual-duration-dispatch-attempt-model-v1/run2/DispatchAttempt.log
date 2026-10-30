@@ -1,0 +1,29 @@
+DispatchAttempt.lean:54:14: error: unsolved goals
+case succ
+s : State
+unattempted : s.attempted = false
+blocked : canDispatch s = false
+n : Nat
+ih :
+  repeatRequests (n + 1) s =
+    { pending := true, attempted := s.attempted, inServo := s.inServo, inPreTraverse := s.inPreTraverse,
+      inStyleRefresh := s.inStyleRefresh, attempts := s.attempts, rootQueued := s.rootQueued,
+      timingVersion := s.timingVersion, composedVersion := s.composedVersion }
+stillBlocked :
+  canDispatch
+      { pending := true, attempted := s.attempted, inServo := s.inServo, inPreTraverse := s.inPreTraverse,
+        inStyleRefresh := s.inStyleRefresh, attempts := s.attempts, rootQueued := s.rootQueued,
+        timingVersion := s.timingVersion, composedVersion := s.composedVersion } =
+    false
+⊢ canDispatch
+      { pending := true, attempted := false, inServo := s.inServo, inPreTraverse := s.inPreTraverse,
+        inStyleRefresh := s.inStyleRefresh, attempts := s.attempts, rootQueued := s.rootQueued,
+        timingVersion := s.timingVersion, composedVersion := s.composedVersion } =
+    false
+DispatchAttempt.lean:59:32: warning: This simp argument is unused:
+  stillBlocked
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [request, unattempted]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

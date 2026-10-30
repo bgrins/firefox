@@ -1,0 +1,17 @@
+--- artifacts/css-registered-selected-color-candidate-v3/admission.py
++++ artifacts/css-registered-selected-color-candidate-v4/admission.py
+@@ -106,10 +106,10 @@
+     owner = root / binding['owner']['directory']
+     authenticate(owner, binding['owner']['manifest_sha256'])
+     previous = read(owner / 'POLICY.json')
+-    historical = copy.deepcopy(policy)
+-    for key in ('controls','prepared_application_metadata','prepared_flag_hashes','prepared_flag_capture'):
+-        historical[key] = previous[key]
+-    validate_original(root, historical)
++    previous_spec = importlib.util.spec_from_file_location('selected_color_previous_admission', owner / 'admission.py')
++    previous_module = importlib.util.module_from_spec(previous_spec)
++    previous_spec.loader.exec_module(previous_module)
++    previous_module.validate(root, previous)
+     spec = importlib.util.spec_from_file_location('selected_color_failed_handoff', root / policy['owner_directory'] / 'handoff.py')
+     module = importlib.util.module_from_spec(spec)
+     spec.loader.exec_module(module)

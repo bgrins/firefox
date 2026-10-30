@@ -1,0 +1,49 @@
+>>> 1189: void nsAutoAnimationMutationBatch::Done() {
+    1190:   if (sCurrentBatch != this) {
+    1191:     return;
+    1192:   }
+    1193: 
+    1194:   sCurrentBatch = nullptr;
+    1195:   if (mObservers.IsEmpty()) {
+    1196:     nsDOMMutationObserver::LeaveMutationHandling();
+    1197:     // Nothing to do.
+    1198:     return;
+    1199:   }
+    1200: 
+    1201:   mBatchTargets.Sort(TreeOrderComparator());
+    1202: 
+    1203:   for (nsDOMMutationObserver* ob : mObservers) {
+    1204:     bool didAddRecords = false;
+    1205: 
+    1206:     for (nsINode* target : mBatchTargets) {
+    1207:       EntryArray* entries = mEntryTable.Get(target);
+    1208:       MOZ_ASSERT(entries,
+    1209:                  "Targets in entry table and targets list should match");
+    1210: 
+    1211:       RefPtr<nsDOMMutationRecord> m =
+    1212:           new nsDOMMutationRecord(nsGkAtoms::animations, ob->GetParentObject());
+    1213:       m->mTarget = target;
+    1214: 
+    1215:       for (const Entry& e : *entries) {
+    1216:         if (e.mState == eState_Added) {
+    1217:           m->mAddedAnimations.AppendElement(e.mAnimation);
+    1218:         } else if (e.mState == eState_Removed) {
+    1219:           m->mRemovedAnimations.AppendElement(e.mAnimation);
+    1220:         } else if (e.mState == eState_RemainedPresent && e.mChanged) {
+    1221:           m->mChangedAnimations.AppendElement(e.mAnimation);
+    1222:         }
+    1223:       }
+    1224: 
+    1225:       if (!m->mAddedAnimations.IsEmpty() || !m->mChangedAnimations.IsEmpty() ||
+    1226:           !m->mRemovedAnimations.IsEmpty()) {
+    1227:         ob->AppendMutationRecord(m.forget());
+    1228:         didAddRecords = true;
+    1229:       }
+    1230:     }
+    1231: 
+    1232:     if (didAddRecords) {
+    1233:       ob->ScheduleForRun();
+    1234:     }
+    1235:   }
+    1236:   nsDOMMutationObserver::LeaveMutationHandling();
+    1237: }

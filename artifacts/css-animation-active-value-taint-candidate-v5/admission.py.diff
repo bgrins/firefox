@@ -1,0 +1,25 @@
+--- artifacts/css-animation-active-value-taint-candidate-v4/admission.py
++++ artifacts/css-animation-active-value-taint-candidate-v5/admission.py
+@@ -37,3 +37,22 @@
+     assert terminal["page_endings_ok"] == 16
+     assert all(terminal[k] for k in ("raw_replay_verified", "pre_post_equality_verified", "current_source_binary_control_pins_verified", "owned_process_cleanup_verified"))
+     assert read(runtime / "PRE.json") == read(runtime / "POST.json")
++    assert (terminal["session_id"], terminal["terminal_chunk"], terminal["exit"]) == (91618, "e736db", 0)
++    assert (terminal["independent_review_session"], terminal["independent_review_terminal"], terminal["independent_review_exit"]) == (93375, "b8e7f9", 0)
++    assert terminal["independent_review_sha256"] == sha(runtime / "ROOT-REVIEW.json")
++    review = read(runtime / "ROOT-REVIEW.json")
++    assert review["actual_terminal"] == {k:terminal[k] for k in ("session_id", "launch_chunk", "terminal_chunk", "exit", "result_sha256")}
++    assert review["owner_sha256"] == policy["baseline_capsule"]["sha256"]
++    assert review["result"] == read(runtime / "RESULT.json")
++    assert review["snapshot"] == read(runtime / "POST.json")
++    assert review["snapshot"]["index"]["head"] == policy["head"]
++    assert review["controls"] == policy["controls"]
++    assert review["flags"] == policy["prepared_flag_hashes"] == read(runtime / "ROOT-FLAGS.json")
++    assert review["application_metadata"] == source["prepared_application_metadata"]
++    for name in ("browser_exit", "callbacks_passed", "callbacks_failed", "page_endings_ok"):
++        assert review[name] == terminal[name]
++    assert all(review[k] and terminal[k] for k in ("raw_replay_verified", "pre_post_equality_verified", "current_state_verified", "current_source_binary_control_pins_verified", "resource_bodies_verified", "owned_process_cleanup_verified"))
++    assert review["native_acceptance"] is False and review["source_or_canonical_mutated_by_reviewer"] is False
++    inherited = review["inherited_signature_comparison"]
++    assert inherited["inherited_signatures"] == inherited["unchanged"] == 118
++    assert inherited["differences"] == [] and len(inherited["new_signatures"]) == 18

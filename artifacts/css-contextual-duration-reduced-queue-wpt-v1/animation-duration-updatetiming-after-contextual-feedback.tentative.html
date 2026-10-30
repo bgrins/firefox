@@ -1,0 +1,152 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Script timing updates recompose animations after contextual duration changes</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+const roles = ["override", "literal"];
+const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+
+function styleOf(target) {
+  const style = getComputedStyle(target);
+  return {font: style.fontSize, cssDuration: style.animationDuration,
+          opacity: style.opacity, outlineWidth: style.outlineWidth};
+}
+
+function effectsOf(animations) {
+  return animations.map(animation => ({name: animation.animationName,
+    time: animation.currentTime, duration: animation.effect.getTiming().duration,
+    progress: animation.effect.getComputedTiming().progress, state: animation.playState}));
+}
+
+function read(entry, order) {
+  let style, effects;
+  if (order === "style-first") {
+    style = styleOf(entry.target);
+    effects = effectsOf(entry.animations);
+  } else {
+    effects = effectsOf(entry.animations);
+    style = styleOf(entry.target);
+  }
+  const repeatEffects = effectsOf(entry.animations);
+  const repeatStyle = styleOf(entry.target);
+  const current = entry.target.getAnimations();
+  return {order, style, effects, repeatEffects, repeatStyle,
+          sameAnimations: entry.animations.map(animation => current.includes(animation)),
+          sameEffects: entry.animations.map((animation, index) => animation.effect === entry.effects[index]),
+          currentEffects: effectsOf(current), afterMembershipStyle: styleOf(entry.target)};
+}
+
+function create(t, role, zero) {
+  const host = document.createElement("div");
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const root = host.attachShadow({mode: "open"});
+  root.innerHTML = `<style>
+    .target {
+      font-size: 16px;
+      outline: 0px solid transparent;
+      animation-name: ${zero ? "fontCycle" : "fontCycle, fade"};
+      animation-duration: ${role === "literal" ? "2s" : "calc(1em / 16px * 1s)"};
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-play-state: paused;
+    }
+    @keyframes fontCycle { from { font-size: ${zero ? 0 : 16}px; } to { font-size: 32px; } }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  </style><div class="target"></div>`;
+  const target = root.querySelector(".target");
+  const animations = target.getAnimations();
+  assert_equals(animations.length, zero ? 1 : 2, `${role}: animation acquisition`);
+  return {role, host, target, animations, effects: animations.map(animation => animation.effect)};
+}
+
+function assertFixedTiming({role, phases}, zero) {
+  for (const [index, phase] of phases.entries()) {
+    for (const sample of phase.reads) {
+      const label = `${zero ? "zero-start" : "coupled"} ${role} ${phase.name} ${sample.order}`;
+      for (const effect of sample.effects) {
+        assert_equals(effect.time, phase.time, `Assigned time: ${label}`);
+        assert_equals(effect.state, "paused", `Paused: ${label}`);
+      }
+      if (role === "override" && index === 0) continue;
+      const progress = phase.time / 2000;
+      for (const effects of [sample.effects, sample.repeatEffects, sample.currentEffects]) {
+        assert_equals(effects.length, zero ? 1 : 2, `Current effects: ${label}`);
+        for (const effect of effects) {
+          assert_equals(effect.duration, 2000, `Script or literal duration: ${label}`);
+          assert_approx_equals(effect.progress, progress, 0.000001, `Progress: ${label}`);
+        }
+      }
+      for (const style of [sample.style, sample.repeatStyle, sample.afterMembershipStyle]) {
+        const font = zero ? 32 * progress : 16 + 16 * progress;
+        assert_approx_equals(parseFloat(style.font), font, 0.02, `Composed font: ${label}`);
+        assert_approx_equals(parseFloat(style.opacity), zero ? 1 : progress, 0.000001,
+                             `Composed opacity: ${label}`);
+      }
+      assert_true(sample.sameAnimations.every(Boolean), `Animation identity: ${label}`);
+      assert_true(sample.sameEffects.every(Boolean), `Effect identity: ${label}`);
+    }
+  }
+}
+
+async function testTimingUpdates(t, zero) {
+  assert_true(CSS.supports("animation-duration", "calc(1em / 16px * 1s)"));
+  const trajectories = [];
+  for (const role of roles) {
+    const entry = create(t, role, zero);
+    try {
+      read(entry, "timing-first");
+      await Promise.all(entry.animations.map(animation => animation.ready));
+      read(entry, "timing-first");
+      entry.animations.forEach(animation => { animation.currentTime = 750; });
+      const phases = [];
+      async function collect(name, time) {
+        await frame();
+        const orders = phases.length % 2 ? ["timing-first", "style-first"] : ["style-first", "timing-first"];
+        phases.push({name, time, reads: orders.map(order => read(entry, order))});
+      }
+      await collect("initial-750", 750);
+      if (role === "override") {
+        entry.animations.forEach(animation => animation.effect.updateTiming({duration: 2000}));
+      }
+      await collect("fixed-2000", 750);
+      await collect("repeat-fixed-2000", 750);
+      await collect("next-frame-fixed-2000", 750);
+      if (role === "override") {
+        for (const [duration, time] of [[1800, 700], [2500, 900], [2000, 1000]]) {
+          for (const animation of entry.animations) {
+            animation.effect.updateTiming({duration});
+            animation.currentTime = time;
+          }
+        }
+      } else {
+        entry.animations.forEach(animation => { animation.currentTime = 1000; });
+      }
+      await collect("batched-final-2000", 1000);
+      if (role === "override") {
+        for (let i = 0; i < 3; ++i) {
+          for (const animation of entry.animations) {
+            animation.effect.updateTiming({duration: 2000});
+            animation.currentTime = 1000;
+          }
+        }
+      }
+      await collect("unchanged-batch", 1000);
+      trajectories.push({role, phases});
+    } finally {
+      entry.host.remove();
+    }
+  }
+  for (const trajectory of trajectories) assertFixedTiming(trajectory, zero);
+}
+
+promise_test(t => testTimingUpdates(t, false),
+             "Script duration and batched seeks recompose coupled contextual animations");
+promise_test(t => testTimingUpdates(t, true),
+             "Script duration and batched seeks recompose zero-start contextual font animation");
+</script>

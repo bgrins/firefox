@@ -1,0 +1,106 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Relative width keyframes update while script owns duration</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+function frame(win) {
+  return new Promise(resolve => win.requestAnimationFrame(resolve));
+}
+
+function read(context) {
+  const {win, parent, child, animation} = context;
+  const style = win.getComputedStyle(child);
+  return {width: parseFloat(style.width), cssDuration: parseFloat(style.animationDuration) * 1000,
+          parentFont: parseFloat(win.getComputedStyle(parent).fontSize),
+          duration: animation.effect.getTiming().duration,
+          progress: animation.effect.getComputedTiming().progress,
+          time: animation.currentTime, state: animation.playState};
+}
+
+function assertValues(value, font, width, label) {
+  assert_approx_equals(value.width, width, 0.02, `${label}: width`);
+  assert_equals(value.parentFont, font, `${label}: parent font`);
+  assert_approx_equals(value.cssDuration, font / 16 * 1000, 0.05, `${label}: computed CSS duration`);
+  assert_equals(value.duration, 2000, `${label}: script-owned duration`);
+  assert_equals(value.time, 750, `${label}: currentTime`);
+  assert_equals(value.state, "paused", `${label}: play state`);
+  assert_approx_equals(value.progress, 0.375, 0.000001, `${label}: progress`);
+}
+
+async function observe(t, mode) {
+  const iframe = document.createElement("iframe");
+  t.add_cleanup(() => iframe.remove());
+  const loaded = new Promise(resolve => iframe.onload = resolve);
+  iframe.srcdoc = `<!doctype html><style>
+    .parent { font-size: 16px; }
+    .parent.advanced { font-size: 32px; }
+    @keyframes relative-width { from { width: 1em; } to { width: 3em; } }
+    @keyframes literal-width { from { width: 32px; } to { width: 96px; } }
+    .child { box-sizing: content-box; height: 10px; padding: 0; border: 0; margin: 0;
+             animation: relative-width calc(1em / 16px * 1s) linear both paused; }
+    .literal .child { animation-name: literal-width; }
+  </style><body><div class="parent ${mode}"><div class="child"></div></div></body>`;
+  document.body.append(iframe);
+  await loaded;
+  const win = iframe.contentWindow;
+  const parent = iframe.contentDocument.querySelector(".parent");
+  const child = iframe.contentDocument.querySelector(".child");
+  let driver = null;
+  if (mode === "animated") {
+    driver = parent.animate([{fontSize: "16px"}, {fontSize: "32px"}],
+                            {duration: 1000, fill: "both", easing: "linear"});
+    driver.pause();
+    driver.currentTime = 0;
+    await driver.ready;
+  }
+  const animations = child.getAnimations();
+  assert_equals(animations.length, 1, "CSS width animation acquired");
+  const animation = animations[0];
+  const effect = animation.effect;
+  await animation.ready;
+  effect.updateTiming({duration: 2000});
+  animation.currentTime = 750;
+  for (let index = 0; index < 3; index++) await frame(win);
+  const context = {win, parent, child, animation};
+  assertValues(read(context), 16, mode === "literal" ? 56 : 28, "Initial calibration after setup frames");
+  if (driver) driver.currentTime = 1000;
+  else parent.classList.add("advanced");
+  const samples = [{phase: "first-child-read", width: parseFloat(win.getComputedStyle(child).width)}];
+  for (let index = 1; index <= 3; index++) {
+    await frame(win);
+    samples.push({phase: `passive-frame-${index}`, width: parseFloat(win.getComputedStyle(child).width)});
+  }
+  const beforeMembership = read(context);
+  const driverTiming = driver ? {time: driver.currentTime, state: driver.playState} : null;
+  const same = child.getAnimations().includes(animation) && animation.effect === effect;
+  const afterMembership = read(context);
+  animation.currentTime = 751;
+  await frame(win);
+  const seek751 = read(context);
+  animation.currentTime = 750;
+  await frame(win);
+  const afterSeek = read(context);
+  const trace = JSON.stringify({mode, samples, beforeMembership, driverTiming, same,
+                               afterMembership, seek751, afterSeek});
+  assert_true(same, `Animation and effect retained; ${trace}`);
+  if (driverTiming) {
+    assert_equals(driverTiming.time, 1000, `Parent driver time; ${trace}`);
+    assert_equals(driverTiming.state, "paused", `Parent driver state; ${trace}`);
+  }
+  assert_approx_equals(samples[3].width, 56, 0.02, `Last passive child-only sample; ${trace}`);
+  assertValues(beforeMembership, 32, 56, `Before membership; ${trace}`);
+  assertValues(afterMembership, 32, 56, `After membership; ${trace}`);
+  assertValues(afterSeek, 32, 56, `After explicit seek; ${trace}`);
+}
+
+promise_test(t => observe(t, "literal"),
+             "Literal width keyframes stay calibrated while CSS duration changes under script ownership");
+promise_test(t => observe(t, "ordinary"),
+             "Ordinary inherited font changes update width keyframes with script-owned duration");
+promise_test(t => observe(t, "animated"),
+             "Animated inherited font changes update width keyframes with script-owned duration");
+</script>

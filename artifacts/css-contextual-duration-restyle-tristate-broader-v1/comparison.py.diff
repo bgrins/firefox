@@ -1,0 +1,191 @@
+--- css-contextual-duration-broader-candidate-v4/comparison.py
++++ css-contextual-duration-restyle-tristate-broader-v1/comparison.py
+@@ -14,127 +14,79 @@
+     return result
+ 
+ 
++def historical(root, policy):
++    directory = root / policy['broader_predecessor']['directory']
++    assert sha(directory / 'FILES.json') == policy['broader_predecessor']['sha256']
++    source = read(directory / 'POLICY.json')
++    for key in ('head','accepted_current_payloads','accepted_epoch_records','source_context_pins','prepared_flag_hashes','original_build','baseline_capsule','baseline_binding','inactive_capsule','inactive_binding','restyle_baseline'):
++        assert policy[key] == source[key], key
++    for key in ('OWNED.json','ROLE.json'):
++        assert policy['controls'][key] == source['controls'][key]
++    for kind in ('normative','reftest','inactive'):
++        assert policy['phases'][kind] == source['phases'][kind]
++    helper = load('sealed_broader_comparison', directory / 'comparison.py')
++    assert helper.original_metadata(source) == policy['historical_baseline_metadata']
++    return helper, source
++
++
+ def expected_wpt(root, policy):
+-    kind = policy.get('phase_kind', 'normative')
+-    if kind == 'inactive':
+-        expected = copy.deepcopy(read(root / policy['inactive_capsule']['directory'] / 'POLICY.json')['wpt'])
+-        expected['test_types'] = {page:'testharness' for page in expected['expected_subtests']}
+-        expected['phase_kind'] = 'inactive'
+-        expected['phase_revisions']['candidate'] = policy['head']
+-        return expected
+-    expected = copy.deepcopy(read(root / policy['baseline_capsule']['directory'] / 'POLICY.json')['phases'][kind])
+-    assert set(expected['phase_revisions']) == {'original'}
+-    expected['phase_revisions']['candidate'] = policy['head']
+-    expected['candidate_required_pass_pages'] = (['/css/css-animations/animation-duration-animated-inherited-font.tentative.html','/css/css-animations/animation-duration-animated-input-regressions.tentative.html'] if kind == 'normative' else list(expected['expected_subtests']) if kind == 'feedback' else [])
+-    return expected
++    kind = policy.get('phase_kind','normative')
++    if kind == 'reduced':
++        return load('reduced_comparison', root / policy['reduced_adapter']).expected_wpt(root, policy)
++    helper, source = historical(root, policy)
++    return helper.expected_wpt(root, dict(source,phase_kind=kind,wpt=source['phases'][kind]))
+ 
+ 
+ def phase_policy(settings):
+-    result = dict(settings, tests=settings['test_types'], held_subtests={})
+-    result['regression_subtests'] = {page:[name for name in names if name not in settings['target_subtests'].get(page, [])] for page,names in settings['expected_subtests'].items()}
++    result = dict(settings,tests=settings['test_types'],held_subtests={})
++    result['regression_subtests'] = {page:[name for name in names if name not in settings['target_subtests'].get(page,[])] for page,names in settings['expected_subtests'].items()}
+     result['cardinality_description'] = 'Exact sealed target and control names; existing control failures retain full signatures.'
+     return result
+ 
+ 
++def admit_snapshot(historical_snapshot, current):
++    expected = copy.deepcopy(historical_snapshot)
++    expected['index']['raw_index'] = current['index']['raw_index']
++    assert expected == current
++
++
++def original_metadata(policy):
++    saved = policy['historical_baseline_metadata']
++    assert saved['revision'] == saved['build_revision'] == policy['wpt']['phase_revisions']['original']
++    assert saved['harness_revision'] == policy['head'] and saved['source_role'] == 'original'
++    app = policy['prepared_application_metadata']
++    assert set(app) == {'browser_build_id','entry_identity','entry_type','identity','path','resolved','revision','sha256','symlink_target'}
++    ignored = {'entry_identity','identity','build_revision','harness_revision','source_role'}
++    assert {k:v for k,v in saved.items() if k not in ignored} == {k:v for k,v in app.items() if k not in ignored}
++    return saved
++
++
+ def replay_original(root, policy, assessor, checks):
+-    kind = policy.get('phase_kind', 'normative')
+-    if kind == 'inactive':
+-        return replay_inactive(root, policy, checks)
+-    directory = root / policy['baseline_binding']['directory']
+-    phase = directory / (kind + '-wpt')
+-    source = read(root / policy['baseline_capsule']['directory'] / 'POLICY.json')
+-    assert policy['wpt'] == expected_wpt(root, policy)
+-    saved_policy = read(phase / 'ASSESSMENT-POLICY.json')
+-    assert saved_policy == phase_policy(source['phases'][kind])
+-    events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
+-    metadata = read(phase / 'APPLICATION-METADATA.json')
+-    result = read(phase / 'RESULT.json')
+-    observed = assessor.assess(events, result['exit'], saved_policy, checks, run_binding=metadata)
+-    assert json.loads(json.dumps(observed)) == read(phase / 'ASSESSMENT.json')
+-    assert observed['complete'] and not observed['errors'] and result['success'] and result['preservation_verified'] and result['execution_error'] is None
+-    assert read(phase / 'PRE.json') == read(phase / 'POST.json') == read(directory / 'PRE.json') == read(directory / 'POST.json')
+-    assert metadata == read(phase / 'APPLICATION-METADATA-POST.json') == source['prepared_application_metadata']
+-    cleanup = read(phase / 'CLEANUP.json')
+-    assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
+-    outer = read(directory / 'RESULT.json')
+-    assert outer['preservation_verified'] and outer['source_or_canonical_mutation'] is False
+-    assert outer['phases'][kind] == {'assessment_sha256':sha(phase / 'ASSESSMENT.json'),'raw_sha256':sha(phase / 'raw.jsonl'),'result_sha256':sha(phase / 'RESULT.json')}
+-    roster = read(directory / (kind.upper() + '-ROSTER.json'))
+-    assert roster['phase'] == outer['phases'][kind] and roster['owner_sha256'] == policy['baseline_capsule']['sha256']
+-    assert roster['observed_subtest_count'] == observed['observed_subtest_count'] == {'normative':49,'reftest':0,'feedback':3}[kind]
+-    assert roster['expected_subtests'] == {page:[row['subtest'] for row in observed['rows'] if row['test']==page] for page in source['phases'][kind]['expected_subtests']}
+-    assert roster['endings'] == observed['ends']
+-    return observed
++    kind = policy['phase_kind']
++    assert policy['wpt'] == expected_wpt(root,policy)
++    if kind == 'reduced':
++        return load('reduced_comparison',root / policy['reduced_adapter']).replay_original(root,policy,assessor,checks)
++    helper, source = historical(root,policy)
++    return helper.replay_original(root,dict(source,phase_kind=kind,wpt=source['phases'][kind]),assessor,checks)
+ 
+ 
+ def replay_all(root, policy):
+-    here = root / policy['candidate_assessor']
+-    assessor = load('complete_broader_assessor', here)
+-    checks = load('complete_broader_checks', root / policy['wpt']['checks_helper'])
+-    for kind in ('normative','reftest','feedback'):
+-        current = dict(policy, phase_kind=kind, wpt=policy['phases'][kind])
+-        observed = replay_original(root, current, assessor, checks)
+-        if kind == 'feedback':
+-            assert all(row['status']=='PASS' for row in observed['rows'])
+-    phases = load('broader_phase_records', here.parent / 'phases.py')
+-    directory = root / policy['baseline_binding']['directory']
+-    records = phases.feedback_records(directory)
+-    assert read(directory / 'FEEDBACK-RECORDS.json') == records
+-    restyle = load('broader_restyle_comparison', here.parent / 'restyles.py')
+-    restyle.original(root, policy)
+-    restyle_dir = root / policy['restyle_baseline']['directory']
+-    assert read(restyle_dir / 'PRE.json') == read(directory / 'PRE.json')
+-    assert read(restyle_dir / 'APPLICATION-METADATA.json') == {k:v for k,v in policy['prepared_application_metadata'].items() if k not in ('build_revision','harness_revision','source_role')}
+-    restyle_source = read(restyle_dir / 'POLICY.json')
+-    assert restyle_source['controls'] == policy['controls'] and restyle_source['head'] == policy['head']
+-    roles = read(here.parent / 'SOURCE-ROLES.json')
+-    assert restyle_source['source_pins']['servo/components/style/matching.rs'] == roles['servo/components/style/matching.rs']['base_sha256']
+-    replay_inactive(root, dict(policy, phase_kind='inactive', wpt=policy['phases']['inactive']), checks)
++    helper, source = historical(root,policy)
++    helper.replay_all(root,source)
++    epoch = read(root / policy['source_equivalence']['historical_build_epoch'])
++    assert epoch['semantic_index']['head'] == policy['source_equivalence']['build_revision']
++    for name,pin in policy['source_equivalence']['required_base_pins'].items():
++        assert epoch['pins'][name] == pin and name not in epoch['modified_native_paths']
++    if policy['prepared_application_metadata'] is not None:
++        original_metadata(policy)
++    if policy['reduced_binding'] is not None:
++        adapter = load('reduced_comparison',root / policy['reduced_adapter'])
++        adapter.replay_all(root,policy)
+ 
+ 
+ def original_directory(root, policy):
+-    if policy['phase_kind'] == 'inactive':
+-        return root / policy['inactive_binding']['directory'] / 'original-wpt'
+-    return root / policy['baseline_binding']['directory'] / (policy['phase_kind'] + '-wpt')
+-
+-
+-def replay_inactive(root, policy, checks):
+-    binding = policy['inactive_binding']
+-    assert binding is not None and policy['wpt'] == expected_wpt(root, policy)
+-    directory = root / binding['directory']
+-    phase = directory / 'original-wpt'
+-    source_dir = root / policy['inactive_capsule']['directory']
+-    source = read(source_dir / 'POLICY.json')
+-    assert read(directory / binding['terminal_path']) == binding['terminal'] and binding['terminal']['exit'] == 0
+-    assert sha(directory / 'RESULT.json') == binding['result_sha256']
+-    expected = phase_policy(dict(source['wpt'], test_types={page:'testharness' for page in source['wpt']['expected_subtests']}))
+-    expected.pop('test_types')
+-    saved_policy = read(phase / 'ASSESSMENT-POLICY.json')
+-    assert saved_policy == expected
+-    assessor = load('inactive_original_assessor', source_dir / 'assess.py')
+-    events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
+-    result = read(phase / 'RESULT.json')
+-    metadata = read(phase / 'APPLICATION-METADATA.json')
+-    observed = assessor.assess(events, result['exit'], saved_policy, checks, run_binding=metadata)
+-    assert json.loads(json.dumps(observed)) == read(phase / 'ASSESSMENT.json')
+-    assert observed['complete'] and not observed['errors'] and result['success'] and result['preservation_verified'] and result['execution_error'] is None
+-    assert read(phase / 'PRE.json') == read(phase / 'POST.json') == read(root / policy['baseline_binding']['directory'] / 'POST.json')
+-    assert metadata == read(phase / 'APPLICATION-METADATA-POST.json') == source['prepared_application_metadata'] == original_metadata(policy)
+-    cleanup = read(phase / 'CLEANUP.json')
+-    assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
+-    outer = read(directory / 'RESULT.json')
+-    assert outer['preservation_verified'] and outer['source_or_canonical_mutation'] is False
+-    assert outer['phase'] == {key:sha(phase / filename) for key,filename in [('assessment_sha256','ASSESSMENT.json'),('raw_sha256','raw.jsonl'),('result_sha256','RESULT.json')]}
+-    roster = read(directory / 'OBSERVED-ROSTER.json')
+-    assert roster['phase'] == outer['phase'] and roster['owner_sha256'] == policy['inactive_capsule']['sha256']
+-    assert roster['observed_subtest_count'] == observed['observed_subtest_count'] == 1
+-    assert roster['expected_subtests'] == source['wpt']['expected_subtests']
+-    assert roster['source_roster_sha256'] == source['references'][source['source_roster']]
+-    return observed
+-
+-
+-def original_metadata(policy):
+-    prepared = policy['prepared_application_metadata']
+-    assert set(prepared) == {'browser_build_id','entry_identity','entry_type','identity','path','resolved','revision','sha256','symlink_target'}
+-    assert prepared['revision'] == policy['wpt']['phase_revisions']['original']
+-    return dict(prepared, build_revision=prepared['revision'], harness_revision=policy['head'], source_role='original')
++    kind = policy['phase_kind']
++    if kind == 'reduced':
++        return root / policy['reduced_binding']['directory'] / 'original-wpt'
++    helper, source = historical(root,policy)
++    return helper.original_directory(root,dict(source,phase_kind=kind))

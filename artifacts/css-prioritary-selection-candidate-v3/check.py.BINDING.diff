@@ -1,0 +1,35 @@
+--- artifacts/css-prioritary-selection-candidate77-disabled-v1/check.py
++++ artifacts/css-prioritary-selection-candidate-v3/check.py
+@@ -25,7 +25,7 @@
+     mutable={'owner_directory','runtime_output','predecessor','candidate_lifecycle_predecessor','proposal','proposal_independent_review','provider_source_role','source_paths','semantic_original_sources','activation_pending','references','execution_enabled','candidate_execution_enabled','head','controls','prepared_application_metadata','prepared_flag_hashes','prepared_flag_capture','execution_handoff','restoration_binding','baseline_binding','baseline_capsule','original_admission_policy_sha256','disabled_preimage','restored_context_claims','wpt','wpt_lanes','target_evidence','intermediate_consumed_inputs'}
+     assert {k:v for k,v in policy.items() if k not in mutable}=={k:v for k,v in old.items() if k not in mutable}
+     assert policy['owner_directory']==str(HERE.relative_to(ROOT)) and policy['runtime_output']=='artifacts/css-prioritary-selection-candidate-runtime-2'
+-    assert policy['disabled_preimage'] is None and policy['restored_context_claims']=={}
++    assert policy['disabled_preimage']=={'directory':'artifacts/css-prioritary-selection-candidate77-disabled-v1','manifest_sha256':'f46af0315ef689e241d991afbaaf2bcbb9a7482eefb2bd5464c6a8d6b830fd43'} and policy['restored_context_claims']=={}
+     assert policy['provider_source_role']=='provider-cascade-value-candidate'
+     assert policy['proposal_independent_review'] is None
+     load('pending_admission',HERE/'admission.py').validate(ROOT,policy)
+@@ -58,7 +58,7 @@
+         selected={p:ns for p,ns in targets.items() if p in settings['expected_subtests']}
+         assert all(set(ns)<=set(settings['expected_subtests'][p]) for p,ns in selected.items())
+         count=sum(map(len,selected.values()));controls=settings['expected_subtest_count']-count
+-        expected=dict(settings,phase_revisions={'original':None,'candidate':None},harness_revision=None,target_subtests=selected,expected_target_count=count,expected_control_count=controls,expected_regression_signature_count=controls+settings['expected_page_count'])
++        expected=dict(settings,phase_revisions={'original':policy['head'],'candidate':policy['head']},harness_revision=policy['head'],target_subtests=selected,expected_target_count=count,expected_control_count=controls,expected_regression_signature_count=controls+settings['expected_page_count'])
+         assert current==expected
+     roles=read(HERE/'SOURCE-ROLES.json');proposed=read(ROOT/policy['proposal']['directory']/'SOURCE-ROLES.json')
+     prior=read(ROOT/policy['predecessor']['directory']/'SOURCE-ROLES.json');assert set(roles)==set(proposed)==set(policy['source_paths']) and len(roles)==3
+@@ -122,12 +122,12 @@
+     assert streams==[['ordinary',68,8],['forced_colors',3,2],['mozilla_appearance',6,2]]
+     assert improvements==[['ordinary',21],['forced_colors',2],['mozilla_appearance',1]]
+     negatives=0
+-    for change in [lambda p:p.update(execution_enabled=True),lambda p:p.update(candidate_execution_enabled=True),lambda p:p.update(baseline_binding={}),lambda p:p.update(head='e'*40),lambda p:p['wpt_lanes']['ordinary'].update(capture=None),lambda p:p['wpt_lanes']['forced_colors']['target_subtests'].clear(),lambda p:p['intermediate_consumed_inputs'].pop('artifacts/css-minmax-relative-infinity-broader-browser-v5/assess.py'),lambda p:p['accepted_current_payloads']['servo/components/style/properties_and_values/value.rs']['identity'].__setitem__(1,0),lambda p:p['source_context_pins'].pop('servo/components/style/properties/cascade.rs'),lambda p:p['semantic_original_sources'].update({'servo/components/style/custom_properties.rs':'0'*64}),lambda p:p['target_evidence']['union_only45'].update(manifest_sha256='0'*64)]:
++    for change in [lambda p:p.update(execution_handoff=None),lambda p:p['baseline_binding']['terminal'].update(exit=1),lambda p:p.update(baseline_binding={}),lambda p:p.update(head='e'*40),lambda p:p['wpt_lanes']['ordinary'].update(capture=None),lambda p:p['wpt_lanes']['forced_colors']['target_subtests'].clear(),lambda p:p['intermediate_consumed_inputs'].pop('artifacts/css-minmax-relative-infinity-broader-browser-v5/assess.py'),lambda p:p['accepted_current_payloads']['servo/components/style/properties_and_values/value.rs']['identity'].__setitem__(1,0),lambda p:p['source_context_pins'].pop('servo/components/style/properties/cascade.rs'),lambda p:p['semantic_original_sources'].update({'servo/components/style/custom_properties.rs':'0'*64}),lambda p:p['target_evidence']['union_only45'].update(manifest_sha256='0'*64),lambda p:p['execution_handoff'].update(source_claims_sha256='0'*64),lambda p:p['prepared_application_metadata']['identity'].__setitem__(1,0),lambda p:p['controls'].update({'CURRENT-EPOCH.json':'0'*64}),lambda p:p['execution_handoff'].update(reviewer_manifest_sha256='0'*64)]:
+         bad=copy.deepcopy(policy);change(bad)
+         try:validate_policy(bad)
+         except (AssertionError,KeyError,TypeError):negatives+=1
+         else:raise AssertionError('bad preparation accepted')
+-    print(json.dumps({'references':len(policy['references']),'consumed_inputs':len(policy['intermediate_consumed_inputs']),'pending_negatives':negatives,'all_FAIL_retained':streams,'target_improvements':improvements,'all_original_PASS_and_endings_preserved':True,'JSON_behavior_roundtrip':True,'modified_native_roles':3,'live_operations':False}))
++    print(json.dumps({'references':len(policy['references']),'consumed_inputs':len(policy['intermediate_consumed_inputs']),'actual_binding_negatives':negatives,'all_FAIL_retained':streams,'target_improvements':improvements,'all_original_PASS_and_endings_preserved':True,'JSON_behavior_roundtrip':True,'modified_native_roles':3,'live_operations':False}))
+ 
+ 
+ if __name__=='__main__':

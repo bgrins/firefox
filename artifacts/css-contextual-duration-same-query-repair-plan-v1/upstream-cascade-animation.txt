@@ -1,0 +1,101 @@
+servo/components/style/properties/cascade.rs:320:         // animation's usage of `apply_declarations` make this tricky. See bug
+servo/components/style/properties/cascade.rs:752: /// `context.builder.substitution_functions`, which the subsequent animation-value computation reads
+servo/components/style/properties/data.py:228:         animation_type=None,
+servo/components/style/properties/data.py:234:         self.animation_type = animation_type
+servo/components/style/properties/data.py:328:         animation_type="normal",
+servo/components/style/properties/data.py:393:         assert animation_type in ["none", "normal", "discrete"]
+servo/components/style/properties/data.py:394:         self.animation_type = animation_type
+servo/components/style/properties/data.py:395:         self.animatable = animation_type != "none"
+servo/components/style/properties/data.py:401:         # Layout is the stronger hint. This property animation affects layout
+servo/components/style/properties/data.py:619:                 "AnimationComposition",
+servo/components/style/properties/data.py:620:                 "AnimationDirection",
+servo/components/style/properties/data.py:621:                 "AnimationFillMode",
+servo/components/style/properties/data.py:622:                 "AnimationPlayState",
+servo/components/style/properties/data.py:710:         if self.animation_type == "discrete":
+servo/components/style/properties/data.py:1333:             + PropertyRestrictions.shorthand(data, "animation-range")
+servo/components/style/properties/data.py:1337:             + PropertyRestrictions.spec(data, "css-animations")
+servo/components/style/properties/declaration_block.rs:24:     animated_properties::{AnimationValue, AnimationValueMap},
+servo/components/style/properties/declaration_block.rs:55: /// A set of property declarations including animations and transitions.
+servo/components/style/properties/declaration_block.rs:57: pub struct AnimationDeclarations {
+servo/components/style/properties/declaration_block.rs:58:     /// Declarations for animations.
+servo/components/style/properties/declaration_block.rs:59:     pub animations: Option<Arc<Locked<PropertyDeclarationBlock>>>,
+servo/components/style/properties/declaration_block.rs:64: impl AnimationDeclarations {
+servo/components/style/properties/declaration_block.rs:65:     /// Whether or not this `AnimationDeclarations` is empty.
+servo/components/style/properties/declaration_block.rs:67:         self.animations.is_none() && self.transitions.is_none()
+servo/components/style/properties/declaration_block.rs:344: /// Iterator for AnimationValue to be generated from PropertyDeclarationBlock.
+servo/components/style/properties/declaration_block.rs:345: pub struct AnimationValueIterator<'a, 'cx, 'cx_a: 'cx> {
+servo/components/style/properties/declaration_block.rs:352: impl<'a, 'cx, 'cx_a: 'cx> AnimationValueIterator<'a, 'cx, 'cx_a> {
+servo/components/style/properties/declaration_block.rs:358:     ) -> AnimationValueIterator<'a, 'cx, 'cx_a> {
+servo/components/style/properties/declaration_block.rs:359:         AnimationValueIterator {
+servo/components/style/properties/declaration_block.rs:368: impl<'a, 'cx, 'cx_a: 'cx> Iterator for AnimationValueIterator<'a, 'cx, 'cx_a> {
+servo/components/style/properties/declaration_block.rs:369:     type Item = AnimationValue;
+servo/components/style/properties/declaration_block.rs:379:             let animation = AnimationValue::from_declaration(
+servo/components/style/properties/declaration_block.rs:388:             if let Some(anim) = animation {
+servo/components/style/properties/declaration_block.rs:465:     /// Return an iterator of (AnimatableLonghand, AnimationValue).
+servo/components/style/properties/declaration_block.rs:467:     pub fn to_animation_value_iter<'a, 'cx, 'cx_a: 'cx>(
+servo/components/style/properties/declaration_block.rs:472:     ) -> AnimationValueIterator<'a, 'cx, 'cx_a> {
+servo/components/style/properties/declaration_block.rs:473:         AnimationValueIterator::new(self, context, style, default_values)
+servo/components/style/properties/declaration_block.rs:1032:             // getKeyframes() implementation for CSS animations, if
+servo/components/style/properties/declaration_block.rs:1050:     /// Convert AnimationValueMap to PropertyDeclarationBlock.
+servo/components/style/properties/declaration_block.rs:1051:     pub fn from_animation_value_map(animation_value_map: &AnimationValueMap) -> Self {
+servo/components/style/properties/declaration_block.rs:1052:         let len = animation_value_map.len();
+servo/components/style/properties/declaration_block.rs:1056:         for (property, animation_value) in animation_value_map.iter() {
+servo/components/style/properties/declaration_block.rs:1058:             declarations.push(animation_value.uncompute());
+servo/components/style/properties/gecko.mako.rs:1051: <% skip_ui_longhands = """animation-name animation-delay animation-duration
+servo/components/style/properties/gecko.mako.rs:1052:                           animation-direction animation-fill-mode
+servo/components/style/properties/gecko.mako.rs:1053:                           animation-play-state animation-iteration-count
+servo/components/style/properties/gecko.mako.rs:1054:                           animation-timing-function animation-composition animation-timeline
+servo/components/style/properties/gecko.mako.rs:1055:                           animation-range-start animation-range-end
+servo/components/style/properties/gecko.mako.rs:1085:     /// Returns whether animation-timeline is initial value. We need this information to resolve
+servo/components/style/properties/gecko.mako.rs:1086:     /// animation-duration.
+servo/components/style/properties/gecko.mako.rs:1087:     pub fn has_initial_animation_timeline(&self) -> bool {
+servo/components/style/properties/gecko.mako.rs:1088:         self.mAnimationTimelineCount == 1 && self.animation_timeline_at(0).is_auto()
+servo/components/style/properties/gecko.mako.rs:1091:     pub fn animations_equals(&self, other: &Self) -> bool {
+servo/components/style/properties/gecko.mako.rs:1092:         self.mAnimationNameCount == other.mAnimationNameCount
+servo/components/style/properties/gecko.mako.rs:1093:             && self.mAnimationDelayCount == other.mAnimationDelayCount
+servo/components/style/properties/gecko.mako.rs:1094:             && self.mAnimationDirectionCount == other.mAnimationDirectionCount
+servo/components/style/properties/gecko.mako.rs:1095:             && self.mAnimationDurationCount == other.mAnimationDurationCount
+servo/components/style/properties/gecko.mako.rs:1096:             && self.mAnimationFillModeCount == other.mAnimationFillModeCount
+servo/components/style/properties/gecko.mako.rs:1097:             && self.mAnimationIterationCountCount == other.mAnimationIterationCountCount
+servo/components/style/properties/gecko.mako.rs:1098:             && self.mAnimationPlayStateCount == other.mAnimationPlayStateCount
+servo/components/style/properties/gecko.mako.rs:1099:             && self.mAnimationTimingFunctionCount == other.mAnimationTimingFunctionCount
+servo/components/style/properties/gecko.mako.rs:1100:             && self.mAnimationCompositionCount == other.mAnimationCompositionCount
+servo/components/style/properties/gecko.mako.rs:1101:             && self.mAnimationTimelineCount == other.mAnimationTimelineCount
+servo/components/style/properties/gecko.mako.rs:1102:             && self.mAnimationRangeStartCount == other.mAnimationRangeStartCount
+servo/components/style/properties/gecko.mako.rs:1103:             && self.mAnimationRangeEndCount == other.mAnimationRangeEndCount
+servo/components/style/properties/gecko.mako.rs:1104:             && unsafe { bindings::Gecko_StyleAnimationsEquals(&self.mAnimations, &other.mAnimations) }
+servo/components/style/properties/gecko.mako.rs:1107:     ${impl_coordinated_property('animation', 'name', 'Name')}
+servo/components/style/properties/gecko.mako.rs:1108:     ${impl_coordinated_property('animation', 'delay', 'Delay')}
+servo/components/style/properties/gecko.mako.rs:1109:     ${impl_coordinated_property('animation', 'duration', 'Duration')}
+servo/components/style/properties/gecko.mako.rs:1110:     ${impl_coordinated_property('animation', 'direction', 'Direction')}
+servo/components/style/properties/gecko.mako.rs:1111:     ${impl_coordinated_property('animation', 'fill_mode', 'FillMode')}
+servo/components/style/properties/gecko.mako.rs:1112:     ${impl_coordinated_property('animation', 'play_state', 'PlayState')}
+servo/components/style/properties/gecko.mako.rs:1113:     ${impl_coordinated_property('animation', 'composition', 'Composition')}
+servo/components/style/properties/gecko.mako.rs:1114:     ${impl_coordinated_property('animation', 'iteration_count', 'IterationCount')}
+servo/components/style/properties/gecko.mako.rs:1115:     ${impl_coordinated_property('animation', 'timeline', 'Timeline')}
+servo/components/style/properties/gecko.mako.rs:1116:     ${impl_coordinated_property('animation', 'timing_function', 'TimingFunction')}
+servo/components/style/properties/gecko.mako.rs:1117:     ${impl_coordinated_property('animation', 'range_start', 'RangeStart')}
+servo/components/style/properties/gecko.mako.rs:1118:     ${impl_coordinated_property('animation', 'range_end', 'RangeEnd')}
+servo/components/style/properties/helpers.mako.rs:204:     //  * UnderlyingOwnedList is the list that is used for animation.
+servo/components/style/properties/helpers.mako.rs:338:         % if property.vector.animation_type:
+servo/components/style/properties/helpers.mako.rs:375:                     lists::${property.vector.animation_type}::animate(&self.0, &other.0, procedure)?
+servo/components/style/properties/helpers.mako.rs:384:                 lists::${property.vector.animation_type}::squared_distance(&self.0, &other.0)
+servo/components/style/properties/helpers/animated_properties.mako.rs:54: /// A collection of AnimationValue that were composed on an element.
+servo/components/style/properties/helpers/animated_properties.mako.rs:55: /// This HashMap stores the values that are the last AnimationValue to be
+servo/components/style/properties/helpers/animated_properties.mako.rs:57: pub type AnimationValueMap = FxHashMap<OwnedPropertyDeclarationId, AnimationValue>;
+servo/components/style/properties/helpers/animated_properties.mako.rs:64: pub enum AnimationValue {
+servo/components/style/properties/helpers/animated_properties.mako.rs:91: struct AnimationValueVariantRepr<T> {
+servo/components/style/properties/helpers/animated_properties.mako.rs:96: impl Clone for AnimationValue {
+servo/components/style/properties/helpers/animated_properties.mako.rs:99:         use self::AnimationValue::*;
+servo/components/style/properties/helpers/animated_properties.mako.rs:135:                         out.as_mut_ptr() as *mut AnimationValueVariantRepr<${ty}>,
+servo/components/style/properties/helpers/animated_properties.mako.rs:136:                         AnimationValueVariantRepr {
+servo/components/style/properties/helpers/animated_properties.mako.rs:152: impl PartialEq for AnimationValue {
+servo/components/style/properties/helpers/animated_properties.mako.rs:155:         use self::AnimationValue::*;
+servo/components/style/properties/helpers/animated_properties.mako.rs:168:                         &*(other as *const _ as *const AnimationValueVariantRepr<${ty}>);
+servo/components/style/properties/helpers/animated_properties.mako.rs:175:                 AnimationValue::Custom(ref this) => {
+servo/components/style/properties/helpers/animated_properties.mako.rs:177:                         &*(other as *const _ as *const AnimationValueVariantRepr<CustomAnimatedValue>);
+servo/components/style/properties/helpers/animated_properties.mako.rs:185: impl AnimationValue {
+servo/components/style/properties/helpers/animated_properties.mako.rs:189:         if let AnimationValue::Custom(animated_value) = self {
+servo/components/style/properties/helpers/animated_properties.mako.rs:197:             AnimationValue::${prop.camel_case}(..) => LonghandId::${prop.camel_case},
+servo/components/style/properties/helpers/animated_properties.mako.rs:199:             AnimationValue::${prop.camel_case}(void) => void::unreachable(void),
+Total matches: 100

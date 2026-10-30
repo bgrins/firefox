@@ -1,0 +1,33 @@
+--- artifacts/css-prioritary-selection-original77-disabled-v1/check.py
++++ artifacts/css-prioritary-selection-original-v3/check.py
+@@ -29,7 +29,7 @@
+                'candidate_execution_enabled', 'activation_pending', 'head', 'controls',
+                'prepared_application_metadata', 'prepared_flag_hashes', 'prepared_flag_capture',
+                'execution_handoff', 'restoration_binding', 'suite_binding', 'source_roster', 'wpt',
+-               'wpt_lanes', 'lane_order', 'capture_binding', 'metadata_current_pins', 'preserved_absent_resources', 'intermediate_guard_binding', 'intermediate_consumed_inputs'}
++               'wpt_lanes', 'lane_order', 'capture_binding', 'metadata_current_pins', 'preserved_absent_resources', 'intermediate_guard_binding', 'intermediate_consumed_inputs', 'disabled_preimage', 'restored_context_claims'}
+     assert {k:v for k,v in policy.items() if k not in mutable} == {k:v for k,v in old.items() if k not in mutable}
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+     assert policy['runtime_output'] == 'artifacts/css-prioritary-selection-original-runtime-2'
+@@ -66,9 +66,11 @@
+         for kind in ['base','candidate']:assert sha(ROOT/row[kind+'_capture']) == row[kind+'_sha256']
+     for name,digest in policy['references'].items():assert sha(ROOT/name) == digest,name
+     assert policy['predecessor'] == {'directory':'artifacts/css-prioritary-selection-original-v2','manifest_sha256':'2119c8ff41df3ed46f842670865fa85d92e6b8e8e93facfc53a05900dd46c094'}
+-    for name in ['baseline.py','wpt.py','assess.py','SOURCE-ROLES.json']:
++    for name in ['wpt.py','assess.py','SOURCE-ROLES.json']:
+         assert (HERE/name).read_bytes() == (previous/name).read_bytes(), name
+     assert (HERE/'phases.py').read_text() == (previous/'phases.py').read_text().replace('== 74','== 77').replace('== 11','== 12')
++    expected_baseline = (previous/'baseline.py').read_text().replace("        assert sha(ROOT / name) == digest\n", "        assert sha(ROOT / name) == digest\n    ownership = load('restored_context_ownership', policy['ownership_helper'])\n    for name, record in policy['restored_context_claims'].items():\n        assert policy['source_context_pins'][name] == record['sha256']\n        ownership.claim(ROOT, name, record['sha256'], record['identity'])\n", 1)
++    assert (HERE/'baseline.py').read_text() == expected_baseline
+     original = (previous/'run.py').read_text()
+     expected = original.replace("'prioritary-selection-original74-v1'", "'prioritary-selection-original77-v3'")
+     expected = expected.replace('    original_before = original_verify()\n', '    original_before = original_verify()\n' +
+@@ -119,7 +121,7 @@
+     policy = read(HERE/'POLICY.json')
+     validate_policy(policy)
+     negatives=0
+-    for change in [lambda p:p.update(execution_enabled=True,candidate_execution_enabled=True),lambda p:p.update(head='e'*40),lambda p:p.update(controls={}),lambda p:p['wpt_lanes']['ordinary'].update(capture=None),lambda p:p['lane_order'].pop(),lambda p:p['wpt_lanes']['forced_colors']['metadata']['portable'].pop('forced-colors-mode/forced-colors-mode-51.html.ini'),lambda p:p['wpt_lanes']['mozilla_appearance']['expected_subtests'].clear(),lambda p:p['intermediate_consumed_inputs'].pop('artifacts/css-minmax-relative-infinity-broader-browser-v5/assess.py'),lambda p:p['intermediate_consumed_inputs'].pop('artifacts/css-prioritary-zoom-capture-v1/candidate.html'),lambda p:p['intermediate_consumed_inputs'].update({'artifacts/css-prioritary-selection-original-v3/POLICY.json':'bad'})]:
++    for change in [lambda p:p.update(execution_handoff=None),lambda p:p.update(head='e'*40),lambda p:p.update(controls={}),lambda p:p['wpt_lanes']['ordinary'].update(capture=None),lambda p:p['lane_order'].pop(),lambda p:p['wpt_lanes']['forced_colors']['metadata']['portable'].pop('forced-colors-mode/forced-colors-mode-51.html.ini'),lambda p:p['wpt_lanes']['mozilla_appearance']['expected_subtests'].clear(),lambda p:p['intermediate_consumed_inputs'].pop('artifacts/css-minmax-relative-infinity-broader-browser-v5/assess.py'),lambda p:p['intermediate_consumed_inputs'].pop('artifacts/css-prioritary-zoom-capture-v1/candidate.html'),lambda p:p['intermediate_consumed_inputs'].update({'artifacts/css-prioritary-selection-original-v3/POLICY.json':'bad'}),lambda p:p['restored_context_claims']['servo/components/style/properties/cascade.rs']['identity'].__setitem__(1,0),lambda p:p['source_context_pins'].pop('servo/components/style/properties/cascade.rs'),lambda p:p['restoration_binding'].update(manifest_sha256='0'*64),lambda p:p['execution_handoff']['reviewer'].update(manifest_sha256='0'*64),lambda p:p['prepared_application_metadata']['identity'].__setitem__(1,0)]:
+         bad=copy.deepcopy(policy);change(bad)
+         try:validate_policy(bad)
+         except (AssertionError,KeyError,TypeError):negatives+=1

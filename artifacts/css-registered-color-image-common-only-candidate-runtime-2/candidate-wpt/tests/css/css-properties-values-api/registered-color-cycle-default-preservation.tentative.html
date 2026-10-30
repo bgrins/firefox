@@ -1,0 +1,92 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Preserve registered color default computation after dependency cycles</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#dependency-cycles-via-relative-units">
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#cycles">
+<link rel="help" href="https://drafts.csswg.org/css-color-adjust-1/#color-scheme-prop">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<pre id="observations" hidden></pre>
+<script>
+window.colorCycleDefaultObservations = [];
+for (const cycle of ["self", "unregistered-peer", "registered-peer", "font-edge", "scheme-backedge"]) {
+  for (const kind of ["system", "light-dark", "identifier"]) {
+    if (cycle === "scheme-backedge" && kind === "identifier") {
+      continue;
+    }
+    promise_test(async t => {
+      const frame = document.createElement("iframe");
+      t.add_cleanup(() => frame.remove());
+      const loaded = new Promise(resolve => { frame.onload = resolve; });
+      frame.srcdoc = "<!doctype html><body>";
+      document.body.append(frame);
+      await loaded;
+      const win = frame.contentWindow;
+      const doc = frame.contentDocument;
+      const initial = kind === "identifier" ? "light" : kind === "system" ? "CanvasText" : "light-dark(red, blue)";
+      const syntax = (cycle === "font-edge" ? "<length> | " : "") +
+        (kind === "identifier" ? "<custom-ident> | <color>" : "<color>");
+      win.CSS.registerProperty({name: "--actual", syntax, inherits: false, initialValue: initial});
+      if (cycle === "registered-peer") {
+        win.CSS.registerProperty({name: "--peer", syntax, inherits: false, initialValue: initial});
+      }
+      doc.body.style.colorScheme = kind === "identifier" ? "normal" : "light";
+      doc.body.style.fontSize = "16px";
+      const target = doc.createElement("div");
+      target.style.colorScheme = kind === "identifier" || cycle === "scheme-backedge" ?
+        "var(--actual, attr(data-unused type(<custom-ident>), normal))" :
+        "var(--scheme, attr(data-unused type(<custom-ident>), light))";
+      if (cycle.includes("peer")) {
+        target.style.setProperty("--peer", "var(--actual)");
+      }
+      if (cycle === "font-edge") {
+        target.style.fontSize = "var(--actual)";
+      }
+      doc.body.append(target);
+      const reference = doc.createElement("div");
+      reference.style.setProperty("--actual", initial);
+      if (kind !== "identifier") {
+        reference.style.color = initial;
+      }
+      doc.body.append(reference);
+      const snapshots = [];
+      for (const scheme of ["dark", "light"]) {
+        target.style.setProperty("--scheme", scheme);
+        const primary = cycle.includes("peer") ? "--peer" : "--actual";
+        target.style.setProperty("--actual", cycle === "font-edge" ?
+          (scheme === "dark" ? "1em" : "2em") : `var(${primary}, var(--missing-${scheme}))`);
+        const expectedScheme = kind === "identifier" || cycle === "scheme-backedge" ? "light" : scheme;
+        reference.style.colorScheme = expectedScheme;
+        const first = win.getComputedStyle(target).getPropertyValue("--actual").trim();
+        const peer = win.getComputedStyle(target).getPropertyValue("--peer").trim();
+        const actualScheme = win.getComputedStyle(target).colorScheme;
+        const fontSize = win.getComputedStyle(target).fontSize;
+        const valid = win.getComputedStyle(reference).getPropertyValue("--actual").trim();
+        const literal = win.getComputedStyle(reference).color;
+        snapshots.push({scheme, first, peer, actualScheme, expectedScheme, fontSize, valid, literal,
+          expected: kind === "identifier" ? "light" : literal});
+      }
+      const row = {cycle, kind, initial, syntax, snapshots,
+        conditionalPreservation: kind !== "identifier"};
+      window.colorCycleDefaultObservations.push(row);
+      document.getElementById("observations").textContent = JSON.stringify(window.colorCycleDefaultObservations);
+      const diagnostic = JSON.stringify(row);
+      for (const snapshot of snapshots) {
+        assert_equals(snapshot.valid, snapshot.expected, `Valid initial-expression control: ${diagnostic}`);
+        assert_equals(snapshot.actualScheme, snapshot.expectedScheme, `Consuming scheme: ${diagnostic}`);
+        assert_equals(snapshot.first, snapshot.expected, `Cycle default: ${diagnostic}`);
+        if (cycle === "registered-peer") {
+          assert_equals(snapshot.peer, snapshot.expected, `Second registered SCC member: ${diagnostic}`);
+        }
+        if (cycle === "unregistered-peer") {
+          assert_equals(snapshot.peer, "", `Invalid unregistered SCC member: ${diagnostic}`);
+        }
+        if (cycle === "font-edge") {
+          assert_equals(snapshot.fontSize, "16px", `Cyclic font-size inherits parent: ${diagnostic}`);
+        }
+      }
+    }, `Registered cycle default preservation: ${cycle} ${kind}`);
+  }
+}
+</script>

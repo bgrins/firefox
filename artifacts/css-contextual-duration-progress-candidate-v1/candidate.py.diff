@@ -1,0 +1,21 @@
+--- executed-broader/candidate.py
++++ disabled-progress-candidate/candidate.py
+@@ -50,8 +50,7 @@
+     comparison = load('broader_original_replay', str((HERE / 'comparison.py').relative_to(ROOT)))
+     comparison.replay_all(ROOT, policy)
+     comparison.admit_snapshot(read(original_directory / 'POST.json'), original_before)
+-    for kind in ('normative','reftest'):
+-        ownership.group_absent(read(original_directory / (kind + '-wpt') / 'PROCESS.json')['pgid'])
++    ownership.group_absent(read(original_directory / 'original-wpt/PROCESS.json')['pgid'])
+     assert output.parent == ROOT / 'artifacts' and not output.exists() and not output.is_symlink()
+     output.mkdir()
+     epoch = copy.deepcopy(original)
+@@ -102,7 +101,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'contextual-duration-restyle-tristate-broader-v1'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'contextual-duration-progress-candidate-v1'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):

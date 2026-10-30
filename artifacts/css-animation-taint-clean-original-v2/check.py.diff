@@ -1,0 +1,82 @@
+--- artifacts/css-animation-taint-clean-original-v1/check.py
++++ artifacts/css-animation-taint-clean-original-v2/check.py
+@@ -26,21 +26,39 @@
+                'activation_pending', 'baseline_binding', 'baseline_capsule', 'source_paths',
+                'restored_application_revision', 'provider_source_role', 'predecessor',
+                'restoration_binding', 'prepared_application_metadata', 'controls', 'wpt',
+-               'closed_process_receipts', 'references', 'suite_binding'}
++               'closed_process_receipts', 'references', 'suite_binding',
++               'preparation_predecessor', 'source_roster', 'preserved_absent_resources'}
+     assert {k: v for k, v in policy.items() if k not in mutable} == {k: v for k, v in old.items() if k not in mutable}
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+     assert policy['runtime_output'] == 'artifacts/css-animation-taint-clean-original-runtime-1'
+     assert policy['baseline_binding'] is None and policy['baseline_capsule'] is None
+     assert policy['provider_source_role'] == 'clean-original'
+-    assert policy['suite_binding'] is None
+-    assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
+-    assert policy['activation_pending']
++    assert policy['execution_enabled'] == policy['candidate_execution_enabled']
++    if policy['execution_enabled']:
++        assert policy['activation_pending'] == []
++    else:
++        assert policy['activation_pending']
++    prep = policy['preparation_predecessor']
++    owner.authenticate(ROOT / prep['directory'], prep['manifest_sha256'])
++    assert prep['directory'] == 'artifacts/css-animation-taint-clean-original-v1'
++    assert prep['manifest_sha256'] == 'a31d80d75df9e231735271fe69b0dc460ac3c54cc7a1bea48e70f3fe834f5bc0'
++    suite = policy['suite_binding']
++    assert suite is not None and suite['directory'] == 'artifacts/css-animation-taint-clean-suite-v1'
++    owner.authenticate(ROOT / suite['directory'], suite['manifest_sha256'])
++    load('clean_union_check', ROOT / suite['directory'] / 'check.py').main()
++    union = read(ROOT / suite['directory'] / 'INPUTS.json')
++    assert policy['source_roster'] == suite['directory'] + '/ROSTER.json'
++    assert policy['preserved_absent_resources'] == old['preserved_absent_resources'] + [union['new_metadata_absence']]
+     assert policy['restored_application_revision'] == old['wpt']['phase_revisions']['original']
+     settings = copy.deepcopy(old['wpt'])
+     settings['phase_revisions']['original'] = old['head']
++    settings.update(resources=union['resources'], metadata=union['metadata'],
++                    manifest={'path': suite['directory'] + '/MANIFEST.json', 'sha256': sha(ROOT / suite['directory'] / 'MANIFEST.json')},
++                    expected_subtests=union['roster'], expected_subtest_count=123,
++                    expected_control_count=123, expected_page_count=17, expected_regression_signature_count=140)
+     assert policy['wpt'] == settings
+-    assert settings['expected_subtest_count'] == 120 and settings['expected_page_count'] == 16
+-    assert settings['target_subtests'] == {} and settings['expected_regression_signature_count'] == 136
++    assert settings['expected_subtest_count'] == 123 and settings['expected_page_count'] == 17
++    assert settings['target_subtests'] == {} and settings['expected_regression_signature_count'] == 140
+     assert len(policy['accepted_current_payloads']) == 29
+     for path, digest in policy['references'].items():
+         assert sha(ROOT / path) == digest, path
+@@ -110,6 +128,8 @@
+         lambda p: p['prepared_application_metadata'].update(identity=[1, 2]),
+         lambda p: p.update(provider_source_role='held-original'),
+         lambda p: p.update(source_paths=[]),
++        lambda p: p.update(preserved_absent_resources=[]),
++        lambda p: p['wpt'].update(expected_subtest_count=120),
+     ):
+         bad = copy.deepcopy(policy)
+         change(bad)
+@@ -131,8 +151,8 @@
+         events.append({'action': 'test_end', 'test': page, 'status': 'OK'})
+     events.append({'action': 'suite_end'})
+     observed = assessor.assess(events, 1, projection.phase_policy(settings), checks, run_binding=app)
+-    assert observed['complete'] and len(observed['rows']) == 120 and all(r['status'] == 'FAIL' for r in observed['rows'])
+-    assert len(observed['ends']) == 16
++    assert observed['complete'] and len(observed['rows']) == 123 and all(r['status'] == 'FAIL' for r in observed['rows'])
++    assert len(observed['ends']) == 17
+     import tempfile
+     phases = load('clean_phase_check', HERE / 'phases.py')
+     with tempfile.TemporaryDirectory(prefix='css-clean-original-phase-', dir='/private/tmp') as temp:
+@@ -153,10 +173,10 @@
+         (scratch / 'wpt.py').write_text('import json\ndef save(p, v): p.write_text(json.dumps(v))\ndef run(*args): return {"synthetic": "complete observation"}\n')
+         assert phases.run(ROOT, scratch, scratch, policy, {}, lambda: snapshot, {}, lambda: False) == {'synthetic': 'complete observation'}
+         result = read(scratch / 'OUTCOMES.json')
+-        assert result['callbacks_failed'] == 120 and result['callbacks_passed'] == 0
+-        assert not result['native_acceptance'] and len(result['endings']) == 16
++        assert result['callbacks_failed'] == 123 and result['callbacks_passed'] == 0
++        assert not result['native_acceptance'] and len(result['endings']) == 17
+     assert not scratch.exists()
+-    print(json.dumps({'references': len(policy['references']), 'binding_negatives': 6, 'all_120_FAIL_retained': True, 'phase_failure_retention': True, 'scratch_removed': True, 'live_operations': False}))
++    print(json.dumps({'references': len(policy['references']), 'binding_negatives': 8, 'all_123_FAIL_retained': True, 'phase_failure_retention': True, 'scratch_removed': True, 'live_operations': False}))
+ 
+ 
+ if __name__ == '__main__':

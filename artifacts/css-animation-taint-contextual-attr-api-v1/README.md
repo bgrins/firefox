@@ -1,0 +1,19 @@
+# Contextual typed-attr resolver API plan
+
+A complete repair needs to preserve raw attribute expressions and evaluate them in the consuming context **inside the existing dependency-resolution transaction**. The concrete proposal is an owned substitution cursor that yields a dependency request, lets the driver visit that dependency in the current SCC session, and resumes without carrying a borrowed computed map across mutation. API.md specifies data structures, request transitions, call sites and mutation boundaries. It is a plan, not implemented Rust or a native-correctness proof.
+
+The predecessor audit is sealed at `d246a777`. Its table named `substitute_referenced_variable`; that is a naming error. The exact frozen function is `substitute_one_reference`, used throughout this successor. No predecessor artifact was changed.
+
+The plan closes several gaps in a simple context-key cache proposal:
+
+- Raw input identity, contextual result identity, and recursion-guard identity are separate. A consumer/type/URL/guard-specific result cannot replace the only raw expression or another consumer's result. Initially, results are reused only by their suspended request ID, avoiding an unproved global memoization key.
+- Primary acceptance and fallback edge selection use the same expression operation. Newly selected inner fallbacks enter the SCC walk; inventorying syntax alone is not sufficient.
+- The same physical attribute remains guarded across context changes. Property and attribute guard frames retain cyclic markings after nested calls return. Successful fallback text cannot erase a surrounding cycle.
+- Priority properties are evaluated during custom resolution. A prepare/finish split before the existing longhand commit suffix, preserving the earlier monotonic cache/style bookkeeping, makes suspension explicit; it does not treat `ensured_prioritary` as evidence of a completed value.
+- The existing caller parser identity and custom-reference suppression are preserved independently. Shorthand identity and the held provider's deferred alias behavior cannot be replaced with a convenient non-animatable boolean.
+
+The current [CSS Values substitution algorithm](https://drafts.csswg.org/css-values-5/#attr-substitution) places the attribute context around attribute-text substitution and handles the outer fallback separately. Its [substitution contexts](https://drafts.csswg.org/css-values-5/#substitution-context) retain cycle markings on involved invocations. PRIMARY.json records the bounded fresh read. This clarifies the guard contract; it does not establish equivalence to the native SCC implementation or resolve animation provenance through custom aliases.
+
+The most important unresolved implementation points are explicit rather than hidden behind a passing fixture: how deferred custom expansion with caller parser context shares canonical custom results; how late selected edges resume after SCC invalidation without publishing provisional values; how contextual attr cycles invalidate only the participating requests while preserving native custom/default semantics; and how all priority-property application paths use the same session without overlapping Rust borrows. These require source implementation and targeted checks before any complete-repair claim.
+
+SOURCE-TRACE.json contains sixteen exact frozen excerpts. Proposal V2 bodies include the held-provider/fallback-aware cascade behavior. The historical `properties/mod.rs` capture establishes the shorthand/substitution wrapper shape only; exact current applicability must be authenticated before editing that file. No live overlay/current source, Git, browser, build, native or canonical file was read or changed. No restricted test-shaped shortcut is proposed, no fixed pass budget is introduced, and no new acceptance or theorem count is claimed.

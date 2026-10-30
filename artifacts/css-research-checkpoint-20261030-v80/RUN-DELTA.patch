@@ -1,0 +1,240 @@
+--- artifacts/css-research-checkpoint-20261029-v79/commit.py
++++ artifacts/css-research-checkpoint-20261030-v80/commit.py
+@@ -15,7 +15,7 @@
+ BINDINGS = json.loads((HERE / 'BINDINGS.json').read_bytes())
+ HEAD = BINDINGS['head']
+ EPOCH = BINDINGS['epoch_sha256']
+-EXECUTION_ENABLED = True
++EXECUTION_ENABLED = False
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+@@ -32,88 +32,137 @@
+     return module
+ 
+ 
++def saved_admission():
++    matching = BINDINGS['restoration_binding']
++    runtime = ROOT / matching['runtime']
++    terminal = json.loads((runtime / 'ROOT-TERMINAL.json').read_bytes())
++    result = json.loads((runtime / 'CANDIDATE-RESULT.json').read_bytes())
++    assert sha((runtime / 'FILES.json').read_bytes()) == matching['runtime_manifest_sha256']
++    assert (terminal['session_id'], terminal['terminal_chunk'], terminal['exit']) == (matching['session_id'], matching['terminal_chunk'], matching['exit'])
++    assert terminal['owner_sha256'] == matching['owner_manifest_sha256']
++    assert terminal['result_sha256'] == matching['result_sha256'] == sha((runtime / 'CANDIDATE-RESULT.json').read_bytes())
++    assert terminal['exit'] in (0, 1) and terminal['build_success']
++    assert terminal['callbacks_passed'] + terminal['callbacks_failed'] == 4 and terminal['ending'] == 'OK'
++    assert terminal['complete_records'] == 4 and terminal['private_records_independently_validated']
++    assert terminal['raw_replay_verified'] and terminal['state_and_application_restoration_independently_verified']
++    assert terminal['native_acceptance'] is False
++    assert result['restoration_verified'] and result['runtime_controls_unchanged'] and result['empty_staging_preserved']
++    assert result['publication_errors'] == [] and result['native_fix_acceptance'] is False
++    phase = runtime / 'candidate-wpt'
++    phase_result = json.loads((phase / 'RESULT.json').read_bytes())
++    assessment = json.loads((phase / 'ASSESSMENT.json').read_bytes())
++    replay = json.loads((runtime / 'ROOT-REPLAY.json').read_bytes())
++    assert assessment['complete'] and assessment['errors'] == []
++    assert replay['candidate_rows'] == assessment['rows'] and replay['candidate_endings'] == assessment['ends']
++    assert len(assessment['rows']) == 4 and all(row['status'] in ('PASS', 'FAIL') for row in assessment['rows'])
++    assert len(assessment['ends']) == 1 and assessment['ends'][0]['status'] == 'OK'
++    assert terminal['callbacks_passed'] == sum(row['status'] == 'PASS' for row in assessment['rows'])
++    assert terminal['callbacks_failed'] == sum(row['status'] == 'FAIL' for row in assessment['rows'])
++    hashes = {key: sha((phase / name).read_bytes()) for key, name in [('assessment_sha256', 'ASSESSMENT.json'), ('raw_sha256', 'raw.jsonl'), ('result_sha256', 'RESULT.json')]}
++    assert replay['phase'] == hashes and replay['comparison_errors'] == assessment['comparison_errors']
++    passed = assessment['comparison_gate_passed']
++    assert passed == terminal['comparison_gate_passed'] == replay['comparison_gate_passed'] == phase_result['comparison_gate_passed'] == phase_result['success'] == result['success']
++    assert phase_result['execution_error'] is None and phase_result['preservation_verified'] and phase_result['native_fix_acceptance'] is False
++    assert terminal['exit'] == phase_result['exit'] == (0 if passed else 1)
++    backup = json.loads((runtime / 'BACKUP-CLEANUP.json').read_bytes())
++    assert backup['verified_original_restoration'] and backup['owned_backup_bytes'] == terminal['backup_removed_bytes'] == 1008605176
++    if passed:
++        assert terminal['callbacks_failed'] == 0 and not assessment['comparison_errors']
++        assert result['error'] is None and result['candidate_phase'] == hashes
++        assert backup['removed'] and not backup['retained_after_failure']
++    else:
++        assert terminal['callbacks_failed'] > 0 and assessment['comparison_errors']
++        assert result['candidate_phase'] is None
++        assert result['error'] == repr(AssertionError((None, True, assessment['errors'], assessment['comparison_errors'])))
++        assert not backup['removed'] and backup['retained_after_failure']
++        removed = json.loads((runtime / 'ROOT-BACKUP-CLEANUP.json').read_bytes())
++        assert removed['removed'] and removed['verified_original_restoration'] and removed['inventory_verified_before_removal']
++        assert removed['owner_failure_receipt_preserved'] and removed['owned_backup_bytes'] == backup['owned_backup_bytes']
++    collection = json.loads((runtime / 'PROGRESS-RECORDS.json').read_bytes())
++    assert collection['complete'] and len(collection['records']) == 4 and not collection['missing'] and not collection['errors']
++    assert replay['record_comparison_sha256'] == sha((runtime / 'RECORD-COMPARISON.json').read_bytes())
++    restoration = json.loads((runtime / 'RESTORATION.json').read_bytes())
++    assert restoration['errors'] == [] and restoration['owned_processes'] == {}
++    assert set(restoration['sources']) == {'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'dom/animation/EffectCompositor.h'}
++    refresh = json.loads((ROOT / matching['root_refresh']).read_bytes())
++    assert refresh['after_epoch'] == EPOCH and refresh['full_restored_state_verified']
++    assert refresh['only_changed_field'] == 'raw_index_observation.current' and refresh['accepted_fix_increment'] == 0
++    assert refresh['runtime_manifest_sha256'] == matching['runtime_manifest_sha256']
++    assert refresh['observation'] == terminal['raw_index_observation']
++    assert BINDINGS['prepared_application_metadata'] == {name: terminal[name] for name in ('restored_application_entry', 'restored_application_target')}
++    fresh_app = json.loads((ROOT / BINDINGS['fresh_application_capture']['path']).read_bytes())
++    assert fresh_app['entry_identity'] == terminal['restored_application_entry']['identity']
++    assert fresh_app['identity'] == terminal['restored_application_target']['identity']
++    assert fresh_app['sha256'] == terminal['restored_application_target']['sha256']
++    assert fresh_app['entry_type'] == 40960 and fresh_app['symlink_target'] == terminal['restored_application_entry']['target']
++    assert fresh_app['resolved'] == terminal['restored_application_entry']['target']
++    assert fresh_app['revision'] == '20ab7e723b663c0f78c8490e60a6fccc5e65cc99' and fresh_app['browser_build_id'] == '20261029165244'
++    audit = json.loads((ROOT / BINDINGS['final_state_audit']['path']).read_bytes())
++    assert audit['index']['head'] == HEAD and audit['index']['raw_index'] == refresh['observation']['after']
++    assert audit == json.loads((runtime / 'POST.json').read_bytes())
++    pre = json.loads((runtime / 'CANDIDATE-PRE.json').read_bytes())
++    normalized = copy.deepcopy(pre['snapshot'])
++    normalized['index']['raw_index'] = refresh['observation']['after']
++    assert normalized == audit
++    original_binding = BINDINGS['baseline_binding']
++    original = ROOT / original_binding['runtime']
++    assert sha((original / 'FILES.json').read_bytes()) == original_binding['runtime_manifest_sha256']
++    original_terminal = json.loads((original / 'ROOT-TERMINAL.json').read_bytes())
++    assert (original_terminal['session_id'], original_terminal['terminal_chunk'], original_terminal['exit']) == (81249, '88aff8', 0)
++    assert original_terminal['callbacks_passed'] == 0 and original_terminal['callbacks_failed'] == 4 and original_terminal['page_endings_ok'] == 1
++    assert original_terminal['raw_replay_verified'] and original_terminal['pre_post_equality_verified'] and original_terminal['current_source_binary_control_pins_verified']
++    assert original_terminal['private_records_independently_validated'] and original_terminal['literal_and_initial_calibrations_verified']
++    assert original_terminal['complete_records'] == 4 and original_terminal['native_acceptance'] is False
++    original_assessment = json.loads((original / 'original-wpt/ASSESSMENT.json').read_bytes())
++    assert replay['original_rows'] == original_assessment['rows']
++    previous = BINDINGS['previous_attempt']
++    prior = ROOT / previous['path']
++    failed = json.loads((prior / 'result.json').read_bytes())
++    failed_terminal = json.loads((ROOT / previous['root_terminal_path']).read_bytes())
++    assert sha((prior / 'result.json').read_bytes()) == previous['result_sha256'] == failed_terminal['result_sha256']
++    assert sha((ROOT / previous['root_terminal_path']).read_bytes()) == previous['root_terminal_sha256']
++    assert failed == {'committed': False, 'exit': 128, 'real_index_and_canonical_state_unchanged': True}
++    assert (failed_terminal['session_id'], failed_terminal['terminal_chunk'], failed_terminal['owner_exit']) == (98813, '41c786', 1)
++    assert failed_terminal['head'] == HEAD and failed_terminal['full_current_state_independently_verified']
++    assert failed_terminal['owned_temporary_index_removed'] and failed_terminal['source_transition_lock_absent']
++    assert sha((prior / 'signing.log').read_bytes()) == failed_terminal['signing_log_sha256']
++    reviewer = json.loads((ROOT / BINDINGS['reviewer_binding']['path']).read_bytes())
++    assert reviewer['exit'] == 0 and reviewer['commit_reviewer'] == 'r?#firefox-style-system-reviewers'
++    assert sha((ROOT / reviewer['log_path']).read_bytes()) == reviewer['log_sha256']
++    return audit
++
++
+ def main():
+     assert sys.argv[1:] in [['--check'], ['--run']]
+     if sys.argv[1:] == ['--run']:
+         assert EXECUTION_ENABLED, 'Draft signing execution is disabled'
+-    required = ('head', 'epoch_sha256', 'selection_sha256', 'base_selection_sha256', 'restoration_binding', 'reviewer_binding', 'final_state_audit', 'final_roadmap', 'prepared_application_metadata', 'completed_untracked_audit', 'same_element_binding', 'strict_join')
++    required = ('head', 'epoch_sha256', 'selection_sha256', 'base_selection_sha256', 'restoration_binding', 'reviewer_binding', 'final_state_audit', 'final_roadmap', 'prepared_application_metadata', 'completed_untracked_audit', 'baseline_binding', 'root_verification_reported', 'fresh_application_capture', 'audit_status_capture')
+     assert all(BINDINGS.get(name) is not None for name in required), 'Final restoration, selection and reviewer bindings are pending'
++    assert not BINDINGS['pending_inclusion'], 'Final completed-work selection remains pending'
+     assert not (HERE / 'result.json').exists(), 'A completed attempt must not be retried'
+     for name, digest in BINDINGS['references'].items():
+         assert name.startswith('artifacts/') and '..' not in Path(name).parts
+         path = ROOT / name
+         assert path.is_file() and not path.is_symlink() and sha(path.read_bytes()) == digest, name
+-    for name in ('reviewer_binding', 'final_state_audit', 'final_roadmap', 'completed_untracked_audit', 'strict_join'):
++    for name in ('reviewer_binding', 'final_state_audit', 'final_roadmap', 'completed_untracked_audit', 'fresh_application_capture', 'audit_status_capture'):
+         binding = BINDINGS[name]
+         assert BINDINGS['references'][binding['path']] == binding['sha256']
+-    matching = BINDINGS['restoration_binding']
+-    runtime = ROOT / matching['runtime']
+-    terminal = json.loads((runtime / 'ROOT-TERMINAL.json').read_bytes())
+-    result = json.loads((runtime / 'CANDIDATE-RESULT.json').read_bytes())
+-    assert sha((runtime / 'FILES.json').read_bytes()) == matching['runtime_manifest_sha256']
+-    assert (terminal['session_id'], terminal['terminal_chunk'], terminal['exit']) == (matching['session_id'], matching['terminal_chunk'], matching['exit']) == (61350, '6fb92f', 0)
+-    assert terminal['result_sha256'] == sha((runtime / 'CANDIDATE-RESULT.json').read_bytes())
+-    assert terminal['callbacks_failed'] == 0 and terminal['callbacks_passed'] == 9 and terminal['page_endings_ok'] == 3
+-    assert terminal['comparison_gate_passed'] is True and terminal['native_acceptance'] is False
+-    assert terminal['raw_replay_verified'] and terminal['state_and_application_restoration_independently_verified']
+-    assert result['success'] is True and result['restoration_verified'] and not result['publication_errors']
+-    analysis_path = runtime / 'RECORD-ANALYSIS.json'
+-    assert terminal['record_analysis_sha256'] == sha(analysis_path.read_bytes())
+-    analysis = json.loads(analysis_path.read_bytes())
+-    assert analysis['collection_complete'] and len(analysis['records']) == 9
+-    assert {name for name, item in analysis['records'].items() if not item['observation']['first_sample_matches_fixed_oracle']} == {'two-hop-ordinary', 'two-hop-animated', 'lh-chain-ordinary', 'lh-chain-animated'}
+-    cleanup = json.loads((runtime / 'BACKUP-CLEANUP.json').read_bytes())
+-    assert cleanup['removed'] and cleanup['verified_original_restoration'] and cleanup['retained_after_failure'] is False
+-    assert cleanup['owned_backup_bytes'] == terminal['backup_removed_bytes'] == 1008605176
+-    refresh = json.loads((ROOT / matching['root_refresh']).read_bytes())
+-    assert refresh['after_epoch'] == EPOCH and refresh['full_restored_state_verified']
+-    assert refresh['only_changed_field'] == 'raw_index_observation.current'
+-    assert refresh['runtime_manifest_sha256'] == matching['runtime_manifest_sha256']
+-    assert refresh['observation'] == terminal['raw_index_observation']
+-    assert BINDINGS['prepared_application_metadata'] == {name: terminal[name] for name in ('restored_application_entry', 'restored_application_target')}
+-    reviewer = json.loads((ROOT / BINDINGS['reviewer_binding']['path']).read_bytes())
+-    assert reviewer['exit'] == 0 and reviewer['commit_reviewer'] == 'r?#firefox-style-system-reviewers'
+-    assert sha((ROOT / reviewer['log_path']).read_bytes()) == reviewer['log_sha256']
+-    audit = json.loads((ROOT / BINDINGS['final_state_audit']['path']).read_bytes())
+-    assert audit['index']['head'] == HEAD and audit['index']['raw_index'] == refresh['observation']['after']
+-    assert audit == json.loads((runtime / 'POST.json').read_bytes())
+-    same = BINDINGS['same_element_binding']
+-    original = ROOT / same['runtime']
+-    assert sha((original / 'FILES.json').read_bytes()) == same['runtime_manifest_sha256']
+-    original_terminal = json.loads((original / 'ROOT-TERMINAL.json').read_bytes())
+-    assert (original_terminal['session_id'], original_terminal['terminal_chunk'], original_terminal['owner_exit']) == (55405, '658b02', 0)
+-    assert original_terminal['complete_browser_evidence'] and original_terminal['state_preserved']
+-    assert original_terminal['callbacks_passed'] == 1 and original_terminal['callbacks_failed'] == 1 and original_terminal['page_endings_ok'] == 1
+-    assert original_terminal['wpt_exit'] == 1 and original_terminal['native_fix_acceptance'] is False
+-    assert original_terminal['raw_sha256'] == sha((original / 'raw.jsonl').read_bytes())
+-    original_result = json.loads((original / 'RESULT.json').read_bytes())
+-    assert original_result['exit'] == 1 and original_result['error'] is None and original_result['state_preserved'] and original_result['complete_browser_evidence']
+-    original_before = json.loads((original / 'PRE.json').read_bytes())
+-    assert original_before == json.loads((original / 'POST.json').read_bytes())
+-    assert original_before['head'] == HEAD and original_before['controls']['CURRENT-EPOCH.json'] == EPOCH
+-    assert original_before['index_sha256'] == audit['index']['raw_index'] and original_before['diff_sha256'] == audit['index']['working_diff']
+-    assert original_before['staged'] == ''
+-    app_path = 'objdir-full.noindex/dist/Nightly.app/Contents/Resources/application.ini'
+-    assert original_before['pins'][app_path] == BINDINGS['prepared_application_metadata']['restored_application_target']['sha256']
+-    original_assessment = json.loads((original / 'ASSESSMENT.json').read_bytes())
+-    assert original_assessment['complete'] and [row['status'] for row in original_assessment['callbacks']] == ['FAIL', 'PASS']
+-    assert [row['status'] for row in original_assessment['endings']] == ['OK']
+-    empty = ROOT / same['incomplete_runtime']
+-    assert sha((empty / 'FILES.json').read_bytes()) == same['incomplete_runtime_manifest_sha256']
+-    empty_terminal = json.loads((empty / 'ROOT-TERMINAL.json').read_bytes())
+-    assert (empty_terminal['session_id'], empty_terminal['terminal_chunk'], empty_terminal['owner_exit']) == (61311, 'e2b902', 0)
+-    assert empty_terminal['browser_test_count'] == 0 and empty_terminal['complete_browser_evidence'] is False and empty_terminal['state_preserved']
+-    joined = json.loads((ROOT / BINDINGS['strict_join']['path']).read_bytes())
+-    assert joined['input_hashes']['runtime_manifest'] == matching['runtime_manifest_sha256']
+-    assert joined['full_authored_rosters_matched'] and joined['query_count'] == 258 and joined['posted_css_fields_joined'] == 204
+-    assert joined['unposted_initial_reads'] == 54 and joined['native_causality_or_composition_proved'] is False
++    audit = saved_admission()
+     user_audit = json.loads((ROOT / BINDINGS['completed_untracked_audit']['path']).read_bytes())
+     assert user_audit['head'] == HEAD and user_audit['untracked_count'] == 563
+     assert not user_audit['unexpected_paths'] and not user_audit['missing_paths'] and not user_audit['staged_paths']
+     assert user_audit['project_hashes_match_committed_recovery'] and len(user_audit['project_files']) == 68
+     assert all(row['matches'] and row['sha256'] == row['committed_sha256'] for row in user_audit['project_files'])
+     assert user_audit['unrelated_count'] == 495 and not user_audit['unrelated_metadata_mismatches']
+-    assert user_audit['status_stable_on_repeat'] and user_audit['tracked_modified_paths'] == ['servo/components/style/custom_properties.rs']
++    assert user_audit['tracked_modified_paths'] == ['servo/components/style/custom_properties.rs']
++    assert user_audit['raw_index'] == audit['index']['raw_index']
++    assert user_audit['provider_sha256'] == '2675b33b30ac43db5b758d5a80f42fa4530856c32d5a0923882a15f8a8bc5774'
++    assert user_audit['nested_status'] == ['?? .DS_Store']
++    assert user_audit['project_wpt'] == 53 and user_audit['project_native_and_support'] == 15
++    assert user_audit['unrelated_contents_read'] is False and user_audit['ignored_research_artifacts_included'] is False
++    assert user_audit['status_capture_sha256'] == BINDINGS['audit_status_capture']['sha256']
++    assert sha((ROOT / BINDINGS['audit_status_capture']['path']).read_bytes()) == user_audit['status_capture_sha256']
++    assert BINDINGS['references'][user_audit['reference_audit']] == user_audit['reference_sha256']
+     assert (HERE / 'WORK-TABLE.md').read_bytes() == (ROOT / Path(BINDINGS['final_roadmap']['path']).parent / 'WORK-TABLE.md').read_bytes()
+     assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES'))
+     assert git('rev-parse', 'HEAD').decode().strip() == HEAD
+@@ -123,7 +172,7 @@
+     selected = json.loads((HERE / 'SELECTION.json').read_bytes())
+     assert sha((HERE / 'BASE-SELECTION.json').read_bytes()) == BINDINGS['base_selection_sha256']
+     base_selected = json.loads((HERE / 'BASE-SELECTION.json').read_bytes())
+-    assert len(base_selected) == 4025 and all(selected.get(path) == row for path, row in base_selected.items())
++    assert len(base_selected) == 4456 and all(selected.get(path) == row for path, row in base_selected.items())
+     assert len(selected) == BINDINGS['selected_paths_before_self']
+     for manifest_path, digest in BINDINGS['completed_packages'].items():
+         manifest = ROOT / manifest_path
+@@ -170,7 +219,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v79-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v80-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)
+@@ -184,7 +233,7 @@
+             tree = git('write-tree', env=index_env).decode().strip()
+             assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+             message = directory / 'message'
+-            message.write_text('No bug - Record CSS first-read traces and completion research. r?#firefox-style-system-reviewers\n')
++            message.write_text('No bug - Record CSS duration dependency experiments and publication preparation. r?#firefox-style-system-reviewers\n')
+             with (HERE / 'signing.log').open('x') as stream:
+                 result = subprocess.run(GIT + ['commit', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
+             if result.returncode:

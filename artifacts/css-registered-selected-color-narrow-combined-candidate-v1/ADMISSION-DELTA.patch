@@ -1,0 +1,24 @@
+--- artifacts/css-registered-selected-color-image-only-candidate-v1/admission.py
++++ artifacts/css-registered-selected-color-narrow-combined-candidate-v1/admission.py
+@@ -138,10 +138,10 @@
+     authenticate(reviewer,binding['reviewer']['manifest_sha256'])
+     reviewer_policy = read(reviewer / 'POLICY.json')
+     actual = review['actual_terminal']
+-    assert (actual['session'],actual['launch_chunk'],actual['terminal_chunk'],actual['exit']) == (53330,'c5797a','d53828',0)
++    assert (actual['session'],actual['launch_chunk'],actual['terminal_chunk'],actual['exit']) == (77097,'c7d5a6','d3bc61',0)
+     assert review['owner_manifest_sha256'] == binding['owner']['manifest_sha256']
+     assert read(directory / 'ROOT-OWNER-TERMINAL.json') == dict(actual,active_owner_manifest_sha256=binding['owner']['manifest_sha256'])
+-    assert read(directory / 'ROOT-REVIEWER-TERMINAL.json') == {'session':69771,'launch_chunk':'bef6b5','terminal_chunk':'733912','exit':0,'report_sha256':binding['review_sha256'],'active_reviewer_manifest_sha256':binding['reviewer']['manifest_sha256']}
++    assert read(directory / 'ROOT-REVIEWER-TERMINAL.json') == {'session':39982,'launch_chunk':'6243d8','terminal_chunk':'956367','exit':0,'report_sha256':binding['review_sha256'],'active_reviewer_manifest_sha256':binding['reviewer']['manifest_sha256']}
+     assert reviewer_policy['execution_enabled'] and reviewer_policy['actual_terminal'] == actual
+     assert reviewer_policy['owner_manifest_sha256'] == binding['owner']['manifest_sha256']
+     assert reviewer_policy['owner_directory'] == binding['owner']['directory'] and reviewer_policy['runtime_directory'] == binding['directory']
+@@ -157,7 +157,7 @@
+     refresh = read(directory / 'ROOT-EPOCH-REFRESH.json')
+     assert refresh['previous_epoch_sha256'] == previous['controls']['CURRENT-EPOCH.json']
+     assert refresh['only_changed_field'] == 'raw_index_observation.current' and refresh['semantic_index_unchanged']
+-    assert refresh['independent_review_sha256'] == binding['review_sha256'] and refresh['independent_review_terminal'] == '69771/733912/0'
++    assert refresh['independent_review_sha256'] == binding['review_sha256'] and refresh['independent_review_terminal'] == '39982/956367/0'
+     assert refresh['other_controls_unchanged'] == {k:v for k,v in previous['controls'].items() if k!='CURRENT-EPOCH.json'}
+     expected = copy.deepcopy(pre['snapshot'])
+     assert expected['index']['raw_index'] == refresh['raw_index_before']

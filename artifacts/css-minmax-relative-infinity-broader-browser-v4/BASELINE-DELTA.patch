@@ -1,0 +1,44 @@
+--- executed-minmax-v3/baseline.py
++++ disabled-broader-v4/baseline.py
+@@ -22,6 +22,11 @@
+     return module
+ 
+ 
++def expected_wpt(policy):
++    comparison = load('minmax_roster_binding', str((HERE / 'comparison.py').relative_to(ROOT)))
++    return comparison.expected_wpt(ROOT, policy)
++
++
+ def prepare(manifest):
+     assert sha(HERE / 'FILES.json') == manifest
+     policy = read(HERE / 'POLICY.json')
+@@ -37,24 +42,20 @@
+             assert not path.is_absolute() and '..' not in path.parts and not (ROOT / path).is_symlink()
+             assert policy['references'][str(path)] == sha(ROOT / path) == record[kind + '_sha256']
+     ownership.authenticate(ROOT / policy['baseline_capsule']['directory'], policy['baseline_capsule']['sha256'])
+-    old = read(ROOT / policy['baseline_capsule']['directory'] / 'POLICY.json')['wpt']
+-    old['phase_revisions']['candidate'] = policy['head']
+-    assert policy['wpt'] == old
++    assert policy['wpt'] == expected_wpt(policy)
+     wpt = policy['wpt']
+     assert (wpt['expected_subtest_count'], wpt['expected_target_count'], wpt['expected_control_count'],
+-            wpt['expected_page_count'], wpt['expected_regression_signature_count']) == (18, 8, 10, 1, 11)
++            wpt['expected_page_count'], wpt['expected_regression_signature_count']) == (472, 14, 458, 12, 470)
+     binding = policy['baseline_binding']
+     directory = ROOT / binding['directory']
+     ownership.authenticate(directory, binding['manifest_sha256'])
+     assert read(directory / binding['terminal_path']) == binding['terminal']
+     assert binding['terminal']['exit'] == 0 and sha(directory / 'RESULT.json') == binding['result_sha256']
+-    phase = directory / 'original-wpt'
++    assert sha(directory / 'DISCOVERED-ROSTER.json') == binding['roster_sha256']
+     assessor = load('minmax_assessor', str((HERE / 'assess.py').relative_to(ROOT)))
+     checks = load('minmax_checks', wpt['checks_helper'])
+-    replay = assessor.assess([json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()],
+-        read(phase / 'RESULT.json')['exit'], read(phase / 'ASSESSMENT-POLICY.json'), checks,
+-        run_binding=read(phase / 'APPLICATION-METADATA.json'))
+-    assert json.loads(json.dumps(replay)) == read(phase / 'ASSESSMENT.json') and replay['complete']
++    comparison = load('minmax_comparison', str((HERE / 'comparison.py').relative_to(ROOT)))
++    comparison.replay_original(ROOT, policy, assessor, checks)
+     return policy, ownership, roles
+ 
+ 

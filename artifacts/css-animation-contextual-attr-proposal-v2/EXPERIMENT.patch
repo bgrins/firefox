@@ -1,0 +1,2100 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -11,7 +11,7 @@
+ use crate::custom_properties_map::{CustomPropertiesMap, OwnMap};
+ use crate::device::Device;
+ use crate::dom::AttributeTracker;
+-use crate::properties::{CSSWideKeyword, PrioritaryPropertyId, PropertyIdRef};
++use crate::properties::{CSSWideKeyword, PrioritaryPropertyId, PropertyId, PropertyIdRef};
+ use crate::properties_and_values::{
+     rule::Descriptors as PropertyDescriptors,
+     syntax::Descriptor as SyntaxDescriptor,
+@@ -670,6 +670,182 @@
+     Env,
+     /// DOM attribute
+     Attr,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub(crate) struct AttrInvocation {
++    owner: usize,
++    occurrence: usize,
++    ancestors: Vec<usize>,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub(crate) struct AttrUseKey {
++    pub name: Name,
++    pub namespace: Namespace,
++    pub property: Option<PropertyId>,
++    pub suppress_animation_taint_sink: bool,
++    pub url_data: UrlExtraData,
++    pub guard_identity: usize,
++    invocation: Option<AttrInvocation>,
++}
++
++impl AttrUseKey {
++    pub fn new(
++        name: &Name,
++        namespace: &Namespace,
++        property: Option<PropertyIdRef>,
++        suppress_animation_taint_sink: bool,
++        url_data: &UrlExtraData,
++        guard_identity: usize,
++    ) -> Self {
++        Self {
++            name: name.clone(),
++            namespace: namespace.clone(),
++            property: property.map(|property| match property {
++                PropertyIdRef::Custom(name) => PropertyId::Custom(name.clone()),
++                PropertyIdRef::NonCustom(id) => PropertyId::NonCustom(id),
++            }),
++            suppress_animation_taint_sink,
++            url_data: url_data.clone(),
++            guard_identity,
++            invocation: None,
++        }
++    }
++
++    fn same_prepared_use(&self, other: &Self) -> bool {
++        self.invocation.is_some()
++            && self.invocation == other.invocation
++            && self.name == other.name && self.namespace == other.namespace
++            && self.property == other.property
++            && self.suppress_animation_taint_sink == other.suppress_animation_taint_sink
++            && self.url_data == other.url_data
++    }
++
++    pub fn property_id(&self) -> Option<PropertyIdRef> {
++        self.property.as_ref().map(PropertyIdRef::from)
++    }
++}
++
++pub(crate) enum AttrUseState {
++    New,
++    Evaluating,
++    Pending,
++    Ready(ComputedRegisteredValue),
++    Invalid,
++    Cyclic,
++}
++
++pub(crate) struct AttrUse {
++    pub key: AttrUseKey,
++    pub input: Option<Arc<VariableValue>>,
++    pub state: AttrUseState,
++    pub custom_depth: usize,
++}
++
++pub(crate) enum AttrEntry {
++    Evaluate,
++    Existing,
++    PhysicalCycle(usize),
++}
++
++#[derive(Default)]
++pub(crate) struct AttrResolution {
++    pub uses: Vec<AttrUse>,
++    active: Vec<usize>,
++    pub prepared_owner: Option<usize>,
++}
++
++impl AttrResolution {
++    pub fn reset(&mut self) {
++        assert!(self.active.is_empty());
++        self.uses.clear();
++        self.prepared_owner = None;
++    }
++
++    pub fn request(&mut self, key: AttrUseKey, input: Option<Arc<VariableValue>>) -> usize {
++        if let Some(index) = self.uses.iter().position(|request| request.key == key) {
++            return index;
++        }
++        let index = self.uses.len();
++        self.uses.push(AttrUse { key, input, state: AttrUseState::New, custom_depth: 0 });
++        index
++    }
++
++    fn invocation_key(
++        &self, owner: usize, occurrence: usize, name: &Name, namespace: &Namespace,
++        property: Option<PropertyIdRef>, suppress: bool, url_data: &UrlExtraData,
++    ) -> AttrUseKey {
++        let mut key = AttrUseKey::new(name, namespace, property, suppress, url_data, self.uses.len());
++        key.invocation = Some(AttrInvocation { owner, occurrence, ancestors: self.active.clone() });
++        key
++    }
++
++    pub fn admit(
++        &mut self, owner: usize, occurrence: usize, name: &Name, namespace: &Namespace,
++        property: Option<PropertyIdRef>, suppress: bool, url_data: &UrlExtraData,
++        input: Option<Arc<VariableValue>>,
++    ) -> usize {
++        let key = self.invocation_key(owner, occurrence, name, namespace, property, suppress, url_data);
++        if let Some(index) = self.uses.iter().position(|request| request.key.same_prepared_use(&key)) {
++            return index;
++        }
++        self.request(key, input)
++    }
++
++    fn prepared_request(
++        &self, owner: usize, occurrence: usize, name: &Name, namespace: &Namespace,
++        property: Option<PropertyIdRef>, suppress: bool, url_data: &UrlExtraData,
++    ) -> Option<usize> {
++        let key = self.invocation_key(owner, occurrence, name, namespace, property, suppress, url_data);
++        self.uses.iter().position(|request| request.key.same_prepared_use(&key))
++    }
++
++    pub fn suspend(&mut self, index: usize) {
++        assert_eq!(self.active.pop(), Some(index));
++        if matches!(self.uses[index].state, AttrUseState::Evaluating) {
++            self.uses[index].state = AttrUseState::Pending;
++        }
++    }
++
++    pub fn enter(&mut self, index: usize) -> AttrEntry {
++        let key = &self.uses[index].key;
++        if let Some(position) = self.active.iter().position(|active| {
++            let other = &self.uses[*active].key;
++            key.name == other.name && key.namespace == other.namespace
++        }) {
++            let previous = self.active[position];
++            for active in &self.active[position..] {
++                self.uses[*active].state = AttrUseState::Cyclic;
++            }
++            self.uses[index].state = AttrUseState::Cyclic;
++            return AttrEntry::PhysicalCycle(previous);
++        }
++        if !matches!(self.uses[index].state, AttrUseState::New) {
++            return AttrEntry::Existing;
++        }
++        self.uses[index].state = AttrUseState::Evaluating;
++        self.active.push(index);
++        AttrEntry::Evaluate
++    }
++
++    fn mark_active_since(&mut self, depth: usize) {
++        for request in &self.active[depth..] {
++            self.uses[*request].state = AttrUseState::Cyclic;
++        }
++    }
++
++    pub fn leave(&mut self, index: usize, value: Option<ComputedRegisteredValue>) {
++        assert_eq!(self.active.pop(), Some(index));
++        if matches!(self.uses[index].state, AttrUseState::Cyclic) {
++            return;
++        }
++        assert!(matches!(self.uses[index].state, AttrUseState::Evaluating));
++        self.uses[index].state = match value {
++            Some(value) => AttrUseState::Ready(value),
++            None => AttrUseState::Invalid,
++        };
++    }
+ }
+ 
+ /// A wrapper map that encapsulates both the custom properties and attributes
+@@ -1611,7 +1787,15 @@
+     let attr = LocalName::with_name(name, |local_name| {
+         attribute_tracker.query(local_name, namespace).ok_or(())
+     })?;
+-    let mut parser = Parser::new(&attr);
++    parse_attr_input(Some(&attr), url_data)
++}
++
++pub(crate) fn parse_attr_input(
++    attr: Option<&str>,
++    url_data: &UrlExtraData,
++) -> Result<ComputedRegisteredValue, ()> {
++    let attr = attr.ok_or(())?;
++    let mut parser = Parser::new(attr);
+     // TODO(Bug 2021110): Support namespaced attributes in chained references.
+     let value = VariableValue::parse(&mut parser, None, url_data).map_err(|_| ())?;
+     Ok(ComputedRegisteredValue::universal(Arc::new(value)))
+@@ -1744,7 +1928,7 @@
+     let url_data = &value.url_data;
+     let mut state = SubstitutionState::default();
+     if is_var {
+-        state.names.push(name);
++        state.push_name(name, &attribute_tracker.attr_resolution);
+     }
+     let substitution = substitute_internal(
+         value,
+@@ -1757,13 +1941,26 @@
+         None,
+         false,
+     );
+-    let substitution = if is_var && state.cyclic_names.contains(&name) {
++    let substitution = if is_var && state.cyclic_names.contains(name) {
+         Err(())
+     } else {
+         substitution
+     };
+     drop(state);
+ 
++    apply_substituted_value(name, namespace, url_data, substitution, stylist, context);
++}
++
++fn apply_substituted_value(
++    name: &Name,
++    namespace: Option<&Namespace>,
++    url_data: &UrlExtraData,
++    substitution: Result<Substitution, ()>,
++    stylist: &Stylist,
++    context: &mut computed::Context,
++) {
++    let is_var = namespace.is_none();
++    let registration = stylist.get_custom_property_registration(name);
+     let Ok(substitution) = substitution else {
+         if is_var {
+             handle_invalid_at_computed_value_time(name, registration, context);
+@@ -1853,10 +2050,95 @@
+     }
+ }
+ 
++pub(crate) struct PreparedCustomSubstitution {
++    substitution: Substitution<'static>,
++    url_data: UrlExtraData,
++}
++
++impl PreparedCustomSubstitution {
++    pub fn selected_value(&self, name: &Name, registration: &PropertyDescriptors) -> Option<VariableValue> {
++        let mut parser = Parser::new(&self.substitution.css);
++        if parser.try_parse(CSSWideKeyword::parse).is_ok() {
++            return None;
++        }
++        if let Some(syntax) = registration.syntax.as_ref() {
++            let taint = if self.substitution.attr_tainted {
++                AttrTaint::new_fully_tainted(self.substitution.css.len())
++            } else {
++                AttrTaint::default()
++            };
++            let mut parser = Parser::new(&self.substitution.css);
++            if SpecifiedRegisteredValue::parse(
++                &mut parser, syntax, &self.url_data, None,
++                AllowComputationallyDependent::Yes, taint, Some(PropertyIdRef::from(name)),
++            ).is_err() {
++                return None;
++            }
++        }
++        Some(VariableValue::new_resolved(
++            self.substitution.css.to_string(), &self.url_data,
++            self.substitution.first_token_type, self.substitution.last_token_type,
++        ))
++    }
++
++    pub fn apply(self, name: &Name, stylist: &Stylist, context: &mut computed::Context) {
++        apply_substituted_value(name, None, &self.url_data, Ok(self.substitution), stylist, context);
++    }
++}
++
++pub(crate) fn prepare_custom_substitution(
++    name: &Name,
++    value: &VariableValue,
++    stylist: &Stylist,
++    context: &computed::Context,
++    attribute_tracker: &mut AttributeTracker,
++) -> Result<PreparedCustomSubstitution, ()> {
++    let mut state = SubstitutionState::default();
++    state.push_name(name, &attribute_tracker.attr_resolution);
++    let substitution = substitute_internal(
++        value, Some(PropertyIdRef::from(name)), &context.builder.substitution_functions,
++        stylist, context, attribute_tracker, &mut state, None, false,
++    )?;
++    if state.cyclic_names.contains(name) {
++        return Err(());
++    }
++    Ok(PreparedCustomSubstitution {
++        substitution: Substitution {
++            css: Cow::Owned(substitution.css.into_owned()),
++            first_token_type: substitution.first_token_type,
++            last_token_type: substitution.last_token_type,
++            attr_tainted: substitution.attr_tainted,
++            animation_tainted: substitution.animation_tainted,
++        },
++        url_data: value.url_data.clone(),
++    })
++}
++
+ #[derive(Default)]
+-struct SubstitutionState<'a> {
+-    names: SmallVec<[&'a Name; 8]>,
+-    cyclic_names: SmallVec<[&'a Name; 8]>,
++struct SubstitutionState {
++    names: SmallVec<[Name; 8]>,
++    attribute_depths: SmallVec<[usize; 8]>,
++    cyclic_names: SmallVec<[Name; 8]>,
++}
++
++impl SubstitutionState {
++    fn push_name(&mut self, name: &Name, attributes: &AttrResolution) {
++        self.names.push(name.clone());
++        self.attribute_depths.push(attributes.active.len());
++    }
++
++    fn pop_name(&mut self) {
++        self.names.pop();
++        self.attribute_depths.pop();
++    }
++
++    fn mark_names_since(&mut self, index: usize) {
++        for name in &self.names[index..] {
++            if !self.cyclic_names.contains(name) {
++                self.cyclic_names.push(name.clone());
++            }
++        }
++    }
+ }
+ 
+ enum RegisteredSubstitutionDefault {
+@@ -2051,7 +2333,7 @@
+     computed_context: &computed::Context,
+     references: &'a [SubstitutionFunctionReference],
+     attribute_tracker: &mut AttributeTracker,
+-    seen: &mut SubstitutionState<'a>,
++    seen: &mut SubstitutionState,
+     mut attr_taint: Option<&mut AttrTaint>,
+     suppress_animation_taint_sink: bool,
+ ) -> Result<Substitution<'a>, ()> {
+@@ -2139,6 +2421,120 @@
+     dest
+ }
+ 
++pub(crate) fn animation_taint_rejects_var(
++    animation_tainted: bool,
++    property_id: Option<PropertyIdRef>,
++    suppress_animation_taint_sink: bool,
++) -> bool {
++    animation_tainted
++        && !suppress_animation_taint_sink
++        && matches!(property_id, Some(PropertyIdRef::NonCustom(id)) if !id.is_animatable())
++}
++
++fn resolve_attribute_input(
++    request: usize,
++    substitution_functions: &ComputedSubstitutionFunctions,
++    stylist: &Stylist,
++    computed_context: &computed::Context,
++    attribute_tracker: &mut AttributeTracker,
++    seen: &mut SubstitutionState,
++) -> Option<ComputedRegisteredValue> {
++    let input = attribute_tracker.attr_resolution.uses[request].input.clone()?;
++    let key = attribute_tracker.attr_resolution.uses[request].key.clone();
++    let substituted = substitute_internal(
++        &input, key.property_id(), substitution_functions, stylist, computed_context,
++        attribute_tracker, seen, None, key.suppress_animation_taint_sink,
++    ).ok()?;
++    if matches!(attribute_tracker.attr_resolution.uses[request].state, AttrUseState::Cyclic) {
++        return None;
++    }
++    let mut value = ComputedRegisteredValue::universal(Arc::new(VariableValue::new_resolved(
++        substituted.css.into_owned(), &key.url_data, substituted.first_token_type,
++        substituted.last_token_type,
++    )));
++    value.attr_tainted = substituted.attr_tainted;
++    value.animation_tainted = substituted.animation_tainted;
++    Some(value)
++}
++
++pub(crate) fn finish_prepared_attribute(
++    request: usize,
++    owner: usize,
++    stylist: &Stylist,
++    computed_context: &computed::Context,
++    attribute_tracker: &mut AttributeTracker,
++) {
++    let previous = attribute_tracker.attr_resolution.prepared_owner;
++    attribute_tracker.attr_resolution.prepared_owner = Some(owner);
++    let result = resolve_attribute_input(
++        request, &computed_context.builder.substitution_functions, stylist,
++        computed_context, attribute_tracker, &mut SubstitutionState::default(),
++    );
++    attribute_tracker.attr_resolution.prepared_owner = previous;
++    attribute_tracker.attr_resolution.leave(request, result);
++}
++
++fn substitute_typed_attribute(
++    raw: &str,
++    reference: &SubstitutionFunctionReference,
++    namespace: &Namespace,
++    url_data: &UrlExtraData,
++    property_id: Option<PropertyIdRef>,
++    substitution_functions: &ComputedSubstitutionFunctions,
++    stylist: &Stylist,
++    computed_context: &computed::Context,
++    attribute_tracker: &mut AttributeTracker,
++    seen: &mut SubstitutionState,
++    suppress_animation_taint_sink: bool,
++) -> Option<Substitution<'static>> {
++    let mut parser = Parser::new(raw);
++    let input = Arc::new(VariableValue::parse(&mut parser, None, url_data).ok()?);
++    let request = if let Some(owner) = attribute_tracker.attr_resolution.prepared_owner {
++        attribute_tracker.attr_resolution.prepared_request(
++            owner, reference as *const SubstitutionFunctionReference as usize,
++            &reference.name, namespace, property_id, suppress_animation_taint_sink, url_data,
++        ).expect("Final attribute occurrence must match dependency preparation")
++    } else {
++        let key = AttrUseKey::new(
++            &reference.name, namespace, property_id, suppress_animation_taint_sink,
++            url_data, attribute_tracker.attr_resolution.uses.len(),
++        );
++        attribute_tracker.attr_resolution.request(key, Some(Arc::clone(&input)))
++    };
++    attribute_tracker.attr_resolution.uses[request].custom_depth = seen.names.len();
++    let result = match attribute_tracker.attr_resolution.enter(request) {
++        AttrEntry::Evaluate => {
++            assert!(attribute_tracker.attr_resolution.prepared_owner.is_none());
++            let result = resolve_attribute_input(
++                request, substitution_functions, stylist, computed_context, attribute_tracker, seen,
++            );
++            attribute_tracker.attr_resolution.leave(request, result.clone());
++            result
++        },
++        AttrEntry::PhysicalCycle(previous) => {
++            seen.mark_names_since(attribute_tracker.attr_resolution.uses[previous].custom_depth);
++            return None;
++        },
++        AttrEntry::Existing => match &attribute_tracker.attr_resolution.uses[request].state {
++            AttrUseState::Ready(value) => Some(value.clone()),
++            AttrUseState::Invalid | AttrUseState::Cyclic => None,
++            AttrUseState::Pending | AttrUseState::Evaluating | AttrUseState::New => {
++                panic!("Attribute result consumed before dependency closure")
++            },
++        },
++    };
++    if matches!(attribute_tracker.attr_resolution.uses[request].state, AttrUseState::Cyclic) {
++        return None;
++    }
++    let result = result?;
++    let value = result.to_variable_value();
++    let mut parser = Parser::new(&value.css);
++    let parsed = reference.attribute_data.parse_typed_value(&mut parser, url_data, property_id).ok()?;
++    let mut converted = parsed.to_variable_value();
++    converted.explicitly_animation_tainted |= result.animation_tainted;
++    Some(Substitution::from_value(converted, true))
++}
++
+ fn substitute_one_reference<'a>(
+     css: &'a str,
+     url_data: &UrlExtraData,
+@@ -2148,7 +2544,7 @@
+     stylist: &Stylist,
+     computed_context: &computed::Context,
+     attribute_tracker: &mut AttributeTracker,
+-    seen: &mut SubstitutionState<'a>,
++    seen: &mut SubstitutionState,
+     suppress_animation_taint_sink: bool,
+ ) -> Result<Substitution<'a>, ()> {
+     let simple_attr_subst = |s: &str| {
+@@ -2171,19 +2567,18 @@
+                 // may not have gotten to this variable yet).
+                 Some(v) => match v.as_universal() {
+                     Some(u) if u.has_references() => {
++                        assert!(attribute_tracker.attr_resolution.prepared_owner.is_none(),
++                            "Prepared substitution selected an unresolved custom value");
+                         if let Some(index) =
+-                            seen.names.iter().position(|name| *name == &reference.name)
++                            seen.names.iter().position(|name| name == &reference.name)
+                         {
+-                            for name in &seen.names[index..] {
+-                                if !seen.cyclic_names.contains(name) {
+-                                    seen.cyclic_names.push(*name);
+-                                }
+-                            }
++                            seen.mark_names_since(index);
++                            attribute_tracker.attr_resolution.mark_active_since(seen.attribute_depths[index]);
+                             // Cycle: the primary is guaranteed-invalid, so fall through to the
+                             // fallback (if any), like any other invalid primary.
+                             None
+                         } else {
+-                            seen.names.push(&reference.name);
++                            seen.push_name(&reference.name, &attribute_tracker.attr_resolution);
+                             let result = substitute_internal(
+                                 u,
+                                 property_id,
+@@ -2195,8 +2590,8 @@
+                                 /* attr_taint */ None,
+                                 true,
+                             );
+-                            seen.names.pop();
+-                            if seen.cyclic_names.contains(&&reference.name) {
++                            seen.pop_name();
++                            if seen.cyclic_names.contains(&reference.name) {
+                                 invalid_at_computed_value_time_value(
+                                     &reference.name,
+                                     registration,
+@@ -2277,7 +2672,7 @@
+             namespace
+                 .and_then(|namespace| {
+                     LocalName::with_name(&reference.name, |local_name| {
+-                        attribute_tracker.query(local_name, namespace)
++                        attribute_tracker.query_cached(local_name, namespace)
+                     })
+                 })
+                 .map_or_else(
+@@ -2293,24 +2688,13 @@
+                         }
+                     },
+                     |attr| {
+-                        let attr = if let AttributeType::Type(_) = &reference.attribute_data.kind {
+-                            // If we're evaluating a container query, we haven't run the cascade
+-                            // and populated substitution_functions.attributes, so we can't do the
+-                            // get_attr() lookup here.
+-                            // TODO: This means chained attr() references will not work reliably in
+-                            // container style queries:
+-                            // https://bugzilla.mozilla.org/show_bug.cgi?id=2028861
+-                            if computed_context.in_container_query {
+-                                attr
+-                            } else {
+-                                substitution_functions
+-                                    .get_attr(&reference.name, namespace?)
+-                                    .map(|v| v.to_variable_value())?
+-                                    .css
+-                            }
+-                        } else {
+-                            attr
+-                        };
++                        if matches!(&reference.attribute_data.kind, AttributeType::Type(_)) {
++                            return substitute_typed_attribute(
++                                &attr, reference, namespace?, url_data, property_id,
++                                substitution_functions, stylist, computed_context,
++                                attribute_tracker, seen, suppress_animation_taint_sink,
++                            );
++                        }
+                         let mut parser = Parser::new(&attr);
+                         match &reference.attribute_data.kind {
+                             AttributeType::Unit(unit) => {
+@@ -2330,16 +2714,7 @@
+                                     value, /* attr_tainted */ true,
+                                 ))
+                             },
+-                            AttributeType::Type(_) => {
+-                                let value = reference
+-                                    .attribute_data
+-                                    .parse_typed_value(&mut parser, url_data, property_id)
+-                                    .ok()?;
+-                                let value = value.to_variable_value();
+-                                Some(Substitution::from_value(
+-                                    value, /* attr_tainted */ true,
+-                                ))
+-                            },
++                            AttributeType::Type(_) => unreachable!("Handled before parsing"),
+                             AttributeType::RawString | AttributeType::None => {
+                                 simple_attr_subst(&attr)
+                             },
+@@ -2352,9 +2727,11 @@
+ 
+     let substitution = substitution.filter(|value| {
+         !(reference.substitution_kind == SubstitutionFunctionKind::Var
+-            && value.animation_tainted
+-            && !suppress_animation_taint_sink
+-            && matches!(property_id, Some(PropertyIdRef::NonCustom(id)) if !id.is_animatable()))
++            && animation_taint_rejects_var(
++                value.animation_tainted,
++                property_id,
++                suppress_animation_taint_sink,
++            ))
+     });
+     if let Some(s) = substitution {
+         return Ok(s);
+@@ -2391,7 +2768,7 @@
+     stylist: &Stylist,
+     computed_context: &computed::Context,
+     attribute_tracker: &mut AttributeTracker,
+-    seen: &mut SubstitutionState<'a>,
++    seen: &mut SubstitutionState,
+     attr_taint: Option<&mut AttrTaint>,
+     suppress_animation_taint_sink: bool,
+ ) -> Result<Substitution<'a>, ()> {
+@@ -2426,6 +2803,9 @@
+     attribute_tracker: &mut AttributeTracker,
+ ) -> Result<SubstitutionResult<'a>, ()> {
+     debug_assert!(variable_value.has_references());
++    if attribute_tracker.attr_resolution.prepared_owner.is_none() {
++        attribute_tracker.attr_resolution.reset();
++    }
+     let mut attr_taint = AttrTaint::default();
+     let v = substitute_internal(
+         variable_value,
+--- a/servo/components/style/dom.rs
++++ b/servo/components/style/dom.rs
+@@ -1028,6 +1028,8 @@
+     pub context: &'a dyn ElementContext,
+     /// The set of attributes we have queried.
+     pub references: AttributeReferences,
++    raw_values: PrecomputedHashMap<Namespace, PrecomputedHashMap<LocalName, Option<String>>>,
++    pub(crate) attr_resolution: crate::custom_properties::AttrResolution,
+ }
+ 
+ impl<'a> AttributeTracker<'a> {
+@@ -1036,6 +1038,8 @@
+         Self {
+             context,
+             references: None,
++            raw_values: Default::default(),
++            attr_resolution: Default::default(),
+         }
+     }
+ 
+@@ -1044,12 +1048,23 @@
+         Self {
+             context: &DummyElementContext {},
+             references: None,
++            raw_values: Default::default(),
++            attr_resolution: Default::default(),
+         }
+     }
+ 
+     /// Extract the queried references and consume self
+     pub fn finalize(self) -> AttributeReferences {
+         self.references
++    }
++
++    pub(crate) fn query_cached(&mut self, name: &LocalName, namespace: &Namespace) -> Option<String> {
++        if let Some(value) = self.raw_values.get(namespace).and_then(|values| values.get(name)) {
++            return value.clone();
++        }
++        let value = self.query(name, namespace);
++        self.raw_values.entry(namespace.clone()).or_default().insert(name.clone(), value.clone());
++        value
+     }
+ 
+     /// Query the value and save the name of the attribtue.
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -4,7 +4,7 @@
+ 
+ //! The main cascading algorithm of the style system.
+ 
+-use crate::{FxHashMap, Namespace};
++use crate::{FxHashMap, LocalName, Namespace};
+ use crate::applicable_declarations::{CascadePriority, RevertKind};
+ use crate::color::AbsoluteColor;
+ use crate::computed_value_flags::ComputedValueFlags;
+@@ -12,7 +12,8 @@
+ use crate::custom_properties::{
+     ComputedCustomProperties, ComputedSubstitutionFunctions, Name, NonCustomReferenceMap,
+     ReferenceFlags, References, SingleNonCustomReference, SubstitutionFunctionKind, VariableValue,
+-    get_attr_value_for_cycle_resolution, handle_invalid_at_computed_value_time,
++    animation_taint_rejects_var, parse_attr_input, handle_invalid_at_computed_value_time,
++    AttrEntry, AttrUseState, finish_prepared_attribute, prepare_custom_substitution,
+     remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
+ };
+ use crate::dom::{AttributeTracker, DummyElementContext, ElementContext, TElement};
+@@ -811,6 +812,49 @@
+ 
+ type NonCustomPropertyReferences = NonCustomReferenceMap<Vec<(LonghandId, Arc<UnparsedValue>)>>;
+ 
++#[derive(Clone, Eq, PartialEq, Debug)]
++enum VarType {
++    ContextualAttr(usize),
++    Custom(Name),
++    NonCustom(LonghandId),
++}
++
++/// Struct recording necessary information for each variable.
++#[derive(Debug)]
++struct VarInfo {
++    /// The name of the variable. It will be taken when the corresponding variable is popped
++    /// from the stack, which serves as a mark for whether the variable is currently in the
++    /// stack below.
++    var: Option<VarType>,
++    /// If the variable is in a dependency cycle, lowlink represents a smaller index which
++    /// corresponds to a variable in the same strong connected component, which is known to be
++    /// accessible from this variable. It is not necessarily the root, though.
++    lowlink: usize,
++}
++
++#[derive(Debug, Default)]
++struct OrderIndexMap {
++    /// The map from the custom property name to its order index.
++    var: PrecomputedHashMap<Name, usize>,
++}
++
++impl OrderIndexMap {
++    fn clear(&mut self) {
++        self.var.clear();
++    }
++}
++
++#[derive(Default)]
++struct ResolutionState {
++    count: usize,
++    index_map: OrderIndexMap,
++    non_custom_index_map: FxHashMap<LonghandId, usize>,
++    attr_use_index_map: FxHashMap<usize, usize>,
++    prepared_priorities: FxHashMap<LonghandId, Vec<(PropertyDeclaration, CascadePriority, bool)>>,
++    var_info: SmallVec<[VarInfo; 5]>,
++    stack: SmallVec<[usize; 5]>,
++}
++
+ pub(crate) struct Cascade<'a> {
+     first_line_reparenting: FirstLineReparenting<'a>,
+     stylist: &'a Stylist,
+@@ -823,6 +867,7 @@
+     references_from_non_custom_properties: NonCustomPropertyReferences,
+     /// Set of prioritary properties that have already been applied.
+     ensured_prioritary: PrioritaryPropertyIdSet,
++    resolution: ResolutionState,
+ }
+ 
+ impl<'a> Cascade<'a> {
+@@ -841,6 +886,7 @@
+             declarations_to_apply_unless_overridden: Default::default(),
+             may_have_custom_property_cycles: false,
+             ensured_prioritary: PrioritaryPropertyIdSet::default(),
++            resolution: ResolutionState::default(),
+             references_from_non_custom_properties: Default::default(),
+         }
+     }
+@@ -858,6 +904,7 @@
+             declarations_to_apply_unless_overridden: Default::default(),
+             may_have_custom_property_cycles: false,
+             ensured_prioritary: PrioritaryPropertyIdSet::default(),
++            resolution: ResolutionState::default(),
+             references_from_non_custom_properties: Default::default(),
+         }
+     }
+@@ -1100,12 +1147,26 @@
+         attribute_tracker: &mut AttributeTracker,
+     ) {
+         debug_assert!(!longhand_id.is_logical());
++        if !self.longhand_is_eligible(context, longhand_id, priority) {
++            return;
++        }
++        let declaration =
++            self.substitute_variables_if_needed(context, cache, declaration, attribute_tracker);
++        self.apply_resolved_longhand(context, longhand_id, declaration, priority, None);
++    }
++
++    fn longhand_is_eligible(
++        &self,
++        context: &computed::Context,
++        longhand_id: LonghandId,
++        priority: CascadePriority,
++    ) -> bool {
+         if self.seen.longhands.contains(longhand_id) {
+-            return;
++            return false;
+         }
+ 
+         if !(priority.flags() - context.included_cascade_flags).is_empty() {
+-            return;
++            return false;
+         }
+ 
+         if self.reverted.longhands_set.contains(longhand_id)
+@@ -1113,12 +1174,20 @@
+                 self.reverted.longhands.get(&longhand_id)
+             && !reverted_priority.allows_when_reverted(&priority, revert_kind)
+         {
+-            return;
+-        }
+-
+-        let mut declaration =
+-            self.substitute_variables_if_needed(context, cache, declaration, attribute_tracker);
+-
++            return false;
++        }
++
++        true
++    }
++
++    fn apply_resolved_longhand(
++        &mut self,
++        context: &mut computed::Context,
++        longhand_id: LonghandId,
++        mut declaration: Cow<PropertyDeclaration>,
++        priority: CascadePriority,
++        probed_revert: Option<bool>,
++    ) {
+         // When document colors are disabled, do special handling of
+         // properties that are marked as ignored in that mode.
+         let origin = priority.cascade_level().origin();
+@@ -1130,6 +1199,9 @@
+                 &mut declaration,
+                 &mut self.declarations_to_apply_unless_overridden,
+             );
++        }
++        if let Some(expected) = probed_revert {
++            debug_assert_eq!(expected, declaration.get_css_wide_keyword().and_then(|keyword| keyword.revert_kind()).is_some());
+         }
+         let can_skip_apply = match declaration.get_css_wide_keyword() {
+             Some(keyword) => {
+@@ -1694,7 +1766,7 @@
+         shorthand_cache: &mut ShorthandsWithPropertyReferencesCache,
+         attribute_tracker: &mut AttributeTracker,
+     ) {
+-        if self.may_have_custom_property_cycles {
++        if self.may_have_custom_property_cycles || decls.has_prioritary_properties {
+             let stylist = self.stylist;
+             let seen = std::mem::take(&mut self.seen.custom);
+             let references = std::mem::take(&mut self.references_from_non_custom_properties);
+@@ -2093,6 +2165,19 @@
+         true
+     }
+ 
++    fn capture_attr_input(
++        &mut self,
++        name: &Name,
++        namespace: &Namespace,
++        url_data: &UrlExtraData,
++        attribute_tracker: &mut AttributeTracker,
++    ) -> Result<ComputedRegisteredValue, ()> {
++        let input = LocalName::with_name(name, |local_name| {
++            attribute_tracker.query_cached(local_name, namespace)
++        });
++        parse_attr_input(input.as_deref(), url_data)
++    }
++
+     /// For a given unparsed variable, update the attributes map with its attr references.
+     pub fn update_attributes_map(
+         &mut self,
+@@ -2131,9 +2216,9 @@
+                 {
+                     continue;
+                 }
+-                if let Ok(v) = get_attr_value_for_cycle_resolution(
++                if let Ok(v) = self.capture_attr_input(
+                     &next.name,
+-                    &next.attribute_data,
++                    namespace,
+                     &value.url_data,
+                     attribute_tracker,
+                 ) {
+@@ -2191,6 +2276,602 @@
+     }
+ }
+ 
++/// ResolutionContext struct for traversing the variable graph, so that we can
++/// avoid referencing all the fields multiple times.
++struct ResolutionContext<'a, 'b: 'a, 'c, 'd> {
++    /// The stylist is used to get registered properties, and to resolve the environment to
++    /// substitute `env()` variables.
++    stylist: &'a Stylist,
++    /// The computed context is used to get inherited custom properties, compute registered
++    /// custom properties, and apply prioritary properties.
++    computed_context: &'a mut computed::Context<'b>,
++    /// The cascade owns prioritary-property application; when a `NonCustom` node (or a
++    /// color-scheme-dependent custom property) becomes resolvable, we apply the corresponding
++    /// prioritary property directly through it.
++    cascade: &'a mut Cascade<'c>,
++    /// The declarations, needed to apply prioritary properties.
++    decls: &'a Declarations<'d>,
++    /// Shorthand cache, needed to apply prioritary properties.
++    cache: &'a mut ShorthandsWithPropertyReferencesCache,
++}
++
++impl<'a, 'b: 'a, 'c, 'd> ResolutionContext<'a, 'b, 'c, 'd> {
++    fn reset(&mut self) {
++        assert!(self.cascade.resolution.stack.is_empty());
++        self.cascade.resolution.count = 0;
++        self.cascade.resolution.index_map.clear();
++        self.cascade.resolution.non_custom_index_map.clear();
++        self.cascade.resolution.attr_use_index_map.clear();
++        self.cascade.resolution.prepared_priorities.clear();
++        self.cascade.resolution.var_info.clear();
++        self.cascade.resolution.stack.clear();
++    }
++
++    fn map(&self) -> &ComputedSubstitutionFunctions {
++        &self.computed_context.builder.substitution_functions
++    }
++
++    fn map_mut(&mut self) -> &mut ComputedSubstitutionFunctions {
++        &mut self.computed_context.builder.substitution_functions
++    }
++
++    /// Marks a given `name` as being in a loop.
++    fn handle_loop(&mut self, name: &VarType, attribute_tracker: &mut AttributeTracker) {
++        match name {
++            VarType::ContextualAttr(request) => {
++                attribute_tracker.attr_resolution.uses[*request].state = AttrUseState::Cyclic;
++            },
++            VarType::Custom(name) => {
++                // This variable is in a loop. Resolve to invalid.
++                handle_invalid_at_computed_value_time(
++                    name,
++                    self.stylist.get_custom_property_registration(name),
++                    self.computed_context,
++                );
++            },
++            VarType::NonCustom(non_custom) => {
++                self.computed_context
++                    .builder
++                    .invalid_non_custom_properties
++                    .insert(*non_custom);
++            },
++        }
++    }
++
++    fn apply_prepared_priority(&mut self, longhand: LonghandId) {
++        let id = PrioritaryPropertyId::from_longhand(longhand).unwrap();
++        self.cascade.ensured_prioritary.insert(id);
++        let prepared = self.cascade.resolution.prepared_priorities.remove(&longhand).unwrap();
++        for (declaration, priority, reverted) in prepared {
++            debug_assert!(self.cascade.longhand_is_eligible(self.computed_context, longhand, priority));
++            self.cascade.apply_resolved_longhand(
++                self.computed_context, longhand, Cow::Owned(declaration), priority, Some(reverted),
++            );
++            if self.cascade.seen.longhands.contains(longhand) {
++                self.cascade.did_apply_prioritary_property(self.computed_context, id);
++                break;
++            }
++        }
++    }
++
++}
++
++/// Traverse the references in `root` (the value of a custom property or of a non-custom
++/// property feeding a `NonCustom` node), creating graph edges to the referenced substitution
++/// functions and updating `lowlink`/`self_ref` accordingly.
++///
++/// We follow var()/attr()/env() fallbacks only when the primary substitution function is
++/// guaranteed-invalid (i.e. when the fallback is actually used). This matches the substitution
++/// order and the resolution of https://github.com/w3c/csswg-drafts/issues/11500: cycles (or
++/// dependencies) that only exist through an unused fallback don't count.
++///
++/// We need to bubble up non custom references from unregistered properties.
++fn visit_value_references<'a, 'b, 'c, 'd>(
++    root: &References,
++    url_data: &UrlExtraData,
++    property_id: Option<PropertyIdRef>,
++    suppress_animation_taint_sink: bool,
++    index: usize,
++    references_from_non_custom_properties: &NonCustomPropertyReferences,
++    context: &mut ResolutionContext<'a, 'b, 'c, 'd>,
++    lowlink: &mut usize,
++    self_ref: &mut bool,
++    attribute_tracker: &mut AttributeTracker,
++    non_custom_references: &mut ReferenceFlags,
++) {
++    // FIXME: Maybe avoid visiting the same var twice if not needed?
++    let mut refs_stack = SmallVec::<[&References; 5]>::new();
++    refs_stack.push(root);
++    while let Some(refs) = refs_stack.pop() {
++        *non_custom_references |= refs.flags;
++        for next in &refs.refs {
++            if next.substitution_kind == SubstitutionFunctionKind::Env {
++                // env() doesn't reference custom properties, so it never participates in
++                // cycles; its fallback is used only when the environment doesn't provide
++                // the variable.
++                let device = context.stylist.device();
++                let present = device
++                    .environment()
++                    .get(&next.name, device, url_data)
++                    .is_some();
++                if !present && let Some(ref fallback) = next.fallback {
++                    refs_stack.push(&fallback.references);
++                }
++                continue;
++            }
++
++            let mut attr_request = None;
++            let next_var = if next.substitution_kind == SubstitutionFunctionKind::Attr {
++                if !next.is_attr_with_type() {
++                    if let Some(ref fallback) = next.fallback
++                        && !next
++                            .attribute_data
++                            .non_type_primary_is_valid(&next.name, attribute_tracker)
++                    {
++                        refs_stack.push(&fallback.references);
++                    }
++                    continue;
++                }
++                let Some(namespace) = next.attribute_data.namespace() else {
++                    if let Some(ref fallback) = next.fallback {
++                        refs_stack.push(&fallback.references);
++                    }
++                    continue;
++                };
++                let input = context.cascade.capture_attr_input(
++                    &next.name, namespace, url_data, attribute_tracker,
++                ).ok().and_then(|value| value.as_universal().cloned());
++                let request = attribute_tracker.attr_resolution.admit(
++                    index, next as *const crate::custom_properties::SubstitutionFunctionReference as usize,
++                    &next.name, namespace, property_id, suppress_animation_taint_sink, url_data, input,
++                );
++                attr_request = Some(request);
++                VarType::ContextualAttr(request)
++            } else {
++                VarType::Custom(next.name.clone())
++            };
++
++            visit_link(
++                next_var,
++                index,
++                references_from_non_custom_properties,
++                context,
++                lowlink,
++                self_ref,
++                attribute_tracker,
++            );
++
++            // Now that the primary reference has been resolved, classify it to
++            // decide whether its fallback is used.
++            let kind = next.substitution_kind;
++            let resolved = match kind {
++                SubstitutionFunctionKind::Var => {
++                    let registration =
++                        context.stylist.get_custom_property_registration(&next.name);
++                    context.map().get_var(registration, &next.name)
++                },
++                SubstitutionFunctionKind::Attr => match &attribute_tracker.attr_resolution.uses[attr_request.unwrap()].state {
++                    AttrUseState::Ready(value) => Some(value),
++                    _ => None,
++                },
++                SubstitutionFunctionKind::Env => unreachable!("Handled above"),
++            };
++            // The primary is guaranteed-invalid if it's absent from the map, or still
++            // present but unresolved (i.e. part of a cycle currently being resolved).
++            let mut primary_valid = false;
++            if let Some(resolved) = resolved {
++                if let Some(v) = resolved.as_universal() {
++                    primary_valid = !v.has_references();
++                    *non_custom_references |= v.references.flags;
++                } else {
++                    // Resolved and computed value, no other custom references left.
++                    primary_valid = true;
++                }
++                if primary_valid && kind == SubstitutionFunctionKind::Var {
++                    primary_valid = !animation_taint_rejects_var(
++                        resolved.animation_tainted,
++                        property_id,
++                        suppress_animation_taint_sink,
++                    );
++                }
++                if primary_valid && next.is_attr_with_type() {
++                    let value = resolved.to_variable_value();
++                    primary_valid = next
++                        .attribute_data
++                        .parse_typed_value(
++                            &mut cssparser::Parser::new(&value.css),
++                            url_data,
++                            property_id,
++                        )
++                        .is_ok();
++                }
++            }
++
++            if !primary_valid && let Some(ref fallback) = next.fallback {
++                refs_stack.push(&fallback.references);
++            }
++        }
++    }
++}
++
++/// Traverse a single dependency `var` of the variable at order index `index`, updating its
++/// `lowlink`/`self_ref` from the result.
++fn visit_link<'a, 'b, 'c, 'd>(
++    var: VarType,
++    index: usize,
++    non_custom_references: &NonCustomPropertyReferences,
++    context: &mut ResolutionContext<'a, 'b, 'c, 'd>,
++    lowlink: &mut usize,
++    self_ref: &mut bool,
++    attr_tracker: &mut AttributeTracker,
++) {
++    let next_index = match traverse(var, non_custom_references, context, attr_tracker) {
++        Some(index) => index,
++        // There is nothing to do if the next variable has been
++        // fully resolved at this point.
++        None => return,
++    };
++    let next_info = &context.cascade.resolution.var_info[next_index];
++    if next_index > index {
++        // The next variable has a larger index than us, so it
++        // must be inserted in the recursive call above. We want
++        // to get its lowlink.
++        *lowlink = cmp::min(*lowlink, next_info.lowlink);
++    } else if next_index == index {
++        *self_ref = true;
++    } else if next_info.var.is_some() {
++        // The next variable has a smaller order index and it is
++        // in the stack, so we are at the same component.
++        *lowlink = cmp::min(*lowlink, next_index);
++    }
++}
++
++/// This function combines the traversal for cycle removal and value
++/// substitution. It returns either a signal None if this variable
++/// has been fully resolved (to either having no reference or being
++/// marked invalid), or the order index for the given name.
++///
++/// When it returns, the variable corresponds to the name would be
++/// in one of the following states:
++/// * It is still in context.cascade.resolution.stack, which means it is part of an
++///   potentially incomplete dependency circle.
++/// * It has been removed from the map.  It can be either that the
++///   substitution failed, or it is inside a dependency circle.
++///   When this function removes a variable from the map because
++///   of dependency circle, it would put all variables in the same
++///   strong connected component to the set together.
++/// * It doesn't have any reference, because either this variable
++///   doesn't have reference at all in specified value, or it has
++///   been completely resolved.
++/// * There is no such variable at all.
++fn traverse<'a, 'b, 'c, 'd>(
++    var: VarType,
++    references_from_non_custom_properties: &NonCustomPropertyReferences,
++    context: &mut ResolutionContext<'a, 'b, 'c, 'd>,
++    attribute_tracker: &mut AttributeTracker,
++) -> Option<usize> {
++    // Some shortcut checks.
++    // The non-custom (font/line-height/color-scheme) dependencies of this value, carried out
++    // of the match so we can create the corresponding nodes once we've pushed this variable.
++    let mut value_non_custom_refs = ReferenceFlags::empty();
++    let mut registered = false;
++    let value = match var {
++        VarType::Custom(ref name) => {
++            let map = &context.computed_context.builder.substitution_functions;
++            let registration = context.stylist.get_custom_property_registration(name);
++            let value = map.get_var(registration, name)?.as_universal()?;
++            let is_root = context.computed_context.is_root_element();
++            value_non_custom_refs = find_non_custom_references(registration, value, is_root);
++            registered = !registration.is_universal();
++            let has_dependency = value
++                .references
++                .flags
++                .intersects(ReferenceFlags::ATTR | ReferenceFlags::VAR)
++                || !value_non_custom_refs.is_empty();
++            // Nothing to resolve.
++            if !has_dependency {
++                debug_assert!(
++                    !value.references.flags.intersects(ReferenceFlags::ENV),
++                    "Should've been handled earlier"
++                );
++                if registered {
++                    // We might still need to compute the value if this is not an universal
++                    // registration but we thought it had a dependency during the cascade and it
++                    // turned out not to. Note that if this was already computed we would've
++                    // bailed out in the as_universal() check.
++                    let value = value.clone();
++                    substitute_references_if_needed_and_apply(
++                        name,
++                        None,
++                        &value,
++                        context.stylist,
++                        context.computed_context,
++                        attribute_tracker,
++                    );
++                }
++                return None;
++            }
++
++            // Has this variable been visited?
++            let index_map = &mut context.cascade.resolution.index_map.var;
++            match index_map.entry_ref(name) {
++                EntryRef::Occupied(entry) => {
++                    return Some(*entry.get());
++                },
++                EntryRef::Vacant(entry) => {
++                    entry.insert(context.cascade.resolution.count);
++                },
++            }
++            // Hold a strong reference to the value so that we don't
++            // need to keep reference to context.map.
++            Some(value.clone())
++        },
++        VarType::ContextualAttr(request) => {
++            match attribute_tracker.attr_resolution.enter(request) {
++                AttrEntry::PhysicalCycle(previous) => {
++                    return Some(*context.cascade.resolution.attr_use_index_map.get(&previous)
++                        .expect("Physical attribute guard must belong to this graph"));
++                },
++                AttrEntry::Existing => {
++                    if let Some(index) = context.cascade.resolution.attr_use_index_map.get(&request) {
++                        if context.cascade.resolution.var_info[*index].var.is_some() {
++                            return Some(*index);
++                        }
++                    }
++                    assert!(!matches!(attribute_tracker.attr_resolution.uses[request].state,
++                        AttrUseState::Pending | AttrUseState::Evaluating));
++                    return None;
++                },
++                AttrEntry::Evaluate => {},
++            }
++            let input = attribute_tracker.attr_resolution.uses[request].input.clone();
++            if input.is_none() {
++                attribute_tracker.attr_resolution.leave(request, None);
++                return None;
++            }
++            context.cascade.resolution.attr_use_index_map.insert(request, context.cascade.resolution.count);
++            input
++        },
++        VarType::NonCustom(ref longhand) => {
++            let id = PrioritaryPropertyId::from_longhand(*longhand).unwrap();
++            if context.cascade.ensured_prioritary.contains(id)
++                || context.computed_context.builder.invalid_non_custom_properties.contains(*longhand)
++            {
++                return None;
++            }
++            if let Some(index) = context.cascade.resolution.non_custom_index_map.get(longhand) {
++                return Some(*index);
++            }
++            context.cascade.resolution.non_custom_index_map.insert(
++                *longhand, context.cascade.resolution.count,
++            );
++            None
++        },
++    };
++
++    // Add new entry to the information table.
++    let index = context.cascade.resolution.count;
++    context.cascade.resolution.count += 1;
++    debug_assert_eq!(index, context.cascade.resolution.var_info.len());
++    context.cascade.resolution.var_info.push(VarInfo {
++        var: Some(var.clone()),
++        lowlink: index,
++    });
++    context.cascade.resolution.stack.push(index);
++
++    let mut self_ref = false;
++    let mut lowlink = index;
++    let mut prepared_custom = None;
++    if let Some(v) = value.as_ref() {
++        debug_assert!(
++            matches!(var, VarType::Custom(_) | VarType::ContextualAttr(_)),
++            "Non-custom property has references?"
++        );
++
++        let attr_key = match var {
++            VarType::ContextualAttr(request) => Some(attribute_tracker.attr_resolution.uses[request].key.clone()),
++            _ => None,
++        };
++        let property_id = match &var {
++            VarType::Custom(name) => Some(PropertyIdRef::from(name)),
++            VarType::ContextualAttr(_) => attr_key.as_ref().unwrap().property_id(),
++            VarType::NonCustom(_) => unreachable!(),
++        };
++        let suppress = attr_key.as_ref().is_some_and(|key| key.suppress_animation_taint_sink);
++        // Visit the references in this value...
++        visit_value_references(
++            &v.references,
++            &v.url_data,
++            property_id,
++            suppress,
++            index,
++            references_from_non_custom_properties,
++            context,
++            &mut lowlink,
++            &mut self_ref,
++            attribute_tracker,
++            &mut value_non_custom_refs,
++        );
++
++        if let VarType::Custom(ref name) = var {
++            value_non_custom_refs = ReferenceFlags::empty();
++            if lowlink == index && !self_ref {
++                let previous = attribute_tracker.attr_resolution.prepared_owner;
++                attribute_tracker.attr_resolution.prepared_owner = Some(index);
++                prepared_custom = prepare_custom_substitution(
++                    name, v, context.stylist, context.computed_context, attribute_tracker,
++                ).ok();
++                attribute_tracker.attr_resolution.prepared_owner = previous;
++                if let Some(prepared) = prepared_custom.as_ref() {
++                    let registration = context.stylist.get_custom_property_registration(name);
++                    if let Some(selected) = prepared.selected_value(name, registration) {
++                        value_non_custom_refs = find_non_custom_references(
++                            registration, &selected, context.computed_context.is_root_element(),
++                        );
++                    }
++                }
++            }
++        }
++
++        let is_root = context.computed_context.is_root_element();
++        if registered && !value_non_custom_refs.is_empty() {
++            value_non_custom_refs.for_each_non_custom(is_root, |r| {
++                visit_link(
++                    VarType::NonCustom(r.to_prioritary_id().to_longhand()),
++                    index,
++                    references_from_non_custom_properties,
++                    context,
++                    &mut lowlink,
++                    &mut self_ref,
++                    attribute_tracker,
++                );
++            });
++        }
++    } else if let VarType::NonCustom(longhand) = var {
++        let id = PrioritaryPropertyId::from_longhand(longhand).unwrap();
++        for dependency in id.dependencies().iter() {
++            visit_link(
++                VarType::NonCustom(dependency.to_longhand()), index,
++                references_from_non_custom_properties, context, &mut lowlink,
++                &mut self_ref, attribute_tracker,
++            );
++        }
++        let mut prepared = Vec::new();
++        let mut reverted = context.cascade.reverted.longhands.get(&longhand).copied();
++        let mut declaration_index = context.decls.prioritary_positions[id as usize].most_important;
++        while lowlink == index && !self_ref && declaration_index != DeclarationIndex::MAX {
++            let entry = context.decls.longhand_declarations[declaration_index as usize];
++            let eligible = context.cascade.longhand_is_eligible(
++                context.computed_context, longhand, entry.priority,
++            ) && reverted.is_none_or(|(priority, kind)| priority.allows_when_reverted(&entry.priority, kind));
++            if eligible {
++                if let PropertyDeclaration::WithVariables(declaration) = entry.decl {
++                    let value = &declaration.value;
++                    visit_value_references(
++                        &value.variable_value.references, &value.variable_value.url_data,
++                        Some(value.substitution_property_id(longhand)), false, index,
++                        references_from_non_custom_properties, context, &mut lowlink,
++                        &mut self_ref, attribute_tracker, &mut Default::default(),
++                    );
++                }
++                if lowlink != index || self_ref {
++                    break;
++                }
++                let previous = attribute_tracker.attr_resolution.prepared_owner;
++                attribute_tracker.attr_resolution.prepared_owner = Some(index);
++                let declaration = context.cascade.substitute_variables_if_needed(
++                    context.computed_context, context.cache, entry.decl, attribute_tracker,
++                ).into_owned();
++                attribute_tracker.attr_resolution.prepared_owner = previous;
++                let mut selected = Cow::Borrowed(&declaration);
++                if context.cascade.ignore_colors {
++                    tweak_when_ignoring_colors(
++                        context.computed_context, longhand, entry.priority.cascade_level().origin(),
++                        &mut selected, &mut Default::default(),
++                    );
++                }
++                let revert = selected.get_css_wide_keyword().and_then(|keyword| keyword.revert_kind());
++                prepared.push((declaration, entry.priority, revert.is_some()));
++                if let Some(kind) = revert {
++                    reverted = Some((entry.priority, kind));
++                } else {
++                    break;
++                }
++            }
++            declaration_index = entry.next_index;
++            if declaration_index == 0 {
++                break;
++            }
++        }
++        context.cascade.resolution.prepared_priorities.insert(longhand, prepared);
++    }
++
++    context.cascade.resolution.var_info[index].lowlink = lowlink;
++    if lowlink != index {
++        if let VarType::ContextualAttr(request) = var {
++            attribute_tracker.attr_resolution.suspend(request);
++        }
++        // This variable is in a loop, but it is not the root of this strong connected
++        // component. We simply return for now, and the root would remove it from the map.
++        //
++        // This cannot be removed from the map here, because otherwise the shortcut check at the
++        // beginning of this function would return the wrong value.
++        return Some(index);
++    }
++
++    // This is the root of a strong-connected component.
++    let mut in_loop = self_ref;
++    let mut invalid_priorities = Vec::new();
++    loop {
++        let var_index = context.cascade.resolution
++            .stack
++            .pop()
++            .expect("The current variable should still be in stack");
++        let var_info = &mut context.cascade.resolution.var_info[var_index];
++        // We should never visit the variable again, so it's safe to take the name away.
++        let var_name = var_info
++            .var
++            .take()
++            .expect("Variable should not be popped from stack twice");
++        if var_index != index {
++            // Anything here is in a loop which can traverse to the node we are handling, so
++            // it's invalid at computed-value time.
++            in_loop = true;
++        }
++        if in_loop {
++            context.handle_loop(&var_name, attribute_tracker);
++            if let VarType::NonCustom(longhand) = var_name {
++                invalid_priorities.push(longhand);
++            }
++        }
++        if var_index == index {
++            debug_assert_eq!(var_name, var);
++            break;
++        }
++    }
++
++    if in_loop {
++        if let VarType::ContextualAttr(request) = var {
++            attribute_tracker.attr_resolution.suspend(request);
++        }
++        for longhand in &invalid_priorities {
++            context.cascade.resolution.prepared_priorities.remove(longhand);
++        }
++        for longhand in invalid_priorities {
++            let id = PrioritaryPropertyId::from_longhand(longhand).unwrap();
++            for dependency in id.dependencies().iter() {
++                debug_assert!(context.cascade.ensured_prioritary.contains(dependency)
++                    || context.computed_context.builder.invalid_non_custom_properties.contains(dependency.to_longhand()));
++            }
++            context.cascade.ensure_prioritary_property(
++                context.computed_context, context.decls, context.cache, attribute_tracker, id,
++            );
++        }
++        return None;
++    }
++
++    // Not in a loop, apply the value.
++    match var {
++        VarType::Custom(ref name) => {
++            if let Some(prepared) = prepared_custom {
++                prepared.apply(name, context.stylist, context.computed_context);
++            } else {
++                handle_invalid_at_computed_value_time(
++                    name, context.stylist.get_custom_property_registration(name), context.computed_context,
++                );
++            }
++        },
++        VarType::ContextualAttr(request) => {
++            finish_prepared_attribute(request, index, context.stylist, context.computed_context, attribute_tracker);
++        },
++        VarType::NonCustom(non_custom) => {
++            context.apply_prepared_priority(non_custom);
++        },
++    }
++    // All resolved, so return the signal value.
++    None
++}
++
+ fn substitute_all(
+     seen: &SeenSubstitutionFunctions,
+     references_from_non_custom_properties: &NonCustomPropertyReferences,
+@@ -2207,608 +2888,30 @@
+     // https://en.wikipedia.org/w/index.php?
+     // title=Tarjan%27s_strongly_connected_components_algorithm&oldid=801728495
+ 
+-    #[derive(Clone, Eq, PartialEq, Debug)]
+-    enum VarType {
+-        Attr(Name, Namespace),
+-        Custom(Name),
+-        NonCustom(SingleNonCustomReference),
+-    }
+-
+-    impl VarType {
+-        fn namespace(&self) -> Option<&Namespace> {
+-            match self {
+-                Self::Attr(_, namespace) => Some(namespace),
+-                _ => None,
+-            }
+-        }
+-    }
+-
+-    /// Struct recording necessary information for each variable.
+-    #[derive(Debug)]
+-    struct VarInfo {
+-        /// The name of the variable. It will be taken when the corresponding variable is popped
+-        /// from the stack, which serves as a mark for whether the variable is currently in the
+-        /// stack below.
+-        var: Option<VarType>,
+-        /// If the variable is in a dependency cycle, lowlink represents a smaller index which
+-        /// corresponds to a variable in the same strong connected component, which is known to be
+-        /// accessible from this variable. It is not necessarily the root, though.
+-        lowlink: usize,
+-    }
+-
+-    #[derive(Debug, Default)]
+-    struct OrderIndexMap {
+-        /// The map from the custom property name to its order index.
+-        var: PrecomputedHashMap<Name, usize>,
+-        /// The map from the attribute name to its order index.
+-        attr: PrecomputedHashMap<Namespace, PrecomputedHashMap<Name, usize>>,
+-    }
+-
+-    impl OrderIndexMap {
+-        fn clear(&mut self) {
+-            self.var.clear();
+-            self.attr.clear();
+-        }
+-    }
+-
+-    /// Context struct for traversing the variable graph, so that we can
+-    /// avoid referencing all the fields multiple times.
+-    struct Context<'a, 'b: 'a, 'c, 'd> {
+-        /// Number of variables visited. This is used as the order index
+-        /// when we visit a new unresolved variable.
+-        count: usize,
+-        /// The map from a substitution function name to its order index.
+-        index_map: OrderIndexMap,
+-        /// Mapping from a non-custom dependency to its order index.
+-        non_custom_index_map: NonCustomReferenceMap<usize>,
+-        /// Information of each variable indexed by the order index.
+-        var_info: SmallVec<[VarInfo; 5]>,
+-        /// The stack of order index of visited variables. It contains
+-        /// all unfinished strong connected components.
+-        stack: SmallVec<[usize; 5]>,
+-        /// The stylist is used to get registered properties, and to resolve the environment to
+-        /// substitute `env()` variables.
+-        stylist: &'a Stylist,
+-        /// The computed context is used to get inherited custom properties, compute registered
+-        /// custom properties, and apply prioritary properties.
+-        computed_context: &'a mut computed::Context<'b>,
+-        /// The cascade owns prioritary-property application; when a `NonCustom` node (or a
+-        /// color-scheme-dependent custom property) becomes resolvable, we apply the corresponding
+-        /// prioritary property directly through it.
+-        cascade: &'a mut Cascade<'c>,
+-        /// The declarations, needed to apply prioritary properties.
+-        decls: &'a Declarations<'d>,
+-        /// Shorthand cache, needed to apply prioritary properties.
+-        cache: &'a mut ShorthandsWithPropertyReferencesCache,
+-    }
+-
+-    impl<'a, 'b: 'a, 'c, 'd> Context<'a, 'b, 'c, 'd> {
+-        fn reset(&mut self) {
+-            self.count = 0;
+-            self.index_map.clear();
+-            self.non_custom_index_map = Default::default();
+-            self.var_info.clear();
+-            self.stack.clear();
+-        }
+-
+-        fn map(&self) -> &ComputedSubstitutionFunctions {
+-            &self.computed_context.builder.substitution_functions
+-        }
+-
+-        fn map_mut(&mut self) -> &mut ComputedSubstitutionFunctions {
+-            &mut self.computed_context.builder.substitution_functions
+-        }
+-
+-        /// Marks a given `name` as being in a loop.
+-        fn handle_loop(&mut self, name: &VarType) {
+-            match name {
+-                VarType::Attr(name, namespace) => {
+-                    self.computed_context
+-                        .builder
+-                        .substitution_functions
+-                        .remove_attr(name, namespace);
+-                },
+-                VarType::Custom(name) => {
+-                    // This variable is in a loop. Resolve to invalid.
+-                    handle_invalid_at_computed_value_time(
+-                        name,
+-                        self.stylist.get_custom_property_registration(name),
+-                        self.computed_context,
+-                    );
+-                },
+-                VarType::NonCustom(non_custom) => {
+-                    self.computed_context
+-                        .builder
+-                        .invalid_non_custom_properties
+-                        .insert(non_custom.to_prioritary_id().to_longhand());
+-                },
+-            }
+-        }
+-
+-        /// Applies a prioritary property (and its dependencies) while resolving custom properties.
+-        ///
+-        /// The in-progress map lives outside `computed_context` during traversal; we move it into
+-        /// `computed_context.builder.substitution_functions` so the prioritary declaration's `var()`
+-        /// references resolve against the custom properties resolved so far, then take it back out.
+-        fn apply_prioritary_property(
+-            &mut self,
+-            id: PrioritaryPropertyId,
+-            attr_tracker: &mut AttributeTracker,
+-        ) {
+-            self.cascade.ensure_prioritary_property(
+-                self.computed_context,
+-                self.decls,
+-                self.cache,
+-                attr_tracker,
+-                id,
+-            );
+-        }
+-    }
+-
+-    /// Traverse the references in `root` (the value of a custom property or of a non-custom
+-    /// property feeding a `NonCustom` node), creating graph edges to the referenced substitution
+-    /// functions and updating `lowlink`/`self_ref` accordingly.
+-    ///
+-    /// We follow var()/attr()/env() fallbacks only when the primary substitution function is
+-    /// guaranteed-invalid (i.e. when the fallback is actually used). This matches the substitution
+-    /// order and the resolution of https://github.com/w3c/csswg-drafts/issues/11500: cycles (or
+-    /// dependencies) that only exist through an unused fallback don't count.
+-    ///
+-    /// We need to bubble up non custom references from unregistered properties.
+-    fn visit_value_references<'a, 'b, 'c, 'd>(
+-        root: &References,
+-        url_data: &UrlExtraData,
+-        property_id: Option<PropertyIdRef>,
+-        index: usize,
+-        references_from_non_custom_properties: &NonCustomPropertyReferences,
+-        context: &mut Context<'a, 'b, 'c, 'd>,
+-        lowlink: &mut usize,
+-        self_ref: &mut bool,
+-        attribute_tracker: &mut AttributeTracker,
+-        non_custom_references: &mut ReferenceFlags,
+-    ) {
+-        // FIXME: Maybe avoid visiting the same var twice if not needed?
+-        let mut refs_stack = SmallVec::<[&References; 5]>::new();
+-        refs_stack.push(root);
+-        while let Some(refs) = refs_stack.pop() {
+-            *non_custom_references |= refs.flags;
+-            for next in &refs.refs {
+-                if next.substitution_kind == SubstitutionFunctionKind::Env {
+-                    // env() doesn't reference custom properties, so it never participates in
+-                    // cycles; its fallback is used only when the environment doesn't provide
+-                    // the variable.
+-                    let device = context.stylist.device();
+-                    let present = device
+-                        .environment()
+-                        .get(&next.name, device, url_data)
+-                        .is_some();
+-                    if !present && let Some(ref fallback) = next.fallback {
+-                        refs_stack.push(&fallback.references);
+-                    }
+-                    continue;
+-                }
+-
+-                let next_var = if next.substitution_kind == SubstitutionFunctionKind::Attr {
+-                    if !next.is_attr_with_type() {
+-                        if let Some(ref fallback) = next.fallback
+-                            && !next
+-                                .attribute_data
+-                                .non_type_primary_is_valid(&next.name, attribute_tracker)
+-                        {
+-                            refs_stack.push(&fallback.references);
+-                        }
+-                        continue;
+-                    }
+-                    let Some(namespace) = next.attribute_data.namespace() else {
+-                        if let Some(ref fallback) = next.fallback {
+-                            refs_stack.push(&fallback.references);
+-                        }
+-                        continue;
+-                    };
+-                    if !context.map().contains_attr(&next.name, namespace)
+-                        && let Ok(val) = get_attr_value_for_cycle_resolution(
+-                            &next.name,
+-                            &next.attribute_data,
+-                            url_data,
+-                            attribute_tracker,
+-                        )
+-                    {
+-                        context.map_mut().insert_attr(&next.name, namespace, val);
+-                    }
+-                    VarType::Attr(next.name.clone(), namespace.clone())
+-                } else {
+-                    VarType::Custom(next.name.clone())
+-                };
+-
+-                visit_link(
+-                    next_var,
+-                    index,
+-                    references_from_non_custom_properties,
+-                    context,
+-                    lowlink,
+-                    self_ref,
+-                    attribute_tracker,
+-                );
+-
+-                // Now that the primary reference has been resolved, classify it to
+-                // decide whether its fallback is used.
+-                let kind = next.substitution_kind;
+-                let resolved = match kind {
+-                    SubstitutionFunctionKind::Var => {
+-                        let registration =
+-                            context.stylist.get_custom_property_registration(&next.name);
+-                        context.map().get_var(registration, &next.name)
+-                    },
+-                    SubstitutionFunctionKind::Attr => next
+-                        .attribute_data
+-                        .namespace()
+-                        .and_then(|namespace| context.map().get_attr(&next.name, namespace)),
+-                    SubstitutionFunctionKind::Env => unreachable!("Handled above"),
+-                };
+-                // The primary is guaranteed-invalid if it's absent from the map, or still
+-                // present but unresolved (i.e. part of a cycle currently being resolved).
+-                let mut primary_valid = false;
+-                if let Some(resolved) = resolved {
+-                    if let Some(v) = resolved.as_universal() {
+-                        primary_valid = !v.has_references();
+-                        *non_custom_references |= v.references.flags;
+-                    } else {
+-                        // Resolved and computed value, no other custom references left.
+-                        primary_valid = true;
+-                    }
+-                    if primary_valid && next.is_attr_with_type() {
+-                        let value = resolved.to_variable_value();
+-                        primary_valid = next
+-                            .attribute_data
+-                            .parse_typed_value(
+-                                &mut cssparser::Parser::new(&value.css),
+-                                url_data,
+-                                property_id,
+-                            )
+-                            .is_ok();
+-                    }
+-                }
+-
+-                if !primary_valid && let Some(ref fallback) = next.fallback {
+-                    refs_stack.push(&fallback.references);
+-                }
+-            }
+-        }
+-    }
+-
+-    /// Traverse a single dependency `var` of the variable at order index `index`, updating its
+-    /// `lowlink`/`self_ref` from the result.
+-    fn visit_link<'a, 'b, 'c, 'd>(
+-        var: VarType,
+-        index: usize,
+-        non_custom_references: &NonCustomPropertyReferences,
+-        context: &mut Context<'a, 'b, 'c, 'd>,
+-        lowlink: &mut usize,
+-        self_ref: &mut bool,
+-        attr_tracker: &mut AttributeTracker,
+-    ) {
+-        let next_index = match traverse(var, non_custom_references, context, attr_tracker) {
+-            Some(index) => index,
+-            // There is nothing to do if the next variable has been
+-            // fully resolved at this point.
+-            None => return,
+-        };
+-        let next_info = &context.var_info[next_index];
+-        if next_index > index {
+-            // The next variable has a larger index than us, so it
+-            // must be inserted in the recursive call above. We want
+-            // to get its lowlink.
+-            *lowlink = cmp::min(*lowlink, next_info.lowlink);
+-        } else if next_index == index {
+-            *self_ref = true;
+-        } else if next_info.var.is_some() {
+-            // The next variable has a smaller order index and it is
+-            // in the stack, so we are at the same component.
+-            *lowlink = cmp::min(*lowlink, next_index);
+-        }
+-    }
+-
+-    /// This function combines the traversal for cycle removal and value
+-    /// substitution. It returns either a signal None if this variable
+-    /// has been fully resolved (to either having no reference or being
+-    /// marked invalid), or the order index for the given name.
+-    ///
+-    /// When it returns, the variable corresponds to the name would be
+-    /// in one of the following states:
+-    /// * It is still in context.stack, which means it is part of an
+-    ///   potentially incomplete dependency circle.
+-    /// * It has been removed from the map.  It can be either that the
+-    ///   substitution failed, or it is inside a dependency circle.
+-    ///   When this function removes a variable from the map because
+-    ///   of dependency circle, it would put all variables in the same
+-    ///   strong connected component to the set together.
+-    /// * It doesn't have any reference, because either this variable
+-    ///   doesn't have reference at all in specified value, or it has
+-    ///   been completely resolved.
+-    /// * There is no such variable at all.
+-    fn traverse<'a, 'b, 'c, 'd>(
+-        var: VarType,
+-        references_from_non_custom_properties: &NonCustomPropertyReferences,
+-        context: &mut Context<'a, 'b, 'c, 'd>,
+-        attribute_tracker: &mut AttributeTracker,
+-    ) -> Option<usize> {
+-        // Some shortcut checks.
+-        // The non-custom (font/line-height/color-scheme) dependencies of this value, carried out
+-        // of the match so we can create the corresponding nodes once we've pushed this variable.
+-        let mut value_non_custom_refs = ReferenceFlags::empty();
+-        let mut registered = false;
+-        let value = match var {
+-            VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
+-                let map = &context.computed_context.builder.substitution_functions;
+-                let (registration, value, kind) = if matches!(var, VarType::Custom(..)) {
+-                    let registration = context.stylist.get_custom_property_registration(name);
+-                    (
+-                        registration,
+-                        map.get_var(registration, name)?.as_universal()?,
+-                        SubstitutionFunctionKind::Var,
+-                    )
+-                } else {
+-                    // `attr()` is always treated as unregistered.
+-                    (
+-                        PropertyDescriptors::unregistered(),
+-                        map.get_attr(name, var.namespace().unwrap())?
+-                            .as_universal()?,
+-                        SubstitutionFunctionKind::Attr,
+-                    )
+-                };
+-                let is_root = context.computed_context.is_root_element();
+-                value_non_custom_refs = find_non_custom_references(registration, value, is_root);
+-                registered = !registration.is_universal();
+-                let has_dependency = value
+-                    .references
+-                    .flags
+-                    .intersects(ReferenceFlags::ATTR | ReferenceFlags::VAR)
+-                    || !value_non_custom_refs.is_empty();
+-                // Nothing to resolve.
+-                if !has_dependency {
+-                    debug_assert!(
+-                        !value.references.flags.intersects(ReferenceFlags::ENV),
+-                        "Should've been handled earlier"
+-                    );
+-                    if kind == SubstitutionFunctionKind::Attr || registered {
+-                        // We might still need to compute the value if this is not an universal
+-                        // registration but we thought it had a dependency during the cascade and it
+-                        // turned out not to. Note that if this was already computed we would've
+-                        // bailed out in the as_universal() check.
+-                        let value = value.clone();
+-                        substitute_references_if_needed_and_apply(
+-                            name,
+-                            var.namespace(),
+-                            &value,
+-                            context.stylist,
+-                            context.computed_context,
+-                            attribute_tracker,
+-                        );
+-                    }
+-                    return None;
+-                }
+-
+-                // Has this variable been visited?
+-                let index_map = if kind == SubstitutionFunctionKind::Var {
+-                    &mut context.index_map.var
+-                } else {
+-                    context
+-                        .index_map
+-                        .attr
+-                        .entry(var.namespace().unwrap().clone())
+-                        .or_default()
+-                };
+-                match index_map.entry_ref(name) {
+-                    EntryRef::Occupied(entry) => {
+-                        return Some(*entry.get());
+-                    },
+-                    EntryRef::Vacant(entry) => {
+-                        entry.insert(context.count);
+-                    },
+-                }
+-                // Hold a strong reference to the value so that we don't
+-                // need to keep reference to context.map.
+-                Some(value.clone())
+-            },
+-            VarType::NonCustom(ref non_custom) => {
+-                let entry = &mut context.non_custom_index_map[*non_custom];
+-                if let Some(v) = entry {
+-                    return Some(*v);
+-                }
+-                *entry = Some(context.count);
+-                None
+-            },
+-        };
+-
+-        // Add new entry to the information table.
+-        let index = context.count;
+-        context.count += 1;
+-        debug_assert_eq!(index, context.var_info.len());
+-        context.var_info.push(VarInfo {
+-            var: Some(var.clone()),
+-            lowlink: index,
+-        });
+-        context.stack.push(index);
+-
+-        let mut self_ref = false;
+-        let mut lowlink = index;
+-        if let Some(v) = value.as_ref() {
+-            debug_assert!(
+-                matches!(var, VarType::Custom(_) | VarType::Attr(..)),
+-                "Non-custom property has references?"
+-            );
+-
+-            let property_id = match &var {
+-                VarType::Custom(name) | VarType::Attr(name, _) => Some(PropertyIdRef::from(name)),
+-                VarType::NonCustom(_) => unreachable!(),
+-            };
+-            // Visit the references in this value...
+-            visit_value_references(
+-                &v.references,
+-                &v.url_data,
+-                property_id,
+-                index,
+-                references_from_non_custom_properties,
+-                context,
+-                &mut lowlink,
+-                &mut self_ref,
+-                attribute_tracker,
+-                &mut value_non_custom_refs,
+-            );
+-
+-            // ... Then the non-custom properties this value depends on (font-size, line-height,
+-            // color-scheme), as computed by `find_non_custom_references` above.
+-            let is_root = context.computed_context.is_root_element();
+-            if registered && !value_non_custom_refs.is_empty() {
+-                value_non_custom_refs.for_each_non_custom(is_root, |r| {
+-                    visit_link(
+-                        VarType::NonCustom(r),
+-                        index,
+-                        references_from_non_custom_properties,
+-                        context,
+-                        &mut lowlink,
+-                        &mut self_ref,
+-                        attribute_tracker,
+-                    );
+-                });
+-            }
+-        } else if let VarType::NonCustom(non_custom) = var {
+-            // line-height's resolution depends on font-size's, so its node has a graph edge to the
+-            // font-size node. This is needed for cycle detection (not just application order, which
+-            // `prioritary_property_dependencies(LineHeight)` handles): it puts the line-height node
+-            // in the same strongly-connected component as a font-size<->custom cycle, so the node
+-            // doesn't apply line-height (and, transitively, font-size) before that cycle is
+-            // removed.
+-            //
+-            // TODO(emilio): I think the right fix for this is
+-            // s/SingleNonCustomReference/PrioritaryPropertyId in VarType::NonCustom.
+-            if non_custom == SingleNonCustomReference::LhUnits {
+-                visit_link(
+-                    VarType::NonCustom(SingleNonCustomReference::FontUnits),
+-                    index,
+-                    references_from_non_custom_properties,
+-                    context,
+-                    &mut lowlink,
+-                    &mut self_ref,
+-                    attribute_tracker,
+-                );
+-            }
+-            let entry = &references_from_non_custom_properties[non_custom];
+-            if let Some(values) = entry.as_ref() {
+-                for (longhand_id, value) in values {
+-                    // Traverse the non-custom property's declaration value(s), creating edges to
+-                    // the custom properties they reference (directly or through a used fallback)
+-                    // that might cycle back to this node. Note we traverse unregistered/universal
+-                    // references too: while their own font-relative units are textual (resolved
+-                    // against the parent, see `find_non_custom_references`), they may chain to a
+-                    // registered property that does cycle back.
+-                    let property_id = value.substitution_property_id(*longhand_id);
+-                    let value = &value.variable_value;
+-                    visit_value_references(
+-                        &value.references,
+-                        &value.url_data,
+-                        Some(property_id),
+-                        index,
+-                        references_from_non_custom_properties,
+-                        context,
+-                        &mut lowlink,
+-                        &mut self_ref,
+-                        attribute_tracker,
+-                        &mut Default::default(),
+-                    );
+-                }
+-            }
+-        }
+-
+-        context.var_info[index].lowlink = lowlink;
+-        if lowlink != index {
+-            // This variable is in a loop, but it is not the root of this strong connected
+-            // component. We simply return for now, and the root would remove it from the map.
+-            //
+-            // This cannot be removed from the map here, because otherwise the shortcut check at the
+-            // beginning of this function would return the wrong value.
+-            return Some(index);
+-        }
+-
+-        // This is the root of a strong-connected component.
+-        let mut in_loop = self_ref;
+-        loop {
+-            let var_index = context
+-                .stack
+-                .pop()
+-                .expect("The current variable should still be in stack");
+-            let var_info = &mut context.var_info[var_index];
+-            // We should never visit the variable again, so it's safe to take the name away.
+-            let var_name = var_info
+-                .var
+-                .take()
+-                .expect("Variable should not be popped from stack twice");
+-            if var_index != index {
+-                // Anything here is in a loop which can traverse to the node we are handling, so
+-                // it's invalid at computed-value time.
+-                in_loop = true;
+-            }
+-            if in_loop {
+-                context.handle_loop(&var_name);
+-            }
+-            if var_index == index {
+-                debug_assert_eq!(var_name, var);
+-                break;
+-            }
+-        }
+-
+-        if in_loop {
+-            return None;
+-        }
+-
+-        // Not in a loop, apply the value.
+-        match var {
+-            VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
+-                if let Some(ref v) = value {
+-                    // We know we're not in a loop now, perform substitution.
+-                    // TODO(emilio): Merge with the cycle detection loop instead?
+-                    substitute_references_if_needed_and_apply(
+-                        name,
+-                        var.namespace(),
+-                        v,
+-                        context.stylist,
+-                        context.computed_context,
+-                        attribute_tracker,
+-                    );
+-                }
+-            },
+-            VarType::NonCustom(non_custom) => {
+-                context.apply_prioritary_property(non_custom.to_prioritary_id(), attribute_tracker);
+-            },
+-        }
+-        // All resolved, so return the signal value.
+-        None
+-    }
+-
+-    let mut context = Context {
+-        count: 0,
+-        index_map: OrderIndexMap::default(),
+-        non_custom_index_map: NonCustomReferenceMap::default(),
+-        stack: SmallVec::new(),
+-        var_info: SmallVec::new(),
++    attr_tracker.attr_resolution.reset();
++    let mut context = ResolutionContext {
+         stylist,
+         computed_context: &mut *computed_context,
+         cascade: &mut *cascade,
+         decls,
+         cache: &mut *shorthand_cache,
+     };
++    context.reset();
+     let mut first = true;
+     let mut run_one = |var: VarType| {
+         if !first {
+             context.reset();
+         }
+         first = false;
++        attr_tracker.attr_resolution.reset();
+         traverse(
+             var,
+             references_from_non_custom_properties,
+             &mut context,
+             attr_tracker,
+         );
++        assert!(context.cascade.resolution.stack.is_empty());
++        attr_tracker.attr_resolution.reset();
+     };
+     // Note that `seen` doesn't contain names inherited from our parent, but
+     // those can't have variable references (since we inherit the computed
+@@ -2819,11 +2922,11 @@
+         }
+         run_one(VarType::Custom((*var).clone()));
+     }
+-    // Traverse potentially untraversed chained references from `attr(type())` in non-custom
+-    // properties.
+-    for (namespace, attributes) in &seen.attr {
+-        for attr in attributes {
+-            run_one(VarType::Attr((*attr).clone(), (*namespace).clone()));
+-        }
+-    }
+-}
++    if decls.has_prioritary_properties {
++        for id in PrioritaryPropertyId::each() {
++            run_one(VarType::NonCustom(id.to_longhand()));
++        }
++    }
++    assert!(context.cascade.resolution.stack.is_empty());
++    attr_tracker.attr_resolution.reset();
++}

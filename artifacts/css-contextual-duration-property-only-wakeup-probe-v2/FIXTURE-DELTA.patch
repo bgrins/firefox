@@ -1,0 +1,29 @@
+--- v1/animation-duration-property-only-wakeup.tentative.html
++++ v2/animation-duration-property-only-wakeup.tentative.html
+@@ -86,6 +86,7 @@
+   const afterSeek = read(context);
+   const trace = JSON.stringify({mode, samples, beforeMembership, driverTiming, same,
+                                afterMembership, seek751, afterSeek});
++  await record("property-only-" + mode, trace);
+   assert_true(same, `Animation and effect retained; ${trace}`);
+   if (driverTiming) {
+     assert_equals(driverTiming.time, 1000, `Parent driver time; ${trace}`);
+@@ -97,6 +98,18 @@
+   assertValues(afterSeek, 32, 56, `After explicit seek; ${trace}`);
+ }
+ 
++async function record(kind, trace) {
++  const response = await fetch("duration-progress-record.py", {
++    method: "POST", headers: {"Content-Type": "application/json"},
++    body: JSON.stringify({kind, observation: JSON.parse(trace)})
++  });
++  assert_true(response.ok, "Private observation record acknowledged");
++  const acknowledgement = await response.json();
++  assert_equals(acknowledgement.kind, kind, "Recorded observation kind");
++  assert_equals(acknowledgement.sampleCount, 4, "Recorded passive samples");
++  assert_true(/^[A-Za-z0-9_-]{16,128}$/.test(acknowledgement.run_id), "Owner-bound record identity");
++}
++
+ promise_test(t => observe(t, "literal"),
+              "Literal width keyframes stay calibrated while CSS duration changes under script ownership");
+ promise_test(t => observe(t, "ordinary"),

@@ -1,0 +1,7 @@
+# Broader capture with singleton controls
+
+This immutable successor preserves the twelve-page selection and all inherited metadata. Only the extension body changes: the old ten-case file remains an exact byte prefix, followed by two singleton specified/computed controls. All other 24 captured files, including the original eighteen-case fixture and ten existing pages, are byte-identical to the prior sealed capture. All metadata/header absence records are inherited unchanged. No live WPT, native source, application, Git or canonical inputs were reread; every body was read from sealed artifacts.
+
+The genuine WPT subset manifest still registers twelve testharness pages. Five pages register inertly with exact counts 50, 65, 8, 18 and 12; the seven DOM-dependent pages still have null name lists. There is no aggregate callback count. No callback or browser was executed, and no DOM stand-in was supplied. A fresh original browser run must discover the remaining seven rosters before a strict candidate policy can be sealed.
+
+`CAPTURE-DELTA.json` records the sole body change. `CAPTURE.json` retains original source paths and additionally identifies the actual frozen artifact read for each body. `capture.py` is the preparation procedure, not an in-place post-seal verifier. `ROSTER.json` includes both new singleton names. The prior eighteen-case pair validates the prior source only; the corrected guard needs its own fresh comparison. See the sealed regression-selection-v2 README for the singleton specification rationale and observer limits.

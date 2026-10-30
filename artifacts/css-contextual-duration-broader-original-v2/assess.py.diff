@@ -1,0 +1,22 @@
+--- artifacts/css-contextual-duration-animated-input-browser-v1/assess.py
++++ artifacts/css-contextual-duration-broader-original-v1/assess.py
+@@ -10,7 +10,16 @@
+ bound_run_info = base.bound_run_info
+ 
+ 
+-def assess(*args, **kwargs):
+-    result = base.assess(*args, **kwargs)
+-    result["oracle_caveat"] = "Original easing observation: three exact names; outcomes are measured, not candidate attribution. Animated-input diagnosis requires normal acquisition and identity/reference controls."
++def assess(events, code, policy, checks, original=None, run_binding=None):
++    assert original is None
++    kind = policy['phase_kind']
++    if kind == 'reftest':
++        assert len(policy['tests']) == 1 and set(policy['tests'].values()) == {'reftest'}
++        assert policy['expected_subtest_count'] == 0 and policy['expected_subtests'] == {next(iter(policy['tests'])):[]}
++    else:
++        assert set(policy['tests'].values()) == {'testharness'}
++    result = base.assess(events, code, policy, checks, original=None, run_binding=run_binding)
++    result['oracle_caveat'] = ('Original reftest rendering result, separately retained.' if kind == 'reftest' else
++        'Completion and acquisition only; feedback values have no fixed-point or numeric equality oracle.' if kind == 'feedback' else
++        'Fresh original normative roster/outcomes; existing failures are retained for exact later comparison.')
+     return result

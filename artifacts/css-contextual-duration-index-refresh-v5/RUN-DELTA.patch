@@ -1,0 +1,42 @@
+--- artifacts/css-contextual-duration-index-refresh-v4/run.py
++++ artifacts/css-contextual-duration-index-refresh-v5/run.py
+@@ -10,7 +10,7 @@
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+ RUNTIME = ROOT / 'artifacts/css-registered-number-native-runtime-v1'
+-PAIR = ROOT / 'artifacts/css-contextual-duration-feedback-candidate-runtime-2'
++PAIR = ROOT / 'artifacts/css-contextual-duration-feedback-consistency-candidate-runtime-1'
+ read = lambda p: json.loads(p.read_bytes())
+ sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+ 
+@@ -33,6 +33,7 @@
+     assert {n: sha(RUNTIME / n) for n in policy['controls']} == policy['controls']
+     assert not (RUNTIME / 'SOURCE-TRANSITION.lock').exists()
+     assert policy['runtime_manifest_sha256'] is not None and sha(PAIR / 'FILES.json') == policy['runtime_manifest_sha256']
++    assert policy['candidate_result_sha256'] is not None and sha(PAIR / 'CANDIDATE-RESULT.json') == policy['candidate_result_sha256']
+     result = read(PAIR / 'CANDIDATE-RESULT.json')
+     terminal = read(PAIR / policy['terminal_path'])
+     assert result['success'] and result['restoration_verified'] and result['runtime_controls_unchanged']
+@@ -54,15 +55,19 @@
+     assert outcome['exit'] == 0 and outcome['execution_error'] is None
+     assessment = read(phase / 'ASSESSMENT.json')
+     assert assessment['complete'] and assessment['errors'] == [] and assessment['comparison_errors'] == []
+-    assert assessment['comparison_gate_passed'] and assessment['observed_subtest_count'] == 3
+-    assert len(assessment['rows']) == 3 and all(row['status'] == 'PASS' for row in assessment['rows'])
++    assert assessment['comparison_gate_passed'] and assessment['observed_subtest_count'] == 2
++    assert len(assessment['rows']) == 2 and all(row['status'] == 'PASS' for row in assessment['rows'])
+     assert len(assessment['ends']) == 1 and assessment['ends'][0]['status'] == 'OK'
+     assert result['candidate_phase'] == {'feedback': {key:sha(phase / name) for key,name in [('result_sha256','RESULT.json'),('assessment_sha256','ASSESSMENT.json'),('raw_sha256','raw.jsonl')]}}
+     assert read(PAIR / 'PHASES-PRE.json') == read(PAIR / 'PHASES-POST.json') == read(phase / 'PRE.json') == read(phase / 'POST.json')
+     assert read(phase / 'APPLICATION-METADATA.json') == read(phase / 'APPLICATION-METADATA-POST.json')
+     cleanup = read(phase / 'CLEANUP.json')
+     assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
+-    records = load('feedback_refresh_records', policy['feedback_records_helper']).feedback_records(PAIR)
++    candidate_policy = read(ROOT / policy['candidate_owner_policy'])
++    assert candidate_policy['head'] == policy['head'] and candidate_policy['controls'] == policy['controls']
++    assert ROOT / candidate_policy['runtime_output'] == PAIR
++    records = load('feedback_refresh_records', policy['feedback_records_helper']).feedback_records(ROOT, PAIR, candidate_policy)
++    assert records['calibrated_acquisition'] is True and len(records['records']) == 2
+     assert records == read(PAIR / 'FEEDBACK-RECORDS.json') and records['numeric_or_convergence_oracle'] is False
+     observation = read(PAIR / 'RAW-INDEX-OBSERVATION.json')
+     assert observation == policy['raw_index_observation']

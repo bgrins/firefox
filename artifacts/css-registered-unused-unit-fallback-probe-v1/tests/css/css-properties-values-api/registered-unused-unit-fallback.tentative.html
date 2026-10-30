@@ -1,0 +1,71 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered length dependency from selected and unused unit fallbacks</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#dependency-cycles">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#property-replacement">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<pre id="observations" hidden></pre>
+<script>
+window.unusedUnitFallbackObservations = [];
+
+for (const mode of ["defined", "missing", "literal"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    const loaded = new Promise(resolve => { frame.onload = resolve; });
+    frame.srcdoc = "<!doctype html><html><head></head><body></body></html>";
+    document.body.append(frame);
+    t.add_cleanup(() => frame.remove());
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = win.document;
+    win.CSS.registerProperty({name: "--v", syntax: "<length>", inherits: false, initialValue: "0px"});
+    const style = doc.createElement("style");
+    style.textContent = `
+      .host { font-size: 11px; --size: 20px; }
+      .host.second { font-size: 17px; --size: 30px; }
+      .target { --v: var(--size, 1em); font-size: var(--v); }
+      .missing { --size: initial; }
+      .literal { --v: 20px; }
+      .second .literal { --v: 30px; }
+    `;
+    doc.head.append(style);
+    const calibration = doc.createElement("div");
+    doc.body.append(calibration);
+    const initial = win.getComputedStyle(calibration).getPropertyValue("--v").trim();
+    calibration.remove();
+    const host = doc.createElement("div");
+    host.className = "host";
+    const target = doc.createElement("div");
+    target.className = `target ${mode}`;
+    host.append(target);
+    doc.body.append(host);
+    const row = {mode, initial, phases: []};
+    for (let phase = 0; phase < 2; phase++) {
+      if (phase) host.classList.add("second");
+      const samples = [win.getComputedStyle(target).getPropertyValue("--v").trim()];
+      for (let i = 0; i < 3; i++) {
+        await new Promise(resolve => win.requestAnimationFrame(resolve));
+        samples.push(win.getComputedStyle(target).getPropertyValue("--v").trim());
+      }
+      const computed = win.getComputedStyle(target);
+      row.phases.push({phase, samples, font: computed.fontSize,
+        size: computed.getPropertyValue("--size").trim(),
+        parentFont: win.getComputedStyle(host).fontSize,
+        expectedCustom: mode === "missing" ? "0px" : `${phase ? 30 : 20}px`,
+        expectedFont: mode === "missing" ? `${phase ? 17 : 11}px` : `${phase ? 30 : 20}px`});
+    }
+    window.unusedUnitFallbackObservations.push(row);
+    document.getElementById("observations").textContent = JSON.stringify(window.unusedUnitFallbackObservations);
+    const diagnostic = JSON.stringify(row);
+    assert_equals(initial, "0px", `Registration calibration: ${diagnostic}`);
+    for (const phase of row.phases) {
+      assert_equals(phase.parentFont, `${phase.phase ? 17 : 11}px`, diagnostic);
+      assert_equals(phase.size, mode === "missing" ? "" : `${phase.phase ? 30 : 20}px`, diagnostic);
+      for (const sample of phase.samples) assert_equals(sample, phase.expectedCustom, diagnostic);
+      assert_equals(phase.font, phase.expectedFont, diagnostic);
+    }
+  }, `Registered unused unit fallback: ${mode}`);
+}
+</script>

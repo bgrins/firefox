@@ -1,0 +1,20 @@
+--- artifacts/css-registered-selected-color-candidate-v1/candidate.py
++++ artifacts/css-registered-selected-color-candidate-v2/candidate.py
+@@ -45,7 +45,7 @@
+     original_directory = ROOT / binding['directory']
+     ownership.authenticate(ROOT / policy['baseline_capsule']['directory'], policy['baseline_capsule']['sha256'])
+     ownership.authenticate(original_directory, binding['manifest_sha256'])
+-    assert read(original_directory / binding['terminal_path']) == binding['terminal'] and binding['terminal']['exit'] == 0
++    baseline.owner_terminal(original_directory, binding, policy['baseline_capsule'])
+     assert sha(original_directory / 'RESULT.json') == binding['result_sha256']
+     comparison = load('broader_original_replay', str((HERE / 'comparison.py').relative_to(ROOT)))
+     comparison.replay_all(ROOT, policy)
+@@ -102,7 +102,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'registered-selected-color-candidate-v1'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'registered-selected-color-candidate-v2'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):

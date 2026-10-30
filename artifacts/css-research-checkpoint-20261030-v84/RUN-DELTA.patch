@@ -1,0 +1,119 @@
+--- V83/commit.py
++++ V84/commit.py
+@@ -15,7 +15,7 @@
+ BINDINGS = json.loads((HERE / 'BINDINGS.json').read_bytes())
+ HEAD = BINDINGS['head']
+ EPOCH = BINDINGS['epoch_sha256']
+-EXECUTION_ENABLED = True
++EXECUTION_ENABLED = False
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+@@ -33,72 +33,37 @@
+ 
+ 
+ def saved_admission():
+-    read = lambda path: json.loads((ROOT / path).read_bytes())
+-    historical = load('v82_saved_signer', BINDINGS['historical_signer']['path'])
+-    audit = historical.saved_admission()
+-    assert historical.HEAD == HEAD and historical.EPOCH == EPOCH
+-    assert historical.BINDINGS['controls'] == BINDINGS['controls']
+-    assert read(BINDINGS['final_state_audit']['path']) == audit
+-    current = read(BINDINGS['root_current_capture']['path'])
+-    assert current['audit'] == audit and current['controls'] == BINDINGS['controls']
+-    assert current['source_transition_lock_absent'] and current['full_current_state_verified'] and current['matched_prior_restoration_audit']
+-    assert current['untracked_audit'] == BINDINGS['completed_untracked_audit']['path']
+-    assert current['untracked_audit_sha256'] == BINDINGS['completed_untracked_audit']['sha256']
+-    previous = BINDINGS['previous_attempt']
+-    prior = ROOT / previous['path']
+-    result = read(str((prior / 'result.json').relative_to(ROOT)))
+-    outcome = read(previous['root_outcome']['path'])
+-    review = read(previous['independent_review']['path'])
+-    assert result == {'committed': False, 'exit': 128, 'real_index_and_canonical_state_unchanged': True}
+-    assert sha((prior / 'result.json').read_bytes()) == previous['result_sha256'] == outcome['result_sha256'] == review['result_sha256']
+-    assert sha((prior / 'signing.log').read_bytes()) == outcome['signing_log_sha256'] == review['signing_log_sha256']
+-    assert outcome['head'] == review['head'] == HEAD and outcome['git_exit'] == review['signing_exit'] == 128
+-    assert not outcome['committed'] and not review['committed']
+-    assert outcome['outer_owner_terminal_unknown'] is previous['outer_owner_terminal_unknown'] is True
+-    for field in ['head_unchanged', 'controls_unchanged', 'raw_index_unchanged', 'native_working_diff_preserved', 'untracked_paths_unchanged', 'source_transition_lock_absent', 'owned_temporary_index_removed']:
+-        assert outcome[field] is True
+-    assert review['control_hashes'] == BINDINGS['controls'] and review['raw_index'] == audit['index']['raw_index']
+-    assert review['full_current_state_equals_pre_sign_audit'] and review['full_porcelain_status_equals_pre_sign']
+-    assert review['source_transition_lock_absent'] and review['staging_empty'] and not review['retry_or_signing_executed']
+-    assert review['selected_bodies_unchanged'] == historical.BINDINGS['selected_paths_before_self']
+-    assert review['active_owner_manifest_sha256'] == sha((prior / 'FILES.json').read_bytes())
+-    assert review['owned_temporary_index_directory_absent'] == '/private/tmp/css-research-v82-bgvjs0hs'
+-    reviewer = read(BINDINGS['reviewer_binding']['path'])
++    current = json.loads((ROOT / BINDINGS['current_capture']).read_bytes())
++    review = json.loads((ROOT / 'artifacts/css-animation-active-value-taint-candidate-runtime-3/ROOT-REVIEW.json').read_bytes())
++    assert current['full_current_state_verified'] and current['source_transition_lock_absent']
++    assert current['controls'] == BINDINGS['controls']
++    assert current['audit'] == review['snapshot']
++    assert review['restoration_independently_verified'] and not review['native_acceptance']
++    audit = json.loads((ROOT / BINDINGS['completed_untracked_audit']['path']).read_bytes())
++    assert audit['head'] == HEAD and audit['untracked_count'] == 563
++    assert not audit['unexpected_paths'] and not audit['missing_paths'] and not audit['staged_paths']
++    assert audit['project_hashes_match_committed_recovery'] and len(audit['project_files']) == 68
++    assert not audit['unrelated_metadata_mismatches'] and audit['unrelated_count'] == 495
++    assert audit['tracked_modified_paths'] == ['servo/components/style/custom_properties.rs']
++    assert sha((ROOT / audit['tracked_modified_paths'][0]).read_bytes()) == '2675b33b30ac43db5b758d5a80f42fa4530856c32d5a0923882a15f8a8bc5774'
++    prior = json.loads((ROOT / 'artifacts/css-research-checkpoint-20261030-v83-root-outcome.json').read_bytes())
++    assert not prior['committed'] and prior['head'] == HEAD and prior['git_exit'] == 128
++    reviewer = json.loads((ROOT / 'artifacts/css-commit-reviewers-20261030-v1.json').read_bytes())
+     assert reviewer['exit'] == 0 and reviewer['commit_reviewer'] == 'r?#firefox-style-system-reviewers'
+     assert sha((ROOT / reviewer['log_path']).read_bytes()) == reviewer['log_sha256']
+-    return audit
++    return current['audit']
+ 
+ 
+ def main():
+     assert sys.argv[1:] in [['--check'], ['--run']]
+     if sys.argv[1:] == ['--run']:
+         assert EXECUTION_ENABLED, 'Draft signing execution is disabled'
+-    required = ('head', 'epoch_sha256', 'selection_sha256', 'base_selection_sha256', 'restoration_binding', 'reviewer_binding', 'final_state_audit', 'final_roadmap', 'prepared_application_metadata', 'completed_untracked_audit', 'baseline_binding', 'root_verification_reported', 'fresh_application_capture', 'audit_status_capture', 'root_current_capture', 'signing_supplement', 'controls')
+-    assert all(BINDINGS.get(name) is not None for name in required), 'Final restoration, selection and reviewer bindings are pending'
+-    assert not BINDINGS['pending_inclusion'], 'Final completed-work selection remains pending'
+     assert not (HERE / 'result.json').exists(), 'A completed attempt must not be retried'
+     for name, digest in BINDINGS['references'].items():
+         assert name.startswith('artifacts/') and '..' not in Path(name).parts
+         path = ROOT / name
+         assert path.is_file() and not path.is_symlink() and sha(path.read_bytes()) == digest, name
+-    for name in ('reviewer_binding', 'final_state_audit', 'final_roadmap', 'completed_untracked_audit', 'fresh_application_capture', 'audit_status_capture', 'root_current_capture', 'signing_supplement'):
+-        binding = BINDINGS[name]
+-        assert BINDINGS['references'][binding['path']] == binding['sha256']
+     audit = saved_admission()
+-    user_audit = json.loads((ROOT / BINDINGS['completed_untracked_audit']['path']).read_bytes())
+-    assert user_audit['head'] == HEAD and user_audit['untracked_count'] == 563
+-    assert not user_audit['unexpected_paths'] and not user_audit['missing_paths'] and not user_audit['staged_paths']
+-    assert user_audit['project_hashes_match_committed_recovery'] and len(user_audit['project_files']) == 68
+-    assert all(row['matches'] and row['sha256'] == row['committed_sha256'] for row in user_audit['project_files'])
+-    assert user_audit['unrelated_count'] == 495 and not user_audit['unrelated_metadata_mismatches']
+-    assert user_audit['tracked_modified_paths'] == ['servo/components/style/custom_properties.rs']
+-    assert user_audit['provider_sha256'] == '2675b33b30ac43db5b758d5a80f42fa4530856c32d5a0923882a15f8a8bc5774'
+-    assert user_audit['project_wpt'] == 53 and user_audit['project_native_and_support'] == 15
+-    assert user_audit['unrelated_contents_read'] is False and user_audit['ignored_research_artifacts_included'] is False
+-    assert user_audit['status_capture_sha256'] == BINDINGS['audit_status_capture']['sha256']
+-    assert sha((ROOT / BINDINGS['audit_status_capture']['path']).read_bytes()) == user_audit['status_capture_sha256']
+-    assert BINDINGS['references'][user_audit['reference_audit']] == user_audit['reference_sha256']
+-    assert (HERE / 'WORK-TABLE.md').read_bytes() == (ROOT / Path(BINDINGS['final_roadmap']['path']).parent / 'WORK-TABLE.md').read_bytes()
+     assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES'))
+     assert git('rev-parse', 'HEAD').decode().strip() == HEAD
+     assert git('symbolic-ref', '--short', 'HEAD').decode().strip() == 'stylo-bloom-verification-2'
+@@ -155,7 +120,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v83-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v84-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)
+@@ -169,7 +134,7 @@
+             tree = git('write-tree', env=index_env).decode().strip()
+             assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+             message = directory / 'message'
+-            message.write_text('No bug - Record animation-taint interoperability and focused controls. r?#firefox-style-system-reviewers\n')
++            message.write_text('No bug - Record animation-taint trials and dependency-cycle verification. r?#firefox-style-system-reviewers\n')
+             with (HERE / 'signing.log').open('x') as stream:
+                 result = subprocess.run(GIT + ['commit', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
+             if result.returncode:

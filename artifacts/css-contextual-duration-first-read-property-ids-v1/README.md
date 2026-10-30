@@ -1,0 +1,5 @@
+# Native property identifiers for trace alignment
+
+The configured Clang compiler evaluated the five property enumerators from this build's generated NonCustomCSSPropertyId.h into constant LLVM globals. MAPPING.json records their numeric values and exact generated-header hash; generated-header.h preserves the input. This is a compiler-derived mapping, not an inference from trace order. The instrumented linked build must retain the same header hash before using these values to align queries.
+
+The first compile used the obsolete nsCSSPropertyID.h name and failed (2be843, compiler exit 1). Searchfox text lookup identified NonCustomCSSPropertyId.h (c9190c); get-file returned 404 for the generated file (134d39), so the actual local generated build header was read directly (cc5225). Corrected compilation succeeded (f4099f, compiler exit 0), producing animation-duration 161, font-size 205, line-height 218, opacity 331 and width 373. Both attempts and arguments are retained. No native source edit, linked build, browser run, or Git change occurred.

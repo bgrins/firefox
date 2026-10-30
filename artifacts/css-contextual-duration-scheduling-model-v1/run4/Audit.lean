@@ -1,0 +1,8 @@
+import DurationScheduling
+#print axioms DurationScheduling.equality_misses_committed_stale
+#print axioms DurationScheduling.skipped_change_survives_normal
+#print axioms DurationScheduling.scoped_sync_and_script_preservation
+#print axioms DurationScheduling.scoped_fixed_input_idempotent
+#print axioms DurationScheduling.scoped_history
+#print axioms DurationScheduling.observed_six_state_trace
+#print axioms DurationScheduling.scoped_four_sample_and_override_traces

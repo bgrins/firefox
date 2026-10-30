@@ -1,0 +1,91 @@
+--- artifacts/css-registered-overridden-color-scheme-installed-v1/run.py
++++ artifacts/css-registered-unused-unit-fallback-installed-v1/run.py
+@@ -82,55 +82,49 @@
+     assert isinstance(payload, dict) and set(payload) == {'run_id', 'report'} and payload['run_id'] == run_id
+     report = payload['report']
+     assert set(report) == {'schema', 'status', 'userAgent', 'policyVerdict', 'observations', 'harness'}
+-    assert report['schema'] == 'registered-overridden-dependency-observation-v1' and report['policyVerdict'] is None
++    assert report['schema'] == 'registered-unused-unit-fallback-observation-v1' and report['policyVerdict'] is None
+     assert report['status'] in ('complete', 'incomplete')
+     pattern = r'Firefox/158\.0(?:\s|$)' if browser == 'firefox' else r'(?:Headless)?Chrome/156\.0\.\d+\.\d+(?:\s|$)'
+     assert isinstance(report['userAgent'], str) and re.search(pattern, report['userAgent'])
+     assert set(report['harness']) == {'status', 'message'} and type(report['harness']['status']) is int
+     assert report['harness']['message'] is None or isinstance(report['harness']['message'], str)
+-    modes = ['color-no-loser', 'color-literal', 'color-normal-before-important', 'color-normal-after-important', 'color-normal-before-normal', 'color-important-before-important', 'length-no-loser', 'length-literal', 'length-normal-before-important']
++    modes = ['defined', 'missing', 'literal']
+     assert isinstance(report['observations'], list) and len(report['observations']) == len(modes)
+     complete = True
+     for row, mode in zip(report['observations'], modes):
+         assert set(row) == {'mode', 'record', 'wpt', 'referenceChecks', 'activeExpectation', 'policyVerdict'}
+         assert row['mode'] == mode and row['policyVerdict'] is None
+         assert set(row['wpt']) == {'name', 'status', 'message'}
+-        assert row['wpt']['name'] == 'Overridden registered dependency: ' + mode
++        assert row['wpt']['name'] == 'Registered unused unit fallback: ' + mode
+         assert row['wpt']['status'] is None or type(row['wpt']['status']) is int
+         assert row['wpt']['message'] is None or isinstance(row['wpt']['message'], str)
+         record = row['record']
+-        length = mode.startswith('length-')
+         if record is not None:
+-            assert set(record) == {'caseName', 'initial', 'phases'} and record['caseName'] == mode
++            assert set(record) == {'mode', 'initial', 'phases'} and record['mode'] == mode
+             assert isinstance(record['initial'], str) and isinstance(record['phases'], list) and len(record['phases']) <= 2
+             for index, phase in enumerate(record['phases']):
+-                assert set(phase) == {'phase','declared','property','winner','expected','samples','computedWinner','reference','supportedLosingValue'}
++                assert set(phase) == {'phase','samples','font','size','parentFont','expectedCustom','expectedFont'}
+                 assert type(phase['phase']) is int and phase['phase'] == index
+-                expected = str((20 if index == 0 else 30) * 2) + 'px' if length else ('rgb(0, 0, 255)' if index == 0 else 'rgb(0, 128, 0)')
+-                winner = ('20px' if index == 0 else '30px') if length else ('dark' if index == 0 else 'light')
+-                declared = expected if mode.endswith('-literal') else ('2em' if length else 'light-dark(green, blue)')
+-                assert phase['declared'] == declared and phase['property'] == ('font-size' if length else 'color-scheme')
+-                assert phase['winner'] == winner and phase['expected'] == expected
+-                assert type(phase['supportedLosingValue']) is bool
++                assert phase['expectedCustom'] == ('0px' if mode == 'missing' else ('30px' if index else '20px'))
++                assert phase['expectedFont'] == (('17px' if index else '11px') if mode == 'missing' else ('30px' if index else '20px'))
+                 assert isinstance(phase['samples'], list) and len(phase['samples']) <= 4 and all(isinstance(v, str) for v in phase['samples'])
+-                assert isinstance(phase['computedWinner'], str) and isinstance(phase['reference'], str)
++                assert all(isinstance(phase[key], str) for key in ['font','size','parentFont'])
+         collected = record is not None and len(record['phases']) == 2 and all(len(p['samples']) == 4 for p in record['phases'])
+         complete &= collected and row['wpt']['status'] is not None
+         expected_checks = [
+-            record is not None and record['initial'] == ('0px' if length else 'rgb(255, 0, 0)'),
+-            collected and all(p['supportedLosingValue'] for p in record['phases']),
+-            collected and all(p['computedWinner'] == p['winner'] for p in record['phases']),
+-            collected and all(p['reference'] == p['expected'] for p in record['phases']),
++            record is not None and record['initial'] == '0px',
++            collected and all(p['parentFont'] == ('17px' if p['phase'] else '11px') for p in record['phases']),
++            collected and all(p['size'] == ('' if mode == 'missing' else ('30px' if p['phase'] else '20px')) for p in record['phases']),
+         ]
+         checks = row['referenceChecks']
+-        assert isinstance(checks, list) and len(checks) == 4
++        assert isinstance(checks, list) and len(checks) == 3
+         assert all(set(v) == {'name', 'passed'} and type(v['passed']) is bool for v in checks)
+-        assert [v['name'] for v in checks] == ['independent initial registration','losing declaration grammar','literal cascade winner','literal reference']
++        assert [v['name'] for v in checks] == ['independent initial registration','parent font calibration','primary input calibration']
+         assert [v['passed'] for v in checks] == expected_checks
+         expectation = row['activeExpectation']
+         assert type(expectation['matches']) is bool
+-        matches = collected and all(all(v == p['reference'] for v in p['samples']) for p in record['phases'])
+-        assert expectation == {'kind': 'control' if mode.endswith(('-literal','-no-loser')) else 'overridden-dependency', 'matches': matches}
++        matches = collected and all(all(v == p['expectedCustom'] for v in p['samples']) and p['font'] == p['expectedFont'] for p in record['phases'])
++        assert expectation == {'kind': 'control' if mode == 'literal' else 'genuine-cycle' if mode == 'missing' else 'unused-unit-fallback', 'matches': matches}
+     assert (report['status'] == 'complete') == complete
+     return report
+ 
+@@ -275,7 +269,7 @@
+     selected = policy['browsers'][args.browser]
+     output = ROOT / selected['output']
+     output.mkdir(mode=0o700)
+-    temporary = Path(tempfile.mkdtemp(prefix='css-overridden-dependency-', dir='/private/tmp'))
++    temporary = Path(tempfile.mkdtemp(prefix='css-unused-unit-fallback-', dir='/private/tmp'))
+     info = temporary.lstat()
+     identity = [info.st_dev, info.st_ino]
+     profile = temporary / 'profile'
+@@ -358,7 +352,7 @@
+         'reference_checks_pass': reference_checks_pass, 'active_control_expectations_pass': active_controls_pass,
+         'all_callbacks_pass': all_callbacks_pass, 'harness_ok': harness_ok,
+         'suite_pass': observation_complete and all_callbacks_pass and harness_ok,
+-        'overridden_dependency_policy_verdict': None, 'error': error,
++        'unused_unit_fallback_policy_verdict': None, 'error': error,
+         'report_received': receiver.report is not None, 'cleanup_complete': cleanup.get('temporary_removed', False),
+         'native_acceptance': False, 'launcher_returncode_after_cleanup': process.returncode if process else None})
+     return 0 if complete else 1

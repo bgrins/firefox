@@ -1,0 +1,14 @@
+--- prepared-original77/check.py
++++ artifacts/css-prioritary-selection-original-terminal-review-v2/check.py
+@@ -22,7 +22,10 @@
+ policy=r.read(owner/'POLICY.json')
+ roles=r.read(owner/'SOURCE-ROLES.json')
+ consumed=r.consumed_map(owner,policy,roles,config['prepared_owner_manifest_sha256'])
+-assert policy['head'] is None
++assert isinstance(policy['head'],str) and len(policy['head'])==40
++assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
++assert len(policy['intermediate_consumed_inputs'])==480
++assert set(policy['restored_context_claims'])=={'servo/components/style/properties/cascade.rs'}
+ policy['head']='e'*40
+ for settings in [policy['wpt'],*policy['wpt_lanes'].values()]:
+     settings['harness_revision']=policy['head'];settings['phase_revisions']={'original':policy['head'],'candidate':policy['head']}

@@ -1,0 +1,67 @@
+--- artifacts/css-contextual-duration-masked-nine-original-disabled-v1/admission.py
++++ artifacts/css-contextual-duration-masked-nine-original-v1/admission.py
+@@ -24,6 +24,11 @@
+ 
+ 
+ def validate(policy):
++    if "preserved_disabled" in policy:
++        saved = policy["preserved_disabled"]
++        package(saved["directory"], saved["manifest_sha256"])
++        for name in ("run.py", "assess.py", "check.py"):
++            assert sha(ROOT / saved["directory"] / name) == sha(Path(__file__).resolve().parent / name)
+     predecessor = policy["predecessor"]
+     package(predecessor["directory"], predecessor["manifest_sha256"])
+     previous = read(ROOT / predecessor["directory"] / "POLICY.json")
+@@ -50,13 +55,39 @@
+     runtime = ROOT / policy["restored_runtime"]
+     terminal = pinned(policy, policy["restoration_binding"]["terminal"])
+     assert terminal == read(runtime / "ROOT-TERMINAL.json")
+-    assert sha(ROOT / policy["restored_owner"] / "FILES.json") == terminal["owner_sha256"]
++    package(policy["restored_owner"], terminal["owner_sha256"])
++    assert (terminal["session_id"], terminal["terminal_chunk"], terminal["exit"], terminal["browser_exit"]) == (44603, "98abc4", 0, 1)
++    assert terminal["build_success"] and terminal["observation_complete"] and terminal["raw_replay_verified"]
++    assert not terminal["all_callbacks_passed"] and not terminal["comparison_gate_passed"] and not terminal["native_acceptance"]
++    assert (terminal["callbacks_passed"], terminal["callbacks_failed"], terminal["page_endings_ok"]) == (5, 2, 2)
+     assert terminal["state_and_application_restoration_independently_verified"]
+     assert terminal["result_sha256"] == sha(runtime / "CANDIDATE-RESULT.json")
+     result = read(runtime / "CANDIDATE-RESULT.json")
++    assert result["success"] and result["error"] is None
++    assert result["success_scope"] == terminal["success_scope"] == "build, complete observation and restoration; callback PASS is separate"
+     assert result["restoration_verified"] and result["runtime_controls_unchanged"]
+     assert result["publication_errors"] == [] and result["empty_staging_preserved"]
+     assert not result["native_fix_acceptance"]
++    for key, filename in (("raw_sha256", "raw.jsonl"), ("assessment_sha256", "ASSESSMENT.json"), ("result_sha256", "RESULT.json")):
++        assert result["candidate_phase"][key] == sha(runtime / "candidate-wpt" / filename)
++    phase = read(runtime / "candidate-wpt/RESULT.json")
++    assert phase["exit"] == 1 and phase["success"] and phase["preservation_verified"]
++    assert not phase["comparison_gate_passed"] and phase["execution_error"] is None
++    assessment = read(runtime / "candidate-wpt/ASSESSMENT.json")
++    assert assessment["complete"] and assessment["observed_subtest_count"] == 7
++    assert sum(row["status"] == "PASS" for row in assessment["rows"]) == 5
++    assert {row["subtest"] for row in assessment["rows"] if row["status"] == "FAIL"} == {
++        "Masked font element: outline preserves timing and output",
++        "Masked font ::before: outline preserves timing and output",
++    }
++    assert len(assessment["ends"]) == 2 and all(row["status"] == "OK" for row in assessment["ends"])
++    outcomes = read(runtime / "OUTCOMES.json")
++    assert (outcomes["callbacks_passed"], outcomes["callbacks_failed"]) == (5, 2)
++    assert not outcomes["all_callbacks_passed"] and not outcomes["comparison_gate_passed"]
++    assert outcomes["comparison_errors"] == assessment["comparison_errors"]
++    cleanup = read(runtime / "BACKUP-CLEANUP.json")
++    assert cleanup["removed"] and cleanup["verified_original_restoration"] and not cleanup["retained_after_failure"]
++    assert cleanup["owned_backup_bytes"] == terminal["backup_removed_bytes"] == 1008605176
+     restored = read(runtime / "RESTORATION.json")
+     assert restored["errors"] == [] and restored["owned_processes"] == {}
+     before = read(runtime / "CANDIDATE-PRE.json")
+@@ -69,6 +100,11 @@
+     assert refresh["full_restored_state_verified"] and refresh["accepted_fix_increment"] == 0
+     assert refresh["only_changed_field"] == "raw_index_observation.current"
+     assert refresh["observation"] == terminal["raw_index_observation"]
++    assert refresh["after_epoch"] == fresh["controls"]["CURRENT-EPOCH.json"]
++    assert refresh["observation"]["after"] == fresh["raw_index"]
++    verification = fresh["full_state_verification"]
++    assert (verification["session_id"], verification["terminal_chunk"], verification["exit"]) == (56092, "4312c9", 0)
++    assert policy["references"][verification["log"]] == sha(ROOT / verification["log"]) == verification["log_sha256"]
+     post = read(runtime / "POST.json")
+     assert fresh["snapshot"] == post
+     app = policy["prepared_application_metadata"]

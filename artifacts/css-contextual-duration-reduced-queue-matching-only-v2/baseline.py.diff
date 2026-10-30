@@ -1,0 +1,73 @@
+--- v1/baseline.py
++++ v2/baseline.py
+@@ -25,6 +25,53 @@
+ def expected_wpt(policy):
+     comparison = load('minmax_roster_binding', str((HERE / 'comparison.py').relative_to(ROOT)))
+     return comparison.expected_wpt(ROOT, policy)
++
++
++def restoration_binding(policy, ownership):
++    binding = policy['current_restoration_binding']
++    assert set(binding) == {'terminal', 'refresh'}
++    for record in binding.values():
++        assert policy['references'][record['path']] == record['sha256'] == sha(ROOT / record['path'])
++    provenance = policy['restoration_provenance']
++    directory = ROOT / provenance['directory']
++    owner = ROOT / provenance['owner_directory']
++    ownership.authenticate(directory, provenance['manifest_sha256'])
++    ownership.authenticate(owner, provenance['owner_sha256'])
++    previous = read(owner / 'POLICY.json')
++    terminal = read(ROOT / binding['terminal']['path'])
++    refresh = read(ROOT / binding['refresh']['path'])
++    assert terminal == read(directory / 'ROOT-TERMINAL.json')
++    assert terminal['owner_sha256'] == provenance['owner_sha256']
++    assert terminal['exit'] == 0 and terminal['state_and_application_restoration_independently_verified']
++    assert terminal['raw_replay_verified'] and terminal['build_success'] and not terminal['native_acceptance']
++    assert terminal['result_sha256'] == provenance['result_sha256'] == sha(directory / 'CANDIDATE-RESULT.json')
++    result = read(directory / 'CANDIDATE-RESULT.json')
++    assert result['success'] and result['restoration_verified'] and result['runtime_controls_unchanged']
++    assert result['empty_staging_preserved'] and result['error'] is None and result['publication_errors'] == []
++    restored = read(directory / 'RESTORATION.json')
++    assert restored['errors'] == [] and restored['owned_processes'] == {}
++    cleanup = read(directory / 'BACKUP-CLEANUP.json')
++    assert cleanup['removed'] and cleanup['verified_original_restoration'] and not cleanup['retained_after_failure']
++    assert cleanup['owned_backup_bytes'] == terminal['backup_removed_bytes']
++    assert refresh['full_restored_state_verified'] and refresh['accepted_fix_increment'] == 0
++    assert refresh['runtime_manifest_sha256'] == provenance['manifest_sha256']
++    assert refresh['only_changed_field'] == 'raw_index_observation.current'
++    assert refresh['observation'] == terminal['raw_index_observation'] == read(directory / 'RAW-INDEX-OBSERVATION.json')
++    assert refresh['observation']['semantic_index_unchanged'] and not refresh['observation']['canonical_updated']
++    assert refresh['before_epoch'] == previous['controls']['CURRENT-EPOCH.json']
++    assert policy['controls'] == dict(previous['controls'], **{'CURRENT-EPOCH.json': refresh['after_epoch']})
++    assert policy['head'] == previous['head'] == policy['wpt']['harness_revision']
++    assert policy['prepared_flag_hashes'] == previous['prepared_flag_hashes']
++    metadata = dict(previous['prepared_application_metadata'])
++    entry, target = terminal['restored_application_entry'], terminal['restored_application_target']
++    assert entry['kind'] == 'symlink' and target['kind'] == 'file' and target['nlink'] == 1
++    assert entry['target'] == metadata['symlink_target'] == metadata['resolved']
++    assert target['sha256'] == metadata['sha256']
++    metadata.update(entry_identity=entry['identity'], identity=target['identity'])
++    assert policy['prepared_application_metadata'] == metadata
++    expected_processes = previous['closed_process_receipts'] + [
++        str((directory / name).relative_to(ROOT)) for name in read(directory / 'FILES.json') if name.endswith('PROCESS.json')]
++    assert policy['closed_process_receipts'] == expected_processes
+ 
+ 
+ def prepare(manifest):
+@@ -60,14 +107,13 @@
+     checks = load('minmax_checks', wpt['checks_helper'])
+     comparison = load('minmax_comparison', str((HERE / 'comparison.py').relative_to(ROOT)))
+     comparison.replay_original(ROOT, policy, assessor, checks)
++    restoration_binding(policy, ownership)
+     return policy, ownership, roles
+ 
+ 
+ def guard(policy, ownership, roles):
+     assert policy['activation_pending'] == []
+-    assert set(policy['current_restoration_binding']) == {'terminal', 'refresh'}
+-    for record in policy['current_restoration_binding'].values():
+-        assert policy['references'][record['path']] == record['sha256'] == sha(ROOT / record['path'])
++    restoration_binding(policy, ownership)
+     assert policy['head'] == policy['wpt']['harness_revision']
+     assert policy['prepared_application_metadata'] and policy['prepared_flag_hashes'] and policy['closed_process_receipts']
+     for name, pin in policy['deferred_nonartifact_references'].items():

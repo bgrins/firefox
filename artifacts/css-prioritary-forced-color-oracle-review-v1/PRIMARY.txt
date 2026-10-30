@@ -1,0 +1,271 @@
+CSS Color Adjustment Module Level 1 (https://drafts.csswg.org/css-color-adjust-1/)
+citeturn3063view0 [wordlim: 200] Crawled: today; Content type: text/html; Source: open({"ref_id":"turn3061view0","lineno":243}); Total lines: 757
+L214: Note: User agents are not required to support any particular 【68†color scheme】, so only using a single keyword, such as 【69†color-scheme: dark】, to indicate a required color scheme is still not guaranteed to have any effect on the rendering of the element.
+L215: 
+L216: Note: User agents might not actually support preference levels in a 【99†color scheme preferences】. At the time of writing, UAs generally only support an ordinary 【83†light】 or 【84†dark】 preference, which considerably simplifies the above logic.
+L217: ### 2.4. Effects of the Used Color Scheme
+L218: 
+L219: For all elements, the user agent must match the following to the 【91†element color scheme】:
+L220: 
+L221:   * the default colors of scrollbars and other interaction UI
+L222: 
+L223:   * the default colors of form controls and other "specially-rendered" elements
+L224: 
+L225:   * the default colors of other browser-provided UI, such as "spellcheck" underlines
+L226: 
+L227:   * the value of 【86†system colors†www.w3.org】
+L228: 
+L229:   * the value of the 【92†light-dark()†www.w3.org】 function
+L230: On the root element, the 【91†element color scheme】 additionally must affect the surface color of the 【121†canvas†www.w3.org】, and the viewport’s scrollbars.
+L231: In order to preserve expected color contrasts, in the case of embedded documents typically rendered over a transparent 【121†canvas†www.w3.org】 (such as provided via an HTML `【97†iframe†html.spec.whatwg.org】` element), if the 【91†element color scheme】 of the element and the element color scheme of the embedded document’s root element do not match, then the UA must use an opaque canvas of the 【122†Canvas†www.w3.org】 color appropriate to the embedded document’s root element’s element color scheme instead of a transparent canvas.
+L232: This rule does not apply to documents embedded via elements intended for graphics (such as `【98†img†html.spec.whatwg.org】` elements embedding an SVG document); their canvases remain the default transparent regardless.
+L233: Note: Aside from the small list of adjustments given above, user agents generally do not further adjust a page to match the user’s preferred 【68†color scheme】, because the chance of accidentally ruining a page is too high. However, when particular color choices are required by the user (for accessibility reasons, for example), more invasive changes might be applied; see 【40†§ 3 Forced Color Palettes】.
+L234: ### 2.5. Overriding the Color Scheme
+L235: If the user has indicated an 【120†overriding preference】 for a particular color scheme that the author does not explicitly support, and the author has not disallowed this (by using the 【119†only】 keyword), the user agent must override the color scheme: in addition to the effects described in 【38†§ 2.4 Effects of the Used Color Scheme】, it must also auto-adjust other colors into this chosen 【68†color scheme】, such as by inverting their brightness, while preserving any color contrast necessary for readability of the page.
+L236: In this case, UA may also auto-adjust colors within replaced elements, background images, and other external resources as appropriate.
+L237: Note: The specifics of such auto-adjustments are UA-defined, and can differ from UA to UA. But it is not intended to force all colors into a fixed palette, as 【70†forced colors mode】 does, only to force all colors on the page to conform to either a 【84†dark】 or 【83†light】 color scheme.
+L238: 
+L239: For example, a UA might have a “dark room” mode, which forces all pages into a 【84†dark】 color scheme.
+L240: For pages that already support 【84†dark】 color schemes, and have indicated so using the 【69†color-scheme】 property or `【94†color-scheme†html.spec.whatwg.org】` `【123†meta†html.spec.whatwg.org】` name, this has no effect other than reporting a 【124†dark†www.w3.org】 value for the 【73†prefers-color-scheme†www.w3.org】 【76†media query†www.w3.org】 and selecting a dark 【95†used color scheme】.
+L241: But for pages that do not explicitly support a 【84†dark】 color scheme, and have not explicitly forbidden this auto-adjustment by specifying 【69†color-scheme: only light】, this mode triggers auto-adjustment of the page’s colors to force the page to conform to the desired dark color scheme.
+L242: ## 3. Forced Color Palettes
+L243: 
+L244: Forced colors mode is an accessibility feature intended to increase the readability of text through color contrast. Individuals with limited vision often find it more comfortable to read content when there is a particular type of contrast between foreground and background colors.
+L245: Operating systems can provide built-in color themes, such as Windows’ high contrast black-on-white and high-contrast white-on-black themes. Users can also customize their own themes, for example to provide low contrast or hue contrast.
+L246: In 【70†forced colors mode】, the user agent enforces the user’s preferred color palette on the page, overriding the author’s chosen colors for specific properties, see 【41†§ 3.1 Properties Affected by Forced Colors Mode】. It may also enforce a “backplate” underneath text (similar to the way backgrounds are painted on the 【125†::selection†www.w3.org】 pseudo-element) to ensure adequate contrast for readability.
+L247: To enable pages to adapt to 【70†forced colors mode】 user agents will match the 【75†forced-colors†www.w3.org】 media query and must provide the required color palette through the CSS system colors (see 【126†[CSS-COLOR-4]】).
+L248: Additionally, if the UA determines, based on Lab lightness, that the 【122†Canvas†www.w3.org】 color is clearly either dark (L < 33%) or light (L > 67%), then it must match the appropriate value of the 【73†prefers-color-scheme†www.w3.org】 media query and express a corresponding user preference for 【69†color-scheme】. This will allow pages that support light/dark color schemes to automatically adjust to more closely match the forced color scheme. Behavior between the above dark vs.
+L249: light thresholds is UA-defined, and may result in assuming either light or dark as the user’s preferred color scheme.
+L250: If 【127†get emulated forced colors theme data】 is not "`【128†none】`", the user agent should bypass the above operating system color themes, and instead act as if the user has enabled 【70†forced colors mode】 with the 【129†forced colors mode emulation color palette】 defined for the resulting value of 【130†emulated forced colors theme data】.
+L251: ### 3.1. Properties Affected by Forced Colors Mode
+L252: 
+L253: When 【70†forced colors mode】 is active and 【71†forced-color-adjust】 is 【131†auto】 (see below) on an element, the 【132†<color>†www.w3.org】 components of all properties on the element are force-adjusted to the user’s preferred color palette.
+L254: Specifically, 【70†forced colors mode】 applies to the following color properties, along with their shorthands. This is the list of color properties existing at the time of writing, but it may not be an exhaustive list as more properties get added over time:
+L255:   * 【133†accent-color†www.w3.org】
+L256:   * 【134†background-color†www.w3.org】
+L257:   * 【135†border-color†www.w3.org】
+L258:   * 【136†caret-color†www.w3.org】
+L259:   * 【137†color†www.w3.org】
+L260:   * 【138†flood-color†www.w3.org】
+L261:   * 【139†fill†www.w3.org】
+L262:   * 【140†lighting-color†www.w3.org】
+L263:   * 【141†outline-color†www.w3.org】
+L264:   * 【142†rule-color†www.w3.org】
+L265:   * 【143†scrollbar-color†www.w3.org】
+L266:   * 【144†stop-color†www.w3.org】
+L267:   * 【145†stroke†www.w3.org】
+L268:   * 【146†text-decoration-color†www.w3.org】
+L269:   * 【147†text-emphasis-color†www.w3.org】
+L270:   * -webkit-tap-highlight-color
+L271: For each 【132†<color>†www.w3.org】 component of a property, if its 【148†computed value†www.w3.org】 is a color other than a 【86†system color†www.w3.org】, its 【149†used value†www.w3.org】 is instead forced to a system color as follows:
+L272:   * For 【134†background-color†www.w3.org】 in particular, it is forced to the color opposite the 【137†color†www.w3.org】 property’s 【86†system color†www.w3.org】 value in the 【150†system color pairings†www.w3.org】, using 【151†CanvasText†www.w3.org】 as the opposite of 【122†Canvas†www.w3.org】. However, its alpha channel is taken from the original background-color value so that transparent backgrounds remain transparent.
+L273:   * In all other cases, the UA determines the appropriate forced 【86†system color†www.w3.org】—​which should match the color that would result from an empty 【152†author style sheet†www.w3.org】 whenever all of the element’s affected properties are likewise UA-determined.
+L274: UAs need to be careful about inheritance when forcing colors. For example, suppose the UA’s button 【137†color†www.w3.org】 and 【134†background-color†www.w3.org】 are the opposite of its canvas color and background-color. Given markup such as
+L275: 
+L276:     <button>Push <em>this</em> button</button>
+L277: Normally, `【153†em†html.spec.whatwg.org】` will inherit from `【154†button†html.spec.whatwg.org】`, ensuring its readability. However in 【70†forced colors mode】, the 【137†color†www.w3.org】 of both `【154†button†html.spec.whatwg.org】` and `【153†em†html.spec.whatwg.org】` will need to be forced.
+L278: It’s easy to see that `【154†button†html.spec.whatwg.org】`’s color should be forced to the button color, but `【153†em†html.spec.whatwg.org】` also needs to be forced to the button color; if it were forced to the canvas color like it is everywhere else in the document, its text will be unreadable.
+L279: Additionally:
+L280: 
+L281:   * 【155†box-shadow†www.w3.org】 and 【156†text-shadow†www.w3.org】 compute to 【157†none†www.w3.org】
+L282: 
+L283:   * 【158†background-image†www.w3.org】 computes to 【159†none†www.w3.org】 unless the original value contains a 【160†url()†www.w3.org】 function
+L284: 
+L285:   * 【69†color-scheme】 computes to light dark
+L286: 
+L287:   * 【143†scrollbar-color†www.w3.org】 computes to 【161†auto†www.w3.org】
+L288: 
+L289:   * 【133†accent-color†www.w3.org】 computes to 【162†auto†www.w3.org】
+L290:   * If 【163†font-variant-emoji†www.w3.org】 computes to 【164†normal†www.w3.org】 or 【165†unicode†www.w3.org】, UAs should force any emoji on the page to its monochrome variant, if available, by forcing the 【148†computed value†www.w3.org】 of font-variant-emoji to 【166†text†www.w3.org】.
+L291: 
+L292: UAs may further tweak these 【70†forced colors mode】 heuristics to provide better user experience.
+L293: Authors may still use features such as 【167†color-mix()†www.w3.org】 in 【70†forced colors mode】. In such cases, the 【148†computed value†www.w3.org】 will behave as it would normally, but the 【149†used value†www.w3.org】 will be overridden with an appropriate 【86†system color†www.w3.org】.
+L294: 
+L295:     .example {
+L296:       color: color-mix(in srgb, CanvasText, Canvas);
+L297:     }
+L298: The 【148†computed value†www.w3.org】 for 【137†color†www.w3.org】 will be a 50-50 blend of the 【151†CanvasText†www.w3.org】 and 【122†Canvas†www.w3.org】 【86†system colors†www.w3.org】. That value will inherit to descendants and be observable via APIs such as `【168†computedStyleMap()†www.w3.org】`.
+L299: 
+L300: The 【149†used value†www.w3.org】 for 【137†color†www.w3.org】 will be a system color chosen by the UA, for example 【151†CanvasText†www.w3.org】.
+L301: ### 3.2. Opting Out of a Forced Color Palette: the 【71†forced-color-adjust】 property
+L302: 
+L303: Name:  | forced-color-adjust
+L304: 【101†Value:†www.w3.org】  | auto 【102†|†www.w3.org】 none | preserve-parent-color
+L305: 【107†Initial:†www.w3.org】  | auto
+L306: 【108†Applies to:†www.w3.org】  | all elements and text
+L307: 【109†Inherited:†www.w3.org】  | yes
+L308: 【110†Percentages:†www.w3.org】  | n/a
+L309: 【111†Computed value:†www.w3.org】  | as specified
+L310: 【113†Canonical order:†www.w3.org】  | per grammar
+L311: 【114†Animation type:†www.w3.org】  | not animatable
+L312: The 【71†forced-color-adjust】 property allows authors to opt particular elements out of 【70†forced colors mode】, restoring full control over the colors to CSS. Values have the following meanings:
+L313: 
+L314: auto
+L315: 
+L316: 
+L317: The element’s colors are automatically adjusted by the UA in 【70†forced colors mode】.
+L318: 
+L319: none
+L320: 
+L321: 
+L322: The element’s colors are not automatically adjusted by the UA in 【70†forced colors mode】.
+L323: Authors should only use this value when they are themselves adjusting the colors to support the user’s color and contrast needs and need to make changes to the UA’s default adjustments to provide a more appropriate user experience for those elements.
+L324: 
+L325: preserve-parent-color
+L326: In 【70†forced colors mode】, if the 【137†color†www.w3.org】 property inherits from its parent (i.e. there is no 【169†cascaded value†www.w3.org】 or the cascaded value is 【170†currentColor†www.w3.org】, 【171†inherit†www.w3.org】, or another keyword that inherits from the parent), then it computes to the 【149†used†www.w3.org】 color of its parent’s color value.
+L327: 
+L328: In all other respects, behaves the same as 【172†none】.
+L329: Note: This value is intended solely to get a reasonable behavior from embedded SVG elements that expect to receive the outer document’s text color (and stay consistent with adjustments from 【70†forced colors mode】), while otherwise defaulting SVGs to preserving their exact colors, as forced colors mode can’t generally be usefully applied to illustrations.
+--------------------------------------------------------------------------------
+CSS Color Module Level 5 (https://drafts.csswg.org/css-color-5/)
+citeturn3063view1 [wordlim: 200] Crawled: today; Content type: text/html; Source: open({"ref_id":"turn3061view1","lineno":1248}); Total lines: 2221
+L1202: The 【104†device-cmyk()】 function allows authors to specify a color in this way:
+L1203: 
+L1204:     device-cmyk() = 【340†<legacy-device-cmyk-syntax>】 【102†|】 【341†<modern-device-cmyk-syntax>】
+L1205:     <legacy-device-cmyk-syntax> = device-cmyk( 【199†<number>】【135†#{4}】 )
+L1206:     <modern-device-cmyk-syntax> = device-cmyk( 【342†<cmyk-component>】【292†{4}】 [ / [ 【293†<alpha-value>】 【102†|】 【200†none】 ] ]【131†?】 )
+L1207:     <cmyk-component> = 【199†<number>】 【102†|】 【134†<percentage>】 【102†|】 【200†none】
+L1208: The arguments of the 【104†device-cmyk()】 function specify the cyan, magenta, yellow, and black components, in order, as a number between 0 and 1 or, in the modern syntax, as a percentage between 0% and 100%. These two usages are equivalent, and map to each other linearly. Values less than 0 or 0%, or greater than 1 or 100%, are not invalid; instead, they are clamped to 0/0% or 1/100% at computed-value time.
+L1209: In the modern syntax, the fifth argument specifies the alpha component of the color. It’s interpreted identically to the fourth argument of the 【109†rgb()】 function. If omitted, it defaults to 100%.
+L1210: 
+L1211: For 【343†historical reasons†www.w3.org】, 【104†device-cmyk()】 also support a 【198†legacy color syntax】.
+L1212: Typically, print-based applications will actually store the used colors as CMYK, and send them to the printer in that form. However, such colors do not have a colorimetric interpretation, and thus cannot be used in gradients, compositing, blending and so on.
+L1213: 
+L1214: As such, Device CMYK colors must be converted to an equivalent color. This is not trivial, like the conversion from HSL or HWB to RGB; the precise conversion depends on the precise characteristics of the output device.
+L1215:   1. If the user, author, or user-agent stylesheet has an 【317†@color-profile】 definition for device-cmyk, and the resource specified by the src descriptor can be retrieved, and the resource is a valid CMYK ICC profile, and the user agent can process ICC profiles, the computed value of the 【104†device-cmyk()】 function must be the Lab value of the CMYK color.
+L1216:   2. Otherwise, the computed value of the 【104†device-cmyk()】 function must be the sRGB value of the CMYK color, as converted with the following naive conversion algorithm.
+L1217: For example, with no 【317†@color-profile】, the following colors are equivalent, using the naive conversion.
+L1218: 
+L1219:     color:  device-cmyk(0 81% 81% 30%);
+L1220:     color:  rgb(178 34 34);
+L1221:     color:  firebrick;
+L1222: 
+L1223: 
+L1224: With the 【317†@color-profile】 specified as in the example stylesheet, the following colors are equivalent, using colorimetric conversion.
+L1225: 
+L1226:     color:  device-cmyk(0 81% 81% 30%);
+L1227:     color:  lab(45.060% 45.477 35.459)
+L1228:     color:  rgb(70.690% 26.851% 19.724%);
+L1229: The naive conversion is necessarily approximate, since it has no knowledge of the colorimetry of the inks, the dot gain, the colorimetry of the RGB space, and so on.
+L1230: 
+L1231: A grid of colored squares. There are six columns, labelled A to F, and four rows, labelled 1 to 4.
+L1232: A color checker, used for ensuring color fidelity in the print and photographic industries. Averaged measured Lab values are available for each patch. The rectangles show the Lab values, converted to sRGB. The circles show the Lab values, passed through an ICC profile to convert them to CMYK. The CMYK value are then naively converted to sRGB.
+L1233: The table below shows, for each patch, the DeltaE 2000 between the original Lab and the Lab value after round-tripping through CMYK. A DeltaE 2000 of 1 or more is just visible, while 5 or more is just a different color altogether.
+L1234:  | A  | B  | C  | D  | E  | F
+L1235: --- | --- | --- | --- | --- | --- | ---
+L1236: 1  | 11.33  | 9.36  | 5.66  | 7.52  | 12.39  | 21.58
+L1237: 2  | 6.40  | 8.79  | 11.77  | 17.16  | 11.91  | 3.97
+L1238: 3  | 12.1  | 17.00  | 3.38  | 1.94  | 18.08  | 14.97
+L1239: 4  | 1.89  | 6.56  | 7.85  | 8.76  | 9.82  | 10.29
+L1240: ### 6.1. Naively Converting Between Uncalibrated CMYK and sRGB-Based Color
+L1241: 
+L1242: To naively convert from CMYK to RGBA:
+L1243: 
+L1244:   * `red = 1 - min(1, cyan * (1 - black) + black)`
+L1245:   * `green = 1 - min(1, magenta * (1 - black) + black)`
+L1246:   * `blue = 1 - min(1, yellow * (1 - black) + black)`
+L1247:   * Alpha is same as for input color.
+L1248: 
+L1249: To naively convert from RGBA to CMYK:
+L1250:   * `black = 1 - max(red, green, blue)`
+L1251:   * `cyan = (1 - red - black) / (1 - black), or 0 if black is 1`
+L1252:   * `magenta = (1 - green - black) / (1 - black), or 0 if black is 1`
+L1253:   * `yellow = (1 - blue - black) / (1 - black), or 0 if black is 1`
+L1254:   * alpha is the same as the input color
+L1255: ## 7. Reacting to the used color-scheme: the 【98†light-dark()】 Function
+L1256: 
+L1257: 【344†System colors】 have the ability to react to an element’s 【345†color scheme】. The 【98†light-dark()】 function exposes the same capability to authors.
+L1258: There are two forms of this function: one takes a pair of colors while the other takes a pair of images. Attempting to use one image and one color will result in a parse-time error.
+L1259: 
+L1260:     light-dark() = 【105†<light-dark-color>】 【102†|】 【346†<light-dark-image>】
+L1261:     【105†<light-dark-color>】 = light-dark(【100†<color>】【132†,】 【100†<color>】)
+L1262:     【346†<light-dark-image>】 = light-dark( [ 【347†<image>】 【102†|】 none ] 【132†,】 [ 【347†<image>】 【102†|】 none ] )
+L1263: For the color form, this function computes to the computed value of the first color, if the 【348†element color scheme】 is 【349†light】, or to the computed value of the second color, if the element color scheme is 【350†dark】.
+L1264: 
+L1265: For the image form, this function returns the first image, if the 【348†element color scheme】 is 【349†light】, or the second image, if the element color scheme is 【350†dark】.
+L1266: 
+L1267: The none keyword computes to image(transparent) (a fully transparent image with no natural size).
+L1268: For example, to maintain a legible contrast on links, for light mode and dark mode:
+L1269: 
+L1270:       a:link {
+L1271:           color: light-dark(blue, #81D9FE);
+L1272:           background-color: light-dark(white, black);
+L1273:     }
+L1274: 
+L1275: 
+L1276: The traditional blue link text is legible on a white background (WCAG contrast 8.59:1, AAA pass) but would not be legible on a black background (WCAG contrast 2.44:1, AA fail). Instead, a lighter blue #81D9FE is used in dark mode. (WCAG contrast 13.28:1, AAA pass).
+L1277: 
+L1278: Legible link text
+L1279: Illegible link text
+L1280: 
+L1281: Legible link text
+L1282: 
+L1283: For example, to provide easily visible list bullets for light mode and dark mode:
+L1284: 
+L1285:     ul.fancy {
+L1286:       list-style-image: light-dark(
+L1287:         url("icons/deep-maroon-ball.png"),
+L1288:         url("icons/pale-yellow-star.png")
+L1289:       );
+L1290:     }
+L1291: 
+L1292: 
+L1293: For example, a raster image is used in light mode, while in dark mode we want a fully-transparent image.
+L1294: 
+L1295:     background-image: light-dark(url(my-light-image.png), none);
+L1296: This is equivalent to:
+L1297: 
+L1298:     background-image: light-dark(url(my-light-image.png), image(transparent));
+L1299: 
+L1300: 
+L1301: Tests
+L1302:   * 【351†light-dark-basic.html†wpt.fyi】 【352†(live test)†wpt.live】 【353†(source)†github.com】
+L1303:   * 【354†light-dark-currentcolor.html†wpt.fyi】 【355†(live test)†wpt.live】 【356†(source)†github.com】
+L1304:   * 【357†light-dark-image.html†wpt.fyi】 【358†(live test)†wpt.live】 【359†(source)†github.com】
+L1305:   * 【360†light-dark-image-none-interpolation.html†wpt.fyi】 【361†(live test)†wpt.live】 【362†(source)†github.com】
+L1306:   * 【363†light-dark-image-none.html†wpt.fyi】 【364†(live test)†wpt.live】 【365†(source)†github.com】
+L1307:   * 【366†light-dark-inheritance.html†wpt.fyi】 【367†(live test)†wpt.live】 【368†(source)†github.com】
+L1308:   * 【369†light-dark-currentcolor-in-color.html†wpt.fyi】 【370†(live test)†wpt.live】 【371†(source)†github.com】
+L1309:   * 【372†highlight-styling-004.html†wpt.fyi】 【373†(live test)†wpt.live】 【374†(source)†github.com】
+L1310:   * 【375†light-dark-animation-crash.html†wpt.fyi】 【376†(live test)†wpt.live】 【377†(source)†github.com】
+L1311: ## 8. Dynamically specifying a text color with adequate contrast: the 【96†contrast-color()】 Function
+L1312: 
+L1313: When colors are created dynamically, it can often be a challenge to specify a text color that provides adequate contrast with them when used as a background color. The 【96†contrast-color()】 function automatically provides a color with guaranteed color contrast when used as a text color on a solid background of the specified color.
+L1314: Note: Legibility is a complex topic, and sufficient color contrast is only one piece of the puzzle. Having a color pair with sufficient contrast does not guarantee that the text will be legible, as that also depends on a variety of factors, such as the font, the size of the text, the surrounding colors, etc.
+L1315: 
+L1316:     contrast-color() = contrast-color( 【100†<color>】 )
+L1317: 【96†contrast-color()】 resolves to either 【378†white】 or 【379†black】, whichever produces maximum color contrast for text when the input color is used as a solid background. If both white and black produce the same contrast, it resolves to white.
+L1318: 
+L1319: The precise color contrast algorithm for determining whether to output a light or dark color is UA-defined at this level.
+L1320: Note: Future versions of this specification are expected to introduce more control over both the contrast algorithm(s) used, the use cases, as well as the returned color.
+L1321: UAs are advised to not simply use the WCAG 2.1 【380†section 1.4.3 Contrast (Minimum)†www.w3.org】 contrast ratio algorithm to decide between light and dark colors, as it has 【381†several known issues†www.cedc.tools】. However, colors returned by this function should still meet the WCAG 2.1 【380†section 1.4.3 Contrast (Minimum)†www.w3.org】 for AA large text, as many authors need to meet legal requirements that mandate this.
+L1322: 
+L1323: Tests
+L1324:   * 【382†contrast-color-001.html†wpt.fyi】 【383†(live test)†wpt.live】 【384†(source)†github.com】
+L1325:   * 【385†contrast-color-currentcolor-inherited.html†wpt.fyi】 【386†(live test)†wpt.live】 【387†(source)†github.com】
+L1326:   * 【388†contrast-color-style-query.html†wpt.fyi】 【389†(live test)†wpt.live】 【390†(source)†github.com】
+L1327:   * 【391†contrast-color-interpolation.html†wpt.fyi】 【392†(live test)†wpt.live】 【393†(source)†github.com】
+L1328:   * 【394†color-computed-contrast-color-function.html†wpt.fyi】 【395†(live test)†wpt.live】 【396†(source)†github.com】
+L1329:   * 【397†color-invalid-contrast-color-function.html†wpt.fyi】 【398†(live test)†wpt.live】 【399†(source)†github.com】
+L1330:   * 【400†color-valid-contrast-color-function.html†wpt.fyi】 【401†(live test)†wpt.live】 【402†(source)†github.com】
+L1331:   * 【403†contrast-color-function-calc-container.html†wpt.fyi】 【404†(live test)†wpt.live】 【405†(source)†github.com】
+L1332: ## 9. Color Interpolation
+L1333: ### 9.1. Color Space for Interpolation
+L1334: The 【130†<color-interpolation-method>】, as defined in 【406†CSS Color 4 § 13.2 Color Space for Interpolation】, is extended to allow use of the 【43†custom color spaces】:
+L1335: 
+L1336:     <color-space> = 【407†<rectangular-color-space>】 【102†|】 【408†<polar-color-space>】 【102†|】 【409†<custom-color-space>】
+L1337:     <rectangular-color-space> = 【186†srgb】 【102†|】 【410†srgb-linear】 【102†|】 【319†display-p3】 【102†|】 【411†display-p3-linear】 【102†|】 【412†a98-rgb】 【102†|】 【413†prophoto-rgb】 【102†|】 【414†rec2020】 【102†|】 【415†lab】 【102†|】 【416†oklab】 【102†|】 【311†<xyz-space>】
+L1338:     <polar-color-space> = 【185†hsl】 【102†|】 【417†hwb】 【102†|】 【183†lch】 【102†|】 【418†oklch】
+L1339:     <custom-color-space> = 【308†<dashed-ident>】
+L1340:     <hue-interpolation-method> = [ shorter 【102†|】 longer 【102†|】 increasing 【102†|】 decreasing ] hue
+L1341:     <color-interpolation-method> = in [ 【407†<rectangular-color-space>】 【102†|】 【408†<polar-color-space>】 【156†<hue-interpolation-method>】【131†?】 【102†|】 【409†<custom-color-space>】 ]
+L1342: The 【308†<dashed-ident>】 must have been declared in a valid 【317†@color-profile】 rule, otherwise the 【130†<color-interpolation-method>】 is invalid.
+L1343: ## 10. Resolving 【100†<color>】 Values
+L1344: ### 10.1. Resolving 【97†color-mix()】 Values
+L1345: If all 【100†<color>】 parameters resolve to the corresponding colors in their respective color spaces, the computed value is the mixed color, in the specified mixing color space, resolved according to 【419†CSS Color 4 §  15. Resolving <color> Values】. Otherwise (if 【119†currentColor】 was used in the function), the computed value is the 【97†color-mix()】 function with each <color> parameter resolved according to 【419†CSS Color 4 §  15.
+L1346: Resolving <color> Values】, thus preserving inheritance into child elements.
+L1347: Tests
+L1348:   * 【420†color-mix-currentcolor-001.html†wpt.fyi】 【421†(live test)†wpt.live】 【422†(source)†github.com】
+L1349:   * 【423†color-mix-currentcolor-002.html†wpt.fyi】 【424†(live test)†wpt.live】 【425†(source)†github.com】
+L1350:   * 【426†color-mix-currentcolor-003.html†wpt.fyi】 【427†(live test)†wpt.live】 【428†(source)†github.com】
+

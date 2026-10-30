@@ -1,0 +1,19 @@
+This bounded Lean companion demonstrates a contextual-infinity simplification hazard and a sufficient defer condition. It does not establish a native Firefox defect, prove the native comparator, or add canonical proof coverage.
+
+The independent semantic evaluator resolves a relative coefficient against its basis before applying NaN-absorbing min/max. Values have four classes: NaN, negative infinity, finite integer and positive infinity. Finite magnitudes range over all integers; bases are zero or arbitrary positive integers. The separate coefficientPlan abstracts an early infinity-based child choice against a finite absolute bound, checks explicit coefficient NaN, and defers finite cross-unit comparisons. It does not assume those finite coefficients are comparable.
+
+For every finite bound, choosing that bound for min(bound, positive-infinity × basis) or max(bound, negative-infinity × basis) disagrees with semantic evaluation when the basis is zero. The coefficient itself is not NaN, but its resolved relative value is. The conservative guard defers every relative-infinity comparison unless a sound positive-basis fact is available. guarded_plan_sound proves agreement for every operation, bound, coefficient class and modeled basis under that explicit premise. unknown_basis_preserves_mutation covers any before/after basis pair when no positivity fact is assumed. A fact established before a mutation cannot simply be reused afterward.
+
+The defer condition is sufficient, not necessary: when the shortcut retains the relative infinite term, its eventual zero-basis NaN still propagates. Finite relative comparisons remain deferred. The model also proves that clamp(-1, positive-infinity × basis, 10) is internally NaN at zero basis and 10 at every modeled positive basis. It does not model property range checks or top-level NaN-to-zero censoring.
+
+Primary semantics come from [CSS Values 4 calculation special values](https://drafts.csswg.org/css-values-4/#calc-ieee) and [comparison functions](https://drafts.csswg.org/css-values-4/#comp-func). Zero times infinity produces NaN; a NaN argument propagates; clamp is the stated min/max composition. These explicit rules supply the model premises, rather than browser output defining the oracle.
+
+Source mapping is deliberately limited. The inspected CalcNode MinMax simplifier tests is_nan_leaf before comparing children and replacing itself with a winning child. CalcNode::compare delegates leaf comparisons. The model abstracts the relevant coefficient winner decision; it does not prove that a particular specified leaf representation reaches it. The full specified leaf comparator was not retrieved. SOURCE-EXCERPTS.txt and PROVENANCE.json record the inspected local source and Searchfox discovery. Root-reported System Firefox 158 observations motivated the examples; no browser was executed here and this package does not authenticate that browser's raw observations.
+
+Actual isolated replay passed 12 theorem audits and rejected four false controls. Only propext appears in the theorem axiom output; no sorry or native_decide proof shortcut is used. Signed zero, negative bases, rational/noninteger finite arithmetic, IEEE overflow/rounding, n-ary simplification, parsing, dimensions, invalidation and compiler refinement are outside scope. The model neither prescribes a native patch nor assigns a new bug or acceptance count.
+
+Replay into a new absent output directory:
+
+    python3 -I -S -B artifacts/css-minmax-relative-infinity-model-v1/replay.py run-2
+
+The pinned existing Lean toolchain runs in a private temporary directory. Logs, tool version and result stay in this package; temporary sources and oleans are removed. The successful run-1 used session 18800, launch bc7826 and terminal acda23 with exit 0. No native, Git, canonical Lean, epoch, application or browser mutation occurred.

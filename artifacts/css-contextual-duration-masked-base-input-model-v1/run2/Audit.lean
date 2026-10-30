@@ -1,0 +1,7 @@
+import MaskedBaseInput
+#print axioms MaskedBaseInput.composed_equality_is_insufficient
+#print axioms MaskedBaseInput.input_step_synchronizes
+#print axioms MaskedBaseInput.arbitrary_finite_input_history
+#print axioms MaskedBaseInput.script_ownership_survives_history
+#print axioms MaskedBaseInput.complete_generation_detects_timing_change
+#print axioms MaskedBaseInput.recorded_input_change_is_admitted

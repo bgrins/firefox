@@ -1,0 +1,6 @@
+import PriorityClosure
+#print axioms PriorityClosure.before_pop_matches_walk_oracle
+#print axioms PriorityClosure.all_bounded_runs_finish
+#print axioms PriorityClosure.premature_pop_splits_a_real_component
+#print axioms PriorityClosure.unused_fallback_is_not_a_cycle_edge
+#print axioms PriorityClosure.evaluated_revert_retains_selected_dependencies

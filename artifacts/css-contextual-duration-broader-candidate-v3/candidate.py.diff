@@ -1,0 +1,19 @@
+--- artifacts/css-contextual-duration-broader-candidate-v2/candidate.py
++++ artifacts/css-contextual-duration-broader-candidate-v3/candidate.py
+@@ -50,6 +50,7 @@
+     comparison.replay_all(ROOT, policy)
+     for kind in ('normative','reftest','feedback'):
+         ownership.group_absent(read(original_directory / (kind + '-wpt') / 'PROCESS.json')['pgid'])
++    ownership.group_absent(read(ROOT / policy['inactive_binding']['directory'] / 'original-wpt/PROCESS.json')['pgid'])
+     assert output.parent == ROOT / 'artifacts' and not output.exists() and not output.is_symlink()
+     output.mkdir()
+     epoch = copy.deepcopy(original)
+@@ -100,7 +101,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'contextual-duration-broader-candidate-v2'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'contextual-duration-broader-candidate-v3'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):

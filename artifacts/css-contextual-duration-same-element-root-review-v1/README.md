@@ -1,0 +1,9 @@
+# Disabled root post-run verifier
+
+Adapted from the executed reduced matching-only root verifier. Supports successful build plus a complete strict two-callback observation, either2PASS or ordinary assertion failure with1/2FAIL. It preserves actual owner/WPT exits and failure message origin; no result is converted to success. It replays original and candidate raw assessments, binary/source/build/application joins and both complete private records. Full record comparison is replayed diagnostically without a stepped-feedback numeric endpoint oracle.
+
+All three source bases/identities, accepted payloads, context, app/extra-file semantic inventories, flags and full restored state are independently verified before backup removal. On ordinary failure, only the exact owner-created backup whose inventory matches is deleted, with a separate root cleanup receipt; the owner failed RESULT remains byte-identical. Only raw_index_observation.current may be reconciled, with the existing owned write/rollback protocol. Restoration/backup and raw-refresh tails are byte-identical to the executed predecessor.
+
+Execution is false and owner_manifest_sha256 null pending root activation of the actual candidate. Actual session, terminal, exit and CANDIDATE-RESULT SHA are required CLI arguments. Unsupported build/infrastructure/incomplete-record/all-PASS diagnostic failures stop before cleanup/publication and require separate review. This is not a retry or acceptance owner.
+
+`python3 -I -B -S check.py` passes3 synthetic outcome cases and19 negative controls (a1a440/0), verifies unchanged restoration/raw tails and the disabled gate, without runtime/current-state reads. Root alone may set the actual owner seal/enable after review and invoke verify.py with actual terminal arguments. No execution by the preparer.

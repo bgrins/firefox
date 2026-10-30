@@ -1,0 +1,158 @@
+--- executed-depth/check.py
++++ base-timing-original/check.py
+@@ -24,23 +24,34 @@
+     settings = policy["wpt"]
+     runtime_assertions = [node for node in ast.walk(ast.parse((HERE / "run.py").read_text())) if isinstance(node, ast.Assert)]
+     assert any(ast.dump(node.test) == ast.dump(ast.parse('len(policy["accepted_current_payloads"]) == 29', mode='eval').body) for node in runtime_assertions)
+-    fixture = ROOT / policy["probe_packages"][0]
+-    roster = json.loads((fixture / "ROSTER.json").read_text())
+-    assert policy["probe_packages"] == ["artifacts/css-contextual-duration-finite-depth-probe-v1"]
+-    inputs = json.loads((fixture / "INPUTS.json").read_text())
+-    assert settings["expected_subtests"] == roster["tests"] == inputs["source_roster"]["tests"]
+-    assert len(roster["tests"]) == 1 and sum(map(len, roster["tests"].values())) == 4
+-    assert settings["resources"] == inputs["resources"] and settings["metadata"] == inputs["metadata"]
+-    assert settings["manifest"] == inputs["manifest"]
+-    assert sorted(policy["record_kinds"]) == sorted(inputs["transport"]["expected_files"])
+-    assert (settings["expected_subtest_count"], settings["expected_control_count"], settings["expected_target_count"], settings["expected_page_count"], settings["expected_regression_signature_count"]) == (4, 4, 0, 1, 5)
++    assert policy['probe_packages'] == [
++        'artifacts/css-contextual-duration-same-element-dependency-probe-v1',
++        'artifacts/css-contextual-duration-finite-depth-probe-v1',
++        'artifacts/css-contextual-duration-masked-base-font-probe-v1']
++    merged = {}
++    for name in policy['probe_packages']:
++        folder = ROOT / name
++        assert hashlib.sha256((folder / 'FILES.json').read_bytes()).hexdigest() == policy['references'][name + '/FILES.json']
++        for relative, pin in json.loads((folder / 'FILES.json').read_text()).items():
++            assert hashlib.sha256((folder / relative).read_bytes()).hexdigest() == (pin if isinstance(pin, str) else pin['sha256'])
++        roster = json.loads((folder / 'ROSTER.json').read_text())['tests']
++        assert not set(merged) & set(roster)
++        merged.update(roster)
++    assert settings['expected_subtests'] == merged
++    assert (settings['expected_subtest_count'], settings['expected_control_count'], settings['expected_target_count'], settings['expected_page_count'], settings['expected_regression_signature_count']) == (7, 7, 0, 3, 10)
++    assert len(policy['record_kinds']) == 7
++    assert {(r['page'], r['subtest']) for r in policy['record_kinds'].values()} == {(page, name) for page, names in merged.items() for name in names}
++    assert {r['kind'] + '.json' for r in policy['record_kinds'].values()} == set(policy['record_kinds'])
++    for pin in settings['resources'].values():
++        assert hashlib.sha256((ROOT / pin['path']).read_bytes()).hexdigest() == pin['sha256']
+     roles = json.loads((ROOT / "artifacts/css-contextual-easing-activation-prototype-v2/SOURCE-ROLES.json").read_bytes())
+     assert len(roles) == 8 and "servo/components/style/values/generics/calc.rs" not in roles
+     assert policy["source_role_pins"] == dict(
+         {name: row["base_sha256"] for name, row in roles.items()},
+         **{"servo/components/style/custom_properties.rs": "2675b33b30ac43db5b758d5a80f42fa4530856c32d5a0923882a15f8a8bc5774",
+            "dom/animation/EffectCompositor.cpp": "6ec3a0ca45789b3089e8d2abcfb3ff37b881b0ee9084e09d0d396d73491249ed",
+-           "dom/animation/EffectCompositor.h": "5ee054432f5105515def6f1eba9e2875226d6a59b6a0dc4d1e05b9617a12dc19"})
++           "dom/animation/EffectCompositor.h": "5ee054432f5105515def6f1eba9e2875226d6a59b6a0dc4d1e05b9617a12dc19",
++           "layout/style/nsAnimationManager.cpp": "3b24c4e0eeb6c6fb4a1799848c4a3c6ec3d968e8176fafbf4fa535e8b7447075"})
+     assert policy["build_unpinned_sources"] == ["servo/components/style/stylesheets/keyframes_rule.rs"]
+     assert policy["original_only"] and set(settings["phase_revisions"]) == {"original"}
+     roster = json.loads((ROOT / policy["source_roster"]).read_bytes())
+@@ -113,6 +124,7 @@
+     for name, digest in policy["references"].items():
+         assert hashlib.sha256((ROOT / name).read_bytes()).hexdigest() == digest, name
+     check_records(policy)
++    check_calibration(policy)
+     print(json.dumps({"synthetic_positive_checks": 3, "negative_checks": rejected,
+                       "original_statuses_measured_without_required_failure_count": True,
+                       "fresh_application_metadata_required_at_activation": True, "browser_executed": False}))
+@@ -123,16 +135,14 @@
+     import tempfile
+     collector = load("progress_collection_check", HERE / "records.py")
+     samples = {}
+-    for filename, rule in policy["record_kinds"].items():
+-        depth = int(rule["kind"].removeprefix("depth-"))
+-        timing = {"duration": None, "progress": None, "time": None, "state": "synthetic"}
+-        snapshot = {"rootFont": None, "opacity": None, "leafDuration": None, "leaf": timing,
+-                    "nodes": [{"font": None, "lineHeight": None, "duration": None, "timing": timing} for _ in range(depth)]}
+-        observations = {mode: {"depth": depth, "mode": mode, "literalInitial": snapshot, "initial": snapshot,
+-            "samples": [{"phase": phase, "opacity": None} for phase in ("first-leaf-read", "passive-frame-1", "passive-frame-2", "passive-frame-3")],
+-            "beforeMembership": snapshot, "afterMembership": snapshot,
+-            "membership": [{"animation": False, "effect": False} for _ in range(depth + 1)]} for mode in ("literal", "contextual")}
+-        samples[filename] = {"run_id": "synthetic_progress_run_123456", "kind": rule["kind"], "observations": observations}
++    for filename, rule in policy['record_kinds'].items():
++        if rule['kind'].startswith('depth-'):
++            source = ROOT / 'artifacts/css-contextual-duration-finite-depth-original-runtime-1/progress-records' / filename
++        else:
++            source = ROOT / 'artifacts/css-contextual-duration-same-element-original-runtime-1/progress-records' / (filename if rule['kind'].startswith('same-element-') else 'same-element-acyclic.json')
++        sample = json.loads(source.read_text())
++        sample.update(run_id='synthetic_progress_run_123456', kind=rule['kind'])
++        samples[filename] = sample
+     with tempfile.TemporaryDirectory(prefix="css-progress-record-check-", dir="/private/tmp") as temporary:
+         directory = Path(temporary)
+         directory.chmod(0o700)
+@@ -153,7 +163,7 @@
+         first = next(iter(samples))
+         (directory / first).unlink()
+         partial = collect(failed)
+-        assert not partial["complete"] and len(partial["missing"]) == 1 and not partial["errors"] and len(partial["records"]) == 3
++        assert not partial["complete"] and len(partial["missing"]) == 1 and not partial["errors"] and len(partial["records"]) == 6
+         assert collect()["errors"]
+         put(first, samples[first])
+         negatives = []
+@@ -163,7 +173,7 @@
+             ("wrong kind", lambda v: v.update(kind="unknown")),
+             ("missing first sample", lambda v: v["observations"]["contextual"]["samples"].pop(0)),
+             ("out of order samples", lambda v: v["observations"]["contextual"]["samples"].reverse()),
+-            ("nonfinite numeric sample", lambda v: v["observations"]["contextual"]["samples"][0].update(opacity=float("inf"))),
++            ("nonfinite numeric sample", lambda v: v["observations"]["contextual"]["samples"][0].update(**{("opacity" if "opacity" in v["observations"]["contextual"]["samples"][0] else "value"): float("inf")})),
+         ]:
+             value = copy.deepcopy(samples[first]); mutate(value); put(first, value)
+             result = collect(); assert result["errors"] and first in result["records"] and not result["records"][first]["schema_valid"], label
+@@ -186,6 +196,58 @@
+     assert not directory.exists()
+     print(json.dumps({"record_positive_checks": 3, "record_negative_checks": ["missing PASS record", *negatives], "ordinary_FAIL_missing_collection_retained": True, "temporary_removed": True}))
+ 
++def check_calibration(policy):
++    import tempfile
++    module = load('calibration_static_check', HERE / 'calibration.py')
++    with tempfile.TemporaryDirectory(prefix='css-timing-calibration-', dir='/private/tmp') as temporary:
++        directory = Path(temporary)
++        records = {}
++        for filename, rule in policy['record_kinds'].items():
++            if rule['kind'].startswith('depth-'):
++                source = ROOT / 'artifacts/css-contextual-duration-finite-depth-original-runtime-1/progress-records' / filename
++            else:
++                source = ROOT / 'artifacts/css-contextual-duration-same-element-original-runtime-1/progress-records' / (filename if rule['kind'].startswith('same-element-') else 'same-element-acyclic.json')
++            value = json.loads(source.read_text())
++            if rule['kind'] == 'masked-base-acyclic':
++                literal = value['observations']['literal']
++                for snapshot in [literal['initial'], literal['beforeMembership'], literal['afterMembership']]:
++                    snapshot['font'] = 32
++                    snapshot['timings'][0].update(duration=2000, time=750, state='paused')
++                literal['initial']['opacity'] = .75
++                literal['initial']['timings'][1].update(duration=1000, progress=.75)
++                for snapshot in [literal['beforeMembership'], literal['afterMembership']]:
++                    snapshot['opacity'] = .375
++                    snapshot['timings'][1].update(duration=2000, progress=.375)
++                for sample in literal['samples']:
++                    sample['value'] = .375
++            records[filename] = value
++        def report():
++            receipts = {}
++            for filename, value in records.items():
++                body = (json.dumps(value) + '\n').encode()
++                (directory / filename).write_bytes(body)
++                receipts[filename] = {'schema_valid': True, 'sha256': hashlib.sha256(body).hexdigest()}
++            return module.report(directory, {'records': receipts}, policy)
++        assert report()['all_calibrated']
++        for filename in ['same-element-acyclic.json', 'masked-base-acyclic.json']:
++            previous = copy.deepcopy(records[filename])
++            records[filename]['observations']['contextual']['samples'][0]['value'] = 123
++            assert report()['all_calibrated']
++            records[filename] = previous
++        rejected = 0
++        for filename in ['same-element-acyclic.json', 'same-element-feedback.json', 'masked-base-acyclic.json', 'depth-1.json', 'depth-8.json']:
++            previous = copy.deepcopy(records[filename])
++            literal = records[filename]['observations'].get('literal', records[filename]['observations'].get('literal500'))
++            sample = literal['samples'][0]
++            sample['opacity' if 'opacity' in sample else 'value'] = 123
++            assert not report()['all_calibrated']
++            records[filename] = previous
++            rejected += 1
++        assert report()['all_calibrated']
++    assert not directory.exists()
++    print(json.dumps({'calibration_positive': 1, 'hypothetical_contextual_wrong_values_retained': 2, 'literal_calibration_negatives': rejected, 'scratch_removed': True}))
++
++
+ if __name__ == "__main__":
+     import sys
+     assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize

@@ -1,0 +1,23 @@
+This isolated Lean companion models queue bookkeeping for the sealed two-file tri-state proposal, including throttling. It imports the pinned dispatch-attempt model rather than repeating its six proofs. It does not compile, execute or refine native C++.
+
+The finite state space has table absence plus Throttled, Pending and DispatchAttempted; three request kinds; and six Boolean context inputs. These represent pres-context presence, content-shell admission, generated-target presence, Servo traversal, PreTraverse and style refresh. SOURCE-MAPPING.json joins each modeled operation to exact fragments and hashes of the proposed source. Context inputs are fixed during each modeled operation. The model ends at the PresShell call boundary: `attempt` means the call is about to occur, not that a root was queued, work was consumed or style was composed.
+
+The principal new result is an old-boolean projection. Absence projects to absence, Throttled to false, and both Pending and DispatchAttempted to true. Request and forced-throttled transitions preserve the old bookkeeping projection for every finite branch combination (768 request cases, 256 forced cases). PreTraverse eligibility agrees for both flush settings. The final induction lifts this to arbitrary finite sequences of requests, forced-throttled visits and externally authorized consumption/removal. This preserves eligibility bookkeeping, not posting behavior: splitting the old true state is precisely what permits an external retry.
+
+The focused properties cover the previously omitted cases:
+
+- A throttled request never calls the posting helper or records an attempt; it requests a throttled flush only when admission succeeds and preserves any stronger entry state.
+- Forced-throttled posting skips Pending and DispatchAttempted, as well as absence. It does not turn every unattempted entry into a forced wakeup.
+- A selected Throttled entry becomes Pending before blocked posting. It remains eligible for non-throttled PreTraverse, while another forced-throttled visit skips it. Skipping that helper does not prevent an independently scheduled PreTraverse from consuming it.
+- At a safe boundary, a selected Throttled entry records one attempt and is skipped on the next forced visit.
+- Direct posting without a table entry does not insert an entry, even when it attempts dispatch.
+- An admitted Layer request still increments animation generation when posting coalesces; the model records the invocation, not EffectSet existence or effective timing changes.
+- Pending/DispatchAttempted standard requests with valid admission and target join exactly to the imported non-throttled model, including the attempt count observation.
+
+Thirteen declarations were audited in actual run3, session 44593, launch 6c1ef3, terminal c48f9b, exit 0. Six separately compiled false controls reject waking Pending during forced flushing, losing blocked forced-entry eligibility, demoting Attempted on a throttled request, inserting during a direct absent-entry post, dispatching every Layer request, and treating style refresh as a safe dispatch boundary. All failures had the intended `decide`-proved-false diagnostic. The audit accepts only propext, Classical.choice and Quot.sound; no sorryAx or native reduction axiom is accepted.
+
+Run1 failed during model elaboration because abbreviated structure constructors did not supply fields; its source and diagnostics are retained. Run2 successfully checked the eleven branch/bridge declarations. Run3 additionally checked the step and arbitrary finite-trace projection. All isolated scratch directories and compiled products were removed. The pinned Lean 4.35.0-rc4 executable and imported source were authenticated; native/app/Git/index/canonical state was untouched.
+
+Limits remain substantive. Keys, two cascade maps, iteration order, subtree membership, pseudo lookup side effects and reentrant mutations are outside the model. `consume` represents a removal/clear authorized by the surrounding algorithm; it does not prove when removal is valid. The old projection compares selected bookkeeping writers, not behavior across a potentially mutating synchronous call. Receiver hints, queue delivery, autonomous progress, timing ownership, composition and self-feedback convergence are unproved. The whole queue is not claimed to have a native refinement proof, and there is no acceptance or canonical coverage increment.
+
+Replay: `python3 -I -S -B replay.py FRESH_OUTPUT_DIRECTORY`. The output name must be fresh and local to this package. Existing proof outputs and sources are immutable evidence.

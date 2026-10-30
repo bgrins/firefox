@@ -1,0 +1,14 @@
+--- artifacts/css-contextual-duration-feedback-trace-candidate-v1/comparison.py
++++ artifacts/css-contextual-duration-feedback-trace-candidate-v2/comparison.py
+@@ -67,6 +67,11 @@
+     assert source['source_context_pins']['servo/components/style/matching.rs'] == candidate_roles['servo/components/style/matching.rs']['base_sha256']
+     assert read(directory / binding['terminal_path']) == binding['terminal']
+     assert binding['terminal']['exit'] == 0
++    assert binding['terminal']['owner_sha256'] == policy['baseline_capsule']['sha256']
++    assert binding['terminal']['result_sha256'] == binding['result_sha256']
++    assert binding['terminal']['state_and_application_restoration_independently_verified']
++    assert binding['terminal']['raw_replay_verified'] and binding['terminal']['calibrated_acquisition']
++    assert (binding['terminal']['callbacks_passed'],binding['terminal']['records'],binding['terminal']['ending']) == (2,2,'OK')
+     assert sha(directory / 'RESULT.json') == binding['result_sha256']
+     assert sha(directory / 'POST.json') == binding['restored_snapshot_sha256']
+     outer = read(directory / 'RESULT.json')

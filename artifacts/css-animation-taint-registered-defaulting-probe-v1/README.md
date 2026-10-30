@@ -1,0 +1,9 @@
+# Registered invalid-keyframe discriminator
+
+Three isolated iframe callbacks distinguish registered initial value `horizontal-tb`, ordinary underlying value `vertical-rl`, and sink fallback `vertical-lr`. The invalid case animates `--v: one two`; valid and literal controls animate `--v: vertical-rl`. Every keyframe also holds opacity at 1 with a fixed two-second paused animation, so an invalid custom declaration cannot silently remove the driver. After readiness the held time is 750 ms. The ordinary declaration then changes to `vertical-lr`.
+
+Each phase records the first writing-mode getter and three frame-delayed getters before custom-value, timing, or membership diagnostics. Later fields are sequential observations, not a simultaneous snapshot. The pre-animation custom value, registration inheritance/syntax, independent driver, valid animated source, and literal sink are asserted. **Neither the invalid custom value nor the invalid/valid variable sink has a numeric or keyword verdict.** A WPT PASS means these calibration checks passed, not that animation-taint or invalid-keyframe defaulting policy was established.
+
+An invalid-case computed trajectory staying `horizontal-tb` is compatible with registered initial selection; `vertical-rl` then `vertical-lr` is compatible with underlying-value tracking. The outputs alone do not prove filtering or an internal defaulting path. Initial taint hypotheses must be conditioned on the recorded computed custom value. The sealed defaulting plan supplies the source/spec uncertainty; this package does not resolve it.
+
+The portable page uses the unchanged testharness pair and needs no private transport. A hidden pre and window export retain observations for an installed-browser reporting adapter. Setup errors can leave partial records; a blocked readiness/frame promise can time out. There is no in-page watchdog or retry expectation. No browser or native build has been run for this fixture.

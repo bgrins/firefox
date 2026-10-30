@@ -1,0 +1,59 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered color initials must be computationally independent</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#register-a-custom-property">
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#computationally-independent">
+<link rel="help" href="https://drafts.csswg.org/css-color-4/#resolving-other-colors">
+<link rel="help" href="https://drafts.csswg.org/css-color-5/#light-dark">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<pre id="observations" hidden></pre>
+<script>
+window.registrationObservations = [];
+for (const initialValue of ["red", "CanvasText", "light-dark(red, blue)"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => { frame.onload = resolve; });
+    frame.srcdoc = "<!doctype html><body><div id='reference' style='color: red'></div>";
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    assert_implements(typeof win.CSS.registerProperty === "function", "CSS.registerProperty support");
+    const syntaxSupported = win.CSS.supports("color", initialValue);
+    assert_true(syntaxSupported, `Color grammar support for ${initialValue}`);
+    win.CSS.registerProperty({name: "--control", syntax: "<color>", inherits: false, initialValue: "red"});
+    const target = doc.createElement("div");
+    doc.body.append(target);
+    const controlInitial = win.getComputedStyle(target).getPropertyValue("--control").trim();
+    const literalRed = win.getComputedStyle(doc.getElementById("reference")).color;
+    let error = null;
+    try {
+      win.CSS.registerProperty({name: "--candidate", syntax: "<color>", inherits: false, initialValue});
+    } catch (caught) {
+      error = caught;
+    }
+    const observation = {initialValue, syntaxSupported, controlInitial, literalRed,
+      accepted: error === null, exception: error === null ? null : {name: error.name, message: error.message}};
+    window.registrationObservations.push(observation);
+    document.getElementById("observations").textContent = JSON.stringify(window.registrationObservations);
+    const diagnostic = JSON.stringify(observation);
+    assert_equals(controlInitial, literalRed, `Independent registration calibration: ${diagnostic}`);
+    if (initialValue === "red") {
+      assert_equals(error, null, `Independent initial accepted: ${diagnostic}`);
+      assert_equals(win.getComputedStyle(target).getPropertyValue("--candidate").trim(), literalRed, diagnostic);
+    } else {
+      assert_throws_dom("SyntaxError", win.DOMException, () => {
+        if (error !== null) {
+          throw error;
+        }
+      }, `Context-dependent initial rejected: ${diagnostic}`);
+      win.CSS.registerProperty({name: "--candidate", syntax: "<color>", inherits: false, initialValue: "red"});
+      assert_equals(win.getComputedStyle(target).getPropertyValue("--candidate").trim(), literalRed,
+        `Rejected registration did not reserve its name: ${diagnostic}`);
+    }
+  }, `Registered color initial independence: ${initialValue}`);
+}
+</script>

@@ -1,0 +1,61 @@
+>>>  667: class nsAutoAnimationMutationBatch {
+     668:   struct Entry;
+     669: 
+     670:  public:
+     671:   explicit nsAutoAnimationMutationBatch(mozilla::dom::Document* aDocument);
+     672: 
+     673:   void Init(mozilla::dom::Document* aDocument);
+     674: 
+     675:   ~nsAutoAnimationMutationBatch();
+     676: 
+     677:   void Done();
+     678: 
+     679:   static bool IsBatching() { return !!sCurrentBatch; }
+     680: 
+     681:   static nsAutoAnimationMutationBatch* GetCurrentBatch() {
+     682:     return sCurrentBatch;
+     683:   }
+     684: 
+     685:   static void AddObserver(nsDOMMutationObserver* aObserver) {
+     686:     if (sCurrentBatch->mObservers.Contains(aObserver)) {
+     687:       return;
+     688:     }
+     689:     sCurrentBatch->mObservers.AppendElement(aObserver);
+     690:   }
+     691: 
+     692:   static void AnimationAdded(mozilla::dom::Animation* aAnimation,
+     693:                              nsINode* aTarget);
+     694:   static void AnimationChanged(mozilla::dom::Animation* aAnimation,
+     695:                                nsINode* aTarget);
+     696:   static void AnimationRemoved(mozilla::dom::Animation* aAnimation,
+     697:                                nsINode* aTarget);
+     698: 
+     699:  private:
+     700:   Entry* FindEntry(mozilla::dom::Animation* aAnimation, nsINode* aTarget);
+     701:   Entry* AddEntry(mozilla::dom::Animation* aAnimation, nsINode* aTarget);
+     702: 
+     703:   enum State {
+     704:     eState_RemainedPresent,
+     705:     eState_RemainedAbsent,
+     706:     eState_Added,
+     707:     eState_Removed
+     708:   };
+     709: 
+     710:   struct Entry {
+     711:     RefPtr<mozilla::dom::Animation> mAnimation;
+     712:     State mState;
+     713:     bool mChanged;
+     714:   };
+     715: 
+     716:   static nsAutoAnimationMutationBatch* sCurrentBatch;
+     717:   AutoTArray<RefPtr<nsDOMMutationObserver>, 2> mObservers;
+     718:   using EntryArray = nsTArray<Entry>;
+     719:   nsClassHashtable<nsPtrHashKey<nsINode>, EntryArray> mEntryTable;
+     720:   // List of nodes referred to by mEntryTable so we can sort them
+     721:   // For a specific pseudo element, we use its parent element as the
+     722:   // batch target, so they will be put in the same EntryArray.
+     723:   // Note: the batch object is used in lots of Animation APIs, and the script
+     724:   // may be in the scope of the batch via ready/finished promises, so we use the
+     725:   // strong refs here.
+     726:   nsTArray<nsCOMPtr<nsINode>> mBatchTargets;
+     727: };

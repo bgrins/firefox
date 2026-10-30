@@ -1,0 +1,148 @@
+--- artifacts/css-contextual-duration-progress-candidate-root-review-v1/verify.py
++++ artifacts/css-contextual-duration-first-read-trace-root-review-v1/verify.py
+@@ -11,11 +11,12 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ sys.dont_write_bytecode = True
+ ROOT = Path(__file__).resolve().parents[2]
+-HERE = ROOT / 'artifacts/css-contextual-duration-progress-candidate-v1'
+-PAIR = ROOT / 'artifacts/css-contextual-duration-progress-candidate-runtime-1'
++CAPSULE = Path(__file__).resolve().parent
++HERE = ROOT / 'artifacts/css-contextual-duration-first-read-trace-browser-v1'
++PAIR = ROOT / 'artifacts/css-contextual-duration-first-read-trace-browser-runtime-1'
+ RUNTIME = ROOT / 'artifacts/css-registered-number-native-runtime-v1'
+-REFRESH = ROOT / 'artifacts/css-contextual-duration-progress-candidate-root-refresh.json'
+-OWNER_SHA = '27d55b03fb57d7d17c13454ced432c063fe2dacbbb776d54d3fbc475376248ca'
++REFRESH = ROOT / 'artifacts/css-contextual-duration-first-read-trace-browser-root-refresh.json'
++OWNER_SHA = 'a77940f4977809eef414615ebbbed9f23021e00fcf9fea67c89e826d9a534931'
+ read = lambda path: json.loads(path.read_bytes())
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+ 
+@@ -33,47 +34,87 @@
+         stream.write('\n')
+ 
+ 
+-def outcome_join(result, phase, assessment, terminal_exit, phase_hashes):
++def outcome_join(result, phase, assessment, terminal_exit, phase_hashes, diagnostic_complete, signatures_equal, records_complete):
+     assert assessment['complete'] and assessment['errors'] == []
+     assert len(assessment['rows']) == 9 and all(r['status'] in ('PASS', 'FAIL') for r in assessment['rows'])
+     assert len(assessment['ends']) == 3 and all(row['status'] == 'OK' for row in assessment['ends'])
+     assert phase['execution_error'] is None and phase['preservation_verified']
+     assert phase['native_fix_acceptance'] is False
+-    passed = assessment['comparison_gate_passed']
+-    assert phase['comparison_gate_passed'] == phase['success'] == result['success'] == passed
++    callbacks_passed = assessment['comparison_gate_passed']
++    assert phase['comparison_gate_passed'] == phase['success'] == callbacks_passed
+     assert result['restoration_verified'] and result['runtime_controls_unchanged'] and result['empty_staging_preserved']
+     assert result['publication_errors'] == [] and not result['native_fix_acceptance']
++    passed = callbacks_passed and diagnostic_complete and signatures_equal and records_complete
++    assert result['success'] == passed
+     if passed:
+         assert terminal_exit == phase['exit'] == 0
+         assert all(r['status'] == 'PASS' for r in assessment['rows']) and assessment['comparison_errors'] == []
+         assert result['error'] is None and result['candidate_phase'] == phase_hashes
+     else:
+-        assert terminal_exit == phase['exit'] == 1
+-        assert any(r['status'] == 'FAIL' for r in assessment['rows']) and assessment['comparison_errors']
+-        assert result['candidate_phase'] is None
+-        assert result['error'] == repr(AssertionError((None, True, assessment['errors'], assessment['comparison_errors'])))
++        assert terminal_exit == 1 and result['candidate_phase'] is None
++        if not callbacks_passed:
++            assert phase['exit'] == (1 if any(row['status'] == 'FAIL' for row in assessment['rows']) else 0)
++            assert assessment['comparison_errors']
++            assert result['error'] == repr(AssertionError((None, True, assessment['errors'], assessment['comparison_errors'])))
++        else:
++            assert phase['exit'] == 0 and all(r['status'] == 'PASS' for r in assessment['rows'])
++            assert records_complete, 'Incomplete PASS records need a separate failure-path review'
++            expected = AssertionError() if not signatures_equal else AssertionError('Trace capture is incomplete; callback results remain unchanged')
++            assert result['error'] == repr(expected)
+     return passed
++
++
++def replay_trace(policy, phase):
++    binding = read(PAIR / 'TRACE-BINDING.json')
++    assert binding['parser'] == policy['instrumentation']['parser']
++    assert binding['parser_sha256'] == policy['instrumentation']['parser_sha256'] == sha(ROOT / binding['parser'])
++    assert binding['raw_path'] == 'candidate-wpt/raw.jsonl'
++    assert binding['raw_sha256'] == sha(phase / 'raw.jsonl')
++    assert binding['trace_sha256'] == sha(PAIR / 'TRACE.json')
++    parser = load('first_read_saved_trace_parser', binding['parser'])
++    report = parser.analyze((phase / 'raw.jsonl').read_text().splitlines())
++    assert report == read(PAIR / 'TRACE.json')
++    mapping_dir = ROOT / policy['property_ids']['directory']
++    assert sha(mapping_dir / 'FILES.json') == policy['property_ids']['manifest_sha256']
++    assert sha(mapping_dir / 'MAPPING.json') == policy['property_ids']['mapping_sha256']
++    mapping = read(mapping_dir / 'MAPPING.json')
++    before, after = binding['generated_header_before'], binding['generated_header']
++    for recorded in (before, after):
++        assert set(recorded) == {'path', 'sha256', 'expected_sha256', 'matches'}
++        assert recorded['path'] == mapping['header_path'] and recorded['expected_sha256'] == mapping['header_sha256']
++        assert recorded['matches'] == (recorded['sha256'] == mapping['header_sha256'])
++    complete = bool(report['syntax_and_sequence_valid'] and report['closed_query_scopes'] and report['event_count'] and before == after and after['matches'])
++    assert binding['diagnostic_capture_complete'] == complete
++    assert not binding['first_read_phase_alignment_established'] and not binding['native_causality_or_composition_proved']
++    return {'diagnostic_capture_complete': complete, 'trace_sha256': binding['trace_sha256'], 'binding_sha256': sha(PAIR / 'TRACE-BINDING.json'), 'event_count': report['event_count'], 'query_count': report['query_count'], 'syntax_and_sequence_valid': report['syntax_and_sequence_valid'], 'closed_query_scopes': report['closed_query_scopes'], 'caps': report['caps'], 'limitations': report['limitations'], 'generated_header': after, 'generated_header_before': before, 'full_authored_rosters_matched': False, 'strict_join_not_run': True, 'first_read_phase_alignment_established': False, 'native_causality_or_composition_proved': False}
+ 
+ 
+ def main():
+     parser = argparse.ArgumentParser()
++    parser.add_argument('--manifest', required=True)
+     parser.add_argument('--session', type=int, required=True)
+     parser.add_argument('--terminal', required=True)
+     parser.add_argument('--exit', type=int, required=True, dest='exit_code')
+     parser.add_argument('--result-sha256', required=True)
+     args = parser.parse_args()
++    assert sha(CAPSULE / 'FILES.json') == args.manifest
++    for name, pin in read(CAPSULE / 'FILES.json').items():
++        assert sha(CAPSULE / name) == pin
++    assert read(CAPSULE / 'POLICY.json')['execution_enabled'], 'Root review and actual terminal required'
++    for name, pin in read(CAPSULE / 'REFERENCES.json').items():
++        assert sha(ROOT / name) == pin
+     assert args.session > 0 and args.terminal and all(c in '0123456789abcdef' for c in args.terminal)
+     assert args.exit_code in (0, 1)
+     assert len(args.result_sha256) == 64 and all(c in '0123456789abcdef' for c in args.result_sha256)
+     assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES'))
+-    for name in ('ROOT-BACKUP-CLEANUP.json', 'ROOT-TERMINAL.json', 'ROOT-REPLAY.json', 'SYMLINKS.json', 'FILES.json', 'RECORD-ANALYSIS.json'):
++    for name in ('ROOT-BACKUP-CLEANUP.json', 'ROOT-TERMINAL.json', 'ROOT-REPLAY.json', 'SYMLINKS.json', 'FILES.json', 'RECORD-ANALYSIS.json', 'ROOT-TRACE-REPLAY.json'):
+         assert not (PAIR / name).exists() and not (PAIR / name).is_symlink()
+     assert not REFRESH.exists() and not REFRESH.is_symlink()
+     policy = read(HERE / 'POLICY.json')
+     baseline = load('matching_root_baseline', str((HERE / 'baseline.py').relative_to(ROOT)))
+     prepared, owner, roles = baseline.prepare(OWNER_SHA)
+     assert prepared == policy and policy['execution_enabled'] and policy['candidate_execution_enabled']
+-    assert set(roles) == {'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'dom/animation/EffectCompositor.h'}
++    assert set(roles) == {'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'dom/animation/EffectCompositor.h', 'layout/base/PresShell.h', 'layout/style/nsComputedDOMStyle.cpp'}
+     assert policy['runtime_output'] == str(PAIR.relative_to(ROOT))
+     state = load('matching_root_state', policy['state_helper'])
+     bundle = load('matching_root_bundle', policy['bundle_helper'])
+@@ -117,7 +158,6 @@
+     assessment = assessor.assess(events, phase_result['exit'], settings, checks, original=original, run_binding=metadata)
+     assert json.loads(json.dumps(assessment)) == read(phase / 'ASSESSMENT.json')
+     phase_hashes = {key: sha(phase / name) for key, name in [('assessment_sha256', 'ASSESSMENT.json'), ('raw_sha256', 'raw.jsonl'), ('result_sha256', 'RESULT.json')]}
+-    passed = outcome_join(result, phase_result, assessment, args.exit_code, phase_hashes)
+     assert read(phase / 'PRE.json') == read(phase / 'POST.json') == compiled['snapshot']
+     assert metadata == read(phase / 'APPLICATION-METADATA-POST.json')
+     assert metadata['revision'] == metadata['build_revision'] == metadata['harness_revision'] == policy['head']
+@@ -131,6 +171,11 @@
+     collection = collector.collect(ROOT, PAIR / 'progress-records', binding, policy, assessment)
+     assert collection == read(PAIR / 'PROGRESS-RECORDS.json') and not collection['errors']
+     assert read(PAIR / 'PHASES-PRE.json') == compiled['snapshot']
++    trace = replay_trace(policy, phase)
++    reference_comparison = comparison.compare_uninstrumented(ROOT, policy, assessment)
++    assert reference_comparison == read(PAIR / 'UNINSTRUMENTED-COMPARISON.json')
++    passed = outcome_join(result, phase_result, assessment, args.exit_code, phase_hashes, trace['diagnostic_capture_complete'], reference_comparison['full_callback_and_ending_signatures_equal'], collection['complete'])
++    save(PAIR / 'ROOT-TRACE-REPLAY.json', dict(trace, callback_comparison_gate_passed=assessment['comparison_gate_passed'], owner_success=passed, uninstrumented_comparison=reference_comparison))
+     if passed:
+         assert collection['complete']
+         assert read(PAIR / 'PHASES-POST.json') == compiled['snapshot']
+@@ -185,9 +230,9 @@
+         save(PAIR / 'ROOT-BACKUP-CLEANUP.json', {'removed': not (PAIR / 'backups').exists(), 'verified_original_restoration': True, 'inventory_verified_before_removal': True, 'owner_failure_receipt_preserved': True, 'owned_backup_bytes': backup['owned_backup_bytes']})
+     assert sha(PAIR / 'CANDIDATE-RESULT.json') == result_sha
+     app_entry = ROOT / policy['wpt']['application_ini']
+-    summary = {'original_rows': original['rows'], 'candidate_rows': assessment['rows'], 'candidate_endings': assessment['ends'], 'comparison_errors': assessment['comparison_errors'], 'comparison_gate_passed': passed, 'phase': phase_hashes, 'native_acceptance': False}
++    summary = {'original_rows': original['rows'], 'candidate_rows': assessment['rows'], 'candidate_endings': assessment['ends'], 'comparison_errors': assessment['comparison_errors'], 'comparison_gate_passed': assessment['comparison_gate_passed'], 'owner_success': passed, 'trace_replay_sha256': sha(PAIR / 'ROOT-TRACE-REPLAY.json'), 'phase': phase_hashes, 'native_acceptance': False}
+     save(PAIR / 'ROOT-REPLAY.json', summary)
+-    terminal = {'session_id': args.session, 'terminal_chunk': args.terminal, 'exit': args.exit_code, 'owner_sha256': OWNER_SHA, 'result_sha256': result_sha, 'build_success': True, 'callbacks_passed': sum(r['status'] == 'PASS' for r in assessment['rows']), 'callbacks_failed': sum(r['status'] == 'FAIL' for r in assessment['rows']), 'page_endings_ok': 3, 'records_complete': collection['complete'], 'complete_record_count': len(collection['records']), 'record_analysis_sha256': sha(PAIR / 'RECORD-ANALYSIS.json'), 'comparison_gate_passed': passed, 'raw_replay_verified': True, 'state_and_application_restoration_independently_verified': True, 'raw_index_observation': observation, 'restored_application_entry': bundle.entry(app_entry), 'restored_application_target': bundle.entry(app_entry.resolve()), 'backup_removed_bytes': backup['owned_backup_bytes'], 'native_acceptance': False}
++    terminal = {'session_id': args.session, 'terminal_chunk': args.terminal, 'exit': args.exit_code, 'owner_sha256': OWNER_SHA, 'result_sha256': result_sha, 'build_success': True, 'callbacks_passed': sum(r['status'] == 'PASS' for r in assessment['rows']), 'callbacks_failed': sum(r['status'] == 'FAIL' for r in assessment['rows']), 'page_endings_ok': 3, 'records_complete': collection['complete'], 'complete_record_count': len(collection['records']), 'record_analysis_sha256': sha(PAIR / 'RECORD-ANALYSIS.json'), 'comparison_gate_passed': assessment['comparison_gate_passed'], 'owner_success': passed, 'diagnostic_capture_complete': trace['diagnostic_capture_complete'], 'trace_replay_sha256': sha(PAIR / 'ROOT-TRACE-REPLAY.json'), 'full_authored_rosters_matched': False, 'strict_join_not_run': True, 'raw_replay_verified': True, 'state_and_application_restoration_independently_verified': True, 'raw_index_observation': observation, 'restored_application_entry': bundle.entry(app_entry), 'restored_application_target': bundle.entry(app_entry.resolve()), 'backup_removed_bytes': backup['owned_backup_bytes'], 'native_acceptance': False}
+     save(PAIR / 'ROOT-TERMINAL.json', terminal)
+     symlinks, manifest = {}, {}
+     for directory, dirs, files in os.walk(PAIR, followlinks=False):

@@ -1,0 +1,83 @@
+1898:     const ComputedStyle* parent_style,
+1899:     StyleResolver* resolver,
+1900:     bool can_trigger_animations) {
+1901:   ElementAnimations* element_animations =
+1902:       animating_element.GetElementAnimations();
+1903: 
+1904:   bool is_animation_style_change =
+1905:       !can_trigger_animations ||
+1906:       (element_animations && element_animations->IsAnimationStyleChange());
+1907: 
+1908: #if !DCHECK_IS_ON()
+1909:   // If we're in an animation style change, no animations can have started, been
+1910:   // cancelled or changed play state. When DCHECK is enabled, we verify this
+1911:   // optimization.
+1912:   if (is_animation_style_change) {
+1913:     CalculateAnimationActiveInterpolations(update, animating_element);
+1914:     return;
+1915:   }
+1916: #endif
+1917: 
+1918:   const WritingDirectionMode writing_direction =
+1919:       style_builder.GetWritingDirection();
+1920: 
+1921:   // Rebuild the keyframe model for a CSS animation if it may have been
+1922:   // invalidated by a change to the text direction or writing mode.
+1923:   bool logical_property_mapping_change =
+1924:       !old_style || old_style->GetWritingDirection() != writing_direction;
+1925: 
+1926:   if (logical_property_mapping_change && element_animations) {
+1927:     // Update computed keyframes for any running animations that depend on
+1928:     // logical properties.
+1929:     for (auto& entry : element_animations->Animations()) {
+1930:       Animation* animation = entry.key;
+2056:           will_be_playing =
+2057:               (play_state == V8AnimationPlayState::Enum::kRunning) ||
+2058:               (play_state == V8AnimationPlayState::Enum::kFinished);
+2059:         }
+2060: 
+2061:         AnimationTimeline* timeline = existing_animation->Timeline();
+2062:         if (!is_animation_style_change && !animation->GetIgnoreCSSTimeline()) {
+2063:           timeline = ComputeTimeline(&animating_element, style_timeline, update,
+2064:                                      existing_animation->Timeline());
+2065:         }
+2066: 
+2067:         bool range_changed =
+2068:             ((range_start != existing_animation->RangeStart()) &&
+2069:              !animation->GetIgnoreCSSRangeStart()) ||
+2070:             ((range_end != existing_animation->RangeEnd()) &&
+2071:              !animation->GetIgnoreCSSRangeEnd());
+2072: 
+2073:         const Member<const StyleTriggerAttachmentVector>
+2074:             existing_trigger_attachments = animation->GetTriggerAttachments();
+2075:         Member<const StyleTriggerAttachmentVector> trigger_attachments;
+2076:         if (RuntimeEnabledFeatures::AnimationTriggerEnabled()) {
+2077:           trigger_attachments = animation_data->GetTriggerAttachments(i);
+2078:         }
+2079:         DCHECK(!trigger_attachments || !trigger_attachments->empty());
+2080:         if (keyframes_rule != existing_animation->style_rule ||
+2081:             keyframes_rule->Version() !=
+2082:                 existing_animation->style_rule_version ||
+2083:             existing_animation->specified_timing != specified_timing ||
+2084:             is_paused != was_paused || logical_property_mapping_change ||
+2085:             timeline != existing_animation->Timeline() || range_changed ||
+2086:             trigger_attachments != existing_trigger_attachments) {
+2087:           DCHECK(!is_animation_style_change);
+2088: 
+2089:           CSSAnimationProxy animation_proxy(timeline, trigger_attachments,
+2090:                                             animation, !will_be_playing,
+2091:                                             range_start, range_end, timing);
+2092:           update.UpdateAnimation(
+2093:               existing_animation_index, animation,
+2094:               *MakeGarbageCollected<InertEffect>(
+2095:                   CreateKeyframeEffectModel(
+2096:                       resolver, element, animating_element, writing_direction,
+2097:                       parent_style, name, keyframe_timing_function.get(),
+2098:                       composite, i, name_tree_scope),
+2099:                   timing, animation_proxy),
+2100:               specified_timing, keyframes_rule, timeline,
+2101:               animation_data->PlayStateList(), range_start, range_end,
+2102:               trigger_attachments);
+2103:           if (toggle_pause_state)
+2104:             update.ToggleAnimationIndexPaused(existing_animation_index);
+2105:         }

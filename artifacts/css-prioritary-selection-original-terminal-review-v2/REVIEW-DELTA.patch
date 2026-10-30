@@ -1,0 +1,80 @@
+--- artifacts/css-prioritary-selection-original-terminal-review-v1/review.py
++++ artifacts/css-prioritary-selection-original-terminal-review-v2/review.py
+@@ -31,7 +31,7 @@
+ 
+ 
+ 
+-def validate_build_phase(policy, pre, built, metadata, metadata_after, snapshots, binaries):
++def validate_build_phase(policy, pre, built, metadata, metadata_after, snapshots, binaries, *, consumed_inputs):
+     assert metadata == metadata_after
+     assert metadata["revision"] == metadata["build_revision"] == policy["head"]
+     assert metadata["harness_revision"] == policy["wpt"]["harness_revision"] == policy["head"]
+@@ -40,7 +40,9 @@
+     assert all(snapshot == built["snapshot"] for snapshot in snapshots) and len(snapshots) >= 3
+     assert binaries == built["binaries"] and set(binaries) == set(policy["rebuilt_binaries"])
+     assert built["browser_build_performed"]
+-    assert built["snapshot"]["working_sources_binaries_research_preserved"]
++    scope = load("intermediate_review_scope", HERE / "review_scope.py")
++    scope.require_intermediate(built["snapshot"], consumed_inputs)
++    scope.require_full(pre["snapshot"])
+     assert built["snapshot"]["current_raw_stable_during_check"]
+     assert built["snapshot"]["index"]["working_diff"] == hashlib.sha256(b"").hexdigest()
+     assert built["snapshot"]["nested_index"] == pre["snapshot"]["nested_index"]
+@@ -53,12 +55,24 @@
+     return {key:(observation.get("outcomes") or {}).get(key) for key in ("callbacks_passed", "callbacks_failed")}
+ 
+ 
++def consumed_map(here, policy, roles, manifest_sha256):
++    closure = load("review_consumed_closure", HERE / "closure.py")
++    binding = load("review_input_binding", HERE / "inputs.py")
++    external = closure.external_inputs(ROOT, policy, roles)
++    assert external == policy["intermediate_consumed_inputs"]
++    return binding.bind_inputs(str(here.relative_to(ROOT)), (here / "FILES.json").read_bytes(), manifest_sha256, external)
++
++
+ def authenticate():
+     config = read(HERE / "POLICY.json")
+     for name, expected in read(HERE / "REFERENCES.json").items():
+         assert sha(ROOT / name) == expected, name
+     owner = ROOT / config["owner_directory"]
+-    assert sha(owner / "FILES.json") == config["owner_manifest_sha256"]
++    digest = config["owner_manifest_sha256"]
++    if digest is None:
++        assert not config["execution_enabled"] and config["actual_terminal"] is None
++        digest = config["prepared_owner_manifest_sha256"]
++    assert sha(owner / "FILES.json") == digest
+     for name, pin in read(owner / "FILES.json").items():
+         assert sha(owner / name) == (pin["sha256"] if isinstance(pin, dict) else pin)
+     return config, owner
+@@ -73,10 +87,11 @@
+         print("Saved owner payloads authenticated; no runtime or live state read")
+         return
+     assert config["execution_enabled"] and config["actual_terminal"] is not None
++    assert config["owner_manifest_sha256"] is not None
+     terminal = config["actual_terminal"]
+-    assert terminal["session"] == config["expected_session"] == 99665
++    assert config["expected_session"] is not None and terminal["session"] == config["expected_session"]
+     assert terminal["exit"] in (0, 1) and terminal["terminal_chunk"]
+-    assert terminal["launch_chunk"] == config["expected_launch"] == "31e9ed"
++    assert config["expected_launch"] and terminal["launch_chunk"] == config["expected_launch"]
+     assert not config["mutations_allowed"] and not config["epoch_publication_allowed"]
+     assert not any(os.environ.get(k) for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"))
+     pair = ROOT / config["runtime_directory"]
+@@ -95,6 +110,7 @@
+     assert (result["error"] is None) == result["success"]
+     baseline = load("terminal_baseline", here / "baseline.py")
+     policy, ownership, roles = baseline.prepare(config["owner_manifest_sha256"])
++    consumed_inputs = consumed_map(here, policy, roles, config["owner_manifest_sha256"])
+     assert policy["runtime_output"] == config["runtime_directory"] and set(roles) == {"servo/components/style/custom_properties.rs"}
+     assert result["build_revision"] == policy["head"]
+     assert roles["servo/components/style/custom_properties.rs"]["candidate_sha256"] == policy["committed_source_preimages"]["servo/components/style/custom_properties.rs"]
+@@ -123,7 +139,8 @@
+     for name in ("build-PROCESS.json", "WAKE-PROCESS.json"):
+         ownership.group_absent(record("original-build/" + name)["pgid"])
+     lane_review = load("original74_observation_review", HERE / "observations.py")
+-    observation = lane_review.review(ROOT, HERE, pair, policy, pre, result, build, record, inputs, ownership, validate_build_phase)
++    validate = lambda *args: validate_build_phase(*args, consumed_inputs=consumed_inputs)
++    observation = lane_review.review(ROOT, HERE, pair, policy, pre, result, build, record, inputs, ownership, validate)
+     with (HERE / "RAW-REPLAY.json").open("x") as stream:
+         json.dump(observation, stream, indent=2, sort_keys=True)
+         stream.write("\n")

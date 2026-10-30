@@ -1,0 +1,42 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Min and max preserve contextual infinities produced by logarithms</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#exponent-funcs">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-ieee">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-simplification">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="log"></div>
+<script>
+const cases = [
+  ["min(-1px, 1 / log(1, 0.5) * 1em)", ["0px", "-1px", "0px"]],
+  ["min(1 / log(1, 0.5) * 1em, -1px)", ["0px", "-1px", "0px"]],
+  ["max(1px, -1 / log(1, 0.5) * 1em)", ["0px", "1px", "0px"]],
+  ["max(-1 / log(1, 0.5) * 1em, 1px)", ["0px", "1px", "0px"]],
+];
+
+for (const [expression, expected] of cases) {
+  test(t => {
+    const target = document.createElement("div");
+    target.style.position = "relative";
+    target.style.left = expression;
+    assert_not_equals(target.style.left, "", "Declaration parses");
+    const calibration = document.createElement("div");
+    calibration.style.width = "1em";
+    target.append(calibration);
+    document.body.append(target);
+    t.add_cleanup(() => target.remove());
+    const sizes = ["0px", "16px", "0px"];
+    const observed = sizes.map(size => {
+      target.style.fontSize = size;
+      const style = getComputedStyle(target);
+      assert_equals(style.fontSize, size, "Font size supplies the requested basis");
+      assert_equals(getComputedStyle(calibration).width, size, "One em matches the requested basis");
+      const first = style.left;
+      assert_equals(getComputedStyle(target).left, first, "Repeated observation is stable");
+      return first;
+    });
+    assert_array_equals(observed, expected, "Font size changes from 0px to 16px to 0px");
+  }, `${expression} preserves logarithm sign and contextual NaN across font-size changes`);
+}
+</script>

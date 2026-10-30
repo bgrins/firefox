@@ -1,0 +1,7 @@
+# Independent full-original saved replay
+
+Actual outer88115/77652e/0 completed; inner WPT exit1, one PASS/one FAIL/one OK, both complete private records. Independent saved replay35e3af/0 exactly matches the saved assessor output, both original/phase PRE/POST frames, application metadata, historical compiled binary pins, source/admission control relationships, authored resource/metadata bytes, private record schemas/identities/runID and saved cleanup receipts. Both complete observations are byte-structure equal to the earlier compact runtime2 after excluding only their distinct run IDs: acyclic opacity remains0.75 with font22/computed1375/applied1000; stepped feedback font32/computed1000/applied500 remains a bounded observation without cycle oracle.
+
+PROPOSED-ROOT-TERMINAL.json is an explicitly non-authoritative draft. The actual session/terminal/outcomes and saved verification flags are filled, but current_source_binary_control_pins_verified is false pending root's full live verifier. The separate user untracked audit is not substituted for that gate. No candidate activation or live source/app/index/canonical reads were performed by this review.
+
+The fresh full lifecycle supplies original raw run_info, assessment policy, app metadata, binary pins, complete records and full preservation frames; it can be bound by the candidate only after root verifies current state and freezes the final runtime with its authoritative terminal. Ordinary FAIL remains FAIL, no native acceptance or new bug count.

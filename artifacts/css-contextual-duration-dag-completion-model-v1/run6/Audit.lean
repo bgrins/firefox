@@ -1,0 +1,24 @@
+import Dag
+#print axioms Dag.eval_ext
+#print axioms Dag.initial_covered
+#print axioms Dag.round_covered
+#print axioms Dag.ready_consistent
+#print axioms Dag.changed_was_dirty
+#print axioms Dag.round_frontier
+#print axioms Dag.run_covered
+#print axioms Dag.run_frontier
+#print axioms Dag.bounded_completion
+#print axioms Dag.ready_value_unchanged
+#print axioms Dag.ready_stays_ready
+#print axioms Dag.consistent_unique
+#print axioms Dag.arbitrary_initial_completion
+#print axioms Dag.edit_admission_covered
+#print axioms Dag.incremental_completion
+#print axioms Dag.diamond_three_rounds
+#print axioms Dag.diamond_late_work
+#print axioms Dag.uncovered_empty_is_not_consistent
+#print axioms Dag.diamond_both_inputs_matter
+#print axioms Dag.unrelated_pending_preserved
+#print axioms Dag.incremental_diamond
+#print axioms Dag.missed_admission_stays_stale
+#print axioms Dag.missing_second_dependency_loses_coverage

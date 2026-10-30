@@ -1,0 +1,47 @@
+--- a/phases.py
++++ b/phases.py
+@@ -12,23 +12,24 @@
+     spec.loader.exec_module(wpt)
+     initial = verify()
+     wpt.save(output / 'PHASES-PRE.json', initial)
+-    rows, endings, results = [], [], {}
+-    build = read(output / 'original-build/RESULT.json')
++    rows, endings, results, behaviors = [], [], {}, {}
++    build = read(output / 'candidate-build/RESULT.json')
+     for lane in policy['lane_order']:
+-        phase = output / ('original-wpt-' + lane)
+-        results[lane] = wpt.run(root, here, phase, 'original', policy, env, verify, owned, cancelled, lane=lane)
++        phase = output / ('candidate-wpt-' + lane)
++        results[lane] = wpt.run(root, here, phase, 'candidate', policy, env, verify, owned, cancelled, original=root / policy['baseline_binding']['directory'] / ('original-wpt-' + lane), lane=lane)
+         assessment = read(phase / 'ASSESSMENT.json')
+         settings = policy['wpt_lanes'][lane]
+         assert assessment['complete'] and len(assessment['rows']) == settings['expected_subtest_count']
+         assert len(assessment['ends']) == settings['expected_page_count']
+         assert all(row['status'] in ('PASS', 'FAIL') for row in assessment['rows'])
++        behaviors[lane] = read(phase / 'BEHAVIOR-COMPARISON.json')
+         rows.extend(assessment['rows'])
+         endings.extend(assessment['ends'])
+         assert not owned and read(phase / 'PRE.json') == read(phase / 'POST.json') == initial
+         metadata = read(phase / 'APPLICATION-METADATA.json')
+         assert metadata == read(phase / 'APPLICATION-METADATA-POST.json')
+         assert metadata['revision'] == metadata['build_revision'] == policy['head']
+-        assert metadata['source_role'] == 'original'
++        assert metadata['source_role'] == 'candidate'
+         assert build['binaries'] == read(phase / 'BINARY-PINS.json')
+         assert verify() == initial
+     assert len(rows) == 74 and len(endings) == 11
+@@ -36,11 +37,13 @@
+     assert len({row['test'] for row in endings}) == 11
+     assert results['ordinary']['zoom_observation_sha256'] is not None
+     assert build['native_sources'] == {name: row['candidate_sha256'] for name, row in read(here / 'SOURCE-ROLES.json').items()}
++    assert sum(len(value['candidate_signatures']) for value in behaviors.values()) == 85
++    wpt.save(output / 'COMPARISON.json', {'lanes': behaviors, 'repair_observation_gate': all(value['repair_observation_gate'] for value in behaviors.values()), 'all85_signatures_equal': all(value['all_signatures_equal'] for value in behaviors.values()), 'zoom_comparison_sha256': results['ordinary']['zoom_comparison_sha256'], 'native_acceptance': False})
+     wpt.save(output / 'OUTCOMES.json', {
+         'callbacks_passed': sum(row['status'] == 'PASS' for row in rows),
+         'callbacks_failed': sum(row['status'] == 'FAIL' for row in rows),
+         'rows': rows, 'endings': endings, 'lanes': results,
+-        'zoom_target_correctness': None, 'provider_source_role': 'clean-original', 'native_acceptance': False,
++        'zoom_target_correctness': None, 'provider_source_role': 'clean-provider-cascade-candidate', 'native_acceptance': False,
+     })
+     wpt.save(output / 'PHASES-POST.json', initial)
+     return results

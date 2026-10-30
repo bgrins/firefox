@@ -1,0 +1,178 @@
+--- rem-v2/fixture.html
++++ lh-v1/animation-duration-acyclic-line-height-chain.tentative.html
+@@ -1,16 +1,17 @@
+ <!doctype html>
+ <meta charset="utf-8">
+-<title>Paused contextual duration updates across an acyclic font dependency chain</title>
++<title>Paused contextual duration updates across an acyclic line-height dependency chain</title>
+ <link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
+-<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#lh">
++<link rel="help" href="https://drafts.csswg.org/css-inline-3/#line-height-property">
+ <link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-the-iteration-progress">
+ <script src="/resources/testharness.js"></script>
+ <script src="/resources/testharnessreport.js"></script>
+ <body>
+ <script>
+-const initial = {root: 16, middle: 28, middleDuration: 1000,
++const initial = {parent: 16, middle: 28, middleDuration: 1000,
+                  childDuration: 1750, opacity: 3 / 7};
+-const final = {root: 32, middle: 22, middleDuration: 2000,
++const final = {parent: 32, middle: 22, middleDuration: 2000,
+                childDuration: 1375, opacity: 6 / 11};
+ 
+ function frame(win) {
+@@ -24,24 +25,26 @@
+ }
+ 
+ function details(context) {
+-  const {win, root, middle, child, middleAnimation, childAnimation} = context;
++  const {win, parent, middle, child, middleAnimation, childAnimation} = context;
+   const childStyle = win.getComputedStyle(child);
+   const result = {childOpacity: Number(childStyle.opacity),
+                   childDuration: parseFloat(childStyle.animationDuration) * 1000,
++                  childLineHeight: parseFloat(childStyle.lineHeight),
+                   child: timing(childAnimation)};
+   const middleStyle = win.getComputedStyle(middle);
+-  result.middleFont = parseFloat(middleStyle.fontSize);
++  result.middleLineHeight = parseFloat(middleStyle.lineHeight);
+   result.middleDuration = parseFloat(middleStyle.animationDuration) * 1000;
+   result.middle = timing(middleAnimation);
+-  result.rootFont = parseFloat(win.getComputedStyle(root).fontSize);
++  result.parentFont = parseFloat(win.getComputedStyle(parent).fontSize);
+   return result;
+ }
+ 
+ function assertValues(value, expected, label) {
+-  assert_approx_equals(value.rootFont, expected.root, 0.02, `${label}: root font`);
+-  assert_approx_equals(value.middleFont, expected.middle, 0.02, `${label}: middle font`);
++  assert_approx_equals(value.parentFont, expected.parent, 0.02, `${label}: parent font`);
++  assert_approx_equals(value.middleLineHeight, expected.middle, 0.02, `${label}: middle line-height`);
+   assert_approx_equals(value.middleDuration, expected.middleDuration, 0.05, `${label}: middle CSS duration`);
+   assert_approx_equals(value.middle.duration, expected.middleDuration, 0.05, `${label}: middle effect duration`);
++  assert_approx_equals(value.childLineHeight, expected.middle, 0.02, `${label}: inherited child line-height`);
+   assert_approx_equals(value.childDuration, expected.childDuration, 0.1, `${label}: child CSS duration`);
+   assert_approx_equals(value.child.duration, expected.childDuration, 0.1, `${label}: child effect duration`);
+   assert_approx_equals(value.child.progress, expected.opacity, 0.0001, `${label}: child progress`);
+@@ -56,40 +59,41 @@
+   const iframe = document.createElement("iframe");
+   t.add_cleanup(() => iframe.remove());
+   const loaded = new Promise(resolve => iframe.onload = resolve);
+-  iframe.srcdoc = `<!doctype html><html class="${mode}"><style>
+-    html { font-size: 16px; }
+-    html.advanced { font-size: 32px; }
+-    @keyframes middle-font { from { font-size: 16px; } to { font-size: 32px; } }
++  iframe.srcdoc = `<!doctype html><html><style>
++    html { font-size: 16px; line-height: 20px; }
++    .parent { font-size: 16px; line-height: 20px; }
++    .parent.advanced { font-size: 32px; }
++    @keyframes middle-line-height { from { line-height: 16px; } to { line-height: 32px; } }
+     @keyframes child-opacity { from { opacity: 0; } to { opacity: 1; } }
+-    .middle { animation: middle-font calc(1rem / 16px * 1s) linear both paused; }
+-    .child { animation: child-opacity calc(1em / 16px * 1s) linear both paused; }
+-    html.literal .middle { animation-duration: 1s; }
+-    html.literal .child { animation-duration: 1.75s; }
+-    html.literal.advanced .middle { animation-duration: 2s; }
+-    html.literal.advanced .child { animation-duration: 1.375s; }
+-  </style><body><div class="middle"></div></body></html>`;
++    .middle { animation: middle-line-height calc(1em / 16px * 1s) linear both paused; }
++    .child { animation: child-opacity calc(1lh / 16px * 1s) linear both paused; }
++    .literal .middle { animation-duration: 1s; }
++    .literal .child { animation-duration: 1.75s; }
++    .literal.advanced .middle { animation-duration: 2s; }
++    .literal.advanced .child { animation-duration: 1.375s; }
++  </style><body><div class="parent ${mode}"><div class="middle"></div></div></body></html>`;
+   document.body.append(iframe);
+   await loaded;
+   const win = iframe.contentWindow;
+-  const root = iframe.contentDocument.documentElement;
++  const parent = iframe.contentDocument.querySelector(".parent");
+   const middle = iframe.contentDocument.querySelector(".middle");
+   let driver = null;
+   if (mode === "animated") {
+-    driver = root.animate([{fontSize: "16px"}, {fontSize: "32px"}],
++    driver = parent.animate([{fontSize: "16px"}, {fontSize: "32px"}],
+                           {duration: 1000, fill: "both", easing: "linear"});
+     driver.pause();
+     driver.currentTime = 0;
+     await driver.ready;
+   }
+-  assert_equals(win.getComputedStyle(root).fontSize, "16px", "Initial root calibration");
++  assert_equals(win.getComputedStyle(parent).fontSize, "16px", "Initial parent calibration");
+   const middleAnimations = middle.getAnimations();
+   assert_equals(middleAnimations.length, 1, "Middle animation acquired before child insertion");
+   const middleAnimation = middleAnimations[0];
+   await middleAnimation.ready;
+   middleAnimation.currentTime = 750;
+   assert_equals(middleAnimation.effect.getTiming().duration, 1000, "Initial middle duration");
+-  assert_approx_equals(parseFloat(win.getComputedStyle(middle).fontSize), 28, 0.02,
+-                       "Middle font established before child insertion");
++  assert_approx_equals(parseFloat(win.getComputedStyle(middle).lineHeight), 28, 0.02,
++                       "Middle line-height established before child insertion");
+   const child = iframe.contentDocument.createElement("div");
+   child.className = "child";
+   middle.append(child);
+@@ -98,17 +102,18 @@
+   const childAnimation = childAnimations[0];
+   await childAnimation.ready;
+   childAnimation.currentTime = 750;
+-  const context = {win, root, middle, child, driver, middleAnimation, childAnimation,
++  const context = {win, parent, middle, child, driver, middleAnimation, childAnimation,
+                    middleEffect: middleAnimation.effect, childEffect: childAnimation.effect};
+-  assertValues(details(context), initial, "Initial chain");
++  for (let index = 0; index < 3; index++) await frame(win);
++  assertValues(details(context), initial, "Initial chain after setup frames");
+   return context;
+ }
+ 
+ async function observe(t, mode) {
+   const context = await create(t, mode);
+-  const {win, root, middle, child, driver, middleAnimation, childAnimation} = context;
++  const {win, parent, middle, child, driver, middleAnimation, childAnimation} = context;
+   if (driver) driver.currentTime = 1000;
+-  else root.classList.add("advanced");
++  else parent.classList.add("advanced");
+   const samples = [{phase: "first-child-read", opacity: Number(win.getComputedStyle(child).opacity)}];
+   for (let index = 1; index <= 3; index++) {
+     await frame(win);
+@@ -131,14 +136,14 @@
+   const afterSeek = details(context);
+   const trace = JSON.stringify({mode, samples, beforeMembership, driverTiming, membership,
+                                afterMembership, seek751, afterSeek});
+-  await record("two-hop-" + mode, trace);
++  await record("lh-chain-" + mode, trace);
+   for (const [name, same] of Object.entries(membership)) {
+     assert_true(same, `${name} identity/membership; ${trace}`);
+   }
+   if (driverTiming) {
+-    assert_equals(driverTiming.time, 1000, `Root driver time; ${trace}`);
+-    assert_equals(driverTiming.state, "paused", `Root driver paused; ${trace}`);
+-    assert_equals(driverTiming.duration, 1000, `Root driver duration; ${trace}`);
++    assert_equals(driverTiming.time, 1000, `Parent driver time; ${trace}`);
++    assert_equals(driverTiming.state, "paused", `Parent driver paused; ${trace}`);
++    assert_equals(driverTiming.duration, 1000, `Parent driver duration; ${trace}`);
+   }
+   assertValues(beforeMembership, final, `After three sampled frames, before membership; ${trace}`);
+   assert_approx_equals(samples[3].opacity, final.opacity, 0.0001,
+@@ -148,7 +153,7 @@
+ }
+ 
+ async function record(kind, trace) {
+-  const response = await fetch("duration-progress-record.py", {
++  const response = await fetch("duration-lh-progress-record.py", {
+     method: "POST", headers: {"Content-Type": "application/json"},
+     body: JSON.stringify({kind, observation: JSON.parse(trace)})
+   });
+@@ -160,9 +165,9 @@
+ }
+ 
+ promise_test(t => observe(t, "literal"),
+-             "Literal duration changes calibrate a paused two-hop font and opacity chain");
++             "Literal duration changes calibrate a paused line-height and opacity chain");
+ promise_test(t => observe(t, "ordinary"),
+-             "Ordinary root font changes propagate through a paused two-hop duration chain");
++             "Ordinary parent font changes propagate through a paused em-to-lh duration chain");
+ promise_test(t => observe(t, "animated"),
+-             "Animated root font changes propagate through a paused two-hop duration chain");
++             "Animated parent font changes propagate through a paused em-to-lh duration chain");
+ </script>

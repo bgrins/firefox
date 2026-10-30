@@ -1,0 +1,32 @@
+--- executed-depth/run.py
++++ base-timing-original/run.py
+@@ -116,17 +116,19 @@
+                        env, verify, owned, lambda: stopped[0])
+     assert not owned
+     assessment = read(output / "original-wpt/ASSESSMENT.json")
+-    assert assessment["complete"] and assessment["observed_subtest_count"] == 4
++    assert assessment["complete"] and assessment["observed_subtest_count"] == 7
+     observed = {page: [row["subtest"] for row in assessment["rows"] if row["test"] == page]
+                 for page in policy["wpt"]["expected_subtests"]}
+     runner.save(output / "OBSERVED-ROSTER.json", {
+-        "expected_subtests": observed, "observed_subtest_count": 4,
++        "expected_subtests": observed, "observed_subtest_count": 7,
+         "phase": phase, "owner_sha256": sys.argv[2],
+         "source_roster_sha256": policy["references"][policy["source_roster"]],
+         "candidate_authorized": False,
+     })
+     collection = load("progress_record_collection", str(HERE / "records.py")).collect(ROOT, records, binding, policy, assessment)
+     runner.save(output / "PROGRESS-RECORDS.json", collection)
++    calibration = load("timing_record_calibration", str(HERE / "calibration.py")).report(records, collection, policy)
++    runner.save(output / "CALIBRATION.json", calibration)
+     after = verify()
+     assert initial == after and not owned
+     assert read(output / "original-wpt/PRE.json") == read(output / "original-wpt/POST.json") == initial
+@@ -139,6 +141,7 @@
+         "callbacks_failed": sum(row["status"] == "FAIL" for row in assessment["rows"]),
+         "all_callbacks_passed": all(row["status"] == "PASS" for row in assessment["rows"]),
+         "records_complete": collection["complete"], "record_errors": collection["errors"],
++        "literal_initial_calibration_passed": calibration["all_calibrated"],
+         "numeric_or_convergence_oracle": False,
+         "preservation_verified": True, "native_fix_accepted": False,
+         "source_or_canonical_mutation": False,

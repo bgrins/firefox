@@ -1,0 +1,22 @@
+# CSS and Stylo verification — V98
+
+One new observable Firefox bug is reproduced: a registered identifier from a union containing color incorrectly becomes `normal` when color-scheme uses var() with an unused attr() fallback. Installed Firefox fails two cases and passes three controls; portable Chrome passes all five. Both harnesses and calibrations complete normally. Reports, exact resources, application pins and cleanup were independently verified. The overly broad registration-derived ColorScheme edge is the source-supported cause to test with a native repair. This is not yet a fixed or committed bug.
+
+The clean-provider animation-taint baseline is complete: 105 PASS, 20 FAIL and 18 successful page endings. Independent raw replay, build/browser provenance and restoration checks passed. All 136 full result signatures shared with the prior held-provider baseline are unchanged. The five added callbacks contribute two passes and three tentative fallback failures. The exact clean-provider candidate is now sealed and disabled, bound to this actual baseline; it has not run. Broader animation-taint ownership and lifetime remain unresolved specification questions.
+
+The new ancestry model checked six declarations and rejected five false controls. It demonstrates cache poisoning despite guard-before-lookup, an immediate-parent collision, and the need to preserve relevant ancestry and input-session identity. Agreement covers 390 finite fixed-input queries, not arbitrary CSS or native refinement. Contextual attr successor V2 is a sealed unfinished implementation with 13 extracted guard tests and syntax checks. Real Stylo compilation, general closure and performance remain open; full ancestry vectors can have quadratic storage costs. The separate priority-closure model retains its five audited theorems and five false controls.
+
+All root-owned build/browser sessions are terminal. Held provider bytes/inode and the original application are restored. The verified 1 GB build backup and all owned browser profiles were removed. Only observed raw-index bookkeeping changed after restoration. HEAD remains ecfe313d582a; accepted native fixes remain 149. The 68 untracked project files still match committed recovery copies, and the other 495 entries were preserved.
+
+The fresh signed research checkpoint failed with the same 1Password buffer error. No new commit was created, and no unsigned fallback was used. Min/max relative infinity and explicit-base logarithm remain validated fixes awaiting their separate native+WPT commits. Recent research remains uncommitted.
+
+## Next actions
+
+1. Implement and validate the ColorScheme repair as an independently landable native change with its WPT. Follow the selected parsed value across complete union alternatives, lists, nested colors/images, substitution fallbacks and invalid/default paths. Avoid a special case for the reproducing keywords. Keep unrelated contextual-attr/SCC/session changes out unless they are actually required.
+2. Build and run the sealed clean-provider animation-taint candidate against the actual 125-callback baseline. Preserve ordinary failures and restore the original tree/application afterward. Do not present its winning-value policy as complete CSS taint semantics.
+3. Continue contextual attr verification and implementation: selected dependency classification, stable prepared/final request identity, post-SCC priority bookkeeping, caller/session applicability and memory costs. Obtain real native compile/browser evidence before acceptance.
+4. Resume signed publication when signing becomes available, preserving research-before-fix history and a single native+WPT commit for each bug. Update the accepted-fix ledger only after actual publication and validation.
+
+Bloom milestones 1–6 retain their recorded bounded completion. The standalone CSS Lean library remains partial. These isolated checks add no canonical coverage. Duration/input-selection, descendant-first-read and the separate observational taint-scope probes remain open.
+
+[New bug evidence](../css-registered-color-scheme-root-readout-v1/README.md) · [Clean baseline](../css-animation-taint-clean-original-runtime-1/ROOT-SUMMARY.md) · [Ancestry model](../css-animation-contextual-attr-ancestry-model-v1/README.md) · [Prior detailed roadmap](../css-continuation-roadmap-20261030-v97/PLAN.md) · [Signing failure](../css-research-checkpoint-20261030-v84-root-outcome.json).

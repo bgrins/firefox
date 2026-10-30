@@ -1,0 +1,16 @@
+void KeyframeEffectStack::cascadeDidOverrideProperties(const HashSet<AnimatableCSSProperty>& overriddenProperties, const Document& document)
+{
+    HashSet<AnimatableCSSProperty> acceleratedPropertiesOverriddenByCascade;
+    for (auto animatedProperty : overriddenProperties) {
+        if (Style::Interpolation::isAccelerated(animatedProperty, document.settings()))
+            acceleratedPropertiesOverriddenByCascade.add(animatedProperty);
+    }
+
+    if (acceleratedPropertiesOverriddenByCascade == m_acceleratedPropertiesOverriddenByCascade)
+        return;
+
+    m_acceleratedPropertiesOverriddenByCascade = WTF::move(acceleratedPropertiesOverriddenByCascade);
+
+    for (RefPtr effect : m_effects)
+        effect->acceleratedPropertiesOverriddenByCascadeDidChange();
+}

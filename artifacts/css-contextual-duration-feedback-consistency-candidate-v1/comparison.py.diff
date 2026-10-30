@@ -1,0 +1,20 @@
+--- artifacts/css-contextual-duration-feedback-candidate-v2/comparison.py
++++ artifacts/css-contextual-duration-feedback-consistency-candidate-v1/comparison.py
+@@ -63,7 +63,7 @@
+     assert outer['phases'][kind] == {'assessment_sha256':sha(phase / 'ASSESSMENT.json'),'raw_sha256':sha(phase / 'raw.jsonl'),'result_sha256':sha(phase / 'RESULT.json')}
+     roster = read(directory / (kind.upper() + '-ROSTER.json'))
+     assert roster['phase'] == outer['phases'][kind] and roster['owner_sha256'] == policy['baseline_capsule']['sha256']
+-    assert roster['observed_subtest_count'] == observed['observed_subtest_count'] == 3
++    assert roster['observed_subtest_count'] == observed['observed_subtest_count'] == 2
+     assert roster['expected_subtests'] == {page:[row['subtest'] for row in observed['rows'] if row['test']==page] for page in source['phases'][kind]['expected_subtests']}
+     assert roster['endings'] == observed['ends']
+     return observed
+@@ -77,7 +77,7 @@
+     assert all(row['status']=='PASS' for row in observed['rows'])
+     phases = load('fresh_feedback_records', here.parent / 'phases.py')
+     directory = root / policy['baseline_binding']['directory']
+-    assert read(directory / 'FEEDBACK-RECORDS.json') == phases.feedback_records(directory)
++    assert read(directory / 'FEEDBACK-RECORDS.json') == phases.feedback_records(root,directory,policy)
+ 
+ 
+ def original_directory(root, policy):

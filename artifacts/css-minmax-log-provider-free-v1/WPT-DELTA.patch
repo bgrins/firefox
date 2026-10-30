@@ -1,0 +1,12 @@
+--- executed-combined/wpt.py
++++ provider-free/wpt.py
+@@ -137,6 +137,9 @@
+         replay = None
+     assessment = assessor.assess(events, code, phase_policy, checks, original=replay, run_binding=app_before)
+     save(output / 'ASSESSMENT.json', assessment)
++    reference = comparison.replay_combined(root, policy, assessor, checks)
++    comparison.require_equal_results(reference, assessment, assessor)
++    save(output / 'PROVIDER-COMPARISON.json', {'all_row_and_end_signatures_equal': True, 'rows': 578, 'endings': 16, 'combined_reference': policy['combined_binding'], 'native_fix_acceptance': False})
+     success = error is None and preserved and cleanup and cleanup.get('temporary_root_removed') and assessment['complete'] and (role == 'original' or assessment['comparison_gate_passed'])
+     save(output / 'RESULT.json', {'success': bool(success), 'exit': code, 'execution_error': error, 'preservation_verified': preserved, 'comparison_gate_passed': assessment['comparison_gate_passed'], 'native_fix_acceptance': False})
+     assert success, (error, preserved, assessment['errors'], assessment['comparison_errors'])

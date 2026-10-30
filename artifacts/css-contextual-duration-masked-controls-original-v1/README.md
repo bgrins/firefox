@@ -1,0 +1,19 @@
+# Masked font controls: original browser observation
+
+This disabled runner uses the executed base-timing original runner and unchanged generic WPT phase helper. It runs the sealed masked-admission-controls package: two pages, seven exact callbacks, two OK endings. Actual ordinary assertion failures remain failed callbacks; lifecycle completion does not mean all tests passed. No native build, source installation, record transport or numeric postprocessor is introduced.
+
+The original Firefox application remains the restored 20ab7e build. The harness HEAD, canonical control hashes and application identities are deliberately unbound until root records the actual V81 signing outcome and fresh current state. Historical restoration is authenticated from failed four-source experiment 29079/6c7cd1/1 and its independent cleanup; that failure is not converted into success. The source pins, 29 accepted claims, original build epoch, configuration and four rebuilt binaries are preserved from the prior original owner. Final execution verifies current full state, each source/body and historical build lineage, metadata before/after, no owned processes and exact PRE/POST equality using the existing lifecycle.
+
+Only inherited directory metadata and two explicit new-page metadata absences are admitted. Exact original fixture bodies, harness resources, HTTP headers and genuine subset manifest are reused. The static checker imports the existing strict assessor; it neither launches a browser nor calls Git/state verification.
+
+## Root activation
+
+Run `python3 -I -S -B artifacts/css-contextual-duration-masked-controls-original-v1/run.py --check MANIFEST_SHA` for saved-only checks. The disabled preparation accepts null fresh admission only with execution false and explicit pending requirements.
+
+After V81 actually terminates, root supplies a pinned JSON `fresh_admission` with: `head`, `controls` (CURRENT-EPOCH/OWNED/ROLE hashes), `prepared_application_metadata` (including original build revision, current harness revision and source_role original), `snapshot`, `raw_index`, `source_role_pins`, `accepted_current_payloads`, `restored_runtime_manifest`, `signer_terminal` (path/hash), and actual booleans `full_current_state_verified`, `source_transition_lock_absent`, `owned_processes_absent`, plus `native_acceptance_increment: 0`. Root must establish these facts, not copy a template assertion. This disabled draft authenticates the future signer-terminal file by hash but does not yet parse its unknown success/failure schema or prove a HEAD/epoch transition from it. Actual activation review must explicitly join that terminal outcome to the fresh full-state receipt, adding the narrow saved semantic check once the outcome exists; a non-null receipt alone is not that review. Add the receipt and signer-terminal hashes to references, bind the matching policy fields and harness revision, preserve disabled preimages, then review/reseal activation. If source/app changed or the signer created an unexpected native change, stop and review the admission rather than reusing stale bindings.
+
+Root invokes `python3 -I -S -B artifacts/css-contextual-duration-masked-controls-original-v1/run.py --run ACTIVE_MANIFEST_SHA` only after setting execution true and clearing activation_pending. Output is fresh `artifacts/css-contextual-duration-masked-controls-original-runtime-1`. Existing timeout, process-group cleanup, signal handling and full preservation checks are unchanged. The runner itself checks current state again; this package has not run any live guard or browser.
+
+Remaining blocker: actual post-signing admission and root activation. No extra research commit is required to observe these tests.
+
+Independent saved-only review: typed_demand_review CLEAR 2c6239/7fdc2e/6b8dd0. Actual post-signing handoff remains outside that preparation review.

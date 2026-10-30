@@ -1,0 +1,81 @@
+--- artifacts/css-contextual-duration-reduced-queue-matching-only-root-review-v1/verify.py
++++ artifacts/css-contextual-duration-progress-candidate-root-review-v1/verify.py
+@@ -11,11 +11,11 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ sys.dont_write_bytecode = True
+ ROOT = Path(__file__).resolve().parents[2]
+-HERE = ROOT / 'artifacts/css-contextual-duration-reduced-queue-matching-only-v2'
+-PAIR = ROOT / 'artifacts/css-contextual-duration-reduced-queue-matching-only-runtime-1'
++HERE = ROOT / 'artifacts/css-contextual-duration-progress-candidate-v1'
++PAIR = ROOT / 'artifacts/css-contextual-duration-progress-candidate-runtime-1'
+ RUNTIME = ROOT / 'artifacts/css-registered-number-native-runtime-v1'
+-REFRESH = ROOT / 'artifacts/css-contextual-duration-reduced-queue-matching-only-root-refresh.json'
+-OWNER_SHA = '0e251cc9bf294273f97d1e5b1cc0e132e9b60ff57bec184c41152cb33edc2c01'
++REFRESH = ROOT / 'artifacts/css-contextual-duration-progress-candidate-root-refresh.json'
++OWNER_SHA = '27d55b03fb57d7d17c13454ced432c063fe2dacbbb776d54d3fbc475376248ca'
+ read = lambda path: json.loads(path.read_bytes())
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+ 
+@@ -35,8 +35,8 @@
+ 
+ def outcome_join(result, phase, assessment, terminal_exit, phase_hashes):
+     assert assessment['complete'] and assessment['errors'] == []
+-    assert len(assessment['rows']) == 2 and all(r['status'] in ('PASS', 'FAIL') for r in assessment['rows'])
+-    assert len(assessment['ends']) == 1 and assessment['ends'][0]['status'] == 'OK'
++    assert len(assessment['rows']) == 9 and all(r['status'] in ('PASS', 'FAIL') for r in assessment['rows'])
++    assert len(assessment['ends']) == 3 and all(row['status'] == 'OK' for row in assessment['ends'])
+     assert phase['execution_error'] is None and phase['preservation_verified']
+     assert phase['native_fix_acceptance'] is False
+     passed = assessment['comparison_gate_passed']
+@@ -66,14 +66,14 @@
+     assert args.exit_code in (0, 1)
+     assert len(args.result_sha256) == 64 and all(c in '0123456789abcdef' for c in args.result_sha256)
+     assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES'))
+-    for name in ('ROOT-BACKUP-CLEANUP.json', 'ROOT-TERMINAL.json', 'ROOT-REPLAY.json', 'SYMLINKS.json', 'FILES.json'):
++    for name in ('ROOT-BACKUP-CLEANUP.json', 'ROOT-TERMINAL.json', 'ROOT-REPLAY.json', 'SYMLINKS.json', 'FILES.json', 'RECORD-ANALYSIS.json'):
+         assert not (PAIR / name).exists() and not (PAIR / name).is_symlink()
+     assert not REFRESH.exists() and not REFRESH.is_symlink()
+     policy = read(HERE / 'POLICY.json')
+     baseline = load('matching_root_baseline', str((HERE / 'baseline.py').relative_to(ROOT)))
+     prepared, owner, roles = baseline.prepare(OWNER_SHA)
+     assert prepared == policy and policy['execution_enabled'] and policy['candidate_execution_enabled']
+-    assert set(roles) == {'servo/components/style/matching.rs'}
++    assert set(roles) == {'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'dom/animation/EffectCompositor.h'}
+     assert policy['runtime_output'] == str(PAIR.relative_to(ROOT))
+     state = load('matching_root_state', policy['state_helper'])
+     bundle = load('matching_root_bundle', policy['bundle_helper'])
+@@ -126,6 +126,25 @@
+     for name, record in policy['wpt']['resources'].items():
+         assert sha(phase / 'tests' / name) == record['sha256']
+     assert sha(phase / 'metadata/MANIFEST.json') == policy['wpt']['manifest']['sha256']
++    collector = load('progress_root_record_collection', str((HERE / 'records.py').relative_to(ROOT)))
++    binding = read(PAIR / 'PROGRESS-BINDING.json')
++    collection = collector.collect(ROOT, PAIR / 'progress-records', binding, policy, assessment)
++    assert collection == read(PAIR / 'PROGRESS-RECORDS.json') and not collection['errors']
++    assert read(PAIR / 'PHASES-PRE.json') == compiled['snapshot']
++    if passed:
++        assert collection['complete']
++        assert read(PAIR / 'PHASES-POST.json') == compiled['snapshot']
++    analysis_dir = ROOT / 'artifacts/css-contextual-duration-progress-record-analysis-v1'
++    assert sha(analysis_dir / 'FILES.json') == '0d234790ab87497a693d0da1ab6309488e91faff2d9132c414b5a290149ceb97'
++    for name, record in read(analysis_dir / 'FILES.json').items():
++        assert sha(analysis_dir / name) == record['sha256']
++    analyzer = load('progress_root_record_analysis', str((analysis_dir / 'report.py').relative_to(ROOT)))
++    analysis = analyzer.analyze(PAIR / 'progress-records', binding['run_id'], analyzer.validators())
++    assert analysis['collection_complete'] == collection['complete']
++    for kind, record in analysis['records'].items():
++        if record['availability'] == 'valid':
++            assert record['sha256'] == collection['records'][kind + '.json']['sha256']
++    save(PAIR / 'RECORD-ANALYSIS.json', analysis)
+     for name, role in roles.items():
+         claim = restoration['sources'][name]
+         assert claim['sha256'] == role['base_sha256']
+@@ -168,7 +187,7 @@
+     app_entry = ROOT / policy['wpt']['application_ini']
+     summary = {'original_rows': original['rows'], 'candidate_rows': assessment['rows'], 'candidate_endings': assessment['ends'], 'comparison_errors': assessment['comparison_errors'], 'comparison_gate_passed': passed, 'phase': phase_hashes, 'native_acceptance': False}
+     save(PAIR / 'ROOT-REPLAY.json', summary)
+-    terminal = {'session_id': args.session, 'terminal_chunk': args.terminal, 'exit': args.exit_code, 'owner_sha256': OWNER_SHA, 'result_sha256': result_sha, 'build_success': True, 'callbacks_passed': sum(r['status'] == 'PASS' for r in assessment['rows']), 'callbacks_failed': sum(r['status'] == 'FAIL' for r in assessment['rows']), 'ending': 'OK', 'comparison_gate_passed': passed, 'raw_replay_verified': True, 'state_and_application_restoration_independently_verified': True, 'raw_index_observation': observation, 'restored_application_entry': bundle.entry(app_entry), 'restored_application_target': bundle.entry(app_entry.resolve()), 'backup_removed_bytes': backup['owned_backup_bytes'], 'native_acceptance': False}
++    terminal = {'session_id': args.session, 'terminal_chunk': args.terminal, 'exit': args.exit_code, 'owner_sha256': OWNER_SHA, 'result_sha256': result_sha, 'build_success': True, 'callbacks_passed': sum(r['status'] == 'PASS' for r in assessment['rows']), 'callbacks_failed': sum(r['status'] == 'FAIL' for r in assessment['rows']), 'page_endings_ok': 3, 'records_complete': collection['complete'], 'complete_record_count': len(collection['records']), 'record_analysis_sha256': sha(PAIR / 'RECORD-ANALYSIS.json'), 'comparison_gate_passed': passed, 'raw_replay_verified': True, 'state_and_application_restoration_independently_verified': True, 'raw_index_observation': observation, 'restored_application_entry': bundle.entry(app_entry), 'restored_application_target': bundle.entry(app_entry.resolve()), 'backup_removed_bytes': backup['owned_backup_bytes'], 'native_acceptance': False}
+     save(PAIR / 'ROOT-TERMINAL.json', terminal)
+     symlinks, manifest = {}, {}
+     for directory, dirs, files in os.walk(PAIR, followlinks=False):

@@ -1,0 +1,21 @@
+# Saved progress-record analysis
+
+Read-only analysis for the three completed static diagnostic fixtures: rem two-hop V2, property-only V2, and lh-chain V1. No browser outcome is assumed or accessed during preparation. The helper authenticates the four sealed fixture/schema packages and calls only their pure validators. It does not execute a record handler or test callback.
+
+After root freezes an actual run, use its PROGRESS-BINDING.json run_id and explicit private records directory:
+
+```
+python3 -I -B -S artifacts/css-contextual-duration-progress-record-analysis-v1/report.py --records /absolute/saved/runtime/progress-records --run-id ACTUAL_OWNER_RUN_ID
+```
+
+Output is JSON on stdout. Redirect it to a new analysis artifact if wanted; the tool itself writes nothing. It reads only nine fixed filenames in that directory and the sealed validator packages. The producer contract is one combined original-wpt phase, one private directory, and one run ID across `two-hop-`, `property-only-`, and `lh-chain-` literal/ordinary/animated records. Caller should join each reported SHA256/byte count to frozen PROGRESS-RECORDS.json and authenticate the owner/runtime separately; this helper does not pretend that a numeric record proves application/source preservation or callback PASS.
+
+Every valid record has eight separate reported stages: first child read, three passive frame samples, pre-membership, post-membership,751ms seek, and750ms return. Each contains original raw values plus expected values/differences/tolerances. Membership flags and parent/root driver timing are retained separately. Wrong values are never normalized or discarded. The first and intermediate stages are diagnostic, not fixture convergence assertions. Only the last passive sample and the fixture's detailed750ms stages are tagged asserted. The751ms stage uses continuous arithmetic as an unasserted reference: literal child duration stays1375ms, while a dependent chain has reference1375.5ms; length quantization may affect the latter. No callback result or convergence verdict is derived.
+
+At750ms the chain target is middle duration2000ms/output22px, child duration1375ms/opacity6/11; property-only target is applied2000ms/progress.375/width56px. This report deliberately preserves a stale first sample even when a later sample matches, and preserves pre-membership mismatches when later explicit seeks recover. A later PASS must not be reported as first-flush correctness. Detailed getters are sequential and can flush; membership/seeks are explicit interventions, not passive samples.
+
+Missing directories or records produce explicit missing entries and collection_complete false, with no invented values. Invalid envelopes retain parsed raw data or malformed JSON text where available; no oracle is applied to an invalid schema or wrong run ID. Extra filenames are listed without reading their bodies. Symlinks and nonregular/oversized records are refused. JSON null stays unavailable, never zero or successful comparison. A complete record collection is independent of WPT callback outcomes; inspect raw WPT and producer missing/error receipts for acquisition or transport failures. The command's exit0 means analysis completed, not that records were complete or values correct.
+
+Synthetic saved-only check def8ef/0 verifies thirteen scenarios: explicit oracle constants, nine correct records, unasserted751ms treatment, stale-first/later-correct, seek-rescued mismatch, null, missing, wrong run ID, partial schema, overflowing JSON, symlink refusal, extra filename and absent directory. Owned scratch was removed. No live runtime, browser, source, app, Git/index or canonical operation ran.
+
+Readout recommendation only: inspect the actual nine-callback baseline's first and three passive samples before proposing deeper4/8-descendant chains. If observations suggest one-level-per-frame propagation or delayed passive progress, a deeper acyclic chain could discriminate that hypothesis from a single-flush result. If all first samples already match, the current records supply no evidence requiring that expansion. This is not a plan to author additional fixtures or a guarantee about arbitrary-depth native liveness.

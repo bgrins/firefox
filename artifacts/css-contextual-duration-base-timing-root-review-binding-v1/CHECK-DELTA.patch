@@ -1,0 +1,11 @@
+--- unbound-check.py
++++ bound-disabled-check.py
+@@ -65,5 +65,7 @@
+ assert old[old.index(start):old.index(end)] == new[new.index(start):new.index(end)]
+ start = "    if observation['before'] != observation['after']:"
+ assert old[old.index(start):] == new[new.index(start):]
+-assert module.CONFIG['execution_enabled'] is False and module.OWNER_SHA is None
++assert module.CONFIG['execution_enabled'] is False
++if module.OWNER_SHA is not None:
++    assert module.OWNER_SHA == module.sha(module.HERE / 'FILES.json')
+ print('Restoration/backup and raw-only write rollback tails identical; disabled gate verified')

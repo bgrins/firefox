@@ -1,0 +1,194 @@
+--- a/servo/components/style/context.rs
++++ b/servo/components/style/context.rs
+@@ -268,6 +268,14 @@
+ }
+ 
+ impl ElementCascadeInputs {
++    /// Construct inputs from privately resolved styles without publishing them.
++    pub fn new_from_resolved_styles(styles: &crate::style_resolver::ResolvedElementStyles) -> Self {
++        ElementCascadeInputs {
++            primary: CascadeInputs::new_from_style(styles.primary_style()),
++            pseudos: EagerPseudoCascadeInputs::new_from_style(&styles.pseudos),
++        }
++    }
++
+     /// Construct inputs from previous cascade results, if any.
+     #[inline]
+     pub fn new_from_element_data(data: &ElementData) -> Self {
+--- a/servo/components/style/matching.rs
++++ b/servo/components/style/matching.rs
+@@ -34,6 +34,70 @@
+ use crate::values::specified::animation::Scroller;
+ use servo_arc::{Arc, ArcBorrow};
+ 
++/// An unpublished restyle; it does not certify animation or input completion.
++#[cfg(feature = "gecko")]
++#[must_use]
++pub struct PendingRestyle<E: TElement> {
++    element: E,
++    original: ElementStyles,
++    publication_flags: TraversalFlags,
++    styles: ResolvedElementStyles,
++}
++
++#[cfg(feature = "gecko")]
++impl<E: TElement> PendingRestyle<E> {
++    /// Recascade updated animation rules after external exact-target preparation.
++    pub fn recascade_animation_rules(&self, context: &mut StyleContext<E>) -> ResolvedElementStyles {
++        assert!(context.shared.traversal_flags.for_animation_only());
++        let mut inputs = ElementCascadeInputs::new_from_resolved_styles(&self.styles);
++        self.element.replace_rules(
++            RestyleHint::RESTYLE_CSS_ANIMATIONS | RestyleHint::RESTYLE_CSS_TRANSITIONS,
++            context,
++            &mut inputs,
++        );
++        let mut resolver = StyleResolverForElement::new(
++            self.element,
++            context,
++            RuleInclusion::All,
++            PseudoElementResolution::IfApplicable,
++        );
++        resolver.cascade_styles_with_default_parents(inputs)
++    }
++
++    /// Publish once, retaining the pending work if the stored style changed.
++    pub fn try_publish(
++        self,
++        context: &mut StyleContext<E>,
++        styles: ResolvedElementStyles,
++    ) -> Result<RestyleHint, (Self, ResolvedElementStyles)> {
++        fn same(a: &Option<Arc<ComputedValues>>, b: &Option<Arc<ComputedValues>>) -> bool {
++            match (a, b) {
++                (Some(a), Some(b)) => Arc::ptr_eq(a, b),
++                (None, None) => true,
++                _ => false,
++            }
++        }
++        if context.shared.traversal_flags != self.publication_flags {
++            return Err((self, styles));
++        }
++        let element = self.element;
++        let mut data = element.mutate_data();
++        let Some(data) = data.as_deref_mut() else {
++            return Err((self, styles));
++        };
++        if !same(&data.styles.primary, &self.original.primary)
++            || !data.styles.pseudos.as_array().iter().zip(self.original.pseudos.as_array())
++                .all(|(a, b)| same(a, b))
++        {
++            return Err((self, styles));
++        }
++        if data.has_styles() {
++            data.set_restyled();
++        }
++        Ok(element.publish_restyle(context, data, styles))
++    }
++}
++
+ /// Represents the result of comparing an element's old and new style.
+ #[derive(Debug)]
+ pub struct StyleDifference {
+@@ -438,13 +502,13 @@
+     }
+ 
+     #[cfg(feature = "gecko")]
+-    fn process_animations(
++    fn animation_update_task(
+         &self,
+         context: &mut StyleContext<Self>,
+         old_styles: &mut ElementStyles,
+         new_styles: &mut ResolvedElementStyles,
+         important_rules_changed: bool,
+-    ) {
++    ) -> Option<crate::context::SequentialTask<Self>> {
+         use crate::context::UpdateAnimationsTasks;
+ 
+         let old_values = &old_styles.primary;
+@@ -460,9 +524,9 @@
+                         UpdateAnimationsTasks::CSS_ANIMATIONS
+                             | UpdateAnimationsTasks::EFFECT_PROPERTIES,
+                     );
+-                    context.thread_local.tasks.push(task);
++                    return Some(task);
+                 }
+-                return;
++                return None;
+             }
+         }
+ 
+@@ -551,6 +615,25 @@
+                 before_change_style,
+                 tasks,
+             );
++            return Some(task);
++        }
++        None
++    }
++
++    #[cfg(feature = "gecko")]
++    fn process_animations(
++        &self,
++        context: &mut StyleContext<Self>,
++        old_styles: &mut ElementStyles,
++        new_styles: &mut ResolvedElementStyles,
++        important_rules_changed: bool,
++    ) {
++        if let Some(task) = self.animation_update_task(
++            context,
++            old_styles,
++            new_styles,
++            important_rules_changed,
++        ) {
+             context.thread_local.tasks.push(task);
+         }
+     }
+@@ -1012,6 +1095,32 @@
+             || font_property_changed!(font_width_equals)
+     }
+ 
++    /// Discover an explicit-input task while keeping the resolved style private.
++    #[cfg(feature = "gecko")]
++    fn prepare_restyle(
++        &self,
++        context: &mut StyleContext<Self>,
++        data: &ElementData,
++        mut styles: ResolvedElementStyles,
++        important_rules_changed: bool,
++    ) -> (PendingRestyle<Self>, Option<crate::context::SequentialTask<Self>>) {
++        let original = data.styles.clone();
++        let mut animation_before = original.clone();
++        let task = self.animation_update_task(
++            context,
++            &mut animation_before,
++            &mut styles,
++            important_rules_changed,
++        );
++        let task = task.map(|task| task.with_prepared_style(Some(styles.primary_style().clone())));
++        (PendingRestyle {
++            element: *self,
++            original,
++            publication_flags: context.shared.traversal_flags,
++            styles,
++        }, task)
++    }
++
+     /// Updates the styles with the new ones, diffs them, and stores the restyle
+     /// damage.
+     fn finish_restyle(
+@@ -1028,6 +1137,16 @@
+             important_rules_changed,
+         );
+ 
++        self.publish_restyle(context, data, new_styles)
++    }
++
++    /// Publish resolved styles without discovering another set of animation tasks.
++    fn publish_restyle(
++        &self,
++        context: &mut StyleContext<Self>,
++        data: &mut ElementData,
++        new_styles: ResolvedElementStyles,
++    ) -> RestyleHint {
+         // First of all, update the styles.
+         let old_styles = data.set_styles(new_styles);
+ 

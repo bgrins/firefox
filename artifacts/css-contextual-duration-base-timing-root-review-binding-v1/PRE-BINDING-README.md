@@ -1,0 +1,9 @@
+# Disabled seven-case root restoration verifier
+
+This adapts the executed finite-depth verifier to seven callbacks, three page endings and seven private records, with the four exact source roles of the timing experiment. It accepts complete ordinary authored PASS/FAIL outcomes without rewriting them. The raw assessor, full record comparison and separate saved calibration are replayed; a same-element or masked contextual hypothesis failure stays a failure and is not automatically a release bug.
+
+Original admission requires complete calibrated baseline records. Candidate calibration is reproduced exactly even on ordinary callback failure; cleanup does not relabel that failure as success. Unsupported infrastructure, build or incomplete-record outcomes stop before backup cleanup. All seven callback outcomes and three OK endings must match actual result/phase/terminal joins.
+
+Source identities and original bytes for all four roles, app/extra-file semantics, build/source/binary joins, accepted claims, flags and full restored state are verified before deleting any retained backup. The complete restoration/backup block and raw-index-only epoch write/rollback tail are byte-identical to the executed predecessor. Exact owned inventory and original restoration are required; failed owner RESULT remains unchanged. The only canonical change is the reviewed raw-index observation reconciliation.
+
+Execution is false and owner_manifest_sha256 is null. Root must bind the actual activated owner seal and provide actual terminal arguments before execution. Saved check 22db9a/0 covers all eight distributions of seven PASS/FAIL callbacks and 19 negative outcomes, plus unchanged restoration/publication tails. No live guard, browser, build, native or canonical mutation occurred during preparation. Structural collection's numeric_or_convergence_oracle:false does not negate authored numeric assertions or the separate calibration report.

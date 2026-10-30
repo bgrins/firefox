@@ -1,0 +1,18 @@
+--- a/css/css-properties-values-api/registered-prioritary-selection.tentative.html
++++ b/css/css-properties-values-api/registered-prioritary-selection.tentative.html
+@@ -5,6 +5,7 @@
+ <link rel="help" href="https://drafts.csswg.org/css-cascade-5/#cascade-sort">
+ <script src="/resources/testharness.js"></script>
+ <script src="/resources/testharnessreport.js"></script>
++<script src="/__research__/zoom/record.js"></script>
+ <body>
+ <pre id="observations" hidden></pre>
+ <script>
+@@ -93,6 +94,7 @@
+         zoomSyntaxSupported: win.CSS.supports("zoom", "calc(20px / 1px)")});
+       document.getElementById("observations").textContent = JSON.stringify(window.prioritaryObservations);
+     }
++    if (row.diagnosticOnly) await window.capturePrioritaryZoom(row);
+     const diagnostic = JSON.stringify(row);
+     assert_equals(initial, "0px", `Registration calibration: ${diagnostic}`);
+     for (const phase of row.phases) {

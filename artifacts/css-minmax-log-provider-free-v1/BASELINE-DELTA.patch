@@ -1,0 +1,46 @@
+--- executed-combined/baseline.py
++++ provider-free/baseline.py
+@@ -35,12 +35,14 @@
+     for name, pin in policy['references'].items():
+         assert sha(ROOT / name) == pin, name
+     roles = read(HERE / 'SOURCE-ROLES.json')
+-    assert set(roles) == set(policy['source_paths']) == {'servo/components/style/values/generics/calc.rs'}
++    assert set(roles) == set(policy['source_paths']) == {'servo/components/style/values/generics/calc.rs', 'servo/components/style/custom_properties.rs'}
+     for record in roles.values():
+         for kind in ('base', 'candidate'):
+             path = Path(record[kind + '_capture'])
+             assert not path.is_absolute() and '..' not in path.parts and not (ROOT / path).is_symlink()
+             assert policy['references'][str(path)] == sha(ROOT / path) == record[kind + '_sha256']
++    assert roles['servo/components/style/values/generics/calc.rs']['candidate_sha256'] == policy['combined_source_sha256']
++    assert roles['servo/components/style/custom_properties.rs']['base_sha256'] == policy['held_provider_sha256']
+     ownership.authenticate(ROOT / policy['baseline_capsule']['directory'], policy['baseline_capsule']['sha256'])
+     assert policy['wpt'] == expected_wpt(policy)
+     wpt = policy['wpt']
+@@ -56,6 +58,8 @@
+     checks = load('minmax_checks', wpt['checks_helper'])
+     comparison = load('minmax_comparison', str((HERE / 'comparison.py').relative_to(ROOT)))
+     comparison.replay_original(ROOT, policy, assessor, checks)
++    ownership.authenticate(ROOT / policy['combined_binding']['owner']['directory'], policy['combined_binding']['owner']['sha256'])
++    comparison.replay_combined(ROOT, policy, assessor, checks)
+     return policy, ownership, roles
+ 
+ 
+@@ -126,9 +130,15 @@
+     for name in policy['rebuilt_binaries']:
+         assert sha(ROOT / name) == epoch['pins'][name] == build_epoch['pins'][name]
+     for name, record in roles.items():
+-        assert sha(ROOT / name) == record['base_sha256']
+-        assert hashlib.sha256(state.h.git(ROOT, env, 'show', policy['head'] + ':' + name)).hexdigest() == record['base_sha256']
+-        assert build_epoch['pins'][name] == pending[name]['compiled_sha256'] == record['base_sha256']
++        assert sha(ROOT / name) == build_epoch['pins'][name] == epoch['pins'][name] == record['base_sha256']
++        committed = hashlib.sha256(state.h.git(ROOT, env, 'show', policy['head'] + ':' + name)).hexdigest()
++        if name == 'servo/components/style/values/generics/calc.rs':
++            assert committed == pending[name]['compiled_sha256'] == record['base_sha256']
++        else:
++            assert name == 'servo/components/style/custom_properties.rs'
++            assert committed == record['candidate_sha256'] != record['base_sha256']
++    unaffected = state.h.git(ROOT, env, 'diff', '--binary', '--', '.', *[':(exclude)' + name for name in roles])
++    assert hashlib.sha256(unaffected).hexdigest() == policy['unaffected_working_diff_sha256']
+     for name in ('servo/components/style/values/generics/calc.rs', 'servo/components/style/custom_properties.rs'):
+         assert sha(ROOT / name) == epoch['pins'][name] == build_epoch['pins'][name]
+     for name in policy['closed_process_receipts']:

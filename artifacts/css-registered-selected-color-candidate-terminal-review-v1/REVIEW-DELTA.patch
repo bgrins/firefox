@@ -1,0 +1,29 @@
+--- artifacts/css-animation-taint-clean-candidate-terminal-review-v1/review.py
++++ artifacts/css-registered-selected-color-candidate-terminal-review-v1/review.py
+@@ -26,7 +26,7 @@
+ def partition(original, candidate, signature):
+     old = {(row["test"], row["subtest"]): row for row in original}
+     new = {(row["test"], row["subtest"]): row for row in candidate}
+-    assert len(old) == len(original) == 125 and len(new) == len(candidate) == 125
++    assert len(old) == len(original) == 42 and len(new) == len(candidate) == 42
+     assert set(old) == set(new)
+     assert all(row["status"] in ("PASS", "FAIL") for row in old.values())
+     assert all(row["status"] in ("PASS", "FAIL") for row in new.values())
+@@ -79,7 +79,7 @@
+     assert (result["error"] is None) == result["success"]
+     baseline = load("terminal_baseline", here / "baseline.py")
+     policy, ownership, roles = baseline.prepare(config["owner_manifest_sha256"])
+-    assert policy["runtime_output"] == config["runtime_directory"] and len(roles) == 4
++    assert policy["runtime_output"] == config["runtime_directory"] and len(roles) == 3
+     state = load("terminal_state", ROOT / policy["state_helper"])
+     bundle = load("terminal_bundle", ROOT / policy["bundle_helper"])
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1")
+@@ -129,7 +129,7 @@
+             json.dump(evidence, stream, indent=2, sort_keys=True)
+             stream.write("\n")
+         assert replay == saved_assessment and replay["complete"], "Incomplete or changed raw observation; RAW-REPLAY retains evidence"
+-        assert len(replay["rows"]) == 125 and len(replay["ends"]) == 18
++        assert len(replay["rows"]) == 42 and len(replay["ends"]) == 3
+         assert phase["comparison_gate_passed"] == replay["comparison_gate_passed"]
+         assert metadata == record("candidate-wpt/APPLICATION-METADATA-POST.json")
+         assert metadata["revision"] == metadata["build_revision"] == policy["wpt"]["phase_revisions"]["candidate"] == policy["head"]

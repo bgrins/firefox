@@ -1,0 +1,110 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered invalid keyframes and underlying custom property observations</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#registered-custom-properties">
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#animation-tainted">
+<meta name="assert" content="Independent driver and registration controls distinguish invalid keyframe observations from sink taint predictions.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<pre id="observations" hidden></pre>
+<script>
+"use strict";
+window.registeredDefaultingObservations = {};
+
+function referenceChecks(record) {
+  const checks = [];
+  const add = (name, passed) => checks.push({name, passed: Boolean(passed)});
+  add("complete capture", record?.phases?.length === 2 && record?.calibration != null && record?.before != null);
+  add("registration initial/inheritance", record?.calibration?.initial === "horizontal-tb");
+  add("registration syntax", record?.calibration?.multiIdent === "horizontal-tb");
+  add("ordinary underlying source", record?.before?.variable === "vertical-rl");
+  for (const phase of record?.phases ?? []) {
+    add(`${phase.label}: fixed independent driver`, phase.cssDuration === "2s" &&
+      phase.duration === 2000 && phase.currentTime === 750 && phase.playState === "paused" &&
+      Math.abs(phase.progress - .375) <= .00001 && phase.opacity === "1" &&
+      phase.sameAnimation && phase.sameEffect);
+    if (record.mode !== "invalid") {
+      add(`${phase.label}: valid animated source`, phase.variable === "vertical-rl");
+    }
+    if (record.mode === "literal") {
+      add(`${phase.label}: literal sink`, phase.readings.length === 4 &&
+        phase.readings.every(value => value === "vertical-lr"));
+    }
+  }
+  return checks;
+}
+
+for (const mode of ["invalid", "valid", "literal"]) {
+  promise_test(async t => {
+    const record = {mode, registration: null, calibration: null, before: null, phases: []};
+    window.registeredDefaultingObservations[mode] = record;
+    const frame = document.createElement("iframe");
+    let animation;
+    t.add_cleanup(() => { animation?.cancel(); frame.remove(); });
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    frame.srcdoc = "<!doctype html><html><head></head><body></body></html>";
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    assert_equals(typeof win.CSS.registerProperty, "function", "Registration API is available");
+    const definition = {name: "--v", syntax: "<custom-ident>", inherits: false,
+      initialValue: "horizontal-tb"};
+    win.CSS.registerProperty(definition);
+    record.registration = {...definition, returnedSuccessfully: true};
+    const style = doc.createElement("style");
+    style.textContent = `
+      @keyframes hold { from, to { --v: ${mode === "invalid" ? "one two" : "vertical-rl"}; opacity: 1; } }
+      body { writing-mode: horizontal-tb; }
+      #calibration { --v: vertical-lr; }
+      #subject { --v: vertical-rl; opacity: .25;
+        writing-mode: ${mode === "literal" ? "vertical-lr" : "var(--v, vertical-lr)"}; }
+      #subject.active { animation: hold 2s linear paused both; }
+      #subject.changed { --v: vertical-lr; }
+    `;
+    doc.head.append(style);
+    doc.body.innerHTML = '<div id="calibration"><div id="child"></div></div><div id="subject"></div>';
+    const child = doc.getElementById("child");
+    const initial = win.getComputedStyle(child).getPropertyValue("--v").trim();
+    child.style.setProperty("--v", "one two");
+    const multiIdent = win.getComputedStyle(child).getPropertyValue("--v").trim();
+    record.calibration = {initial, multiIdent};
+    doc.getElementById("calibration").remove();
+    const subject = doc.getElementById("subject");
+    const before = win.getComputedStyle(subject);
+    record.before = {variable: before.getPropertyValue("--v").trim(), sink: before.writingMode};
+    subject.classList.add("active");
+    const animations = subject.getAnimations();
+    assert_equals(animations.length, 1, "One independent opacity driver");
+    animation = animations[0];
+    const effect = animation.effect;
+    await animation.ready;
+    animation.currentTime = 750;
+    const sample = async label => {
+      const readings = [win.getComputedStyle(subject).writingMode];
+      for (let i = 0; i < 3; ++i) {
+        await new Promise(resolve => win.requestAnimationFrame(resolve));
+        readings.push(win.getComputedStyle(subject).writingMode);
+      }
+      const computed = win.getComputedStyle(subject);
+      const members = subject.getAnimations();
+      record.phases.push({label, readings,
+        variable: computed.getPropertyValue("--v").trim(), opacity: computed.opacity,
+        cssDuration: computed.animationDuration, currentTime: animation.currentTime,
+        playState: animation.playState, duration: effect.getTiming().duration,
+        progress: effect.getComputedTiming().progress,
+        sameAnimation: members.length === 1 && members[0] === animation,
+        sameEffect: animation.effect === effect});
+    };
+    await sample("initial");
+    subject.classList.add("changed");
+    await sample("ordinary-mutation");
+    document.getElementById("observations").textContent = JSON.stringify(window.registeredDefaultingObservations, null, 2);
+    const detail = JSON.stringify(record);
+    for (const check of referenceChecks(record)) {
+      assert_true(check.passed, `${check.name}: ${detail}`);
+    }
+  }, `Registered keyframe defaulting observation: ${mode}`);
+}
+</script>

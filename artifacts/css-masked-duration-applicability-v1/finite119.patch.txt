@@ -1,0 +1,104 @@
+commit 6a363fc372c9cc0734faee64ab20f03bc762e97c
+Author:     Brian Grinstead <briangrinstead@gmail.com>
+AuthorDate: Mon Oct 26 21:45:17 2026 -0700
+Commit:     Brian Grinstead <briangrinstead@gmail.com>
+CommitDate: Mon Oct 26 21:45:17 2026 -0700
+
+    No bug - Preserve nonfinite relative lengths inside CSS math. r?#firefox-style-system-reviewers
+
+diff --git a/servo/components/style/values/specified/calc.rs b/servo/components/style/values/specified/calc.rs
+index c2a68d26f331..43aedc62d1a4 100644
+--- a/servo/components/style/values/specified/calc.rs
++++ b/servo/components/style/values/specified/calc.rs
+@@ -22,7 +22,7 @@ use crate::values::generics::length::GenericAnchorSizeFunction;
+ use crate::values::generics::position::{
+     AnchorSideKeyword, GenericAnchorFunction, GenericAnchorSide, TreeScoped,
+ };
+-use crate::values::specified::length::NoCalcLength;
++use crate::values::specified::length::{FontBaseSize, LineHeightBase, NoCalcLength};
+ use crate::values::specified::random::RandomKey;
+ use crate::values::specified::{
+     NoCalcAngle, NoCalcNumber, NoCalcPercentage, NoCalcResolution, NoCalcTime, TreeCountingFunction,
+@@ -156,7 +156,13 @@ impl Leaf {
+         Ok(match self {
+             Self::Length(l) => {
+                 let px = match context {
+-                    Some(context) => l.to_computed_value(context).px(),
++                    Some(context) => l
++                        .to_computed_value_for_math(
++                            context,
++                            FontBaseSize::CurrentStyle,
++                            LineHeightBase::CurrentStyle,
++                        )
++                        .px(),
+                     None => l.to_computed_pixel_length_without_context()?,
+                 };
+                 Self::Length(NoCalcLength::from_px(px))
+diff --git a/servo/components/style/values/specified/length.rs b/servo/components/style/values/specified/length.rs
+index 6c68df24b028..f7fb6ec39889 100644
+--- a/servo/components/style/values/specified/length.rs
++++ b/servo/components/style/values/specified/length.rs
+@@ -685,7 +685,7 @@ impl NoCalcLength {
+     ) -> computed::Length {
+         let (reference_size, length) =
+             self.reference_font_size_and_length(context, base_size, line_height_base);
+-        (reference_size * length).finite()
++        reference_size * length
+     }
+ 
+     fn reference_font_size_and_length(
+@@ -953,7 +953,7 @@ impl NoCalcLength {
+ 
+         let trunc_scaled =
+             ((length as f64 * factor as f64 / 100.).trunc() / AU_PER_PX as f64) as f32;
+-        CSSPixelLength::new(crate::values::normalize(trunc_scaled))
++        CSSPixelLength::new(trunc_scaled)
+     }
+ 
+     /// Compute the container-relative length. Must only be called on a
+@@ -985,7 +985,7 @@ impl NoCalcLength {
+                 unreachable!("container_relative_to_computed_value: not a container-relative unit")
+             },
+         };
+-        CSSPixelLength::new((container_length.to_f64_px() * factor as f64 / 100.0) as f32).finite()
++        CSSPixelLength::new((container_length.to_f64_px() * factor as f64 / 100.0) as f32)
+     }
+ 
+     /// Computes a ServoCharacterWidth length against a reference font size.
+@@ -999,7 +999,7 @@ impl NoCalcLength {
+         // as specified in HTML5 § 14.5.4.
+         let average_advance = reference_font_size * 0.5;
+         let max_advance = reference_font_size;
+-        (average_advance * (cols - 1.0) + max_advance).finite()
++        average_advance * (cols - 1.0) + max_advance
+     }
+ 
+     /// Computes a length with a given font-relative base size.
+@@ -1008,11 +1008,24 @@ impl NoCalcLength {
+         context: &Context,
+         base_size: FontBaseSize,
+         line_height_base: LineHeightBase,
++    ) -> CSSPixelLength {
++        let result = self.to_computed_value_for_math(context, base_size, line_height_base);
++        if self.length_unit().is_viewport_percentage() {
++            result.normalized()
++        } else {
++            result.finite()
++        }
++    }
++
++    /// Resolve units without censoring intermediate math-function values.
++    pub(crate) fn to_computed_value_for_math(
++        &self,
++        context: &Context,
++        base_size: FontBaseSize,
++        line_height_base: LineHeightBase,
+     ) -> CSSPixelLength {
+         if let Some(px) = self.to_px_if_absolute() {
+-            return CSSPixelLength::new(px)
+-                .zoom(context.builder.effective_zoom)
+-                .finite();
++            return CSSPixelLength::new(px).zoom(context.builder.effective_zoom);
+         }
+         let unit = self.length_unit();
+         if unit.is_font_relative() {

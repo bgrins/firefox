@@ -1,0 +1,154 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Preserve selected registered color and image computations</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
+<link rel="help" href="https://drafts.csswg.org/css-color-adjust-1/#color-scheme-prop">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<pre id="observations" hidden></pre>
+<script>
+window.selectedColorPreservationObservations = [];
+const cases = [
+  {name: "ident-first union", syntax: "<custom-ident> | <color>", value: "CanvasText", expected: "identifier"},
+  {name: "color-first union", syntax: "<color> | <custom-ident>", value: "CanvasText", expected: "system"},
+  {name: "absolute color", syntax: "<color>", value: "red", expected: "red"},
+  {name: "current color literal equivalence", syntax: "<color>", value: "currentColor", expected: "current"},
+  {name: "space repetition", syntax: "<color>+", value: "red CanvasText", expected: "space"},
+  {name: "comma repetition", syntax: "<color>#", value: "red, CanvasText", expected: "comma"},
+  {name: "gradient colors", syntax: "<image>", value: "linear-gradient(CanvasText, red)", expected: "image"},
+  {name: "image-set colors", syntax: "<image>", value: "image-set(linear-gradient(red, blue) 1x, linear-gradient(CanvasText, red) 2x)", expected: "image"},
+  {name: "image relative lengths", syntax: "<image>", value: "linear-gradient(CanvasText 1em, red 1lh)", expected: "image"},
+  {name: "image typed attr length", syntax: "<image>", value: "linear-gradient(CanvasText attr(data-stop type(<length>), 1px), red)", referenceValue: "linear-gradient(CanvasText 2em, red)", attribute: "2em", attributeName: "data-stop", expected: "image"},
+  {name: "inherited computed image", syntax: "<image>", value: "var(--missing, inherit)", parentValue: "linear-gradient(CanvasText 1em, red 1lh)", expected: "parent-image"},
+  {name: "selected var primary", syntax: "<color>", value: "var(--source, red)", source: "CanvasText", expected: "system"},
+  {name: "selected var fallback", syntax: "<color>", value: "var(--missing, CanvasText)", expected: "system"},
+  {name: "unused color fallback", syntax: "<custom-ident> | <color>", value: "var(--source, CanvasText)", expected: "scheme"},
+  {name: "selected typed attr primary", syntax: "<color>", value: "attr(data-color type(<color>), red)", attribute: "CanvasText", expected: "system"},
+  {name: "selected typed attr fallback", syntax: "<color>", value: "attr(data-color type(<color>), CanvasText)", attribute: "one two", expected: "system"},
+  {name: "substituted inherit", syntax: "<color>", value: "var(--missing, inherit)", expected: "blue"},
+  {name: "substituted initial", syntax: "<color>", value: "var(--missing, initial)", expected: "initial"},
+  {name: "invalid non-inherited default", syntax: "<color>", value: "one two", expected: "initial"},
+  {name: "invalid inherited default", syntax: "<color>", inherits: true, value: "one two", expected: "blue"},
+  {name: "identifier initial in color union", syntax: "<custom-ident> | <color>", initialOverride: "light", value: "var(--missing)", expected: "identifier-initial"},
+  {name: "invalid System initial ordering", syntax: "<color>", initialOverride: "CanvasText", value: "var(--missing)", expected: "dynamic-initial", conditionalPreservation: true},
+  {name: "invalid light-dark initial ordering", syntax: "<color>", initialOverride: "light-dark(red, blue)", value: "var(--missing)", expected: "dynamic-initial", conditionalPreservation: true},
+];
+for (const item of cases) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => { frame.onload = resolve; });
+    frame.srcdoc = "<!doctype html><body>";
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    const isImage = item.syntax === "<image>";
+    const initial = item.initialOverride ?? (item.syntax.startsWith("<custom-ident>") ? "seed" : isImage ?
+      "linear-gradient(rgb(3, 5, 7), rgb(3, 5, 7))" : "rgb(3, 5, 7)");
+    win.CSS.registerProperty({name: "--actual", syntax: item.syntax,
+      inherits: !!item.inherits, initialValue: initial});
+    doc.body.style.colorScheme = "light";
+    const parent = doc.createElement("div");
+    parent.style.cssText = "color-scheme: light; font-size: 12px; line-height: 24px";
+    parent.style.setProperty("--actual", item.parentValue ?? "blue");
+    if (item.expected === "identifier-initial") {
+      parent.style.colorScheme = "normal";
+    }
+    const target = doc.createElement("div");
+    target.style.cssText = `color: blue; font-size: var(--size); line-height: var(--height); --actual: ${item.value};
+      color-scheme: var(--scheme, attr(data-unused type(<custom-ident>), light));`;
+    if (item.attribute !== undefined) {
+      target.setAttribute(item.attributeName ?? "data-color", item.attribute);
+    }
+    if (item.source) {
+      target.style.setProperty("--source", item.source);
+    }
+    parent.append(target);
+    doc.body.append(parent);
+    const references = {};
+    for (const [name, color] of Object.entries({system: "CanvasText", red: "red", blue: "blue", initial: "rgb(3, 5, 7)", dynamic: initial})) {
+      const element = doc.createElement("div");
+      element.style.color = color;
+      doc.body.append(element);
+      references[name] = element;
+    }
+    const imageReference = doc.createElement("div");
+    if (isImage) {
+      imageReference.style.backgroundImage = item.parentValue ?? item.referenceValue ?? item.value;
+    }
+    doc.body.append(imageReference);
+    const currentReference = doc.createElement("div");
+    currentReference.style.cssText = "color: blue; --actual: currentColor";
+    doc.body.append(currentReference);
+    const validReference = doc.createElement("div");
+    validReference.style.setProperty("--actual", initial);
+    doc.body.append(validReference);
+    const attrReference = doc.createElement("div");
+    attrReference.setAttribute("data-color", "rgb(1, 2, 3)");
+    attrReference.style.color = "attr(data-color type(<color>))";
+    doc.body.append(attrReference);
+    const attrLiteral = doc.createElement("div");
+    attrLiteral.style.color = "rgb(1, 2, 3)";
+    doc.body.append(attrLiteral);
+    const snapshots = [];
+    for (const scheme of ["dark", "light"]) {
+      target.style.setProperty("--scheme", scheme);
+      const size = scheme === "dark" ? "20px" : "32px";
+      const height = scheme === "dark" ? "40px" : "64px";
+      target.style.setProperty("--size", size);
+      target.style.setProperty("--height", height);
+      if (["dynamic-initial", "identifier-initial"].includes(item.expected)) {
+        target.style.setProperty("--actual", `var(--missing-${scheme})`);
+      }
+      if (["scheme", "identifier-initial"].includes(item.expected)) {
+        target.style.setProperty("--source", scheme);
+        target.style.colorScheme = "var(--actual, attr(data-unused type(<custom-ident>), light))";
+      }
+      for (const element of [...Object.values(references), imageReference, currentReference, validReference]) {
+        element.style.colorScheme = scheme;
+        element.style.fontSize = size;
+        element.style.lineHeight = height;
+      }
+      if (item.expected === "parent-image") {
+        imageReference.style.cssText = `background-image: ${item.parentValue}; color-scheme: light; font-size: 12px; line-height: 24px`;
+      }
+      const first = win.getComputedStyle(target).getPropertyValue("--actual").trim();
+      const actualScheme = win.getComputedStyle(target).colorScheme;
+      const colors = Object.fromEntries(Object.entries(references).map(([name, element]) =>
+        [name, win.getComputedStyle(element).color]));
+      const image = win.getComputedStyle(imageReference).backgroundImage;
+      const current = win.getComputedStyle(currentReference).getPropertyValue("--actual").trim();
+      const valid = win.getComputedStyle(validReference).getPropertyValue("--actual").trim();
+      const expected = item.expected === "identifier-initial" ? initial : item.expected === "identifier" ? "CanvasText" :
+        item.expected === "scheme" ? scheme : item.expected === "space" ? `${colors.red} ${colors.system}` :
+        item.expected === "comma" ? `${colors.red}, ${colors.system}` : ["image", "parent-image"].includes(item.expected) ? image :
+        item.expected === "current" ? current : item.expected === "dynamic-initial" ? colors.dynamic : colors[item.expected];
+      snapshots.push({scheme, first, actualScheme, expected, colors, image, current, valid, size, height});
+    }
+    const attrCalibration = {actual: win.getComputedStyle(attrReference).color,
+      expected: win.getComputedStyle(attrLiteral).color};
+    const row = {name: item.name, syntax: item.syntax, initial, inherits: !!item.inherits,
+      value: item.value, attribute: item.attribute ?? null, attributeName: item.attributeName ?? null, snapshots, attrCalibration,
+      expectedKind: item.expected, conditionalPreservation: !!item.conditionalPreservation};
+    window.selectedColorPreservationObservations.push(row);
+    document.getElementById("observations").textContent = JSON.stringify(window.selectedColorPreservationObservations);
+    const diagnostic = JSON.stringify(row);
+    if (item.attribute !== undefined) {
+      assert_equals(attrCalibration.actual, attrCalibration.expected, `Typed attr support: ${diagnostic}`);
+    }
+    if (isImage) {
+      assert_not_equals(imageReference.style.backgroundImage, "", `Image syntax support: ${diagnostic}`);
+    }
+    for (const snapshot of snapshots) {
+      assert_equals(snapshot.actualScheme, item.expected === "identifier-initial" ? initial : snapshot.scheme, `Consuming scheme: ${diagnostic}`);
+      if (item.expected === "dynamic-initial") {
+        assert_equals(snapshot.valid, snapshot.expected, `Valid initial-expression control: ${diagnostic}`);
+      }
+      assert_equals(snapshot.first, snapshot.expected, `Selected registered value: ${diagnostic}`);
+    }
+  }, `Registered selected color preservation: ${item.name}`);
+}
+</script>

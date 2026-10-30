@@ -1,0 +1,19 @@
+--- v1/servo/components/style/custom_properties.rs
++++ v2/servo/components/style/custom_properties.rs
+@@ -1777,6 +1777,7 @@
+     };
+ 
+     // If variable fallback results in a wide keyword, deal with it now.
++    let animation_tainted = substitution.animation_tainted;
+     if is_var {
+         let css_wide_kw = {
+             let mut input = Parser::new(&substitution.css);
+@@ -1805,7 +1806,7 @@
+                     .substitution_functions
+                     .remove_var(registration, name);
+             }
+-            if substitution.animation_tainted {
++            if animation_tainted {
+                 let value = context.builder.substitution_functions.get_var(registration, name).cloned();
+                 if let Some(mut value) = value {
+                     value.animation_tainted = true;

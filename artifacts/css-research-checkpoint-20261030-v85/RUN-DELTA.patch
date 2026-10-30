@@ -1,0 +1,181 @@
+--- v84/commit.py
++++ v85/commit.py
+@@ -15,7 +15,7 @@
+ BINDINGS = json.loads((HERE / 'BINDINGS.json').read_bytes())
+ HEAD = BINDINGS['head']
+ EPOCH = BINDINGS['epoch_sha256']
+-EXECUTION_ENABLED = True
++EXECUTION_ENABLED = False
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+@@ -23,6 +23,50 @@
+ 
+ def git(*args, env=ENV):
+     return subprocess.check_output(GIT + list(args), cwd=ROOT, env=env)
++
++
++
++def verify_blob(stream, record):
++    header = stream.readline(4097)
++    assert header.endswith(b"\n") and len(header) <= 4096
++    fields = header[:-1].split(b" ")
++    assert len(fields) == 3 and fields[1] == b"blob"
++    assert len(fields[0]) in (40, 64) and all(c in b"0123456789abcdef" for c in fields[0])
++    assert fields[2].isdigit() and int(fields[2]) == record['bytes']
++    remaining = record['bytes']
++    digest = hashlib.sha256()
++    while remaining:
++        part = stream.read(min(remaining, 1024 * 1024))
++        assert part
++        digest.update(part)
++        remaining -= len(part)
++    assert stream.read(1) == b"\n" and digest.hexdigest() == record['sha256']
++
++
++def verify_blobs(requests, env=ENV):
++    if not requests:
++        return
++    for spec, record in requests:
++        assert spec and not any(c in spec for c in "\n\r\0")
++        assert type(record['bytes']) is int and record['bytes'] >= 0
++    with tempfile.TemporaryFile() as errors:
++        process = subprocess.Popen(GIT + ['cat-file', '--batch'], cwd=ROOT, env=env,
++                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=errors)
++        try:
++            for spec, record in requests:
++                process.stdin.write(spec.encode() + b"\n")
++                process.stdin.flush()
++                verify_blob(process.stdout, record)
++            process.stdin.close()
++            assert process.stdout.read(1) == b""
++            assert process.wait() == 0
++        finally:
++            if process.poll() is None:
++                process.terminate()
++                process.wait()
++            process.stdout.close()
++            if not process.stdin.closed:
++                process.stdin.close()
+ 
+ 
+ def load(name, path):
+@@ -33,21 +77,63 @@
+ 
+ 
+ def saved_admission():
++    assert HEAD is not None and EPOCH is not None and BINDINGS['controls'] is not None
+     current = json.loads((ROOT / BINDINGS['current_capture']).read_bytes())
+-    review = json.loads((ROOT / 'artifacts/css-animation-active-value-taint-candidate-runtime-3/ROOT-REVIEW.json').read_bytes())
++    runtime = ROOT / BINDINGS['restoration_runtime']
++    review = json.loads((runtime / 'ROOT-REVIEW.json').read_bytes())
++    refresh = json.loads((runtime / 'ROOT-EPOCH-REFRESH.json').read_bytes())
++    result = json.loads((runtime / 'RESULT.json').read_bytes())
++    pre = json.loads((runtime / 'BUILD-PRE.json').read_bytes())
++    owner = ROOT / BINDINGS['restored_owner']
++    owner_policy = json.loads((owner / 'POLICY.json').read_bytes())
++    assert sha((owner / 'FILES.json').read_bytes()) == review['owner_manifest_sha256']
+     assert current['full_current_state_verified'] and current['source_transition_lock_absent']
+     assert current['controls'] == BINDINGS['controls']
+-    assert current['audit'] == review['snapshot']
++    assert current['audit'] == review['snapshot'] == json.loads((runtime / 'POST.json').read_bytes())
+     assert review['restoration_independently_verified'] and not review['native_acceptance']
+-    audit = json.loads((ROOT / BINDINGS['completed_untracked_audit']['path']).read_bytes())
++    assert not review['canonical_updated'] and result == review['owner_result']
++    assert result['success'] and result['restoration_verified'] and result['runtime_controls_unchanged']
++    assert result['error'] is None and result['publication_errors'] == [] and not result['native_fix_acceptance']
++    actual = review['actual_terminal']
++    assert (actual['session'],actual['launch_chunk'],actual['terminal_chunk'],actual['exit']) == (48866,'734dd7','c3df52',0)
++    assert actual['result_sha256'] == sha((runtime / 'RESULT.json').read_bytes())
++    assert json.loads((runtime / 'ROOT-OWNER-TERMINAL.json').read_bytes()) == actual
++    for name,digest in review['input_hashes'].items():
++        assert sha((runtime / name).read_bytes()) == digest
++    assert review['backup']['removed'] and review['backup']['verified_original_restoration'] and not review['backup']['retained_after_failure']
++    assert review['observation']['observation_complete'] and review['observation']['browser_executed']
++    outcomes = review['observation']['outcomes']
++    assert len(outcomes['rows']) == 45 and len(outcomes['endings']) == 4 and not outcomes['native_acceptance']
++    assert sum(row['status']=='PASS' for row in outcomes['rows']) == outcomes['callbacks_passed']
++    assert sum(row['status']=='FAIL' for row in outcomes['rows']) == outcomes['callbacks_failed']
++    assert refresh['only_changed_field'] == 'raw_index_observation.current' and refresh['semantic_index_unchanged']
++    assert refresh['previous_epoch_sha256'] == owner_policy['controls']['CURRENT-EPOCH.json']
++    assert refresh['new_epoch_sha256'] == EPOCH == current['controls']['CURRENT-EPOCH.json']
++    assert refresh['other_controls_unchanged'] == {k:v for k,v in current['controls'].items() if k!='CURRENT-EPOCH.json'}
++    assert refresh['independent_review_sha256'] == sha((runtime / 'ROOT-REVIEW.json').read_bytes())
++    assert refresh['independent_review_terminal'] == '86819/7e586b/0'
++    expected = copy.deepcopy(pre['snapshot'])
++    assert expected['index']['raw_index'] == refresh['raw_index_before']
++    expected['index']['raw_index'] = refresh['raw_index_after']
++    assert expected == current['audit'] and expected['index']['head'] == HEAD
++    audit_path = ROOT / BINDINGS['completed_untracked_audit']['path']
++    audit = json.loads(audit_path.read_bytes())
++    assert current['untracked_audit'] == BINDINGS['completed_untracked_audit']['path']
++    assert current['untracked_audit_sha256'] == sha(audit_path.read_bytes())
+     assert audit['head'] == HEAD and audit['untracked_count'] == 563
+     assert not audit['unexpected_paths'] and not audit['missing_paths'] and not audit['staged_paths']
+     assert audit['project_hashes_match_committed_recovery'] and len(audit['project_files']) == 68
+     assert not audit['unrelated_metadata_mismatches'] and audit['unrelated_count'] == 495
+     assert audit['tracked_modified_paths'] == ['servo/components/style/custom_properties.rs']
+-    assert sha((ROOT / audit['tracked_modified_paths'][0]).read_bytes()) == '2675b33b30ac43db5b758d5a80f42fa4530856c32d5a0923882a15f8a8bc5774'
+-    prior = json.loads((ROOT / 'artifacts/css-research-checkpoint-20261030-v83-root-outcome.json').read_bytes())
++    assert audit['tracked_provider_sha256'] == '2675b33b30ac43db5b758d5a80f42fa4530856c32d5a0923882a15f8a8bc5774'
++    assert audit['nested_css_spec_lean_status'] == ['?? .DS_Store']
++    prior_dir = ROOT / 'artifacts/css-research-checkpoint-20261030-v84'
++    prior = json.loads((ROOT / 'artifacts/css-research-checkpoint-20261030-v84-root-outcome.json').read_bytes())
+     assert not prior['committed'] and prior['head'] == HEAD and prior['git_exit'] == 128
++    assert prior['head_unchanged'] and prior['controls_unchanged'] and prior['staging_empty']
++    assert prior['result_sha256'] == sha((prior_dir / 'result.json').read_bytes())
++    assert prior['signing_log_sha256'] == sha((prior_dir / 'signing.log').read_bytes())
++    assert json.loads((prior_dir / 'result.json').read_bytes()) == {'committed':False,'exit':128,'real_index_and_canonical_state_unchanged':True}
+     reviewer = json.loads((ROOT / 'artifacts/css-commit-reviewers-20261030-v1.json').read_bytes())
+     assert reviewer['exit'] == 0 and reviewer['commit_reviewer'] == 'r?#firefox-style-system-reviewers'
+     assert sha((ROOT / reviewer['log_path']).read_bytes()) == reviewer['log_sha256']
+@@ -84,7 +170,7 @@
+             path = str((manifest.parent / name).relative_to(ROOT))
+             expected = record['sha256'] if isinstance(record, dict) else record
+             assert selected[path]['sha256'] == expected
+-    extras = [HERE / name for name in ['commit.py', 'README.md', 'WORK-TABLE.md', 'RUN-DELTA.patch', 'BINDINGS.json', 'CHECK.json', 'FILES.json', 'SELECTION.json', 'BASE-SELECTION.json']]
++    extras = [HERE / name for name in ['commit.py', 'README.md', 'WORK-TABLE.md', 'RUN-DELTA.patch', 'BINDINGS.json', 'CHECK.json', 'FILES.json', 'SELECTION.json', 'BASE-SELECTION.json', 'check.py']]
+     for path in extras:
+         selected[str(path.relative_to(ROOT))] = {'sha256': sha(path.read_bytes()), 'bytes': path.stat().st_size}
+     for path, record in selected.items():
+@@ -93,12 +179,10 @@
+         assert file.is_file() and not file.is_symlink()
+         assert file.stat().st_size == record['bytes'] and sha(file.read_bytes()) == record['sha256'], path
+     tracked = set(git('ls-files', '-z').decode().split('\0'))
+-    skipped = []
+-    for path in list(selected):
+-        if path in tracked:
+-            assert sha(git('show', HEAD + ':' + path)) == selected[path]['sha256'], path
+-            skipped.append(path)
+-            del selected[path]
++    skipped = [path for path in selected if path in tracked]
++    verify_blobs([(HEAD + ':' + path, selected[path]) for path in skipped])
++    for path in skipped:
++        del selected[path]
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+     assert sha(controls['CURRENT-EPOCH.json']) == EPOCH
+     assert {name: sha(body) for name, body in controls.items()} == BINDINGS['controls']
+@@ -120,7 +204,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v84-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v85-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)
+@@ -129,12 +213,11 @@
+             add = ['add', '-f', '--pathspec-from-file=' + str(paths), '--pathspec-file-nul']
+             git(*add, env=index_env)
+             assert set(git('diff', '--cached', '--name-only', env=index_env).decode().splitlines()) == set(selected)
+-            for path, record in selected.items():
+-                assert sha(git('show', ':' + path, env=index_env)) == record['sha256']
++            verify_blobs([(':' + path, record) for path, record in selected.items()], env=index_env)
+             tree = git('write-tree', env=index_env).decode().strip()
+             assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+             message = directory / 'message'
+-            message.write_text('No bug - Record animation-taint trials and dependency-cycle verification. r?#firefox-style-system-reviewers\n')
++            message.write_text('No bug - Record clean-provider and selected-color validation research. r?#firefox-style-system-reviewers\n')
+             with (HERE / 'signing.log').open('x') as stream:
+                 result = subprocess.run(GIT + ['commit', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
+             if result.returncode:

@@ -1,0 +1,102 @@
+--- artifacts/css-animation-taint-candidate-v5-terminal-review-v1/review.py
++++ artifacts/css-animation-taint-clean-candidate-terminal-review-v1/review.py
+@@ -26,10 +26,10 @@
+ def partition(original, candidate, signature):
+     old = {(row["test"], row["subtest"]): row for row in original}
+     new = {(row["test"], row["subtest"]): row for row in candidate}
+-    assert len(old) == len(original) == 120 and len(new) == len(candidate) == 120
++    assert len(old) == len(original) == 125 and len(new) == len(candidate) == 125
+     assert set(old) == set(new)
+-    assert sum(row["status"] == "PASS" for row in old.values()) == 103
+-    assert sum(row["status"] == "FAIL" for row in old.values()) == 17
++    assert all(row["status"] in ("PASS", "FAIL") for row in old.values())
++    assert all(row["status"] in ("PASS", "FAIL") for row in new.values())
+     return {label: [{"original": old[key], "candidate": new[key],
+                     "full_signature_unchanged": signature(old[key]) == signature(new[key])}
+                    for key in sorted(old) if old[key]["status"] == status]
+@@ -58,7 +58,9 @@
+         return
+     assert config["execution_enabled"] and config["actual_terminal"] is not None
+     terminal = config["actual_terminal"]
+-    assert terminal["session"] == config["expected_session"] == 13008
++    assert type(config["expected_session"]) is int and config["expected_session"] > 1
++    assert terminal["session"] == config["expected_session"]
++    assert config["expected_launch"] and terminal["launch_chunk"] == config["expected_launch"]
+     assert terminal["exit"] in (0, 1) and terminal["terminal_chunk"]
+     assert not config["mutations_allowed"] and not config["epoch_publication_allowed"]
+     assert not any(os.environ.get(k) for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"))
+@@ -88,8 +90,9 @@
+     assert pre["controls"] == policy["controls"]
+     assert restoration["errors"] == [] and restoration["owned_processes"] == {}
+     assert set(restoration["sources"]) == set(roles) == set(pre["sources"])
++    source_admission = read(ROOT / policy["source_equivalence"]["path"])
+     for name, role in roles.items():
+-        assert pre["sources"][name] == dict(role, identity=pre["sources"][name]["identity"])
++        assert pre["sources"][name] == dict(role, identity=source_admission["sources"][name]["identity"])
+     build = record("candidate-build/build-RESULT.json")
+     command = record("candidate-build/COMMAND.json")
+     assert command["owner_manifest"] == config["owner_manifest_sha256"]
+@@ -126,13 +129,20 @@
+             json.dump(evidence, stream, indent=2, sort_keys=True)
+             stream.write("\n")
+         assert replay == saved_assessment and replay["complete"], "Incomplete or changed raw observation; RAW-REPLAY retains evidence"
+-        assert len(replay["rows"]) == 120 and len(replay["ends"]) == 16
++        assert len(replay["rows"]) == 125 and len(replay["ends"]) == 18
+         assert phase["comparison_gate_passed"] == replay["comparison_gate_passed"]
+         assert metadata == record("candidate-wpt/APPLICATION-METADATA-POST.json")
++        assert metadata["revision"] == metadata["build_revision"] == policy["wpt"]["phase_revisions"]["candidate"] == policy["head"]
++        assert metadata["harness_revision"] == policy["wpt"]["harness_revision"] == policy["head"]
++        assert metadata["source_role"] == "candidate"
+         phase_pre = record("candidate-wpt/PRE.json")
+         assert phase_pre == record("candidate-wpt/POST.json") == record("PHASES-PRE.json") == record("PHASES-POST.json")
+         assert phase_pre == built["snapshot"]
+         assert record("candidate-wpt/BINARY-PINS.json") == built["binaries"]
++        assert set(built["binaries"]) == set(policy["rebuilt_binaries"]) and built["browser_build_performed"]
++        assert built["snapshot"]["nested_index"] == pre["snapshot"]["nested_index"]
++        for key in ("head", "entries", "cached_diff"):
++            assert built["snapshot"]["index"][key] == pre["snapshot"]["index"][key]
+         assert phase["success"] and phase["preservation_verified"] and phase["execution_error"] is None
+         old = {(row["test"], row["subtest"]): row for row in original["rows"]}
+         outcomes = {"callbacks_passed": sum(row["status"] == "PASS" for row in replay["rows"]),
+@@ -147,12 +157,30 @@
+         assert result["success"]
+         cleanup = record("candidate-wpt/CLEANUP.json")
+         assert cleanup["owned_group_absent"] and cleanup["temporary_root_removed"]
+-        ownership.group_absent(record("candidate-wpt/PROCESS.json")["pgid"])
+-        temporary = Path(record("candidate-wpt/COMMAND.json")["temporary_root"])
++        process = record("candidate-wpt/PROCESS.json")
++        assert process["pid"] == process["pgid"] and process["pgid"] > 1
++        ownership.group_absent(process["pgid"])
++        wpt_command = record("candidate-wpt/COMMAND.json")
++        phase_dir = pair / "candidate-wpt"
++        expected_command = ["/Users/bgrins/venvs/firefox/bin/python", "./mach", "wpt", "--headless", "--processes=1", "--no-manifest-update", "--no-manifest-download",
++                            "--binary=" + str(ROOT / policy["wpt"]["binary"]), "--config=" + str(phase_dir / "wptrunner.ini"),
++                            "--run-info=" + str(ROOT / "objdir-full.noindex"), "--prefs-root=" + str(ROOT / "testing/profiles"), "--log-raw=" + str(phase_dir / "raw.jsonl")]
++        expected_command.extend("--include=" + page for page in policy["wpt"]["expected_subtests"])
++        assert wpt_command["command"] == expected_command and wpt_command["timeout_seconds"] == policy["wpt"]["timeout_seconds"]
++        temporary = Path(wpt_command["temporary_root"])
++        assert temporary.parent == Path("/private/tmp") and temporary.name.startswith("css-easing-paired-")
+         assert not temporary.exists() and not temporary.is_symlink()
+         for name, pin in policy["wpt"]["resources"].items():
+             assert sha(pair / "candidate-wpt/tests" / name) == pin["sha256"]
+         assert sha(pair / "candidate-wpt/metadata/MANIFEST.json") == policy["wpt"]["manifest"]["sha256"]
++        for name, pin in policy["wpt"]["metadata"].items():
++            copied = phase_dir / "metadata" / name
++            if pin["sha256"] is None:
++                assert not copied.exists() and not copied.is_symlink()
++            else:
++                assert sha(copied) == pin["sha256"]
++        borrowed_tools = phase_dir / "tests/tools"
++        assert borrowed_tools.is_symlink() and os.readlink(borrowed_tools) == str(ROOT / "testing/web-platform/tests/tools")
+         observation = {"browser_executed": True, "observation_complete": True, "build_exit": build["exit"],
+                        "browser_exit": phase["exit"], "outcomes": outcomes,
+                        "research_cohorts": partition(original["rows"], replay["rows"], assessor.signature),
+@@ -176,7 +204,7 @@
+     assert bundle.semantic(bundle.scan(ROOT / policy["bundle_path"])) == bundle.semantic(record("APP-PRE.json"))
+     assert bundle.semantic({name: bundle.entry(ROOT / name) for name in policy["extra_backup_paths"]}) == bundle.semantic(record("EXTRA-PRE.json"))
+     metadata_helper = load("terminal_metadata", ROOT / policy["wpt"]["metadata_helper"])
+-    app = metadata_helper.application_metadata(ROOT / policy["wpt"]["application_ini"], policy["wpt"]["phase_revisions"]["original"])
++    app = metadata_helper.application_metadata(ROOT / policy["wpt"]["application_ini"], policy["restored_application_revision"])
+     omit = {"identity", "entry_identity"}
+     assert {k:v for k,v in app.items() if k not in omit} == {k:v for k,v in policy["prepared_application_metadata"].items() if k not in omit}
+     for name, path in [("root", ROOT), ("nested", ROOT / "artifacts/css-spec-lean")]:

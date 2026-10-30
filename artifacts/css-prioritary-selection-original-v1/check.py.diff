@@ -1,0 +1,197 @@
+--- a/check.py
++++ b/check.py
+@@ -1,7 +1,9 @@
++import copy
+ import hashlib
+ import importlib.util
+ import json
+ from pathlib import Path
++import sys
+ 
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+@@ -11,99 +13,109 @@
+ 
+ def load(name, path):
+     spec = importlib.util.spec_from_file_location(name, path)
+-    module = importlib.util.module_from_spec(spec)
+-    spec.loader.exec_module(module)
+-    return module
++    result = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(result)
++    return result
+ 
+ 
+ def validate_policy(policy):
+-    ownership = load('selected_color_ownership', ROOT / policy['ownership_helper'])
+-    previous = ROOT / policy['predecessor']['directory']
+-    ownership.authenticate(previous, policy['predecessor']['manifest_sha256'])
++    ownership = load('preservation_ownership', ROOT / policy['ownership_helper'])
++    predecessor = read(HERE / 'PREDECESSOR.json')
++    assert policy['predecessor'] == predecessor
++    previous = ROOT / predecessor['directory']
++    ownership.authenticate(previous, predecessor['manifest_sha256'])
+     old = read(previous / 'POLICY.json')
+-    mutable = {'owner_directory','runtime_output','predecessor','proposal','references','source_paths','execution_enabled','candidate_execution_enabled','activation_pending','head','controls','prepared_application_metadata','prepared_flag_hashes','prepared_flag_capture','execution_handoff','suite_binding','wpt','source_roster','baseline_binding','baseline_capsule','original_admission_policy_sha256','restoration_binding','preparation_predecessor','correction_predecessor','preserved_absent_resources'}
++    mutable = {'owner_directory', 'runtime_output', 'predecessor', 'references', 'execution_enabled',
++               'candidate_execution_enabled', 'activation_pending', 'head', 'controls',
++               'prepared_application_metadata', 'prepared_flag_hashes', 'prepared_flag_capture',
++               'execution_handoff', 'restoration_binding', 'suite_binding', 'source_roster', 'wpt',
++               'wpt_lanes', 'lane_order', 'capture_binding', 'metadata_current_pins', 'preserved_absent_resources'}
+     assert {k:v for k,v in policy.items() if k not in mutable} == {k:v for k,v in old.items() if k not in mutable}
+-    assert type(policy['execution_enabled']) is bool and policy['execution_enabled'] == policy['candidate_execution_enabled']
+-    assert bool(policy['activation_pending']) != policy['execution_enabled']
+-    assert policy['baseline_binding'] is None and policy['baseline_capsule'] is None
+-    assert policy['provider_source_role'] == 'clean-original'
+-    validate_actual_bindings(policy)
++    assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
++    assert policy['runtime_output'] == 'artifacts/css-prioritary-selection-original-runtime-1'
++    load('pending_original74_admission', HERE / 'admission.py').validate(ROOT, policy)
+     suite = ROOT / policy['suite_binding']['directory']
+-    ownership.authenticate(suite,policy['suite_binding']['manifest_sha256'])
+-    load('selected_color_union',suite/'check.py').main()
+-    union = read(suite/'INPUTS.json')
+-    settings = dict(old['wpt'])
+-    settings.update(resources=union['resources'],metadata=union['metadata'],manifest={'path':str((suite/'MANIFEST.json').relative_to(ROOT)),'sha256':sha(suite/'MANIFEST.json')},expected_subtests=union['roster'],expected_subtest_count=45,expected_control_count=45,expected_page_count=4,expected_regression_signature_count=49,fixture_target_pages=list(union['roster']),phase_revisions={'original':policy['head'],'candidate':policy['head']},harness_revision=policy['head'])
+-    assert policy['wpt'] == settings
+-    assert len(settings['fixture_target_pages']) == len(set(settings['fixture_target_pages'])) == 4
+-    assert set(settings['fixture_target_pages']) == set(settings['expected_subtests'])
+-    assert settings['target_subtests'] == {}
+-    assert policy['preserved_absent_resources'] == old['preserved_absent_resources'] + union['new_metadata_absences']
++    assert policy['suite_binding']['directory'] == 'artifacts/css-prioritary-selection-suite-v1'
++    assert policy['suite_binding']['manifest_sha256'] == 'c93d4a7aa610113e33cd368103eb0b526cc9888e6b358358607febdd48e31031'
++    ownership.authenticate(suite, policy['suite_binding']['manifest_sha256'])
++    capture = ROOT / policy['capture_binding']['directory']
++    assert policy['capture_binding']['directory'] == 'artifacts/css-prioritary-zoom-capture-v1'
++    assert policy['capture_binding']['manifest_sha256'] == 'ed0ed2222d90e2e04437dc033bbcd4a62f6264f89a1135b82a10051e99da0de2'
++    ownership.authenticate(capture, policy['capture_binding']['manifest_sha256'])
++    union, lanes, roster = read(suite / 'INPUTS.json'), read(suite / 'LANES.json'), read(suite / 'ROSTER.json')
++    shared = {k:v for k,v in old['wpt'].items() if k not in ['resources','metadata','manifest','expected_subtests','expected_subtest_count','expected_control_count','expected_page_count','expected_regression_signature_count','fixture_target_pages']}
++    shared.update(phase_revisions={'original':None,'candidate':None},harness_revision=None)
++    assert policy['wpt'] == dict(shared,expected_subtests=roster,expected_subtest_count=74,expected_control_count=74,expected_page_count=11,expected_regression_signature_count=85,fixture_target_pages=list(roster))
++    assert policy['lane_order'] == ['ordinary','forced_colors','mozilla_appearance']
++    assert set(policy['wpt_lanes']) == set(lanes)
++    def pin(path):return {'path':str(path.relative_to(ROOT)),'sha256':sha(path)}
++    for lane, entry in lanes.items():
++        settings = dict(shared,expected_subtests=entry['roster'],expected_subtest_count=entry['callbacks'],expected_control_count=entry['callbacks'],expected_page_count=entry['pages'],expected_regression_signature_count=entry['callbacks']+entry['pages'],fixture_target_pages=list(entry['roster']))
++        settings.update(resources=union['copy_resources'],metadata=union['metadata'],manifests={'portable':pin(suite/'MANIFEST.json'),'mozilla':pin(suite/'MOZILLA-MANIFEST.json')},capture=pin(capture/'capture.py') if lane=='ordinary' else None,install_managed_resources=union['install_managed_resource_pins'] if lane=='ordinary' else {})
++        assert policy['wpt_lanes'][lane] == settings
++    assert policy['metadata_current_pins'] == {name:row['sha256'] for name,row in union['metadata_admission'].items() if row['sha256'] is not None}
++    assert policy['preserved_absent_resources'] == sorted(set(old['preserved_absent_resources']) | {name for name,row in union['metadata_admission'].items() if row['sha256'] is None})
+     assert policy['source_roster'] == str((suite/'ROSTER.json').relative_to(ROOT))
+     assert len(policy['accepted_current_payloads']) == 29
+-    for name,pin in policy['references'].items(): assert sha(ROOT / name) == pin, name
+-    proposal = ROOT / policy['proposal']['directory']
+-    ownership.authenticate(proposal, policy['proposal']['manifest_sha256'])
+-    proposed = read(proposal / 'SOURCE-ROLES.json')
+-    roles = read(HERE / 'SOURCE-ROLES.json')
+-    assert set(roles) == set(policy['source_paths'])
+-    original = 'provider_source_role' in policy
+-    assert set(roles) == ({'servo/components/style/custom_properties.rs'} if original else set(proposed))
+-    for name,role in roles.items():
+-        for kind in ('base','candidate'): assert sha(ROOT / role[kind+'_capture']) == role[kind+'_sha256']
+-        assert role['base_sha256'] == policy['source_context_pins'][name]
+-        assert role['candidate_sha256'] == proposed[name]['base_sha256' if original else 'candidate_sha256']
+-        assert proposed[name]['base_sha256'] == policy['committed_source_preimages'][name]
+-    assert all((HERE/n).read_bytes()==(previous/n).read_bytes() for n in ('phases.py','wpt.py'))
+-    assert (HERE/'assess.py').read_text() == (previous/'assess.py').read_text().replace('Active-value animation-taint comparison observations:', 'Selected-color dependency observations:')
++    assert (HERE/'SOURCE-ROLES.json').read_bytes() == (previous/'SOURCE-ROLES.json').read_bytes()
++    roles = read(HERE/'SOURCE-ROLES.json')
++    assert set(roles) == {'servo/components/style/custom_properties.rs'}
++    for name, row in roles.items():
++        assert row['base_sha256'] == '2675b33b30ac43db5b758d5a80f42fa4530856c32d5a0923882a15f8a8bc5774'
++        assert row['candidate_sha256'] == '8a4adc903e7d88e218ee087cbe44cc3548df70fac9353dd923d5c32de2c458f9'
++        for kind in ['base','candidate']:assert sha(ROOT/row[kind+'_capture']) == row[kind+'_sha256']
++    for name,digest in policy['references'].items():assert sha(ROOT/name) == digest,name
++    original = (previous/'run.py').read_text()
++    expected = original.replace("'operation': 'registered-selected-color-original-v2'", "'operation': 'prioritary-selection-original74-v1'").replace('    def stable_controls():\n','    def stable_controls():\n        baseline.metadata_guard(policy)\n')
++    assert (HERE/'run.py').read_text() == expected
++    assert (HERE/'assess.py').read_text() == (previous/'assess.py').read_text().replace('Selected-color dependency observations:', 'Prioritary selection three-lane observations:')
+ 
+ 
+-def validate_actual_bindings(policy):
+-    load('selected_color_pending_admission', HERE / 'admission.py').validate(ROOT,policy)
++def synthetic(policy, lane, status, revision='e'*40):
++    settings = copy.deepcopy(policy['wpt_lanes'][lane])
++    settings['phase_revisions'] = {'original':revision,'candidate':revision}
++    settings['harness_revision'] = revision
++    settings.update(tests={p:'testharness' for p in settings['expected_subtests']},held_subtests={},regression_subtests=settings['expected_subtests'],cardinality_description='exact lane roster')
++    events=[{'action':'suite_start','run_info':{'os':'mac','debug':False,'browser_build_id':'synthetic','revision':revision}}]
++    for page,names in settings['expected_subtests'].items():
++        events.append({'action':'test_start','test':page})
++        for name in names:
++            expected = 'FAIL' if page.endswith('/forced-colors-mode-51.html') else 'PASS'
++            row={'action':'test_status','test':page,'subtest':name,'status':status}
++            if status != expected:row['expected']=expected
++            if status=='FAIL':row['message']='ordinary synthetic assertion'
++            events.append(row)
++        events.append({'action':'test_end','test':page,'status':'OK'})
++    events.append({'action':'suite_end'})
++    app={'browser_build_id':'synthetic','revision':revision,'build_revision':revision,'harness_revision':revision,'source_role':'original','sha256':'c'*64,'path':'synthetic/application.ini','resolved':'synthetic/application.ini'}
++    code=int(any(e.get('status') != e.get('expected',e.get('status')) for e in events if 'status' in e))
++    return events, code, settings, app
+ 
+ 
+ def check():
+-    import copy
+-    policy=read(HERE/'POLICY.json');validate_policy(policy)
+-    assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
++    policy = read(HERE/'POLICY.json')
++    validate_policy(policy)
+     negatives=0
+-    changes = [
+-      lambda p:p.update(head='invented'),
+-      lambda p:p['controls'].update(**{'CURRENT-EPOCH.json':'0'*64}),
+-      lambda p:p['prepared_application_metadata'].update(identity=[1,2]),
+-      lambda p:p['prepared_application_metadata'].update(sha256='0'*64),
+-      lambda p:p['prepared_flag_hashes'].update(root='0'*64),
+-      lambda p:p['execution_handoff']['current'].update(sha256='0'*64),
+-      lambda p:p['wpt']['fixture_target_pages'].pop(),
+-      lambda p:p['wpt']['fixture_target_pages'].append(p['wpt']['fixture_target_pages'][0]),
+-    ]
+-    for change in changes:
++    for change in [lambda p:p.update(execution_enabled=True,candidate_execution_enabled=True),lambda p:p.update(head='e'*40),lambda p:p.update(controls={}),lambda p:p['wpt_lanes']['ordinary'].update(capture=None),lambda p:p['lane_order'].pop(),lambda p:p['wpt_lanes']['forced_colors']['metadata']['portable'].pop('forced-colors-mode/forced-colors-mode-51.html.ini'),lambda p:p['wpt_lanes']['mozilla_appearance']['expected_subtests'].clear()]:
+         bad=copy.deepcopy(policy);change(bad)
+         try:validate_policy(bad)
+-        except (AssertionError,TypeError,KeyError):negatives+=1
+-        else:raise AssertionError('Invalid admission accepted')
+-    projection=load('known_projection',ROOT/'artifacts/css-animation-taint-clean-candidate-v1/comparison.py')
+-    assessor=load('selected_color_assessor',HERE/'assess.py')
+-    checks=load('selected_color_stream_checks',ROOT/policy['wpt']['checks_helper'])
+-    settings=policy['wpt']; app={'browser_build_id':'synthetic','revision':policy['head'],'build_revision':policy['head'],'harness_revision':policy['head'],'source_role':'original','sha256':'c'*64,'path':'synthetic/application.ini','resolved':'synthetic/application.ini'}
+-    events=[{'action':'suite_start','run_info':{'os':'mac','debug':False,'browser_build_id':'synthetic','revision':policy['head']}}]
+-    for page,names in settings['expected_subtests'].items():
+-        events.append({'action':'test_start','test':page})
+-        events.extend({'action':'test_status','test':page,'subtest':name,'status':'FAIL','expected':'PASS','message':'ordinary synthetic assertion'} for name in names)
+-        events.append({'action':'test_end','test':page,'status':'OK'})
+-    events.append({'action':'suite_end'})
+-    result=assessor.assess(events,1,projection.phase_policy(settings),checks,run_binding=app)
+-    assert result['complete'] and len(result['rows'])==45 and len(result['ends'])==4
+-    assert all(row['status']=='FAIL' for row in result['rows'])
+-    for page in settings['expected_subtests']:
+-        malformed=copy.deepcopy(events)
+-        next(row for row in malformed if row.get('action')=='test_status' and row['test']==page)['message']='ReferenceError: missingFixtureFunction is not defined'
+-        rejected=assessor.assess(malformed,1,projection.phase_policy(settings),checks,run_binding=app)
+-        assert not rejected['complete'] and rejected['fixture_setup_errors']
+-    print(json.dumps({'references':len(policy['references']),'roles':1,'binding_negatives':negatives,'all45FAIL_retained':True,'all4_setup_error_pages_rejected':True,'no_live_operations':True}))
++        except (AssertionError,KeyError,TypeError):negatives+=1
++        else:raise AssertionError('invalid disabled policy accepted')
++    assessor=load('preservation_assessor',HERE/'assess.py')
++    checks=load('preservation_stream_checks',ROOT/policy['wpt']['checks_helper'])
++    streams=[]
++    for lane in policy['lane_order']:
++        for status in ['PASS','FAIL']:
++            events,code,settings,app=synthetic(policy,lane,status)
++            result=assessor.assess(events,code,settings,checks,run_binding=app)
++            assert result['complete'],result['errors']
++            assert len(result['rows'])==settings['expected_subtest_count']
++            assert all(r['status']==status for r in result['rows'])
++            streams.append([lane,status,len(result['rows']),len(result['ends'])])
++    print(json.dumps({'references':len(policy['references']),'disabled_binding_negatives':negatives,'streams':streams,'no_live_guard':True}))
+ 
+ 
+ if __name__ == '__main__':
+-    import sys
+     assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
++    sys.dont_write_bytecode=True
+     check()

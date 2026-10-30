@@ -1,0 +1,27 @@
+--- artifacts/css-prioritary-selection-candidate-v2/phases.py
++++ artifacts/css-prioritary-selection-candidate-v3/phases.py
+@@ -32,18 +32,18 @@
+         assert metadata['source_role'] == 'candidate'
+         assert build['binaries'] == read(phase / 'BINARY-PINS.json')
+         assert verify() == initial
+-    assert len(rows) == 74 and len(endings) == 11
+-    assert len({(row['test'], row['subtest']) for row in rows}) == 74
+-    assert len({row['test'] for row in endings}) == 11
++    assert len(rows) == 77 and len(endings) == 12
++    assert len({(row['test'], row['subtest']) for row in rows}) == 77
++    assert len({row['test'] for row in endings}) == 12
+     assert results['ordinary']['zoom_observation_sha256'] is not None
+     assert build['native_sources'] == {name: row['candidate_sha256'] for name, row in read(here / 'SOURCE-ROLES.json').items()}
+-    assert sum(len(value['candidate_signatures']) for value in behaviors.values()) == 85
+-    wpt.save(output / 'COMPARISON.json', {'lanes': behaviors, 'repair_observation_gate': all(value['repair_observation_gate'] for value in behaviors.values()), 'all85_signatures_equal': all(value['all_signatures_equal'] for value in behaviors.values()), 'zoom_comparison_sha256': results['ordinary']['zoom_comparison_sha256'], 'native_acceptance': False})
++    assert sum(len(value['candidate_signatures']) for value in behaviors.values()) == 89
++    wpt.save(output / 'COMPARISON.json', {'lanes': behaviors, 'repair_observation_gate': all(value['repair_observation_gate'] for value in behaviors.values()), 'all89_signatures_equal': all(value['all_signatures_equal'] for value in behaviors.values()), 'zoom_comparison_sha256': results['ordinary']['zoom_comparison_sha256'], 'native_acceptance': False})
+     wpt.save(output / 'OUTCOMES.json', {
+         'callbacks_passed': sum(row['status'] == 'PASS' for row in rows),
+         'callbacks_failed': sum(row['status'] == 'FAIL' for row in rows),
+         'rows': rows, 'endings': endings, 'lanes': results,
+-        'zoom_target_correctness': None, 'provider_source_role': 'clean-provider-cascade-candidate', 'native_acceptance': False,
++        'zoom_target_correctness': None, 'provider_source_role': 'provider-cascade-value-candidate', 'native_acceptance': False,
+     })
+     wpt.save(output / 'PHASES-POST.json', initial)
+     return results

@@ -1,0 +1,58 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1813,6 +1813,7 @@
+ enum PreparedCustomKind {
+     Existing,
+     Typed(SpecifiedRegisteredValue),
++    Initial(SpecifiedRegisteredValue),
+     Invalid,
+ }
+ 
+@@ -1825,7 +1826,7 @@
+ impl PreparedCustomValue {
+     pub fn depends_on_color_scheme(&self) -> bool {
+         match &self.kind {
+-            PreparedCustomKind::Typed(value) => value.depends_on_color_scheme(),
++            PreparedCustomKind::Typed(value) | PreparedCustomKind::Initial(value) => value.depends_on_color_scheme(),
+             PreparedCustomKind::Existing | PreparedCustomKind::Invalid => false,
+         }
+     }
+@@ -1836,6 +1837,10 @@
+             PreparedCustomKind::Typed(specified) => {
+                 let mut value = specified.to_computed_value(context);
+                 value.attr_tainted |= self.substitution.unwrap().attr_tainted;
++                context.builder.substitution_functions.insert_var(registration, name, value);
++            },
++            PreparedCustomKind::Initial(specified) => {
++                let value = specified.to_computed_value(context);
+                 context.builder.substitution_functions.insert_var(registration, name, value);
+             },
+             PreparedCustomKind::Invalid => handle_invalid_at_computed_value_time(name, registration, context),
+@@ -1864,7 +1869,7 @@
+         attr_tainted: value.attr_tainted,
+     });
+     let registration = stylist.get_custom_property_registration(name);
+-    let kind = match substitution.as_ref() {
++    let mut kind = match substitution.as_ref() {
+         Err(()) => PreparedCustomKind::Invalid,
+         Ok(value) => {
+             let mut parser = Parser::new(&value.css);
+@@ -1889,6 +1894,18 @@
+             }
+         },
+     };
++    if matches!(kind, PreparedCustomKind::Invalid)
++        && (!registration.inherits() || context.builder.is_root_element)
++        && let (Some(initial), Some(syntax)) = (&registration.initial_value, &registration.syntax)
++    {
++        let mut parser = Parser::new(&initial.css);
++        if let Ok(parsed) = SpecifiedRegisteredValue::parse(
++            &mut parser, syntax, &initial.url_data, None,
++            AllowComputationallyDependent::Yes, AttrTaint::default(), Some(PropertyIdRef::from(name)),
++        ) {
++            kind = PreparedCustomKind::Initial(parsed);
++        }
++    }
+     PreparedCustomValue { substitution, url_data: value.url_data.clone(), kind }
+ }
+ 

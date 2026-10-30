@@ -1,0 +1,11 @@
+--- css-contextual-duration-acyclic-two-hop-probe-v2/animation-duration-acyclic-two-hop.tentative.html
++++ css-contextual-duration-acyclic-two-hop-probe-v3/animation-duration-acyclic-two-hop.tentative.html
+@@ -132,6 +132,8 @@
+   const trace = JSON.stringify({mode, samples, beforeMembership, driverTiming, membership,
+                                afterMembership, seek751, afterSeek});
+   await record("two-hop-" + mode, trace);
++  assert_approx_equals(samples[0].opacity, final.opacity, 0.0001,
++                       `First child-only sample after dependency change; ${trace}`);
+   for (const [name, same] of Object.entries(membership)) {
+     assert_true(same, `${name} identity/membership; ${trace}`);
+   }

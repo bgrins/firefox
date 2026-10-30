@@ -1,0 +1,63 @@
+--- artifacts/css-contextual-duration-feedback-consistency-candidate-v1/phases.py
++++ artifacts/css-contextual-duration-restyle-tristate-browser-v1/phases.py
+@@ -44,29 +44,36 @@
+ 
+ 
+ def run(root, here, output, policy, env, verify, owned, cancelled):
+-    wpt = load('duration_three_phase_wpt', here / 'wpt.py')
++    wpt = load('tristate_wpt', here / 'wpt.py')
++    comparison = load('tristate_comparison', here / 'comparison.py')
+     initial = verify()
+     wpt.save(output / 'PHASES-PRE.json', initial)
+-    results, app = {}, None
+-    for kind in ('feedback',):
+-        current = dict(policy, wpt=policy['phases'][kind], phase_kind=kind)
+-        phase_env = dict(env)
+-        if kind=='feedback':
+-            records=output/'feedback-records'
+-            records.mkdir(mode=0o700)
+-            run_id=secrets.token_hex(24)
+-            wpt.save(output/'FEEDBACK-BINDING.json',{'directory':str(records),'identity':[records.stat().st_dev,records.stat().st_ino],'run_id':run_id})
+-            phase_env.update(DURATION_FEEDBACK_RECORD_DIR=str(records),DURATION_FEEDBACK_RUN_ID=run_id)
+-        comparison = load('phase_original_directory', here / 'comparison.py')
+-        original = comparison.original_directory(root, current)
+-        phase=output/(kind+'-wpt')
+-        results[kind]=wpt.run(root,here,phase,'candidate',current,phase_env,verify,owned,cancelled,original)
+-        assert not owned and read(phase/'PRE.json')==read(phase/'POST.json')==initial
+-        metadata=read(phase/'APPLICATION-METADATA.json')
+-        assert metadata==read(phase/'APPLICATION-METADATA-POST.json')
+-        if app is None: app=metadata
+-        assert app==metadata
+-        if kind=='feedback':wpt.save(output/'FEEDBACK-RECORDS.json',feedback_records(root,output,policy))
+-    assert not owned and verify()==initial
+-    wpt.save(output/'PHASES-POST.json',initial)
+-    return results
++    records = output / 'feedback-records'
++    records.mkdir(mode=0o700)
++    run_id = secrets.token_hex(24)
++    wpt.save(output / 'FEEDBACK-BINDING.json', {'directory':str(records),'identity':[records.stat().st_dev,records.stat().st_ino],'run_id':run_id})
++    phase_env = dict(env,DURATION_FEEDBACK_RECORD_DIR=str(records),DURATION_FEEDBACK_RUN_ID=run_id)
++    phase = output / 'feedback-wpt'
++    failure, result, record_result = None, None, None
++    try:
++        result = wpt.run(root,here,phase,'candidate',policy,phase_env,verify,owned,cancelled,comparison.original_directory(root,policy))
++    except BaseException as error:
++        failure = error
++    diagnostic_errors = []
++    try:
++        record_result = feedback_records(root,output,policy)
++        wpt.save(output / 'FEEDBACK-RECORDS.json',record_result)
++    except BaseException as error:
++        diagnostic_errors.append(repr(error))
++    wpt.save(output / 'DIAGNOSTICS.json',{'phase_error':repr(failure) if failure else None,'record_errors':diagnostic_errors,'numeric_or_convergence_oracle':False})
++    if failure is not None:
++        raise failure
++    assert not diagnostic_errors, diagnostic_errors
++    assert record_result['calibrated_acquisition'] is True
++    assert not owned and read(phase / 'PRE.json') == read(phase / 'POST.json') == initial
++    assert read(phase / 'APPLICATION-METADATA.json') == read(phase / 'APPLICATION-METADATA-POST.json')
++    assert read(phase / 'BINARY-PINS.json') == read(output / 'candidate-build/RESULT.json')['binaries']
++    assert not owned and verify() == initial
++    wpt.save(output / 'PHASES-POST.json',initial)
++    return {'feedback':result,'calibrated_acquisition':True,'record_index_sha256':sha(output / 'FEEDBACK-RECORDS.json')}
++

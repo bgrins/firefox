@@ -1,0 +1,179 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>First-read updates through finite acyclic animation-duration chains</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#model-liveness">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<link rel="help" href="https://drafts.csswg.org/css-inline-3/#line-height-property">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+function frame(win) {
+  return new Promise(resolve => win.requestAnimationFrame(resolve));
+}
+
+function expected(depth, advanced) {
+  let input = advanced ? 32 : 16;
+  const nodes = [];
+  for (let index = 0; index < depth; index++) {
+    const duration = input / 16 * 1000;
+    const output = duration === 1000 ? 32 : 16;
+    nodes.push({input, output, duration});
+    input = output;
+  }
+  return {rootFont: advanced ? 32 : 16, nodes, leafDuration: input / 16 * 1000,
+          opacity: input === 16 ? 1 : 0};
+}
+
+function timing(animation) {
+  return {duration: animation.effect.getTiming().duration,
+          progress: animation.effect.getComputedTiming().progress,
+          time: animation.currentTime, state: animation.playState};
+}
+
+function details(context) {
+  const {win, root, nodes, leaf, animations} = context;
+  const style = win.getComputedStyle(leaf);
+  const result = {opacity: Number(style.opacity),
+                  leafDuration: parseFloat(style.animationDuration) * 1000,
+                  leaf: timing(animations[nodes.length]), nodes: []};
+  for (let index = 0; index < nodes.length; index++) {
+    const nodeStyle = win.getComputedStyle(nodes[index]);
+    result.nodes.push({font: parseFloat(nodeStyle.fontSize),
+                       lineHeight: parseFloat(nodeStyle.lineHeight),
+                       duration: parseFloat(nodeStyle.animationDuration) * 1000,
+                       timing: timing(animations[index])});
+  }
+  result.rootFont = parseFloat(win.getComputedStyle(root).fontSize);
+  return result;
+}
+
+function assertTiming(value, duration, label) {
+  assert_equals(value.duration, duration, `${label}: effect duration`);
+  assert_equals(value.progress, duration === 1000 ? 1 : 0.75, `${label}: progress`);
+  assert_equals(value.time, 1500, `${label}: held currentTime`);
+  assert_equals(value.state, "paused", `${label}: paused`);
+}
+
+function assertValues(value, oracle, label) {
+  assert_equals(value.rootFont, oracle.rootFont, `${label}: root font`);
+  assert_equals(value.opacity, oracle.opacity, `${label}: leaf opacity`);
+  assert_equals(value.leafDuration, oracle.leafDuration, `${label}: leaf CSS duration`);
+  assertTiming(value.leaf, oracle.leafDuration, `${label}: leaf`);
+  assert_equals(value.nodes.length, oracle.nodes.length, `${label}: chain length`);
+  value.nodes.forEach((node, index) => {
+    const expectedNode = oracle.nodes[index];
+    assert_equals(index % 2 === 0 ? node.font : node.lineHeight,
+                  expectedNode.input, `${label}: node ${index + 1} inherited input`);
+    assert_equals(index % 2 === 0 ? node.lineHeight : node.font,
+                  expectedNode.output, `${label}: node ${index + 1} output`);
+    assert_equals(node.duration, expectedNode.duration, `${label}: node ${index + 1} CSS duration`);
+    assertTiming(node.timing, expectedNode.duration, `${label}: node ${index + 1}`);
+  });
+}
+
+async function observe(t, depth, mode) {
+  const iframe = document.createElement("iframe");
+  t.add_cleanup(() => iframe.remove());
+  const loaded = new Promise(resolve => iframe.onload = resolve);
+  const levels = Array.from({length: depth}, (_, index) =>
+    `<div class="node ${index % 2 === 0 ? "height" : "font"}">`).join("");
+  const leafInput = depth % 2 ? "from-height" : "from-font";
+  iframe.srcdoc = `<!doctype html><html><style>
+    html { font-size: 16px; line-height: 16px; }
+    .chain { font-size: 16px; line-height: 16px; }
+    .chain.advanced { font-size: 32px; }
+    @keyframes height { from { line-height: 16px; } to { line-height: 32px; } }
+    @keyframes font { from { font-size: 16px; } to { font-size: 32px; } }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+    .node, .leaf { animation-timing-function: steps(1, end);
+      animation-fill-mode: both; animation-play-state: paused; }
+    .height { animation-name: height; }
+    .font { animation-name: font; }
+    .leaf { animation-name: fade; }
+    .literal .height, .literal .from-font { animation-duration: 1s; }
+    .literal .font, .literal .from-height { animation-duration: 2s; }
+    .literal.advanced .height, .literal.advanced .from-font { animation-duration: 2s; }
+    .literal.advanced .font, .literal.advanced .from-height { animation-duration: 1s; }
+    .contextual .height, .contextual .from-font { animation-duration: calc(1em / 16px * 1s); }
+    .contextual .font, .contextual .from-height { animation-duration: calc(1lh / 16px * 1s); }
+  </style><body><div class="chain literal">${levels}<div class="leaf ${leafInput}"></div>
+  ${"</div>".repeat(depth)}</div></body></html>`;
+  document.body.append(iframe);
+  await loaded;
+  const win = iframe.contentWindow;
+  const root = iframe.contentDocument.querySelector(".chain");
+  const nodes = [...root.querySelectorAll(".node")];
+  const leaf = root.querySelector(".leaf");
+  const targets = [...nodes, leaf];
+  const animations = targets.map(target => {
+    const effects = target.getAnimations();
+    assert_equals(effects.length, 1, "One CSS animation per chain target");
+    return effects[0];
+  });
+  for (const animation of animations) {
+    await animation.ready;
+    animation.currentTime = 1500;
+  }
+  const effects = animations.map(animation => animation.effect);
+  const context = {win, root, nodes, leaf, animations};
+  for (let index = 0; index < 3; index++) await frame(win);
+  const literalInitial = details(context);
+  assertValues(literalInitial, expected(depth, false),
+               `Literal setup depth ${depth}; ${JSON.stringify(literalInitial)}`);
+  if (mode === "contextual") root.classList.replace("literal", "contextual");
+  const initial = details(context);
+  assertValues(initial, expected(depth, false),
+               `Unchanged-input setup depth ${depth}; ${JSON.stringify(initial)}`);
+  root.classList.add("advanced");
+  const samples = [{phase: "first-leaf-read", opacity: Number(win.getComputedStyle(leaf).opacity)}];
+  for (let index = 1; index <= 3; index++) {
+    await frame(win);
+    samples.push({phase: `passive-frame-${index}`, opacity: Number(win.getComputedStyle(leaf).opacity)});
+  }
+  const beforeMembership = details(context);
+  const membership = targets.map((target, index) => ({
+    animation: target.getAnimations().includes(animations[index]),
+    effect: animations[index].effect === effects[index]
+  }));
+  const afterMembership = details(context);
+  iframe.remove();
+  return {depth, mode, literalInitial, initial, samples, beforeMembership, membership, afterMembership};
+}
+
+function assertObservation(observation, label) {
+  const oracle = expected(observation.depth, true);
+  for (const sample of observation.samples) {
+    assert_equals(sample.opacity, oracle.opacity, `${label}: ${sample.phase}`);
+  }
+  assertValues(observation.beforeMembership, oracle, `${label}: before membership`);
+  assertValues(observation.afterMembership, oracle, `${label}: after membership`);
+  for (const identity of observation.membership) {
+    assert_true(identity.animation && identity.effect, `${label}: animation/effect retained`);
+  }
+}
+
+async function record(depth, observations) {
+  const response = await fetch("duration-finite-depth-record.py", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({kind: `depth-${depth}`, observations})
+  });
+  assert_true(response.ok, "Private observation record acknowledged");
+  const acknowledgement = await response.json();
+  assert_equals(acknowledgement.kind, `depth-${depth}`, "Recorded depth");
+  assert_equals(acknowledgement.sampleCount, 4, "Four leaf-only samples per trajectory");
+  assert_true(/^[A-Za-z0-9_-]{16,128}$/.test(acknowledgement.run_id), "Owner-bound record identity");
+}
+
+for (const depth of [1, 2, 4, 8]) {
+  promise_test(async t => {
+    const literal = await observe(t, depth, "literal");
+    const contextual = await observe(t, depth, "contextual");
+    const observations = {literal, contextual};
+    await record(depth, observations);
+    const trace = JSON.stringify(observations);
+    assertObservation(literal, `Literal calibration; ${trace}`);
+    assertObservation(contextual, `Contextual dependency; ${trace}`);
+  }, `First leaf read updates a finite acyclic animation-duration chain of depth ${depth}`);
+}
+</script>

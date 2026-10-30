@@ -1,0 +1,14 @@
+>>> 1878:     pub fn might_have_non_custom_or_attr_dependency(
+    1879:         id: LonghandId,
+    1880:         decl: &PropertyDeclaration,
+    1881:     ) -> bool {
+    1882:         if let PropertyDeclaration::WithVariables(v) = decl {
+    1883:             return matches!(id, LonghandId::LineHeight | LonghandId::FontSize)
+    1884:                 || v.value
+    1885:                     .variable_value
+    1886:                     .references
+    1887:                     .flags
+    1888:                     .intersects(ReferenceFlags::ATTR);
+    1889:         }
+    1890:         false
+    1891:     }

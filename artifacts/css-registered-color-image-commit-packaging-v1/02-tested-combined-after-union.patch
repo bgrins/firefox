@@ -1,0 +1,57 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -734,9 +734,12 @@
+     if may_reference_length {
+         result |= value.references.non_custom_references(is_root_element);
+     }
+-    if dependent_types.intersects(DependentDataTypes::COLOR) {
+-        // The value depends on the used color-scheme (e.g. a `<color>` property referencing
+-        // `light-dark()` or a system color).
++    let may_reference_image = syntax.components.iter().any(|component| {
++        use crate::properties_and_values::syntax::{ComponentName, data_type::DataType};
++        matches!(component.name(), ComponentName::DataType(DataType::Image))
++    });
++    if dependent_types.intersects(DependentDataTypes::COLOR) || may_reference_image {
++        // Defer possible color computation; selected values determine the graph edge.
+         result |= ReferenceFlags::COLOR_SCHEME;
+     }
+     result
+@@ -2506,7 +2509,6 @@
+         // of the match so we can create the corresponding nodes once we've pushed this variable.
+         let mut value_non_custom_refs = ReferenceFlags::empty();
+         let mut registered = false;
+-        let mut color_eligible = false;
+         let value = match var {
+             VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
+                 let map = &context.computed_context.builder.substitution_functions;
+@@ -2529,11 +2531,6 @@
+                 let is_root = context.computed_context.is_root_element();
+                 value_non_custom_refs = find_non_custom_references(registration, value, is_root);
+                 registered = !registration.is_universal();
+-                color_eligible = registration.syntax.as_ref().is_some_and(|syntax| {
+-                    syntax.dependent_types().intersects(
+-                        crate::properties_and_values::syntax::data_type::DependentDataTypes::COLOR,
+-                    )
+-                });
+                 let has_dependency = value
+                     .references
+                     .flags
+@@ -2632,9 +2629,7 @@
+                 &mut value_non_custom_refs,
+             );
+ 
+-            if let VarType::Custom(ref name) = var
+-                && color_eligible
+-            {
++            if let VarType::Custom(ref name) = var {
+                 let may_compute_color =
+                     value_non_custom_refs.intersects(ReferenceFlags::COLOR_SCHEME);
+                 value_non_custom_refs.remove(ReferenceFlags::COLOR_SCHEME);
+@@ -2725,7 +2720,6 @@
+         if let VarType::Custom(ref name) = var {
+             let cyclic = self_ref || lowlink < index || context.stack.last() != Some(&index);
+             if registered
+-                && color_eligible
+                 && cyclic
+                 && !value_non_custom_refs.intersects(ReferenceFlags::COLOR_SCHEME)
+                 && invalid_custom_value_depends_on_color_scheme(

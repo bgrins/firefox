@@ -1,0 +1,59 @@
+--- artifacts/css-contextual-duration-finite-depth-candidate-v1/comparison.py
++++ artifacts/css-contextual-duration-base-timing-candidate-v1/comparison.py
+@@ -33,15 +33,15 @@
+     settings['phase_revisions']['candidate'] = policy['head']
+     settings['candidate_required_pass_pages'] = list(settings['expected_subtests'])
+     settings['target_subtests'] = copy.deepcopy(settings['expected_subtests'])
+-    settings.update(expected_target_count=4, expected_control_count=0, expected_regression_signature_count=1)
++    settings.update(expected_target_count=7, expected_control_count=0, expected_regression_signature_count=3)
+     binding = policy['baseline_binding']
+     if binding is not None:
+         saved = read(root / binding['directory'] / 'original-wpt/ASSESSMENT.json')
+         settings['target_subtests'] = {page: [row['subtest'] for row in saved['rows'] if row['test'] == page and row['status'] == 'FAIL'] for page in settings['expected_subtests']}
+         count = sum(map(len, settings['target_subtests'].values()))
+         settings['expected_target_count'] = count
+-        settings['expected_control_count'] = 4 - count
+-        settings['expected_regression_signature_count'] = 5 - count
++        settings['expected_control_count'] = 7 - count
++        settings['expected_regression_signature_count'] = 10 - count
+     return settings
+ 
+ 
+@@ -53,7 +53,7 @@
+ 
+ def require_complete_collection(collection, terminal):
+     assert collection['complete'] and not collection['errors'] and not collection['missing']
+-    assert len(collection['records']) == terminal['complete_records'] == 4
++    assert len(collection['records']) == terminal['complete_records'] == 7
+ 
+ 
+ def expected_snapshot(depth, advanced):
+@@ -96,8 +96,8 @@
+     assert sha(directory / 'RESULT.json') == binding['result_sha256']
+     assert binding['terminal']['owner_sha256'] == policy['baseline_capsule']['sha256']
+     assert binding['terminal']['result_sha256'] == binding['result_sha256']
+-    assert binding['terminal']['callbacks_passed'] + binding['terminal']['callbacks_failed'] == 4
+-    assert (binding['terminal']['page_endings_ok'], binding['terminal']['complete_records']) == (1, 4)
++    assert binding['terminal']['callbacks_passed'] + binding['terminal']['callbacks_failed'] == 7
++    assert (binding['terminal']['page_endings_ok'], binding['terminal']['complete_records']) == (3, 7)
+     assert all(binding['terminal'][name] for name in ('raw_replay_verified', 'pre_post_equality_verified', 'current_source_binary_control_pins_verified', 'private_records_independently_validated', 'owned_process_cleanup_verified'))
+     result = read(directory / 'RESULT.json')
+     assert result['preservation_verified'] and result['lifecycle_complete'] and not result['source_or_canonical_mutation']
+@@ -119,13 +119,14 @@
+     events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
+     original_assessor = load('progress_original_assessor', root / policy['baseline_capsule']['directory'] / 'assess.py')
+     replay = original_assessor.assess(events, phase_result['exit'], original_settings, checks, run_binding=metadata)
+-    assert replay == read(phase / 'ASSESSMENT.json') and replay['complete'] and len(replay['rows']) == 4
++    assert replay == read(phase / 'ASSESSMENT.json') and replay['complete'] and len(replay['rows']) == 7
+     assert all(row['status'] in ('PASS', 'FAIL') for row in replay['rows'])
+     collection = load('progress_original_records', root / policy['baseline_capsule']['directory'] / 'records.py').collect(root, directory / 'progress-records', read(directory / 'PROGRESS-BINDING.json'), source, replay)
+     assert collection == read(directory / 'PROGRESS-RECORDS.json') and not collection['errors']
+     require_complete_collection(collection, binding['terminal'])
+-    for filename in policy['record_kinds']:
+-        require_original_calibration(read(directory / 'progress-records' / filename)['observations'])
++    calibration = load('timing_literal_calibration', root / policy['baseline_capsule']['directory'] / 'calibration.py').report(directory / 'progress-records', collection, source)
++    assert calibration == read(directory / 'CALIBRATION.json') and calibration['all_calibrated']
++    assert result['literal_initial_calibration_passed']
+     assert result['records_complete'] == result['observation_complete'] == collection['complete']
+     assert result['callbacks_passed'] == sum(row['status'] == 'PASS' for row in replay['rows'])
+     assert result['callbacks_failed'] == sum(row['status'] == 'FAIL' for row in replay['rows'])

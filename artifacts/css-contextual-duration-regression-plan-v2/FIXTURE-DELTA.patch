@@ -1,0 +1,37 @@
+--- v1/animation-duration-self-feedback-observation.tentative.html
++++ v2/animation-duration-self-feedback-observation.tentative.html
+@@ -9,7 +9,7 @@
+ <script>
+ "use strict";
+ 
+-async function observe(t, coupled) {
++async function observe(t, coupled, from = 16) {
+   const host = document.createElement("div");
+   document.body.append(host);
+   t.add_cleanup(() => host.remove());
+@@ -23,7 +23,7 @@
+       animation-fill-mode: both;
+       animation-play-state: paused;
+     }
+-    @keyframes fontCycle { from { font-size: 16px; } to { font-size: 32px; } }
++    @keyframes fontCycle { from { font-size: ${from}px; } to { font-size: 32px; } }
+     @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+   </style><div class="target"></div>`;
+   const target = root.querySelector(".target");
+@@ -49,7 +49,8 @@
+   }
+   const output = document.getElementById("duration-observations");
+   const records = JSON.parse(output.textContent);
+-  records.push({kind: coupled ? "coupled font and opacity" : "self font", samples});
++  records.push({kind: from === 0 ? "zero-start self font" :
++                       coupled ? "coupled font and opacity" : "self font", samples});
+   output.textContent = JSON.stringify(records);
+   assert_equals(samples.length, 8, "Eight bounded observations completed; no fixed-point oracle");
+ }
+@@ -58,4 +59,6 @@
+              "Observation only: self-dependent font duration completes eight samples");
+ promise_test(t => observe(t, true),
+              "Observation only: coupled font and opacity duration completes eight samples");
++promise_test(t => observe(t, false, 0),
++             "Observation only: zero-start self-dependent font duration completes eight samples");
+ </script>

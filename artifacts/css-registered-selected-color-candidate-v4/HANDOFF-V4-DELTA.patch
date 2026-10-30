@@ -1,0 +1,46 @@
+--- artifacts/css-registered-selected-color-candidate-v3/handoff.py
++++ artifacts/css-registered-selected-color-candidate-v4/handoff.py
+@@ -12,11 +12,11 @@
+     authenticate(runtime, binding['manifest_sha256'])
+     authenticate(owner, binding['owner']['manifest_sha256'])
+     assert read(owner / 'POLICY.json') == previous
+-    for key in ('head','baseline_binding','baseline_capsule','original_admission_policy_sha256','suite_binding','wpt','source_paths','source_context_pins','semantic_original_sources','committed_source_preimages','source_equivalence','accepted_current_payloads','preserved_absent_metadata','preserved_absent_resources','restored_application_revision'):
++    for key in ('head','execution_handoff','baseline_binding','baseline_capsule','original_admission_policy_sha256','suite_binding','wpt','source_paths','source_context_pins','semantic_original_sources','committed_source_preimages','source_equivalence','accepted_current_payloads','preserved_absent_metadata','preserved_absent_resources','restored_application_revision'):
+         assert policy[key] == previous[key], key
+     terminal = read(runtime / 'ROOT-OWNER-TERMINAL.json')
+     assert terminal.pop('active_owner_manifest_sha256') == binding['owner']['manifest_sha256']
+-    assert (terminal['session'],terminal['launch_chunk'],terminal['terminal_chunk'],terminal['exit']) == (85310,'e7082d','51ecf0',1)
++    assert (terminal['session'],terminal['launch_chunk'],terminal['terminal_chunk'],terminal['exit']) == (50372,'cbc269','d0eb31',1)
+     result = read(runtime / 'CANDIDATE-RESULT.json')
+     assert sha(runtime / 'CANDIDATE-RESULT.json') == terminal['result_sha256']
+     assert not result['success'] and result['candidate_phase'] is None and result['error'] == 'AssertionError()'
+@@ -29,7 +29,7 @@
+     review = read(runtime / 'ROOT-REVIEW.json')
+     assert sha(runtime / 'ROOT-REVIEW.json') == binding['review_sha256']
+     rt = read(runtime / 'ROOT-REVIEWER-TERMINAL.json')
+-    assert (rt['session'],rt['launch_chunk'],rt['terminal_chunk'],rt['exit']) == (72917,'51f609','3abddc',0)
++    assert (rt['session'],rt['launch_chunk'],rt['terminal_chunk'],rt['exit']) == (46693,'056f06','973d76',0)
+     reviewer = root / binding['reviewer']['directory']
+     authenticate(reviewer, binding['reviewer']['manifest_sha256'])
+     assert rt['active_reviewer_manifest_sha256'] == binding['reviewer']['manifest_sha256']
+@@ -42,7 +42,10 @@
+     assert review['observation'] == {'browser_executed':False,'observation_complete':False,'build_exit':2}
+     for name,digest in review['input_hashes'].items(): assert sha(runtime / name) == digest
+     pre = read(runtime / 'CANDIDATE-PRE.json')
+-    assert pre['snapshot'] == read(root / policy['baseline_binding']['directory'] / 'POST.json') and pre['controls'] == previous['controls']
++    assert pre['snapshot'] == read(root / previous['restoration_handoff']['runtime'] / 'POST.json')
++    original_snapshot = read(root / policy['baseline_binding']['directory'] / 'POST.json')
++    original_snapshot['index']['raw_index'] = pre['snapshot']['index']['raw_index']
++    assert original_snapshot == pre['snapshot'] and pre['controls'] == previous['controls']
+     raw = read(runtime / 'RAW-INDEX-OBSERVATION.json')
+     assert raw == review['raw_index_observation'] and raw['semantic_index_unchanged'] and not raw['canonical_updated']
+     expected = copy.deepcopy(pre['snapshot'])
+@@ -53,7 +56,7 @@
+     assert refresh['previous_epoch_sha256'] == previous['controls']['CURRENT-EPOCH.json']
+     assert refresh['only_changed_field'] == 'raw_index_observation.current' and refresh['semantic_index_unchanged']
+     assert (refresh['raw_index_before'],refresh['raw_index_after']) == (raw['before'],raw['after'])
+-    assert refresh['independent_review_sha256'] == binding['review_sha256'] and refresh['independent_review_terminal'] == '72917/3abddc/0'
++    assert refresh['independent_review_sha256'] == binding['review_sha256'] and refresh['independent_review_terminal'] == '46693/973d76/0'
+     assert refresh['other_controls_unchanged'] == {k:v for k,v in previous['controls'].items() if k != 'CURRENT-EPOCH.json'}
+     assert policy['controls'] == dict(previous['controls'], **{'CURRENT-EPOCH.json':refresh['new_epoch_sha256']})
+     backup, cleanup = read(runtime / 'BACKUP-CLEANUP.json'), read(runtime / 'ROOT-BACKUP-CLEANUP.json')

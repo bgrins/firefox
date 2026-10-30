@@ -1,0 +1,9 @@
+Completed CSS research checkpoint V68 uses the reviewed V66 temporary-index signer protocol with fresh admission bindings. HEAD is ecfe313d582a335c04d80bfd360fd3a591defdb7 and canonical epoch is e73e66132730fca8b1cf5bde149016653c3e4a1f1a5f0ed29ab2551d291c4064. The fixed V67 inventory contributes exactly 1,201 completed paths, its six payloads and manifest; this checkpoint adds only commit.py, README.md and WORK-TABLE.md. Identical already-committed bodies are authenticated and skipped. A new easing observation underway during preparation is excluded; selection remains frozen to completed V67 work.
+
+The prior V66 attempt failed at signing and preserved HEAD, the real index and canonical state. This is a fresh bound operation, not a replay of that failed package. The commit/signature/failure-recovery/canonical-sync protocol is unchanged. A failed signature releases the lock only after verifying the complete prestate, selected bodies and untracked census. Unknown or interrupted states retain the lock. Success stages only the selected research paths into the real index, verifies the signed commit and updates research provenance. Native edits, held provider, app and compiled provenance remain preserved; no native acceptance, unsigned fallback or push occurs.
+
+Root reviews the driver and runs read-only check mode before any signing attempt:
+
+    python3 -I -S -B artifacts/css-research-checkpoint-20261029-v68/commit.py --check
+
+Only root executes --run, after any live browser observation has finished cleanup and fresh guards still pass. Result and signing logs are created only by that single run; do not replay after result.json exists. Existing user authorization for local commits persists. Signing availability must be established by the actual attempt; it is not inferred from prior failures or check-mode success.

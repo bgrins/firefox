@@ -1,0 +1,44 @@
+--- artifacts/css-contextual-duration-feedback-consistency-candidate-v1/comparison.py
++++ artifacts/css-contextual-duration-restyle-tristate-browser-v1/comparison.py
+@@ -33,10 +33,21 @@
+ 
+ 
+ def original_metadata(policy):
+-    base = policy['prepared_application_metadata']
+-    assert set(base) == {'browser_build_id','entry_identity','entry_type','identity','path','resolved','revision','sha256','symlink_target'}
+-    assert base['revision'] == policy['wpt']['phase_revisions']['original']
+-    return dict(base, build_revision=base['revision'], harness_revision=policy['head'], source_role='original')
++    historical = policy['historical_baseline_metadata']
++    assert historical['revision'] == historical['build_revision'] == policy['wpt']['phase_revisions']['original']
++    assert historical['harness_revision'] == policy['head'] and historical['source_role'] == 'original'
++    current = policy['prepared_application_metadata']
++    assert set(current) == {'browser_build_id','entry_identity','entry_type','identity','path','resolved','revision','sha256','symlink_target'}
++    annotations = {'build_revision','harness_revision','source_role'}
++    assert {k:v for k,v in historical.items() if k not in annotations | {'identity','entry_identity'}} == {k:v for k,v in current.items() if k not in {'identity','entry_identity'}}
++    return historical
++
++
++def admit_snapshot(historical, current):
++    projected = copy.deepcopy(historical)
++    projected['index']['raw_index'] = current['index']['raw_index']
++    assert projected == current
++
+ 
+ def replay_original(root, policy, assessor, checks):
+     kind = policy.get('phase_kind', 'feedback')
+@@ -44,7 +55,14 @@
+     phase = directory / (kind + '-wpt')
+     source = read(root / policy['baseline_capsule']['directory'] / 'POLICY.json')
+     assert policy['wpt'] == expected_wpt(root, policy)
+-    assert source['head'] == policy['head'] and source['controls'] == policy['controls']
++    build_epoch = read(root / policy['source_equivalence']['historical_build_epoch'])
++    assert build_epoch['semantic_index']['head'] == policy['source_equivalence']['build_revision']
++    for name, pin in policy['source_equivalence']['required_base_pins'].items():
++        assert build_epoch['pins'][name] == pin and name not in build_epoch['modified_native_paths']
++    assert source['head'] == policy['head']
++    assert {key:source['controls'][key] for key in ('OWNED.json','ROLE.json')} == {key:policy['controls'][key] for key in ('OWNED.json','ROLE.json')}
++    assert source['accepted_current_payloads'] == policy['accepted_current_payloads']
++    assert source['source_role_pins'] == policy['source_context_pins']
+     assert source['prepared_application_metadata'] == original_metadata(policy)
+     saved_policy = read(phase / 'ASSESSMENT-POLICY.json')
+     assert saved_policy == phase_policy(source['phases'][kind])

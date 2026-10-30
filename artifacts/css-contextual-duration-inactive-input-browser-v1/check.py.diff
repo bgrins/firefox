@@ -1,0 +1,34 @@
+--- previous/check.py
++++ inactive/check.py
+@@ -23,6 +23,10 @@
+         **{"servo/components/style/custom_properties.rs": "2675b33b30ac43db5b758d5a80f42fa4530856c32d5a0923882a15f8a8bc5774"})
+     assert policy["build_unpinned_sources"] == ["servo/components/style/stylesheets/keyframes_rule.rs"]
+     assert policy["original_only"] and set(settings["phase_revisions"]) == {"original"}
++    assert (settings["expected_subtest_count"], settings["expected_target_count"],
++            settings["expected_control_count"], settings["expected_page_count"],
++            settings["expected_regression_signature_count"]) == (1, 1, 0, 1, 1)
++    assert len(policy["accepted_current_payloads"]) == 29
+     roster = json.loads((ROOT / policy["source_roster"]).read_bytes())
+     assert settings["expected_subtests"] == {page: [r["name"] for r in rows] for page, rows in roster["pages"].items()}
+     assert settings["target_subtests"] == {page: [r["name"] for r in rows if r["classification"] == "clear_target"] for page, rows in roster["pages"].items()}
+@@ -55,12 +59,6 @@
+         if (event.get("test"), event.get("subtest")) in targets:
+             event.update(status="FAIL", expected="PASS", message="synthetic assertion")
+     assert evaluate(failed, 1)["complete"]
+-    mixed = copy.deepcopy(failed)
+-    next(e for e in mixed if e.get("status") == "FAIL").update(status="PASS")
+-    assert evaluate(mixed, 1)["complete"]
+-    controls_failed = copy.deepcopy(mixed)
+-    next(e for e in controls_failed if e.get("action") == "test_status" and (e["test"], e["subtest"]) not in targets).update(status="FAIL", expected="PASS")
+-    assert evaluate(controls_failed, 1)["complete"]
+     rejected = []
+ 
+     def reject(label, mutate, code=0):
+@@ -84,6 +82,6 @@
+     reject("wrong BuildID", lambda s: s[0]["run_info"].update(browser_build_id="wrong"))
+     reject("wrong harness revision", lambda s: s[0]["run_info"].update(revision="0" * 40))
+     reject("fixture setup exception", lambda s: next(e for e in s if e.get("action") == "test_status" and e["test"] in settings["fixture_target_pages"]).update(status="FAIL", expected="PASS", message="ReferenceError: missing helper"), 1)
+-    print(json.dumps({"synthetic_positive_checks": 4, "negative_checks": rejected,
++    print(json.dumps({"synthetic_positive_checks": 2, "negative_checks": rejected,
+                       "original_statuses_measured_without_required_failure_count": True,
+                       "fresh_application_metadata_required_at_activation": True, "browser_executed": False}))

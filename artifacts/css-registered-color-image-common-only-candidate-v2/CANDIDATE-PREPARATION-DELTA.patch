@@ -1,0 +1,33 @@
+--- artifacts/css-registered-color-image-common-only-candidate-v1/candidate.py
++++ artifacts/css-registered-color-image-common-only-candidate-v2/candidate.py
+@@ -24,6 +24,12 @@
+     module = importlib.util.module_from_spec(spec)
+     spec.loader.exec_module(module)
+     return module
++
++
++def expected_modified_paths(existing, roles, head_pins):
++    assert set(roles) <= set(head_pins)
++    changed = {name for name, role in roles.items() if role['candidate_sha256'] != head_pins[name]}
++    return sorted((set(existing) - set(roles)) | changed)
+ 
+ 
+ def main():
+@@ -102,7 +108,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'registered-color-image-common-only-candidate-v1'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'registered-color-image-common-only-candidate-v2'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+@@ -126,7 +132,7 @@
+         for name, record in roles.items():
+             assert sha(ROOT / name) == record['candidate_sha256']
+             local['pins'][name] = record['candidate_sha256']
+-        local['modified_native_paths'] = sorted(set(epoch['modified_native_paths']) | set(roles))
++        local['modified_native_paths'] = expected_modified_paths(epoch['modified_native_paths'], roles, policy['committed_source_preimages'])
+         local['counts']['native_modified_paths'] = len(local['modified_native_paths'])
+         assert binaries and set(binaries) == set(policy['rebuilt_binaries'])
+         for name, pin in binaries.items():

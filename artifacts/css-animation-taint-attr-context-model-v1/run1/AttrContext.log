@@ -1,0 +1,130 @@
+AttrContext.lean:62:14: error: unsolved goals
+case succ
+e fallback : Expr
+allow : Bool
+v : Value
+resolved : eval allow e = some v
+marked : v.attrTainted = true
+n : Nat
+ih : eval allow (attrs n e fallback) = some v
+⊢ { token := v.token, animationTainted := v.animationTainted, attrTainted := true } = v
+AttrContext.lean:63:39: warning: This simp argument is unused:
+  marked
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [attrs, eval, ih, markAttr]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+AttrContext.lean:73:107: error: unsolved goals
+n m : Nat
+blocked : eval false ((chain m leaf outer).ref inner) = some innerValue
+admitted : eval true ((chain m leaf outer).ref inner) = some leaf
+⊢ (match
+      match eval true (chain m leaf outer) with
+      | some v => if allowed false v = true then some v else eval false inner
+      | none => eval false inner with
+    | some v => some { token := v.token, animationTainted := v.animationTainted, attrTainted := true }
+    | none => eval false outer) =
+    some { token := 2, animationTainted := false, attrTainted := true }
+AttrContext.lean:75:112: error: unsolved goals
+n m : Nat
+blocked : eval false ((chain m leaf outer).ref inner) = some innerValue
+admitted : eval true ((chain m leaf outer).ref inner) = some leaf
+firstBlocked : eval false (Expr.attr true ((chain m leaf outer).ref inner) outer) = some innerValue
+⊢ (match
+      match eval true (chain m leaf outer) with
+      | some v => if allowed true v = true then some v else eval true inner
+      | none => eval true inner with
+    | some v => some (markAttr v)
+    | none => eval true outer) =
+    some (markAttr leaf)
+AttrContext.lean:81:18: error: unsolved goals
+case succ
+n m : Nat
+blocked : eval false ((chain m leaf outer).ref inner) = some innerValue
+admitted : eval true ((chain m leaf outer).ref inner) = some leaf
+firstBlocked : eval false (Expr.attr true ((chain m leaf outer).ref inner) outer) = some innerValue
+firstAdmitted : eval true (Expr.attr true ((chain m leaf outer).ref inner) outer) = some (markAttr leaf)
+k : Nat
+ih :
+  attrs (k + 1) ((chain m leaf outer).ref inner) outer =
+    attrs k (Expr.attr true ((chain m leaf outer).ref inner) outer) outer
+⊢ Expr.attr true (Expr.attr true (attrs k ((chain m leaf outer).ref inner) outer) outer) outer =
+    Expr.attr true (attrs k (Expr.attr true ((chain m leaf outer).ref inner) outer) outer) outer
+AttrContext.lean:88:18: error: unsolved goals
+case succ
+n m : Nat
+blocked : eval false ((chain m leaf outer).ref inner) = some innerValue
+admitted : eval true ((chain m leaf outer).ref inner) = some leaf
+firstBlocked : eval false (Expr.attr true ((chain m leaf outer).ref inner) outer) = some innerValue
+firstAdmitted : eval true (Expr.attr true ((chain m leaf outer).ref inner) outer) = some (markAttr leaf)
+blockedAll : eval false (attrs (n + 1) ((chain m leaf outer).ref inner) outer) = some innerValue
+k : Nat
+ih :
+  attrs (k + 1) ((chain m leaf outer).ref inner) outer =
+    attrs k (Expr.attr true ((chain m leaf outer).ref inner) outer) outer
+⊢ Expr.attr true (Expr.attr true (attrs k ((chain m leaf outer).ref inner) outer) outer) outer =
+    Expr.attr true (attrs k (Expr.attr true ((chain m leaf outer).ref inner) outer) outer) outer
+AttrContext.lean:91:34: error: unsolved goals
+n m : Nat
+blocked : eval false ((chain m leaf outer).ref inner) = some innerValue
+admitted : eval true ((chain m leaf outer).ref inner) = some leaf
+firstBlocked : eval false (Expr.attr true ((chain m leaf outer).ref inner) outer) = some innerValue
+firstAdmitted : eval true (Expr.attr true ((chain m leaf outer).ref inner) outer) = some (markAttr leaf)
+blockedAll : eval false (attrs (n + 1) ((chain m leaf outer).ref inner) outer) = some innerValue
+admittedAll : eval true (attrs (n + 1) ((chain m leaf outer).ref inner) outer) = some (markAttr leaf)
+⊢ (match
+      eval true
+        (attrs (n + 1)
+          ((chain m { token := 1, animationTainted := true, attrTainted := false } (Expr.value (some outerValue))).ref
+            inner)
+          (Expr.value (some outerValue))) with
+    | some v => if v.animationTainted = false then some v else some outerValue
+    | none => some outerValue) =
+    some outerValue
+AttrContext.lean:74:16: warning: This simp argument is unused:
+  blocked
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [eval, markAttr, innerValue]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+AttrContext.lean:76:16: warning: This simp argument is unused:
+  admitted
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [eval]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+AttrContext.lean:81:39: warning: This simp argument is unused:
+  ih
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [attrs]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+AttrContext.lean:88:39: warning: This simp argument is unused:
+  ih
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [attrs]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+AttrContext.lean:91:49: warning: This simp argument is unused:
+  admittedAll
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [eval, allowed, markAttr, leaf, outer]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+AttrContext.lean:91:71: warning: This simp argument is unused:
+  markAttr
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [eval, admittedAll, allowed, leaf, outer]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+AttrContext.lean:95:2: error: failed to synthesize
+  Decidable ¬∃ cached, cached = eval false direct ∧ cached = eval true direct
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.

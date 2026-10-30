@@ -1,0 +1,21 @@
+# Registered-producer candidate preparation
+
+Disabled successor to the executed candidate-v3 lifecycle, using sealed proposal-v3 67b121d59ea19b591ad1f396d149287320ba82125410249e481a04875f870ed1. This directory is owner-v4; proposal numbering is independent. The four exact roles are custom_properties.rs, custom_properties_map.rs, properties/cascade.rs and properties_and_values/value.rs. The new proposal only removes the producer's unregistered-singleton exclusion relative to the compiled corrected proposal-v2; all other postimages remain exact.
+
+The trial uses the held provider2675 preimage and restores that same owned preimage and inode. Committed provider8a4 remains separately pinned; the sealed clean-provider patch is applicability evidence only. This owner neither installs nor tests the clean-provider variant and cannot establish independent landing readiness. The actual Animations origin includes CSS and script-generated effects; test coverage does not silently establish all origin/policy behavior. Registered default/error/inheritance/alias conversions, WAAPI, name-global semantics and typed-attr consuming context remain explicit proposal limitations.
+
+Original producer is active expanded-original-v1 8fc36dfae1a31e4355ed76c4f5225a55b996d5c25e2eef7e82cb3c5a90d3fea9. Its exact suite075b union has120 callbacks/16 page endings/136 signatures. No current original output has been read: baseline_binding, HEAD, controls, prepared application and flag fields are null, and both execution gates are false. Candidate phase revision identifies the intended existing harness, not a current launch admission. Future binding must authenticate actual original terminal/result/manifest, unchanged PRE/POST, application/build/resource/raw replay and root cleanup; terminal fields shown in admission.py are the inherited required contract and must be joined to the actual root receipt, never invented.
+
+The new admission helper joins the future original directly, including its already-reviewed successful restoration handoff, rather than retaining the obsolete failed-build handoff. Exact current controls/application identities must match that fresh no-build baseline. If state changes after baseline, this preparation does not admit an identity or epoch exception: root must provide a separately reviewed handoff. Historical original106 and completed candidate106 evidence remain unchanged.
+
+The build/install/owned backup/process/watchdog/rollback body is byte-identical to executed candidate-v3 except the operation label. baseline.py, wpt.py, phases.py and assess.py are unchanged. Existing four-source ownership,29 accepted claims, source equivalence against historical build and current HEAD, unaffected-diff protection, original application/binaries restoration and cleanup are preserved. Real compilation remains required: ./mach build binaries -j2 under the inherited resource limits. Ordinary browser FAILs and the strict signature comparison result are saved independently from complete observation/restoration. No required new passing count or acceptance result is fabricated; all120 synthetic FAILs are retained in the saved phase test.
+
+Output is reserved as artifacts/css-animation-active-value-taint-candidate-runtime-3. Root alone may bind/activate/run after actual original completion and review. Saved-only preparation check:
+
+```sh
+python3 -I -S -B artifacts/css-animation-active-value-taint-candidate-v4/check.py
+```
+
+After seal, `candidate.py --check MANIFEST_SHA` authenticates preparation without a live guard. `candidate.py --run ACTIVE_SHA` additionally requires both enabled gates, empty pending list, actual baseline replay and all existing launch guards. Current preparation is deliberately not executable with null admission.
+
+Saved d027e1/0 authenticates171 direct references, original owner static streams and restoration bindings, source-lineage negative controls and synthetic all120FAIL outcome retention with scratch cleanup. No current source/app/control/index/runtime-output reads, native changes, build, browser or Git operations were performed. Independent disabled-scope review is CLEAR (typed_demand_review a516f1/c96b41); actual outcome/schema joins require a later narrow review.

@@ -1,0 +1,24 @@
+--- artifacts/css-contextual-duration-feedback-trace-original-v1/wpt.py
++++ artifacts/css-contextual-duration-feedback-trace-candidate-v1/wpt.py
+@@ -29,8 +29,8 @@
+ 
+ 
+ def run(root, here, output, role, policy, env, verify, owned, cancelled, original=None):
+-    assert role == 'original' and original is None
+-    assert policy['trace_source_role'] == 'instrumented-original'
++    assert role == 'candidate' and original is not None
++    assert policy['trace_source_role'] == 'instrumented-candidate'
+     assert env['MOZ_DURATION_RESTYLE_TRACE'] == '1'
+     settings = policy['wpt']
+     metadata_helper = load('activation_metadata', root / settings['metadata_helper'])
+@@ -132,7 +132,9 @@
+     save(output / 'POST.json', after)
+     save(output / 'APPLICATION-METADATA-POST.json', app_after)
+     events = [json.loads(line) for line in (output / 'raw.jsonl').read_text().splitlines()]
+-    replay = None
++    comparison = load('trace_original_comparison', here / 'comparison.py')
++    assert original == comparison.original_directory(root, policy)
++    replay = comparison.replay_original(root, policy, assessor, checks)
+     assessment = assessor.assess(events, code, phase_policy, checks, original=replay, run_binding=app_before)
+     save(output / 'ASSESSMENT.json', assessment)
+     success = error is None and preserved and cleanup and cleanup.get('temporary_root_removed') and assessment['complete'] and (role == 'original' or assessment['comparison_gate_passed'])

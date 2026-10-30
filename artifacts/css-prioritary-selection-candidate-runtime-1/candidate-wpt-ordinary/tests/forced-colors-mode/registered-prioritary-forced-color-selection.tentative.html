@@ -1,0 +1,61 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Forced-color adjustment after prioritary variable selection</title>
+<link rel="help" href="https://drafts.csswg.org/css-color-adjust-1/#forced-colors-properties">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<pre id="observations" hidden></pre>
+<script>
+window.prioritaryObservations = [];
+for (const adjust of ["auto", "none"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => { frame.onload = resolve; });
+    frame.srcdoc = "<!doctype html><body><div class='target'></div><div id='reference'></div>";
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    const forced = win.matchMedia("(forced-colors: active)").matches;
+    win.CSS.registerProperty({name:"--actual", syntax:"<color>", inherits:false, initialValue:"green"});
+    const target = doc.querySelector(".target");
+    const reference = doc.getElementById("reference");
+    const initial = win.getComputedStyle(target).getPropertyValue("--actual").trim();
+    const sheet = doc.createElement("style");
+    doc.head.append(sheet);
+    const row = {adjust, forced, initial, phases:[]};
+    window.prioritaryObservations.push(row);
+    for (const mode of ["dark", "light"]) {
+      const expectedScheme = adjust === "auto" ? "light dark" : mode;
+      sheet.textContent = `.target { --actual:light-dark(red,blue); --adjust:${adjust}; --mode:${mode}; forced-color-adjust:var(--adjust) }
+        .target { color-scheme:var(--actual,attr(data-unused type(<custom-ident>),light)) }
+        .target { color-scheme:var(--mode) }
+        #reference { forced-color-adjust:none; color-scheme:${expectedScheme}; color:light-dark(red,blue) }`;
+      const samples = [win.getComputedStyle(target).getPropertyValue("--actual").trim()];
+      for (let index = 0; index < 3; index++) {
+        await new Promise(resolve => win.requestAnimationFrame(resolve));
+        samples.push(win.getComputedStyle(target).getPropertyValue("--actual").trim());
+      }
+      const actual = win.getComputedStyle(target);
+      const control = win.getComputedStyle(reference);
+      row.phases.push({mode, expectedScheme, samples, scheme:actual.colorScheme,
+        adjust:actual.forcedColorAdjust, reference:control.color, referenceScheme:control.colorScheme,
+        referenceAdjust:control.forcedColorAdjust});
+      document.getElementById("observations").textContent = JSON.stringify(window.prioritaryObservations);
+    }
+    const diagnostic = JSON.stringify(row);
+    assert_true(forced, `Forced-colors lane calibration: ${diagnostic}`);
+    assert_equals(initial, "rgb(0, 128, 0)", `Registration calibration: ${diagnostic}`);
+    for (const phase of row.phases) {
+      assert_equals(phase.adjust, adjust, `Effective variable adjustment: ${diagnostic}`);
+      assert_equals(phase.referenceAdjust, "none", diagnostic);
+      assert_equals(phase.referenceScheme, phase.expectedScheme, diagnostic);
+      assert_true(["rgb(255, 0, 0)", "rgb(0, 0, 255)"].includes(phase.reference), diagnostic);
+      assert_equals(phase.scheme, phase.expectedScheme, diagnostic);
+      for (const sample of phase.samples) assert_equals(sample, phase.reference, diagnostic);
+    }
+  }, `Prioritary forced-color selection: ${adjust}`);
+}
+</script>

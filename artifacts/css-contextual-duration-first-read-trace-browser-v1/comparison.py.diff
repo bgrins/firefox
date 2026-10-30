@@ -1,0 +1,66 @@
+--- artifacts/css-contextual-duration-progress-candidate-v1/comparison.py
++++ artifacts/css-contextual-duration-first-read-trace-browser-v1/comparison.py
+@@ -71,7 +71,9 @@
+     assert read(directory / 'PRE.json') == read(directory / 'POST.json') == read(phase / 'PRE.json') == read(phase / 'POST.json')
+     metadata = read(phase / 'APPLICATION-METADATA.json')
+     assert metadata == read(phase / 'APPLICATION-METADATA-POST.json') == source['prepared_application_metadata']
+-    assert {key: value for key, value in metadata.items() if key not in ('build_revision', 'harness_revision', 'source_role')} == policy['prepared_application_metadata']
++    if policy['prepared_application_metadata'] is not None:
++        historical = {key: value for key, value in metadata.items() if key not in ('build_revision', 'harness_revision', 'source_role', 'identity', 'entry_identity')}
++        assert historical == {key: value for key, value in policy['prepared_application_metadata'].items() if key not in ('identity', 'entry_identity')}
+     original_settings = read(phase / 'ASSESSMENT-POLICY.json')
+     assert original_settings == phase_policy(source['wpt'])
+     phase_result = read(phase / 'RESULT.json')
+@@ -102,3 +104,52 @@
+         assessor = load('progress_candidate_assessor', here / 'assess.py')
+         checks = load('progress_stream_checks', root / policy['wpt']['checks_helper'])
+         return replay_original(root, policy, assessor, checks)
++
++
++def replay_uninstrumented(root, policy):
++    binding = policy['uninstrumented_reference']
++    directory = root / binding['directory']
++    assert sha(directory / 'FILES.json') == binding['manifest_sha256']
++    assert sha(directory / binding['terminal_path']) == binding['terminal_sha256']
++    terminal = read(directory / binding['terminal_path'])
++    assert (terminal['session_id'], terminal['terminal_chunk'], terminal['exit']) == (8127, 'bef82f', 0)
++    assert terminal['state_and_application_restoration_independently_verified'] and terminal['raw_replay_verified']
++    assert (terminal['callbacks_passed'], terminal['callbacks_failed'], terminal['page_endings_ok']) == (9, 0, 3)
++    old_dir = root / 'artifacts/css-contextual-duration-progress-candidate-v1'
++    assert sha(old_dir / 'FILES.json') == terminal['owner_sha256']
++    old_policy = read(old_dir / 'POLICY.json')
++    old_comparison = load('uninstrumented_progress_comparison', old_dir / 'comparison.py')
++    original = old_comparison.replay_all(root, old_policy)
++    assessor = load('uninstrumented_progress_assessor', old_dir / 'assess.py')
++    checks = load('uninstrumented_progress_streams', root / old_policy['wpt']['checks_helper'])
++    phase = directory / 'candidate-wpt'
++    result = read(directory / 'CANDIDATE-RESULT.json')
++    assert sha(directory / 'CANDIDATE-RESULT.json') == terminal['result_sha256']
++    assert result['success'] and result['restoration_verified'] and result['error'] is None
++    for name, key in [('ASSESSMENT.json', 'assessment_sha256'), ('raw.jsonl', 'raw_sha256'), ('RESULT.json', 'result_sha256')]:
++        assert sha(phase / name) == result['candidate_phase'][key]
++    settings = read(phase / 'ASSESSMENT-POLICY.json')
++    assert settings == phase_policy(old_policy['wpt'])
++    assert old_policy['wpt']['resources'] == policy['wpt']['resources']
++    assert old_policy['wpt']['expected_subtests'] == policy['wpt']['expected_subtests']
++    metadata = read(phase / 'APPLICATION-METADATA.json')
++    assert metadata == read(phase / 'APPLICATION-METADATA-POST.json')
++    assert read(phase / 'PRE.json') == read(phase / 'POST.json')
++    build = read(directory / 'candidate-build/RESULT.json')
++    assert build['command_success'] and build['preservation_verified'] and build['error'] is None
++    assert read(phase / 'BINARY-PINS.json') == build['binaries']
++    semantic = read(root / policy['landing_package']['directory'] / 'PAYLOADS.json')
++    assert build['native_sources'] == {name: row['candidate_sha256'] for name, row in semantic.items() if name in old_policy['source_paths']}
++    raw = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
++    replay = assessor.assess(raw, read(phase / 'RESULT.json')['exit'], settings, checks, original=original, run_binding=metadata)
++    assert replay == read(phase / 'ASSESSMENT.json') and replay['comparison_gate_passed']
++    collection = load('uninstrumented_progress_records', old_dir / 'records.py').collect(root, directory / 'progress-records', read(directory / 'PROGRESS-BINDING.json'), old_policy, replay)
++    assert collection == read(directory / 'PROGRESS-RECORDS.json') and collection['complete'] and not collection['errors']
++    return replay
++
++
++def compare_uninstrumented(root, policy, current):
++    previous = replay_uninstrumented(root, policy)
++    assessor = load('first_read_signature', root / policy['owner_directory'] / 'assess.py')
++    signatures = lambda value: sorted((assessor.signature(row) for row in value['rows'] + value['ends']), key=lambda row: (row['test'], row['kind'], row['subtest'] or ''))
++    return {'full_callback_and_ending_signatures_equal': signatures(previous) == signatures(current), 'expected_callbacks': 9, 'expected_endings': 3, 'first_read_phase_alignment_established': False, 'numeric_first_samples_required_equal': False}

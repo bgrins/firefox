@@ -1,0 +1,11 @@
+Root-activated research checkpoint V69 reuses V68's reviewed temporary-index signing/publication protocol. HEAD is ecfe313d582a335c04d80bfd360fd3a591defdb7; admission epoch is e29a6b368f2b5cc98aa8488e62cd40f316988a989ae9b41bb4fca03545f2bfe4 after the actual one-field refresh. Inventory contributes 2,165 exact artifact paths plus its six payloads and manifest; signer contributes commit.py, README.md, WORK-TABLE.md and RUN-DELTA.patch. Identical committed bodies are authenticated and skipped.
+
+Root reviewed the exact selection and publication delta after read-only preflight 17945/bd1411/0. EXECUTION_ENABLED is true for this single signed attempt; actual outcome belongs in result.json. The completed failed candidate is retained accurately: 50 normative PASS, one reftest PASS, child restyles 162 PASS/eight expected FAIL, then strict comparison failure on four timestamp diagnostics. Feedback did not run. Root restored sources/app, verified and removed the retained backup and reconciled the raw index observation. The reviewed projection and observed-state model do not turn this into successful complete candidate validation or native acceptance. See the selected V70 roadmap for the next feedback-only pair.
+
+RUN-DELTA.patch isolates bindings, disabled execution gate, review-delta selection, temporary label and subject. The signed temporary-index commit, selected-byte verification, failure preservation/unlock, signed-tree verification, real-index publication and owned epoch synchronization remain V68's protocol. No native paths, held provider, source/app/build provenance or accepted count changes. Unknown interruptions retain the transition lock; no unsigned fallback or push. Root alone executes.
+
+The reviewer group is inherited from authoritative Herald receipt artifacts/css-pow-special-value-promotion-runtime-1/REVIEWER-SELECTION.json and the reviewed V68 subject, not a new lookup. Read-only preflight command:
+
+    python3 -I -S -B artifacts/css-research-checkpoint-20261029-v69/commit.py --check
+
+Preflight output stays outside the four frozen signer inputs. After actual review, root may activate and execute once. Never retry after result.json or an unknown transition state. No signer was executed during preparation.

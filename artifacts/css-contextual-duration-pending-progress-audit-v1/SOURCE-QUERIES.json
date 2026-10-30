@@ -1,0 +1,98 @@
+[
+  {
+    "command": [
+      "searchfox-cli",
+      "--define",
+      "DocumentTimeline::NotifyAnimationUpdated"
+    ],
+    "chunk_id": "5ba93b",
+    "wall_time_seconds": 0.474958541,
+    "exit_code": 0,
+    "original_token_count": 144,
+    "output": ">>>  158: void DocumentTimeline::NotifyAnimationUpdated(Animation& aAnimation) {\n     159:   AnimationTimeline::NotifyAnimationUpdated(aAnimation);\n     160: \n     161:   if (!mAnimationOrder.isEmpty()) {\n     162:     if (nsRefreshDriver* refreshDriver = GetRefreshDriver()) {\n     163:       MOZ_ASSERT(isInList(),\n     164:                  \"We should not register with the refresh driver if we are not\"\n     165:                  \" in the document's list of timelines\");\n     166:       refreshDriver->EnsureAnimationUpdate();\n     167:     }\n     168:   }\n     169: }\n"
+  },
+  {
+    "command": [
+      "searchfox-cli",
+      "--define",
+      "AnimationTimeline::Tick"
+    ],
+    "chunk_id": "a52a10",
+    "wall_time_seconds": 0.301104708,
+    "exit_code": 0,
+    "original_token_count": 358,
+    "output": ">>>   51: bool AnimationTimeline::Tick(TickState& aState) {\n      52:   bool needsTicks = false;\n      53: \n      54: #ifdef DEBUG\n      55:   for (Animation* animation : mAnimationOrder) {\n      56:     MOZ_ASSERT(mAnimations.Contains(animation),\n      57:                \"The sampling order list should be a subset of the hashset\");\n      58:     MOZ_ASSERT(!animation->IsHiddenByContentVisibility(),\n      59:                \"The sampling order list should not contain any animations \"\n      60:                \"that are hidden by content-visibility\");\n      61:   }\n      62: #endif\n      63: \n      64:   for (Animation* animation :\n      65:        ToTArray<AutoTArray<RefPtr<Animation>, 32>>(mAnimationOrder)) {\n      66:     // Skip any animations that are longer need associated with this timeline.\n      67:     if (animation->GetTimeline() != this) {\n      68:       RemoveAnimation(animation);\n      69:       continue;\n      70:     }\n      71: \n      72:     needsTicks |= animation->NeedsTicks();\n      73:     // Even if |animation| doesn't need future ticks, we should still Tick it\n      74:     // this time around since it might just need a one-off tick in order to\n      75:     // queue events.\n      76:     animation->Tick(aState);\n      77:     if (!animation->NeedsTicks()) {\n      78:       RemoveAnimation(animation);\n      79:     }\n      80:   }\n      81: \n      82:   return needsTicks;\n      83: }\n"
+  },
+  {
+    "command": [
+      "searchfox-cli",
+      "--define",
+      "Animation::NeedsTicks"
+    ],
+    "chunk_id": "3db8b7",
+    "wall_time_seconds": 0.437822208,
+    "exit_code": 0,
+    "original_token_count": 326,
+    "output": ">>>  249:   bool NeedsTicks() const {\n     250:     return Pending() ||\n     251:            (PlayState() == AnimationPlayState::Running &&\n     252:             // An animation with a zero playback rate doesn't need ticks even if\n     253:             // it is running since it effectively behaves as if it is paused.\n     254:             //\n     255:             // It's important we return false in this case since a zero playback\n     256:             // rate animation in the before or after phase that doesn't fill\n     257:             // won't be relevant and hence won't be returned by GetAnimations().\n     258:             // We don't want its timeline to keep it alive (which would happen\n     259:             // if we return true) since otherwise it will effectively be leaked.\n     260:             PlaybackRateInternal() != 0.0) ||\n     261:            // Always return true for not idle animations attached to not\n     262:            // monotonically increasing timelines even if the animation is\n     263:            // finished. This is required to accommodate cases where timeline\n     264:            // ticks back in time.\n     265:            (mTimeline && !mTimeline->IsMonotonicallyIncreasing() &&\n     266:             PlayState() != AnimationPlayState::Idle);\n     267:   }\n"
+  },
+  {
+    "command": [
+      "searchfox-cli",
+      "--define",
+      "KeyframeEffect::NotifyAnimationTimingUpdated"
+    ],
+    "chunk_id": "ad8636",
+    "wall_time_seconds": 0.298813792,
+    "exit_code": 0,
+    "original_token_count": 577,
+    "output": ">>>  175: void KeyframeEffect::NotifyAnimationTimingUpdated(\n     176:     PostRestyleMode aPostRestyle) {\n     177:   UpdateTargetRegistration();\n     178: \n     179:   // If the effect is not relevant it will be removed from the target\n     180:   // element's effect set. However, effects not in the effect set\n     181:   // will not be included in the set of candidate effects for running on\n     182:   // the compositor and hence they won't have their compositor status\n     183:   // updated. As a result, we need to make sure we clear their compositor\n     184:   // status here.\n     185:   bool isRelevant = mAnimation && mAnimation->IsRelevant();\n     186:   if (!isRelevant) {\n     187:     ResetIsRunningOnCompositor();\n     188:   }\n     189: \n     190:   // Request restyle if necessary.\n     191:   if (aPostRestyle == PostRestyleMode::IfNeeded && mAnimation &&\n     192:       !mProperties.IsEmpty() && HasComputedTimingChanged()) {\n     193:     EffectCompositor::RestyleType restyleType =\n     194:         CanThrottle() ? EffectCompositor::RestyleType::Throttled\n     195:                       : EffectCompositor::RestyleType::Standard;\n     196:     RequestRestyle(restyleType);\n     197:   }\n     198: \n     199:   // Detect changes to \"in effect\" status since we need to recalculate the\n     200:   // animation cascade for this element whenever that changes.\n     201:   // Note that updating mInEffectOnLastAnimationTimingUpdate has to be done\n     202:   // after above CanThrottle() call since the function uses the flag inside it.\n     203:   bool inEffect = IsInEffect();\n     204:   if (inEffect != mInEffectOnLastAnimationTimingUpdate) {\n     205:     MarkCascadeNeedsUpdate();\n     206:     mInEffectOnLastAnimationTimingUpdate = inEffect;\n     207:   }\n     208: \n     209:   // If we're no longer \"in effect\", our ComposeStyle method will never be\n     210:   // called and we will never have a chance to update mProgressOnLastCompose\n     211:   // and mCurrentIterationOnLastCompose.\n     212:   // We clear them here to ensure that if we later become \"in effect\" we will\n     213:   // request a restyle (above).\n     214:   if (!inEffect) {\n     215:     mProgressOnLastCompose.SetNull();\n     216:     mCurrentIterationOnLastCompose = 0;\n     217:   }\n     218: }\n"
+  },
+  {
+    "command": [
+      "searchfox-cli",
+      "--define",
+      "KeyframeEffect::WillComposeStyle"
+    ],
+    "chunk_id": "9ab94b",
+    "wall_time_seconds": 0.472525417,
+    "exit_code": 0,
+    "original_token_count": 76,
+    "output": ">>>  646: void KeyframeEffect::WillComposeStyle() {\n     647:   ComputedTiming computedTiming = GetComputedTiming();\n     648:   mProgressOnLastCompose = computedTiming.mProgress;\n     649:   mCurrentIterationOnLastCompose =\n     650:       computedTiming.mCurrentIterationForAccumulation;\n     651: }\n"
+  },
+  {
+    "command": [
+      "searchfox-cli",
+      "--define",
+      "KeyframeEffect::UpdateProperties"
+    ],
+    "chunk_id": "a410dd",
+    "wall_time_seconds": 0.31045325,
+    "exit_code": 0,
+    "original_token_count": 849,
+    "output": ">>>  439: void KeyframeEffect::UpdateProperties(const ComputedStyle* aStyle,\n     440:                                       const AnimationTimeline* aTimeline) {\n     441:   MOZ_ASSERT(aStyle);\n     442: \n     443:   bool referencesAttributes = false;\n     444:   nsTArray<AnimationProperty> properties = BuildProperties(\n     445:       aStyle,\n     446:       aTimeline ? aTimeline\n     447:                 : (mAnimation ? mAnimation->GetTimeline() : nullptr),\n     448:       referencesAttributes);\n     449: \n     450:   bool propertiesChanged = mProperties != properties;\n     451:   if (!propertiesChanged) {\n     452:     auto attrTainted = [](const AnimationValue& aValue) {\n     453:       return aValue.mServo && Servo_AnimationValue_IsAttrTainted(aValue.mServo);\n     454:     };\n     455:     for (size_t i = 0; i < properties.Length() && !propertiesChanged; ++i) {\n     456:       if (!properties[i].mProperty.IsCustom()) {\n     457:         continue;\n     458:       }\n     459:       const auto& oldSegments = mProperties[i].mSegments;\n     460:       const auto& newSegments = properties[i].mSegments;\n     461:       for (size_t j = 0; j < newSegments.Length(); ++j) {\n     462:         const auto& oldSegment = oldSegments[j];\n     463:         const auto& newSegment = newSegments[j];\n     464:         if (attrTainted(oldSegment.mFromValue) !=\n     465:                 attrTainted(newSegment.mFromValue) ||\n     466:             attrTainted(oldSegment.mToValue) !=\n     467:                 attrTainted(newSegment.mToValue)) {\n     468:           propertiesChanged = true;\n     469:           break;\n     470:         }\n     471:       }\n     472:     }\n     473:   }\n     474: \n     475:   // We need to update base styles even if any properties are not changed at all\n     476:   // since base styles might have been changed due to parent style changes, etc.\n     477:   bool baseStylesChanged = false;\n     478:   EnsureBaseStyles(aStyle, properties, aTimeline,\n     479:                    !propertiesChanged ? &baseStylesChanged : nullptr);\n     480: \n     481:   mReferencesAttributes = referencesAttributes;\n     482: \n     483:   if (!propertiesChanged) {\n     484:     if (baseStylesChanged) {\n     485:       RequestRestyle(EffectCompositor::RestyleType::Layer);\n     486:     }\n     487:     return;\n     488:   }\n     489: \n     490:   // Preserve the state of the mIsRunningOnCompositor flag.\n     491:   nsCSSPropertyIDSet runningOnCompositorProperties;\n     492: \n     493:   for (const AnimationProperty& property : mProperties) {\n     494:     if (property.mIsRunningOnCompositor) {\n     495:       runningOnCompositorProperties.AddProperty(property.mProperty.mId);\n     496:     }\n     497:   }\n     498: \n     499:   mProperties = std::move(properties);\n     500:   UpdateEffectSet();\n     501: \n     502:   mCumulativeChanges = {};\n     503:   for (AnimationProperty& property : mProperties) {\n     504:     property.mIsRunningOnCompositor =\n     505:         runningOnCompositorProperties.HasProperty(property.mProperty);\n     506:     CalculateCumulativeChangesForProperty(property);\n     507:   }\n     508: \n     509:   MarkCascadeNeedsUpdate();\n     510: \n     511:   if (mAnimation) {\n     512:     mAnimation->NotifyEffectPropertiesUpdated();\n     513:   }\n     514: \n     515:   RequestRestyle(EffectCompositor::RestyleType::Layer);\n     516: }\n"
+  },
+  {
+    "command": [
+      "searchfox-cli",
+      "--define",
+      "Animation::NotifyEffectPropertiesUpdated"
+    ],
+    "chunk_id": "d0a9af",
+    "wall_time_seconds": 0.491887542,
+    "exit_code": 0,
+    "original_token_count": 71,
+    "output": ">>> 1782: void Animation::NotifyEffectPropertiesUpdated() {\n    1783:   MOZ_ASSERT(mEffect,\n    1784:              \"We should only update effect properties when we have a target \"\n    1785:              \"effect\");\n    1786: \n    1787:   MaybeScheduleReplacementCheck();\n    1788: }\n"
+  },
+  {
+    "command": [
+      "searchfox-cli",
+      "--define",
+      "AnimationEffect::SetSpecifiedTiming"
+    ],
+    "chunk_id": "aa29eb",
+    "wall_time_seconds": 0.219192542,
+    "exit_code": 0,
+    "original_token_count": 299,
+    "output": ">>>   91: void AnimationEffect::SetSpecifiedTiming(TimingParams&& aTiming) {\n      92:   if (mTiming == aTiming) {\n      93:     return;\n      94:   }\n      95: \n      96:   mTiming = std::move(aTiming);\n      97: \n      98:   UpdateNormalizedTiming();\n      99: \n     100:   if (mAnimation) {\n     101:     Maybe<nsAutoAnimationMutationBatch> mb;\n     102:     if (AsKeyframeEffect() && AsKeyframeEffect()->GetAnimationTarget()) {\n     103:       mb.emplace(AsKeyframeEffect()->GetAnimationTarget().mElement->OwnerDoc());\n     104:     }\n     105: \n     106:     mAnimation->NotifyEffectTimingUpdated();\n     107: \n     108:     if (mAnimation->IsRelevant()) {\n     109:       MutationObservers::NotifyAnimationChanged(mAnimation);\n     110:     }\n     111: \n     112:     if (AsKeyframeEffect()) {\n     113:       AsKeyframeEffect()->RequestRestyle(EffectCompositor::RestyleType::Layer);\n     114:     }\n     115:   }\n     116: \n     117:   // For keyframe effects, NotifyEffectTimingUpdated above will eventually\n     118:   // cause KeyframeEffect::NotifyAnimationTimingUpdated to be called so it can\n     119:   // update its registration with the target element as necessary.\n     120: }\n"
+  }
+]

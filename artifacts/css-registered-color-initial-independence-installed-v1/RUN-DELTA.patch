@@ -1,0 +1,91 @@
+--- artifacts/css-registered-color-scheme-installed-v1/run.py
++++ artifacts/css-registered-color-initial-independence-installed-v1/run.py
+@@ -82,41 +82,43 @@
+     assert isinstance(payload, dict) and set(payload) == {'run_id', 'report'} and payload['run_id'] == run_id
+     report = payload['report']
+     assert set(report) == {'schema', 'status', 'userAgent', 'policyVerdict', 'observations', 'harness'}
+-    assert report['schema'] == 'color-scheme-dependency-observation-v1' and report['policyVerdict'] is None
++    assert report['schema'] == 'registered-initial-independence-observation-v1' and report['policyVerdict'] is None
+     assert report['status'] in ('complete', 'incomplete')
+     pattern = r'Firefox/158\.0(?:\s|$)' if browser == 'firefox' else r'(?:Headless)?Chrome/156\.0\.\d+\.\d+(?:\s|$)'
+     assert isinstance(report['userAgent'], str) and re.search(pattern, report['userAgent'])
+     assert set(report['harness']) == {'status', 'message'} and type(report['harness']['status']) is int
+     assert report['harness']['message'] is None or isinstance(report['harness']['message'], str)
+-    modes = ['union-plain', 'union-unused-attr', 'color-first-unused-attr', 'ident-unused-attr', 'literal']
++    modes = ['red', 'CanvasText', 'light-dark(red, blue)']
+     assert isinstance(report['observations'], list) and len(report['observations']) == len(modes)
+     complete = True
+     for row, mode in zip(report['observations'], modes):
+         assert set(row) == {'mode', 'record', 'wpt', 'referenceChecks', 'activeExpectation', 'policyVerdict'}
+         assert row['mode'] == mode and row['policyVerdict'] is None
+         assert set(row['wpt']) == {'name', 'status', 'message'}
+-        assert row['wpt']['name'] == 'Selected identifier color-scheme dependency: ' + mode
++        assert row['wpt']['name'] == 'Registered color initial independence: ' + mode
+         assert row['wpt']['status'] is None or type(row['wpt']['status']) is int
+         assert row['wpt']['message'] is None or isinstance(row['wpt']['message'], str)
+         record = row['record']
+-        captured = False
+         if record is not None:
+-            assert set(record) == {'mode', 'syntax', 'registeredInitial', 'snapshots'} and record['mode'] == mode
+-            syntax = '<custom-ident>' if mode == 'ident-unused-attr' else '<color> | <custom-ident>' if mode == 'color-first-unused-attr' else '<custom-ident> | <color>'
+-            assert record['syntax'] == syntax and isinstance(record['registeredInitial'], str)
+-            assert isinstance(record['snapshots'], list) and len(record['snapshots']) <= 2
+-            for snapshot, expected in zip(record['snapshots'], ['light', 'dark']):
+-                assert set(snapshot) == {'expected', 'firstScheme', 'custom'} and snapshot['expected'] == expected
+-                assert isinstance(snapshot['firstScheme'], str) and isinstance(snapshot['custom'], str)
+-            captured = len(record['snapshots']) == 2
+-        complete &= captured and row['wpt']['status'] is not None
++            assert set(record) == {'initialValue', 'syntaxSupported', 'controlInitial', 'literalRed', 'accepted', 'exception'}
++            assert record['initialValue'] == mode and type(record['syntaxSupported']) is bool and type(record['accepted']) is bool
++            assert isinstance(record['controlInitial'], str) and isinstance(record['literalRed'], str)
++            exception = record['exception']
++            assert exception is None or (isinstance(exception, dict) and set(exception) == {'name', 'message'} and all(isinstance(v, str) for v in exception.values()))
++            assert record['accepted'] == (exception is None)
++        complete &= record is not None and row['wpt']['status'] is not None
+         checks = row['referenceChecks']
+-        assert isinstance(checks, list) and len(checks) == (2 if mode == 'literal' else 1)
+-        assert all(set(v) == {'name', 'passed'} and isinstance(v['name'], str) and type(v['passed']) is bool for v in checks)
++        assert isinstance(checks, list) and len(checks) == 2
++        assert all(set(v) == {'name', 'passed'} and type(v['passed']) is bool for v in checks)
++        assert [v['name'] for v in checks] == ['ordinary color syntax supported', 'independent red registration']
++        expected_checks = [record is not None and record['syntaxSupported'], record is not None and record['controlInitial'] == record['literalRed']]
++        assert [v['passed'] for v in checks] == expected_checks
+         expectation = row['activeExpectation']
+-        assert set(expectation) == {'expectedSink', 'kind', 'matches'}
+-        assert expectation['expectedSink'] == ['light', 'dark'] and type(expectation['matches']) is bool
+-        assert expectation['kind'] == ('control' if mode == 'literal' else 'selected-identifier-observation')
++        assert type(expectation['matches']) is bool and type(expectation['expectedAcceptance']) is bool
++        acceptance = mode == 'red'
++        exception = None if acceptance else 'SyntaxError'
++        matches = record is not None and record['accepted'] == acceptance and (record['exception'] is None if acceptance else record['exception'] is not None and record['exception']['name'] == exception)
++        assert expectation == {'expectedAcceptance': acceptance, 'expectedException': exception, 'kind': 'control' if acceptance else 'tentative-registration-rejection', 'matches': matches}
+     assert (report['status'] == 'complete') == complete
+     return report
+ 
+@@ -261,7 +263,7 @@
+     selected = policy['browsers'][args.browser]
+     output = ROOT / selected['output']
+     output.mkdir(mode=0o700)
+-    temporary = Path(tempfile.mkdtemp(prefix='css-color-scheme-observation-', dir='/private/tmp'))
++    temporary = Path(tempfile.mkdtemp(prefix='css-initial-independence-', dir='/private/tmp'))
+     info = temporary.lstat()
+     identity = [info.st_dev, info.st_ino]
+     profile = temporary / 'profile'
+@@ -336,11 +338,15 @@
+     reference_checks_pass = receiver.report is not None and all(check['passed'] for item in receiver.report['observations'] for check in item['referenceChecks'])
+     active_controls_pass = receiver.report is not None and all(
+         row['activeExpectation'] is not None and row['activeExpectation']['matches']
+-        for row in receiver.report['observations'] if row['mode'] == 'literal')
++        for row in receiver.report['observations'] if row['mode'] == 'red')
++    all_callbacks_pass = receiver.report is not None and all(row['wpt']['status'] == 0 for row in receiver.report['observations'])
++    harness_ok = receiver.report is not None and receiver.report['harness']['status'] == 0
+     complete = error is None and not receiver.errors and receiver.report is not None and cleanup.get('temporary_removed', False)
+     save(output / 'RESULT.json', {'execution_complete': complete, 'observation_complete': observation_complete,
+         'reference_checks_pass': reference_checks_pass, 'active_control_expectations_pass': active_controls_pass,
+-        'color_scheme_dependency_policy_verdict': None, 'error': error,
++        'all_callbacks_pass': all_callbacks_pass, 'harness_ok': harness_ok,
++        'suite_pass': observation_complete and all_callbacks_pass and harness_ok,
++        'registration_initial_policy_verdict': None, 'error': error,
+         'report_received': receiver.report is not None, 'cleanup_complete': cleanup.get('temporary_removed', False),
+         'native_acceptance': False, 'launcher_returncode_after_cleanup': process.returncode if process else None})
+     return 0 if complete else 1

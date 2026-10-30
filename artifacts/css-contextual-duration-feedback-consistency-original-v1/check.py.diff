@@ -1,0 +1,43 @@
+--- artifacts/css-contextual-duration-feedback-original-v2/check.py
++++ artifacts/css-contextual-duration-feedback-consistency-original-v1/check.py
+@@ -53,10 +53,18 @@
+             assert policy['activation_pending'] == []
+     assert set(policy['phases']) == {'feedback'} and policy['wpt'] == policy['phases']['feedback']
+     settings = policy['wpt']
++    inputs = json.loads((ROOT / policy['feedback_transport']['directory'] / 'INPUTS.json').read_bytes())
++    assert settings['expected_subtests'] == inputs['expected_subtests']
++    assert all(settings[key] == inputs[key] for key in ('resources','metadata','manifest','test_types'))
++    assert policy['record_schema_helper'] == inputs['transport']['helper']
++    assert policy['record_kinds'] == {name:kind for kind,name in inputs['transport']['record_files'].items()}
++    assert inputs['expected_callbacks'] == 2 and inputs['calibrated_acquisition_requires_all_pass']
++    if policy['feedback_transport_pending']:
++        assert not policy['execution_enabled']
+     assert set(settings['phase_revisions']) == {'original'}
+     if pending:
+         assert settings['phase_revisions']['original'] is None and settings['harness_revision'] is None
+-    assert (settings['expected_subtest_count'],settings['expected_control_count'],settings['expected_target_count'],settings['expected_page_count']) == (3,3,0,1)
++    assert (settings['expected_subtest_count'],settings['expected_control_count'],settings['expected_target_count'],settings['expected_page_count']) == (2,2,0,1)
+     authenticated, deferred = 0, []
+     for name, pin in policy['references'].items():
+         if not name.startswith('artifacts/'):
+@@ -72,6 +80,9 @@
+     def assess(stream, code=0):
+         return assessor.assess(stream,code,config,checks,run_binding=app)
+     assert assess(events)['complete']
++    failed = copy.deepcopy(events)
++    failed[2].update(status='FAIL', expected='PASS', message='synthetic calibration failure')
++    assert assess(failed, 1)['complete']
+     rejected = []
+     def reject(label, change, code=0):
+         stream = copy.deepcopy(events)
+@@ -88,8 +99,8 @@
+     reject('wrong harness',lambda s:s[0]['run_info'].update(revision='0'*40))
+     reject('crash',lambda s:s.append({'action':'crash'}))
+     reject('wrong exit',lambda s:None,1)
+-    return {'positive_streams':1,'rejected':rejected,'artifact_references_authenticated':authenticated,
+-            'deferred_nonartifact_references':deferred,'future_bindings_null':pending,
++    return {'positive_streams':2,'rejected':rejected,'artifact_references_authenticated':authenticated,
++            'deferred_nonartifact_references':deferred,'future_bindings_null':pending,'fixture_seal_pending':policy['feedback_transport_pending'],
+             'browser_build_or_live_guard_executed':False,'numeric_feedback_oracle':False}
+ 
+ 

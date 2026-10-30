@@ -1,0 +1,155 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Same-element acyclic and self-dependent animation duration observations</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#model-liveness">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-the-iteration-progress">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+function frame(win) {
+  return new Promise(resolve => win.requestAnimationFrame(resolve));
+}
+
+function timing(animation) {
+  return {duration: animation.effect.getTiming().duration,
+          progress: animation.effect.getComputedTiming().progress,
+          time: animation.currentTime, state: animation.playState};
+}
+
+function details(context) {
+  const {win, target, animations} = context;
+  const style = win.getComputedStyle(target);
+  return {font: parseFloat(style.fontSize), opacity: Number(style.opacity),
+          cssDuration: style.animationDuration,
+          timings: animations.map(timing)};
+}
+
+async function create(t, kind, mode) {
+  const iframe = document.createElement("iframe");
+  t.add_cleanup(() => iframe.remove());
+  const loaded = new Promise(resolve => iframe.onload = resolve);
+  iframe.srcdoc = `<!doctype html><html><style>
+    html { font-size: 16px; }
+    @keyframes font-grow { from { font-size: 16px; } to { font-size: 32px; } }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+    .target { font-size: 16px; }
+    .acyclic { animation-name: font-grow, fade;
+      animation-duration: 2s, calc(1em / 16px * 1s);
+      animation-timing-function: linear; animation-fill-mode: both;
+      animation-play-state: paused; }
+    .acyclic.literal { animation-duration: 2s, 1.375s; }
+    .feedback { animation: font-grow calc(1em / 32px * 1s) steps(1, end) both paused; }
+    .feedback.literal500 { animation-duration: 500ms; }
+    .feedback.literal1000 { animation-duration: 1000ms; }
+  </style><body><div class="target ${kind} ${mode}"></div></body></html>`;
+  document.body.append(iframe);
+  await loaded;
+  const win = iframe.contentWindow;
+  const target = iframe.contentDocument.querySelector(".target");
+  const acquired = target.getAnimations();
+  const names = kind === "acyclic" ? ["font-grow", "fade"] : ["font-grow"];
+  assert_equals(acquired.length, names.length, "Exact CSS animation acquisition");
+  const animations = names.map(name => acquired.find(animation => animation.animationName === name));
+  assert_true(animations.every(Boolean), "Named CSS animations acquired");
+  for (const animation of animations) await animation.ready;
+  animations[0].currentTime = 0;
+  if (kind === "acyclic") animations[1].currentTime = 750;
+  const context = {iframe, win, target, animations, effects: animations.map(animation => animation.effect)};
+  for (let index = 0; index < 3; index++) await frame(win);
+  const initial = details(context);
+  assert_approx_equals(initial.font, 16, 0.02, "Initial font calibration at font-driver time zero");
+  for (const animation of animations) assert_equals(animation.playState, "paused", "Acquired animation paused");
+  return {context, initial};
+}
+
+async function observe(t, kind, mode) {
+  const {context, initial} = await create(t, kind, mode);
+  const {win, target, animations, effects} = context;
+  animations[0].currentTime = 750;
+  const read = () => kind === "acyclic" ? Number(win.getComputedStyle(target).opacity) :
+                                         parseFloat(win.getComputedStyle(target).fontSize);
+  const samples = [{phase: "first-read", value: read()}];
+  for (let index = 1; index <= 3; index++) {
+    await frame(win);
+    samples.push({phase: `passive-frame-${index}`, value: read()});
+  }
+  const beforeMembership = details(context);
+  const current = target.getAnimations();
+  const membership = animations.map((animation, index) => ({
+    animation: current.includes(animation), effect: animation.effect === effects[index]
+  }));
+  const afterMembership = details(context);
+  context.iframe.remove();
+  return {kind, mode, initial, samples, beforeMembership, membership, afterMembership};
+}
+
+function assertOwnership(observation, label) {
+  for (const item of observation.membership) {
+    assert_true(item.animation && item.effect, `${label}: retained animation and effect`);
+  }
+  for (const snapshot of [observation.beforeMembership, observation.afterMembership]) {
+    for (const item of snapshot.timings) {
+      assert_equals(item.time, 750, `${label}: paused currentTime`);
+      assert_equals(item.state, "paused", `${label}: paused state`);
+    }
+  }
+}
+
+function assertAcyclic(observation, label) {
+  assertOwnership(observation, label);
+  for (const sample of observation.samples) {
+    assert_approx_equals(sample.value, 6 / 11, 0.0001, `${label}: ${sample.phase} opacity`);
+  }
+  for (const snapshot of [observation.beforeMembership, observation.afterMembership]) {
+    assert_approx_equals(snapshot.font, 22, 0.02, `${label}: font`);
+    assert_approx_equals(snapshot.opacity, 6 / 11, 0.0001, `${label}: opacity`);
+    assert_equals(snapshot.timings[0].duration, 2000, `${label}: fixed font duration`);
+    assert_approx_equals(snapshot.timings[1].duration, 1375, 0.1, `${label}: opacity duration`);
+    assert_approx_equals(snapshot.timings[1].progress, 6 / 11, 0.0001, `${label}: opacity progress`);
+  }
+}
+
+function assertLiteralFeedback(observation, duration, font, label) {
+  assertOwnership(observation, label);
+  for (const sample of observation.samples) {
+    assert_approx_equals(sample.value, font, 0.02, `${label}: ${sample.phase} font`);
+  }
+  for (const snapshot of [observation.beforeMembership, observation.afterMembership]) {
+    assert_equals(snapshot.timings[0].duration, duration, `${label}: literal duration`);
+    assert_approx_equals(snapshot.font, font, 0.02, `${label}: font`);
+  }
+}
+
+async function record(kind, observations) {
+  const response = await fetch("duration-same-element-record.py", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({kind, observations})
+  });
+  assert_true(response.ok, "Private observation record acknowledged");
+  const acknowledgement = await response.json();
+  assert_equals(acknowledgement.kind, kind, "Recorded observation kind");
+  assert_equals(acknowledgement.sampleCount, 4, "Recorded passive samples per trajectory");
+  assert_true(/^[A-Za-z0-9_-]{16,128}$/.test(acknowledgement.run_id), "Owner-bound record identity");
+}
+
+promise_test(async t => {
+  const contextual = await observe(t, "acyclic", "contextual");
+  const literal = await observe(t, "acyclic", "literal");
+  await record("same-element-acyclic", {contextual, literal});
+  const trace = JSON.stringify({contextual, literal});
+  assertAcyclic(literal, `Literal calibration; ${trace}`);
+  assertAcyclic(contextual, `Acyclic same-element dependency; ${trace}`);
+}, "Same-element fixed font animation updates contextual opacity duration on the first read");
+
+promise_test(async t => {
+  const contextual = await observe(t, "feedback", "contextual");
+  const literal500 = await observe(t, "feedback", "literal500");
+  const literal1000 = await observe(t, "feedback", "literal1000");
+  await record("same-element-feedback", {contextual, literal500, literal1000});
+  const trace = JSON.stringify({contextual, literal500, literal1000});
+  assertLiteralFeedback(literal500, 500, 32, `Completed-step calibration; ${trace}`);
+  assertLiteralFeedback(literal1000, 1000, 16, `Active-step calibration; ${trace}`);
+  assertOwnership(contextual, `Self-dependent observation only; ${trace}`);
+}, "Same-element stepped self-dependent duration records bounded observations without an endpoint oracle");
+</script>

@@ -1,0 +1,87 @@
+--- artifacts/css-animation-active-value-taint-candidate-v5/baseline.py
++++ artifacts/css-animation-taint-clean-original-v1/baseline.py
+@@ -22,48 +22,21 @@
+     return module
+ 
+ 
+-def expected_wpt(policy):
+-    comparison = load('minmax_roster_binding', str((HERE / 'comparison.py').relative_to(ROOT)))
+-    return comparison.expected_wpt(ROOT, policy)
+-
+-
+ def prepare(manifest):
+     assert sha(HERE / 'FILES.json') == manifest
+     policy = read(HERE / 'POLICY.json')
+-    ownership = load('activation_ownership', policy['ownership_helper'])
++    ownership = load('clean_ownership', policy['ownership_helper'])
+     ownership.authenticate(HERE, manifest)
+-    for name, pin in policy['references'].items():
+-        assert sha(ROOT / name) == pin, name
+-    ownership.authenticate(ROOT / policy['proposal']['directory'], policy['proposal']['manifest_sha256'])
+-    checks = load('tristate_saved_checks', str((HERE / 'check.py').relative_to(ROOT)))
++    checks = load('clean_saved_checks', str((HERE / 'check.py').relative_to(ROOT)))
+     checks.validate_policy(policy)
+-    roles = read(HERE / 'SOURCE-ROLES.json')
+-    assert set(roles) == set(policy['source_paths']) == {'servo/components/style/custom_properties_map.rs', 'servo/components/style/properties/cascade.rs', 'servo/components/style/properties_and_values/value.rs', 'servo/components/style/custom_properties.rs'}
+-    for record in roles.values():
+-        for kind in ('base', 'candidate'):
+-            path = Path(record[kind + '_capture'])
+-            assert not path.is_absolute() and '..' not in path.parts and not (ROOT / path).is_symlink()
+-            assert policy['references'][str(path)] == sha(ROOT / path) == record[kind + '_sha256']
+-    if policy['baseline_binding'] is not None:
+-        capsule, binding = policy['baseline_capsule'], policy['baseline_binding']
+-        ownership.authenticate(ROOT / capsule['directory'], capsule['sha256'])
+-        directory = ROOT / binding['directory']
+-        ownership.authenticate(directory, binding['manifest_sha256'])
+-        assert read(directory / binding['terminal_path']) == binding['terminal'] and binding['terminal']['exit'] == 0
+-        assert sha(directory / 'RESULT.json') == binding['result_sha256']
+-    comparison = load('broader_complete_replay', str((HERE / 'comparison.py').relative_to(ROOT)))
+-    comparison.replay_all(ROOT, policy)
+-    return policy, ownership, roles
++    return policy, ownership, read(HERE / 'SOURCE-ROLES.json')
+ 
+ 
+ def require_ready(policy):
+     assert policy['execution_enabled'] and policy['candidate_execution_enabled']
+     assert policy['activation_pending'] == []
+-    assert policy['controls']['CURRENT-EPOCH.json'] and policy['prepared_application_metadata']
+-    assert policy['baseline_binding'] is not None
+-    checks = load('broader_activation_checks', str((HERE / 'check.py').relative_to(ROOT)))
+-    checks.validate_actual_bindings(policy)
+-
++    assert policy['suite_binding'] is not None
++    load('clean_activation_checks', str((HERE / 'check.py').relative_to(ROOT))).validate_policy(policy)
+ 
+ 
+ def checkpoint_chain(policy, native):
+@@ -101,7 +74,7 @@
+     inner = read(ROOT / policy['original_build']['inner_result'])
+     assert build_result['command_success'] and build_result['preservation_verified'] and build_result['error'] is None
+     assert inner['exit'] == 0 and inner['owned_group_absent'] and inner['cleanup_errors'] == [] and inner['error'] is None and inner['stop_reason'] is None
+-    assert build_epoch['semantic_index']['head'] == policy['wpt']['phase_revisions']['original']
++    assert build_epoch['semantic_index']['head'] == policy['restored_application_revision']
+     assert policy['wpt']['phase_revisions']['candidate'] == policy['head']
+     changed = set(state.h.git(ROOT, env, 'diff', '--no-renames', '--name-only', build_epoch['semantic_index']['head'], policy['head']).decode().splitlines())
+     assert {name for name in changed if not name.startswith('artifacts/')} == set(policy['original_build']['later_committed_payloads']) | set(policy['original_build']['later_removed_payloads'])
+@@ -133,10 +106,10 @@
+         assert not state.h.git(ROOT, env, 'ls-tree', policy['head'], '--', name)
+     recorded_metadata = read(ROOT / policy['original_build']['application_metadata'])
+     assert sha(ROOT / policy['wpt']['application_ini']) == recorded_metadata['sha256']
+-    assert recorded_metadata['revision'] == policy['wpt']['phase_revisions']['original']
++    assert recorded_metadata['revision'] == policy['restored_application_revision']
+     metadata_helper = load('combined_metadata', policy['wpt']['metadata_helper'])
+     assert metadata_helper.application_metadata(ROOT / policy['wpt']['application_ini'],
+-        policy['wpt']['phase_revisions']['original']) == policy['prepared_application_metadata']
++        policy['restored_application_revision']) == policy['prepared_application_metadata']
+     for name in policy['rebuilt_binaries']:
+         assert sha(ROOT / name) == epoch['pins'][name] == build_epoch['pins'][name]
+     source_admission = read(ROOT / policy['source_equivalence']['path'])
+@@ -160,7 +133,7 @@
+             assert epoch['pins'][name] == build_epoch['pins'][name] == pin
+         else:
+             assert name in policy['build_unpinned_sources'] and name not in build_epoch['modified_native_paths']
+-            for revision in (policy['head'], policy['wpt']['phase_revisions']['original']):
++            for revision in (policy['head'], policy['restored_application_revision']):
+                 assert hashlib.sha256(state.h.git(ROOT, env, 'show', revision + ':' + name)).hexdigest() == pin
+     for name in policy['closed_process_receipts']:
+         ownership.group_absent(read(ROOT / name)['pgid'])

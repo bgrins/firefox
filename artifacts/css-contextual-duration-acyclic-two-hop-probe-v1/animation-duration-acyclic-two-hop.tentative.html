@@ -1,0 +1,155 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Paused contextual duration updates across an acyclic font dependency chain</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-the-iteration-progress">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const initial = {root: 16, middle: 28, middleDuration: 1000,
+                 childDuration: 1750, opacity: 3 / 7};
+const final = {root: 32, middle: 22, middleDuration: 2000,
+               childDuration: 1375, opacity: 6 / 11};
+
+function frame(win) {
+  return new Promise(resolve => win.requestAnimationFrame(resolve));
+}
+
+function timing(animation) {
+  return {duration: animation.effect.getTiming().duration,
+          progress: animation.effect.getComputedTiming().progress,
+          time: animation.currentTime, state: animation.playState};
+}
+
+function details(context) {
+  const {win, root, middle, child, middleAnimation, childAnimation} = context;
+  const childStyle = win.getComputedStyle(child);
+  const result = {childOpacity: Number(childStyle.opacity),
+                  childDuration: parseFloat(childStyle.animationDuration) * 1000,
+                  child: timing(childAnimation)};
+  const middleStyle = win.getComputedStyle(middle);
+  result.middleFont = parseFloat(middleStyle.fontSize);
+  result.middleDuration = parseFloat(middleStyle.animationDuration) * 1000;
+  result.middle = timing(middleAnimation);
+  result.rootFont = parseFloat(win.getComputedStyle(root).fontSize);
+  return result;
+}
+
+function assertValues(value, expected, label) {
+  assert_approx_equals(value.rootFont, expected.root, 0.02, `${label}: root font`);
+  assert_approx_equals(value.middleFont, expected.middle, 0.02, `${label}: middle font`);
+  assert_approx_equals(value.middleDuration, expected.middleDuration, 0.05, `${label}: middle CSS duration`);
+  assert_approx_equals(value.middle.duration, expected.middleDuration, 0.05, `${label}: middle effect duration`);
+  assert_approx_equals(value.childDuration, expected.childDuration, 0.1, `${label}: child CSS duration`);
+  assert_approx_equals(value.child.duration, expected.childDuration, 0.1, `${label}: child effect duration`);
+  assert_approx_equals(value.child.progress, expected.opacity, 0.0001, `${label}: child progress`);
+  assert_approx_equals(value.childOpacity, expected.opacity, 0.0001, `${label}: child opacity`);
+  for (const effect of [value.middle, value.child]) {
+    assert_equals(effect.time, 750, `${label}: fixed currentTime`);
+    assert_equals(effect.state, "paused", `${label}: paused`);
+  }
+}
+
+async function create(t, mode) {
+  const iframe = document.createElement("iframe");
+  t.add_cleanup(() => iframe.remove());
+  const loaded = new Promise(resolve => iframe.onload = resolve);
+  iframe.srcdoc = `<!doctype html><html class="${mode}"><style>
+    html { font-size: 16px; }
+    html.advanced { font-size: 32px; }
+    @keyframes middle-font { from { font-size: 16px; } to { font-size: 32px; } }
+    @keyframes child-opacity { from { opacity: 0; } to { opacity: 1; } }
+    .middle { animation: middle-font calc(1rem / 16px * 1s) linear both paused; }
+    .child { animation: child-opacity calc(1em / 16px * 1s) linear both paused; }
+    html.literal .middle { animation-duration: 1s; }
+    html.literal .child { animation-duration: 1.75s; }
+    html.literal.advanced .middle { animation-duration: 2s; }
+    html.literal.advanced .child { animation-duration: 1.375s; }
+  </style><body><div class="middle"></div></body></html>`;
+  document.body.append(iframe);
+  await loaded;
+  const win = iframe.contentWindow;
+  const root = iframe.contentDocument.documentElement;
+  const middle = iframe.contentDocument.querySelector(".middle");
+  let driver = null;
+  if (mode === "animated") {
+    driver = root.animate([{fontSize: "16px"}, {fontSize: "32px"}],
+                          {duration: 1000, fill: "both", easing: "linear"});
+    driver.pause();
+    driver.currentTime = 0;
+    await driver.ready;
+  }
+  assert_equals(win.getComputedStyle(root).fontSize, "16px", "Initial root calibration");
+  const middleAnimations = middle.getAnimations();
+  assert_equals(middleAnimations.length, 1, "Middle animation acquired before child insertion");
+  const middleAnimation = middleAnimations[0];
+  await middleAnimation.ready;
+  middleAnimation.currentTime = 750;
+  assert_equals(middleAnimation.effect.getTiming().duration, 1000, "Initial middle duration");
+  assert_approx_equals(parseFloat(win.getComputedStyle(middle).fontSize), 28, 0.02,
+                       "Middle font established before child insertion");
+  const child = iframe.contentDocument.createElement("div");
+  child.className = "child";
+  middle.append(child);
+  const childAnimations = child.getAnimations();
+  assert_equals(childAnimations.length, 1, "Child animation acquired");
+  const childAnimation = childAnimations[0];
+  await childAnimation.ready;
+  childAnimation.currentTime = 750;
+  const context = {win, root, middle, child, driver, middleAnimation, childAnimation,
+                   middleEffect: middleAnimation.effect, childEffect: childAnimation.effect};
+  assertValues(details(context), initial, "Initial chain");
+  return context;
+}
+
+async function observe(t, mode) {
+  const context = await create(t, mode);
+  const {win, root, middle, child, driver, middleAnimation, childAnimation} = context;
+  if (driver) driver.currentTime = 1000;
+  else root.classList.add("advanced");
+  const samples = [{phase: "first-child-read", opacity: Number(win.getComputedStyle(child).opacity)}];
+  for (let index = 1; index <= 3; index++) {
+    await frame(win);
+    samples.push({phase: `passive-frame-${index}`, opacity: Number(win.getComputedStyle(child).opacity)});
+  }
+  const beforeMembership = details(context);
+  const driverTiming = driver ? timing(driver) : null;
+  const membership = {middle: middle.getAnimations().includes(middleAnimation),
+                      child: child.getAnimations().includes(childAnimation),
+                      middleEffect: middleAnimation.effect === context.middleEffect,
+                      childEffect: childAnimation.effect === context.childEffect};
+  const afterMembership = details(context);
+  middleAnimation.currentTime = 751;
+  childAnimation.currentTime = 751;
+  await frame(win);
+  const seek751 = details(context);
+  middleAnimation.currentTime = 750;
+  childAnimation.currentTime = 750;
+  await frame(win);
+  const afterSeek = details(context);
+  const trace = JSON.stringify({mode, samples, beforeMembership, driverTiming, membership,
+                               afterMembership, seek751, afterSeek});
+  for (const [name, same] of Object.entries(membership)) {
+    assert_true(same, `${name} identity/membership; ${trace}`);
+  }
+  if (driverTiming) {
+    assert_equals(driverTiming.time, 1000, `Root driver time; ${trace}`);
+    assert_equals(driverTiming.state, "paused", `Root driver paused; ${trace}`);
+    assert_equals(driverTiming.duration, 1000, `Root driver duration; ${trace}`);
+  }
+  assertValues(beforeMembership, final, `After three sampled frames, before membership; ${trace}`);
+  assert_approx_equals(samples[3].opacity, final.opacity, 0.0001,
+                       `Last passive child-only sample; ${trace}`);
+  assertValues(afterMembership, final, `After membership; ${trace}`);
+  assertValues(afterSeek, final, `After explicit seek intervention; ${trace}`);
+}
+
+promise_test(t => observe(t, "literal"),
+             "Literal duration changes calibrate a paused two-hop font and opacity chain");
+promise_test(t => observe(t, "ordinary"),
+             "Ordinary root font changes propagate through a paused two-hop duration chain");
+promise_test(t => observe(t, "animated"),
+             "Animated root font changes propagate through a paused two-hop duration chain");
+</script>

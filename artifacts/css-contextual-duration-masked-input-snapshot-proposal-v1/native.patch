@@ -1,0 +1,188 @@
+--- a/layout/style/AnimationCollection.h
++++ b/layout/style/AnimationCollection.h
+@@ -8,6 +8,7 @@
+ #include "mozilla/LinkedList.h"
+ #include "mozilla/PseudoStyleRequest.h"
+ #include "mozilla/RefPtr.h"
++#include "mozilla/ServoStyleConsts.h"
+ #include "nsTArrayForwardDeclare.h"
+ 
+ class nsAtom;
+@@ -51,6 +52,9 @@
+ 
+   nsTArray<RefPtr<AnimationType>> mAnimations;
+ 
++  // Empty means unsampled; a computed duration list is nonempty.
++  nsTArray<StyleAnimationDuration> mLastAnimationDurationInput;
++
+  private:
+   // We distinguish between destroying this by calling Destroy() vs directly
+   // clearing the collection.
+--- a/layout/style/GeckoBindings.cpp
++++ b/layout/style/GeckoBindings.cpp
+@@ -29,6 +29,7 @@
+ #include "mozilla/RestyleManager.h"
+ #include "mozilla/ServoBindings.h"
+ #include "mozilla/ServoElementSnapshot.h"
++#include "mozilla/ServoStyleSet.h"
+ #include "mozilla/ServoTraversalStatistics.h"
+ #include "mozilla/ShadowParts.h"
+ #include "mozilla/SizeOfState.h"
+@@ -563,9 +564,17 @@
+     presContext->AnimationManager()->UpdateNamedTimelineAnimations(affected);
+   }
+ 
+-  if (aTasks & UpdateAnimationsTasks::CSSAnimations) {
++  if (aTasks & (UpdateAnimationsTasks::CSSAnimations |
++                UpdateAnimationsTasks::VerifyAnimationDurationInput)) {
++    RefPtr<ComputedStyle> durationInput;
++    if (aComputedData) {
++      durationInput = presContext->StyleSet()->GetBaseContextForElement(
++          const_cast<Element*>(aElement), aComputedData);
++    }
++    const bool verifyOnly = !(aTasks & UpdateAnimationsTasks::CSSAnimations);
+     presContext->AnimationManager()->UpdateAnimations(
+-        const_cast<Element*>(element), pseudoRequest, aComputedData);
++        const_cast<Element*>(element), pseudoRequest, aComputedData,
++        durationInput, verifyOnly);
+   }
+ 
+   // aComputedData might be nullptr if the target element is now in a
+--- a/layout/style/ServoTypes.h
++++ b/layout/style/ServoTypes.h
+@@ -66,7 +66,7 @@
+ };
+ 
+ // Represents which tasks are performed in a SequentialTask of UpdateAnimations.
+-enum class UpdateAnimationsTasks : uint8_t {
++enum class UpdateAnimationsTasks : uint16_t {
+   CSSAnimations = 1 << 0,
+   CSSTransitions = 1 << 1,
+   EffectProperties = 1 << 2,
+@@ -75,6 +75,7 @@
+   ScrollTimelines = 1 << 5,
+   ViewTimelines = 1 << 6,
+   TimelineScopes = 1 << 7,
++  VerifyAnimationDurationInput = 1 << 8,
+ };
+ 
+ MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(UpdateAnimationsTasks)
+--- a/layout/style/nsAnimationManager.cpp
++++ b/layout/style/nsAnimationManager.cpp
+@@ -525,7 +525,8 @@
+ 
+ void nsAnimationManager::UpdateAnimations(
+     dom::Element* aElement, const PseudoStyleRequest& aPseudoRequest,
+-    const ComputedStyle* aComputedStyle) {
++    const ComputedStyle* aComputedStyle,
++    const ComputedStyle* aDurationInput, bool aVerifyDurationInputOnly) {
+   MOZ_ASSERT(mPresContext->IsDynamic(),
+              "Should not update animations for print or print preview");
+   MOZ_ASSERT(aElement->IsInComposedDoc(),
+@@ -548,7 +549,9 @@
+   NonOwningAnimationTarget target(aElement, aPseudoRequest);
+   ServoCSSAnimationBuilder builder(aComputedStyle);
+ 
+-  DoUpdateAnimations(target, *aComputedStyle->StyleUIReset(), builder);
++  DoUpdateAnimations(target, *aComputedStyle->StyleUIReset(), builder,
++                     aDurationInput ? aDurationInput->StyleUIReset() : nullptr,
++                     aVerifyDurationInputOnly);
+ }
+ 
+ void nsAnimationManager::RemoveNamedTimelineAnimation(
+@@ -667,7 +670,8 @@
+ 
+ void nsAnimationManager::DoUpdateAnimations(
+     const NonOwningAnimationTarget& aTarget, const nsStyleUIReset& aStyle,
+-    ServoCSSAnimationBuilder& aBuilder) {
++    ServoCSSAnimationBuilder& aBuilder, const nsStyleUIReset* aDurationInput,
++    bool aVerifyDurationInputOnly) {
+   // Everything that causes our animation data to change triggers a
+   // style change, which in turn triggers a non-animation restyle.
+   // Likewise, when we initially construct frames, we're not in a
+@@ -678,6 +682,22 @@
+   if (!collection && aStyle.mAnimationNameCount == 1 &&
+       aStyle.mAnimations[0].GetName() == nsGkAtoms::_empty) {
+     return;
++  }
++
++  if (aVerifyDurationInputOnly && !collection) {
++    return;
++  }
++
++  nsTArray<StyleAnimationDuration> durationInput;
++  if (aDurationInput) {
++    durationInput.SetCapacity(aDurationInput->mAnimationDurationCount);
++    for (uint32_t i = 0; i < aDurationInput->mAnimationDurationCount; ++i) {
++      durationInput.AppendElement(aDurationInput->GetAnimationDuration(i));
++    }
++    if (aVerifyDurationInputOnly &&
++        collection->mLastAnimationDurationInput == durationInput) {
++      return;
++    }
+   }
+ 
+   nsAutoAnimationMutationBatch mb(aTarget.mElement->OwnerDoc());
+@@ -718,6 +738,7 @@
+     }
+   }
+   collection->mAnimations.SwapElements(newAnimations);
++  collection->mLastAnimationDurationInput = std::move(durationInput);
+ 
+   // Cancel removed animations
+   for (size_t newAnimIdx = newAnimations.Length(); newAnimIdx-- != 0;) {
+--- a/layout/style/nsAnimationManager.h
++++ b/layout/style/nsAnimationManager.h
+@@ -46,7 +46,9 @@
+    */
+   void UpdateAnimations(mozilla::dom::Element* aElement,
+                         const mozilla::PseudoStyleRequest& aPseudoRequest,
+-                        const mozilla::ComputedStyle* aComputedValues);
++                        const mozilla::ComputedStyle* aComputedValues,
++                        const mozilla::ComputedStyle* aDurationInput,
++                        bool aVerifyDurationInputOnly);
+ 
+   void RemoveNamedTimelineAnimation(const nsAtom* aName,
+                                     mozilla::dom::CSSAnimation* aAnimation);
+@@ -147,7 +149,9 @@
+ 
+   void DoUpdateAnimations(const mozilla::NonOwningAnimationTarget& aTarget,
+                           const nsStyleUIReset& aStyle,
+-                          ServoCSSAnimationBuilder& aBuilder);
++                          ServoCSSAnimationBuilder& aBuilder,
++                          const nsStyleUIReset* aDurationInput,
++                          bool aVerifyDurationInputOnly);
+ };
+ 
+ #endif /* !defined(nsAnimationManager_h_) */
+--- a/servo/components/style/context.rs
++++ b/servo/components/style/context.rs
+@@ -412,7 +412,7 @@
+ bitflags! {
+     /// Represents which tasks are performed in a SequentialTask of
+     /// UpdateAnimations which is a result of normal restyle.
+-    pub struct UpdateAnimationsTasks: u8 {
++    pub struct UpdateAnimationsTasks: u16 {
+         /// Update CSS Animations.
+         const CSS_ANIMATIONS = structs::UpdateAnimationsTasks_CSSAnimations;
+         /// Update CSS Transitions.
+@@ -432,6 +432,8 @@
+         const VIEW_TIMELINES = structs::UpdateAnimationsTasks_ViewTimelines;
+         /// Update CSS timeline scopes, which affect visibility of both scroll and view timelines.
+         const TIMELINE_SCOPES = structs::UpdateAnimationsTasks_TimelineScopes;
++        /// Verify contextual duration input without forcing a CSS animation update.
++        const VERIFY_ANIMATION_DURATION_INPUT = structs::UpdateAnimationsTasks_VerifyAnimationDurationInput;
+     }
+ }
+ 
+--- a/servo/components/style/matching.rs
++++ b/servo/components/style/matching.rs
+@@ -509,6 +509,8 @@
+         ) {
+             tasks.insert(UpdateAnimationsTasks::CSS_ANIMATIONS);
+             tasks.insert(UpdateAnimationsTasks::EFFECT_PROPERTIES);
++        } else if self.has_css_animations(context.shared, None) {
++            tasks.insert(UpdateAnimationsTasks::VERIFY_ANIMATION_DURATION_INPUT);
+         }
+ 
+         let before_change_style =

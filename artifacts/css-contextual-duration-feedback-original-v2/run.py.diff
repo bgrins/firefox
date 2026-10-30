@@ -1,0 +1,15 @@
+--- artifacts/css-contextual-duration-feedback-original-v1/run.py
++++ artifacts/css-contextual-duration-feedback-original-v2/run.py
+@@ -30,6 +30,12 @@
+         assert sha(HERE / name) == expected, name
+     policy = read(HERE / "POLICY.json")
+     assert policy["original_only"] is True
++    assert policy['checkpoint_mode'] == 'current_native_checkpoint'
++    native = read(ROOT / policy['native_checkpoint']['path'])
++    assert sha(ROOT / policy['native_checkpoint']['path']) == policy['native_checkpoint']['sha256']
++    assert native['head'] == policy['head']
++    assert native['signature_chain_verified'] and native['runtime_epoch_synchronized']
++    assert (native['accepted_fix'],native['accepted_fixes'],native['tracked']) == (150,149,150)
+     if sys.argv[1] == "--run":
+         assert policy["feedback_transport_pending"] is False
+     for name, expected in policy["references"].items():

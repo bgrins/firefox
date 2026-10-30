@@ -1,0 +1,35 @@
+--- artifacts/css-contextual-duration-progress-candidate-v1/phases.py
++++ artifacts/css-contextual-duration-same-element-candidate-v1/phases.py
+@@ -12,6 +12,24 @@
+     module = importlib.util.module_from_spec(spec)
+     spec.loader.exec_module(module)
+     return module
++
++
++def record_comparison(root, output, policy, collection):
++    original = root / policy['baseline_binding']['directory'] / 'progress-records'
++    candidate = output / 'progress-records'
++    rows = {}
++    for filename in policy['record_kinds']:
++        pair = {}
++        for role, directory in [('original', original), ('candidate', candidate)]:
++            path = directory / filename
++            if role == 'candidate' and not collection['records'].get(filename, {}).get('schema_valid'):
++                pair[role] = None
++                continue
++            pair[role] = {'sha256': sha(path), 'record': read(path)} if path.is_file() and not path.is_symlink() else None
++        pair['observations_equal'] = (pair['original']['record']['observations'] == pair['candidate']['record']['observations']) if all(pair[role] for role in ('original', 'candidate')) else None
++        rows[filename] = pair
++    return {'records': rows, 'candidate_collection': collection, 'numeric_or_cycle_endpoint_gate': False,
++            'literal_calibration_gate': 'authored callback assertions; complete collection alone is not PASS'}
+ 
+ 
+ def run(root, here, output, policy, env, verify, owned, cancelled):
+@@ -35,6 +53,7 @@
+         if assessment['complete']:
+             collection = load('progress_record_collection', here / 'records.py').collect(root, directory, binding, policy, assessment)
+             wpt.save(output / 'PROGRESS-RECORDS.json', collection)
++            wpt.save(output / 'RECORD-COMPARISON.json', record_comparison(root, output, policy, collection))
+             if not failure:
+                 assert collection['complete'] and not collection['errors']
+     if failure:

@@ -1,0 +1,35 @@
+--- executed-combined/check.py
++++ provider-free/check.py
+@@ -115,3 +115,32 @@
+                   'synthetic_legacy_failure_preservation':True,
+                   'negative_checks':negative, 'actual_baseline_replayed':False,
+                   'owner_browser_or_build_executed':False}, indent=2))
++
++reference = comparison.replay_combined(ROOT, policy, assessor, checks)
++comparison.require_equal_results(reference, copy.deepcopy(reference), assessor)
++provider_negative = []
++for label, field, mutation in [
++    ('target message', 'rows', lambda rows: rows[0].update(message='altered')),
++    ('expected presence', 'rows', lambda rows: rows[0].update(expected=rows[0]['status'])),
++    ('intermittent content', 'rows', lambda rows: rows[0].update(known_intermittent=['PASS'])),
++    ('intermittent presence', 'rows', lambda rows: rows[0].pop('known_intermittent', None)),
++    ('target status', 'rows', lambda rows: rows[0].update(status='FAIL')),
++    ('missing row', 'rows', lambda rows: rows.pop()),
++    ('duplicated row', 'rows', lambda rows: rows.__setitem__(1, copy.deepcopy(rows[0]))),
++    ('ending message', 'ends', lambda rows: rows[0].update(message='altered')),
++    ('ending expected presence', 'ends', lambda rows: rows[0].update(expected='OK')),
++    ('ending missing', 'ends', lambda rows: rows.pop()),
++]:
++    changed = copy.deepcopy(reference)
++    mutation(changed[field])
++    try:
++        comparison.require_equal_results(reference, changed, assessor)
++    except AssertionError:
++        provider_negative.append(label)
++    else:
++        raise AssertionError(label)
++changed = copy.deepcopy(reference)
++changed['run_binding']['browser_build_id'] = 'different-build-identity'
++comparison.require_equal_results(reference, changed, assessor)
++print(json.dumps({'actual_original_and_combined_replay': True, 'provider_free_browser_executed': False,
++                  'strict_row_end_signatures':594, 'provider_comparison_negative_checks':provider_negative}, indent=2))

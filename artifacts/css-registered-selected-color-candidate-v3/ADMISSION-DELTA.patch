@@ -1,0 +1,47 @@
+--- artifacts/css-animation-taint-clean-candidate-v1/admission.py
++++ artifacts/css-registered-selected-color-candidate-v1/admission.py
+@@ -35,8 +35,9 @@
+     assert source['preserved_absent_metadata'] == policy['preserved_absent_metadata']
+     assert source['preserved_absent_resources'] == policy['preserved_absent_resources']
+     terminal = read(directory / binding['terminal_path'])
++    assert terminal.pop('active_owner_manifest_sha256') == capsule['sha256']
+     assert terminal == binding['terminal']
+-    assert (terminal['session'], terminal['launch_chunk'], terminal['terminal_chunk'], terminal['exit']) == (92991, 'df8408', '249a65', 0)
++    assert (terminal['session'], terminal['launch_chunk'], terminal['terminal_chunk'], terminal['exit']) == (57577, 'eb6f51', 'd1cec3', 0)
+     result = read(directory / 'RESULT.json')
+     assert sha(directory / 'RESULT.json') == binding['result_sha256'] == terminal['result_sha256']
+     assert result['success'] and result['error'] is None and result['publication_errors'] == []
+@@ -46,11 +47,10 @@
+     review = read(directory / 'ROOT-REVIEW.json')
+     refresh = read(directory / 'ROOT-EPOCH-REFRESH.json')
+     assert sha(directory / 'ROOT-TERMINAL.json') == handoff['root_terminal_sha256']
+-    assert sha(directory / 'ROOT-REVIEW.json') == handoff['review_sha256'] == root_terminal['review_sha256']
++    assert sha(directory / 'ROOT-REVIEW.json') == handoff['review_sha256']
+     assert sha(directory / 'ROOT-EPOCH-REFRESH.json') == handoff['epoch_refresh_sha256']
+-    assert (root_terminal['owner_session'], root_terminal['owner_terminal'], root_terminal['owner_exit']) == (92991, '249a65', 0)
+-    assert (root_terminal['review_session'], root_terminal['review_terminal'], root_terminal['review_exit']) == (77553, '290b1a', 0)
+-    assert root_terminal['owner_manifest_sha256'] == capsule['sha256'] == review['owner_manifest_sha256']
++    assert (root_terminal['session'], root_terminal['launch_chunk'], root_terminal['terminal_chunk'], root_terminal['exit']) == (18962, '2e16ba', '4cb7ca', 0)
++    assert capsule['sha256'] == review['owner_manifest_sha256']
+     assert review['actual_terminal'] == terminal and review['owner_result'] == result
+     assert review['restoration_independently_verified'] and review['native_acceptance'] is False
+     assert not review['canonical_updated'] and not review['backup_deleted_by_reviewer']
+@@ -58,7 +58,7 @@
+         assert sha(directory / name) == digest
+     reviewer = root / handoff['reviewer_directory']
+     authenticate(reviewer, handoff['reviewer_manifest_sha256'])
+-    assert root_terminal['review_active_manifest_sha256'] == handoff['reviewer_manifest_sha256']
++    assert root_terminal['active_reviewer_manifest_sha256'] == handoff['reviewer_manifest_sha256']
+     reviewer_policy = read(reviewer / 'POLICY.json')
+     assert reviewer_policy['actual_terminal'] == terminal and reviewer_policy['execution_enabled']
+     assert reviewer_policy['owner_manifest_sha256'] == capsule['sha256']
+@@ -75,8 +75,7 @@
+     assert refresh['previous_epoch_sha256'] == source['controls']['CURRENT-EPOCH.json']
+     assert refresh['only_changed_field'] == 'raw_index_observation.current' and refresh['semantic_index_unchanged']
+     assert (refresh['raw_index_before'], refresh['raw_index_after']) == (raw['before'], raw['after'])
+-    assert refresh['independent_review_sha256'] == handoff['review_sha256'] and refresh['independent_review_terminal'] == '77553/290b1a/0'
+-    assert root_terminal['epoch_refresh_terminal'] == '28416/6222e9/0'
++    assert refresh['independent_review_sha256'] == handoff['review_sha256'] and refresh['independent_review_terminal'] == '18962/4cb7ca/0'
+     assert refresh['other_controls_unchanged'] == {k:v for k,v in source['controls'].items() if k != 'CURRENT-EPOCH.json'}
+     assert policy['controls'] == dict(source['controls'], **{'CURRENT-EPOCH.json': refresh['new_epoch_sha256']})
+     backup = read(directory / 'BACKUP-CLEANUP.json')

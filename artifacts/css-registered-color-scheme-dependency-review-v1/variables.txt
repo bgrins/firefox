@@ -1,0 +1,2163 @@
+
+ 
+  
+  
+  CSS Custom Properties for Cascading Variables Module Level 2
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+  
+
+   
+
+    
+
+
+   CSS Custom Properties for Cascading Variables Module Level 2
+   
+Editor’s Draft,
+    9 October 2026
+   
+    More details about this document
+    
+
+     
+      
+This version:
+      
+https://drafts.csswg.org/css-variables-2/
+      
+Implementation Report:
+      
+https://wpt.fyi/results/css/css-variables
+      
+Issue Tracking:
+      
+CSSWG Issues Repository
+      
+Editor:
+      
+Tab Atkins Jr. (Google)
+      
+Suggest an Edit for this Spec:
+      
+GitHub Editor
+      
+Test Suite:
+      
+https://wpt.fyi/results/css/css-variables/
+     
+    
+   
+   
+
+   
+Copyright © 2026 World Wide Web Consortium. W3C® liability, trademark and permissive document license rules apply.
+
+   
+  
+  
+
+   
+Abstract
+   
+This module introduces cascading variables as a new primitive value type that is accepted by all CSS properties, and custom properties for defining them.
+   
+
+
+CSS is a language for describing the rendering of structured documents
+(such as HTML and XML)
+on screen, on paper, etc.
+
+
+
+  
+  
+Status of this document
+  
+
+   
+
+	This is a public copy of the editors’ draft.
+	It is provided for discussion only and may change at any moment.
+	Its publication here does not imply endorsement of its contents by W3C.
+	Don’t cite this document other than as work in progress.
+
+
+   
+Please send feedback
+	by filing issues in GitHub (preferred),
+	including the spec code “css-variables” in the title, like this:
+	“[css-variables] …summary of comment…”.
+	All issues and comments are archived.
+	Alternately, feedback can be sent to the (archived) public mailing list
+	www-style@w3.org.
+
+
+   
+This document is governed by the
+	18 August 2025 W3C Process Document.
+
+
+  
+  
+
+  
+   
+Table of Contents
+   
+    
+
+     1 
+Introduction
+     
+      
+1.1 
+Value Definitions
+     
+    
+
+     2 
+Defining Custom Properties: the --* family of properties
+     
+      
+2.1 
+Custom Property Value Syntax
+      
+2.2 
+Guaranteed-Invalid Values
+     
+    
+
+     3 
+Using Cascading Variables: the var() notation
+     
+      
+3.1 
+Variable Units
+     
+    
+
+     4 
+APIs
+     
+      
+4.1 
+Serializing Custom Properties
+     
+    
+
+     5 
+Changes
+     
+      
+5.1 
+Changes Since the 16 June 2022 CR Snapshot
+      
+5.2 
+Changes Since the 11 November 2021 CR Draft
+      
+5.3 
+Changes Since the 03 December 2015 CR
+      
+5.4 
+Changes since the May 6 2014 Last Call Working Draft
+     
+    
+6 
+Acknowledgments
+    
+7 Privacy Considerations
+    
+8 Security Considerations
+    
+
+      
+Conformance
+     
+      
+ 
+Document conventions
+      
+ 
+Conformance classes
+      
+
+        
+Partial implementations
+       
+        
+ 
+Implementations of Unstable and Proprietary Features
+       
+      
+ 
+Non-experimental implementations
+     
+    
+
+      Index
+     
+      
+ Terms defined by this specification
+      
+ Terms defined by reference
+     
+    
+
+      References
+     
+      
+ Normative References
+      
+ Non-Normative References
+     
+    
+ Property Index
+   
+  
+  
+   
+1. 
+Introduction
+   
+This section is not normative.
+   
+Large documents or applications
+	(and even small ones)
+	can contain quite a bit of CSS.
+	Many of the values in the CSS file will be duplicate data;
+	for example,
+	a site may establish a color scheme
+	and reuse three or four colors throughout the site.
+	Altering this data can be difficult and error-prone,
+	since it’s scattered throughout the CSS file
+	(and possibly across multiple files),
+	and may not be amenable to Find-and-Replace.
+   
+This module introduces a family of custom author-defined properties known collectively as custom properties,
+	which allow an author to assign arbitrary values to a property with an author-chosen name,
+	and the var() function,
+	which allow an author to then use those values in other properties elsewhere in the document.
+	This makes it easier to read large files,
+	as seemingly-arbitrary values now have informative names,
+	and makes editing such files much easier and less error-prone,
+	as one only has to change the value once,
+	in the custom property,
+	and the change will propagate to all uses of that variable automatically.
+   
+1.1. 
+Value Definitions
+   
+This specification follows the CSS property definition conventions from [CSS2]
+	using the value definition syntax from [CSS-VALUES-3].
+	Value types not defined in this specification are defined in CSS Values & Units [CSS-VALUES-3].
+	Combination with other CSS modules may expand the definitions of these value types.
+   
+In addition to the property-specific values listed in their definitions,
+	all properties defined in this specification
+	also accept the CSS-wide keywords as their property value.
+	For readability they have not been repeated explicitly.
+   
+2. 
+Defining Custom Properties: the --* family of properties
+   
+This specification defines an open-ended set of properties called custom properties,
+	which, among other things, are used to define the substitution value of var() functions.
+   
+    
+     
+
+      Name:
+      --*
+     
+
+      Value:
+      <declaration-value>?
+     
+
+      Initial:
+      the guaranteed-invalid value
+     
+
+      Applies to:
+      all elements and all pseudo-elements (including those with restricted property lists)
+     
+
+      Inherited:
+      yes
+     
+
+      Percentages:
+      n/a
+     
+
+      Computed value:
+      specified value with variables substituted, or the guaranteed-invalid value
+     
+
+      Canonical order:
+      per grammar
+     
+
+      Animation type:
+      discrete
+   
+   
+User agents are expected to support this property on all media, including non-visual ones.
+   
+A custom property is any property
+	whose name starts with two dashes (U+002D HYPHEN-MINUS),
+	like --foo.
+	The <custom-property-name> production corresponds to this:
+	it’s defined as any <dashed-ident>
+	(a valid identifier that starts with two dashes),
+	except -- itself,
+	which is reserved for future use by CSS.
+	Custom properties are solely for use by authors and users;
+	CSS will never give them a meaning beyond what is presented here.
+   
+    Tests
+    
+     
+variable-declaration-29.html (live test) (source)
+     
+variable-declaration-31.html (live test) (source)
+     
+variable-declaration-32.html (live test) (source)
+     
+variable-declaration-33.html (live test) (source)
+     
+variable-declaration-34.html (live test) (source)
+     
+variable-declaration-35.html (live test) (source)
+     
+variable-declaration-36.html (live test) (source)
+     
+variable-declaration-40.html (live test) (source)
+     
+variable-declaration-41.html (live test) (source)
+     
+variable-declaration-42.html (live test) (source)
+     
+variable-empty-name-reserved.html (live test) (source)
+    
+   
+   
+
+    
+		Custom properties define variables,
+		referenced with the var() notation,
+		which can be used for many purposes.
+		For example, a page that consistently uses a small set of colors in its design
+		can store the colors in custom properties
+		and use them with variables:
+
+		
+:root {
+  --main-color: #06c;
+  --accent-color: #006;
+}
+/* The rest of the CSS file */
+#foo h1 {
+  color: var(--main-color);
+}
+
+    
+The naming provides a mnemonic for the colors,
+		prevents difficult-to-spot typos in the color codes,
+		and if the theme colors are ever changed,
+		focuses the change on one simple spot
+		(the custom property value)
+		rather than requiring many edits across all stylesheets in the webpage.
+   
+   
+Unlike other CSS properties,
+	custom property names are not ASCII case-insensitive.
+	Instead, custom property names are only equal to each other
+	if they are identical to each other.
+   
+    Tests
+    
+     
+css-vars-custom-property-case-sensitive-001.html (live test) (source)
+    
+   
+   
+
+    
+		While both --foo and --FOO are valid,
+		they are distinct properties —​using var(--foo) will refer to the first one,
+		while using var(--FOO) will refer to the second.
+
+
+    
+Perhaps more surprisingly,
+		--foó and --foó are distinct properties.
+		The first is spelled with U+00F3 (LATIN SMALL LETTER O WITH ACUTE)
+		while the second is spelled with an ASCII "o" followed by U+0301 (COMBINING ACUTE ACCENT),
+		and the "identical to" relation uses direct codepoint-by-codepoint comparison
+		to determine if two strings are equal,
+		to avoid the complexities and pitfalls of unicode normalization and locale-specific collation.
+   
+   
+Operating systems, keyboards, or input methods
+	sometimes encode visually-identical text
+	using different codepoint sequences.
+	Authors are advised to choose variable names
+	that avoid potential confusion
+	or to use escapes and other means
+	to ensure that similar appearing sequences are identical.
+	See Section 2.3 in [CHARMOD-NORM] for examples.
+   
+
+    
+		Developers maintaining the following CSS
+		might be confused why the test patch is red:
+
+		
+--fijord: red;
+--fĳord: green;
+--ﬁjord: blue;
+
+.test {
+  background-color: var(--fijord);
+}
+
+    
+The reason is that the first custom property
+		uses the character sequence
+		LATIN SMALL LETTER F + LATIN SMALL LETTER I + LATIN SMALL LETTER J;
+		the second, identical-looking one
+		uses the character sequence
+		LATIN SMALL LETTER F + LATIN SMALL LIGATURE IJ
+		while the third
+		uses the character sequence
+		LATIN SMALL LIGATURE FI + LATIN SMALL LETTER J.
+    
+So the CSS contains three distinct custom properties,
+		two of which are unused.
+   
+   
+Custom properties are not reset by the all property.
+	We may define a property in the future that resets all variables.
+   
+The CSS-wide keywords can be used in custom properties,
+	with the same meaning as in any another property.
+   
+    Tests
+    
+     
+variable-declaration-43.html (live test) (source)
+     
+variable-declaration-44.html (live test) (source)
+     
+variable-declaration-45.html (live test) (source)
+     
+variable-declaration-46.html (live test) (source)
+     
+variable-declaration-47.html (live test) (source)
+     
+variable-declaration-56.html (live test) (source)
+     
+variable-declaration-57.html (live test) (source)
+     
+variable-declaration-58.html (live test) (source)
+     
+variable-declaration-60.html (live test) (source)
+     
+variable-definition-keywords.html (live test) (source)
+     
+variable-css-wide-keywords.html (live test) (source)
+    
+   
+   
+Note: That is, they’re interpreted at cascaded-value time as normal,
+	and are not preserved as the custom property’s value,
+	and thus are not substituted in by the corresponding variable.
+   
+Note: While this module focuses on the use of custom properties with the var() function to create “variables”,
+	they can also be used as actual custom properties,
+	parsed by and acted on by script.
+	It’s expected that the CSS Extensions spec [CSS-EXTENSIONS]
+	will expand on these use-cases and make them easier to do.
+   
+Custom properties are ordinary properties,
+	so they can be declared on any element,
+	are resolved with the normal inheritance and cascade rules,
+	can be made conditional with @media and other conditional rules,
+	can be used in HTML’s style attribute,
+	can be read or set using the CSSOM, etc.
+   
+    Tests
+    
+     
+css-vars-custom-property-inheritance.html (live test) (source)
+     
+variable-created-document.html (live test) (source)
+     
+variable-created-element.html (live test) (source)
+     
+variable-cssText.html (live test) (source)
+     
+variable-declaration-06.html (live test) (source)
+     
+variable-definition-cascading.html (live test) (source)
+     
+variable-external-declaration-01.html (live test) (source)
+     
+variable-external-reference-01.html (live test) (source)
+     
+variable-external-supports-01.html (live test) (source)
+     
+variable-first-letter.html (live test) (source)
+     
+variable-first-line.html (live test) (source)
+     
+variable-pseudo-element.html (live test) (source)
+     
+variable-reference-13.html (live test) (source)
+     
+variable-reference-14.html (live test) (source)
+     
+variable-reference-shorthands.html (live test) (source)
+     
+variable-reference-visited.html (live test) (source)
+    
+   
+   
+Notably, they can even be animated,
+	but since the UA has no way to interpret their contents,
+	they always use the "flips at 50%" behavior
+	that is used for any other pair of values that can’t be intelligently interpolated.
+	However, any custom property used in a @keyframes rule
+	becomes animation-tainted,
+	which affects how it is treated when referred to via the var() function in an animation property.
+   
+    Tests
+    
+     
+variable-animation-from-to.html (live test) (source)
+     
+variable-animation-over-transition.html (live test) (source)
+     
+variable-animation-substitute-into-keyframe-shorthand.html (live test) (source)
+     
+variable-animation-substitute-into-keyframe-transform.html (live test) (source)
+     
+variable-animation-substitute-into-keyframe.html (live test) (source)
+     
+variable-animation-substitute-within-keyframe-fallback.html (live test) (source)
+     
+variable-animation-substitute-within-keyframe-multiple.html (live test) (source)
+     
+variable-animation-substitute-within-keyframe.html (live test) (source)
+     
+variable-animation-to-only.html (live test) (source)
+    
+   
+   
+Note: Like any other property that animates discretely,
+	custom properties can’t be transitioned.
+	Registered custom properties can, however,
+	if given a syntax that has non-discrete animation behavior.
+   
+Animation-tainted is "infectious":
+	custom properties which reference animation-tainted properties
+	also become animation-tainted.
+   
+
+    
+		This style rule:
+
+		
+:root {
+  --header-color: #06c;
+}
+
+    
+declares a custom property named --header-color on the root element,
+		and assigns to it the value "#06c".
+		This property is then inherited to the elements in the rest of the document.
+		Its value can be referenced with the var() function:
+h1 { background-color: var(--header-color); }
+
+    
+The preceding rule is equivalent to writing background-color: #06c;,
+		except that the variable name makes the origin of the color clearer,
+		and if var(--header-color) is used on other elements in the document,
+		all of the uses can be updated at once
+		by changing the --header-color property on the root element.
+   
+   
+
+    
+		If a custom property is declared multiple times,
+		the standard cascade rules help resolve it.
+		Variables always draw from the computed value of the associated custom property on the same element:
+
+		
+:root { --color: blue; }
+div { --color: green; }
+#alert { --color: red; }
+* { color: var(--color); }
+
+<p>I inherited blue from the root element!</p>
+<div>I got green set directly on me!</div>
+<div id='alert'>
+  While I got red set directly on me!
+  <p>I'm red too, because of inheritance!</p>
+</div>
+
+   
+   
+
+    
+		A real-world example of custom property usage
+		is easily separating out strings from where they’re used,
+		to aid in maintenance of internationalization:
+
+		
+:root,
+:root:lang(en) {--external-link: "external link";}
+:root:lang(el) {--external-link: "εξωτερικός σύνδεσμος";}
+
+a[href^="http"]::after {content: " (" var(--external-link) ")"}
+
+    
+The variable declarations can even be kept in a separate file,
+		to make maintaining the translations simpler.
+   
+   
+2.1. 
+Custom Property Value Syntax
+   
+The allowed syntax for custom properties is extremely permissive.
+	The <declaration-value> production matches any sequence of one or more tokens,
+	so long as the sequence does not contain
+	<bad-string-token>,
+	<bad-url-token>,
+	unmatched <)-token>, <]-token>, or <}-token>,
+	or top-level <semicolon-token> tokens or <delim-token> tokens with a value of "!".
+   
+    Tests
+    
+     
+long-variable-reference-crash.html (live test) (source)
+     
+test_variable_legal_values.html (live test) (source)
+     
+variable-declaration-15.html (live test) (source)
+     
+variable-declaration-24.html (live test) (source)
+     
+variable-declaration-25.html (live test) (source)
+     
+variable-declaration-26.html (live test) (source)
+     
+variable-declaration-59.html (live test) (source)
+    
+   
+   
+In addition, if the value of a custom property contains a var() reference,
+	the var() reference must be valid according to the specified var() grammar.
+	If not, the custom property is invalid and must be ignored.
+   
+Note: This definition,
+	along with the general CSS syntax rules,
+	implies that a custom property value never includes an unmatched quote or bracket,
+	and so cannot have any effect on larger syntax constructs,
+	like the enclosing style rule,
+	when reserialized.
+   
+Note: Custom properties can contain a trailing !important,
+	but this is automatically removed from the property’s value by the CSS parser,
+	and makes the custom property "important" in the CSS cascade.
+	In other words, the prohibition on top-level "!" characters
+	does not prevent !important from being used,
+	as the !important is removed before syntax checking happens.
+   
+    Tests
+    
+     
+variable-declaration-20.html (live test) (source)
+     
+variable-declaration-23.html (live test) (source)
+    
+   
+   
+
+    
+		For example, the following is a valid custom property:
+
+		
+--foo: if(x > 5) this.width = 10;
+
+    
+While this value is obviously useless as a variable,
+		as it would be invalid in any normal property,
+		it might be read and acted on by JavaScript.
+   
+   
+The values of custom properties,
+	and the values of var() functions substituted into custom properties,
+	are case-sensitive,
+	and must be preserved in their original author-given casing.
+	(Many CSS values are ASCII case-insensitive,
+	which user agents can take advantage of by "canonicalizing" them into a single casing,
+	but that isn’t allowed for custom properties.)
+   
+    Tests
+    
+     
+variable-declaration-38.html (live test) (source)
+     
+variable-declaration-39.html (live test) (source)
+    
+   
+   
+
+    
+		Because custom properties can contain anything,
+		there is no general way to know how to interpret what’s inside of them
+		(until they’re substituted into a known property with var()).
+		Rather than have them partially resolve in some cases but not others,
+		they’re left completely unresolved;
+		they’re a bare stream of CSS tokens interspersed with var() functions.
+
+
+    
+This has some knock-on implications.
+		For example, relative URLs in CSS
+		are resolved against the base URL of the stylesheet the value appears in.
+		However, if a custom property like --my-image: url(foo.jpg); shows up in an "/a/style.css" stylesheet,
+		it will not resolve into an absolute URL immediately;
+		if that variable is later used in a different "/b/style.css" stylesheet
+		like background: var(--my-image);,
+		it will resolve at that point to "/b/foo.jpg".
+   
+   
+2.2. 
+Guaranteed-Invalid Values
+   
+The initial value of a custom property is a guaranteed-invalid value.
+   
+The guaranteed-invalid value is, well,
+	guaranteed to be invalid.
+	If it ever appears in a property value,
+	then at computed value time
+	that property becomes invalid at computed-value time.
+   
+Non-property contexts will define their own behavior for the guaranteed-invalid value,
+	but it will always be "invalid" in some sense.
+   
+The guaranteed-invalid value serializes as the empty string,
+	but actually writing an empty value into a custom property,
+	like --foo:;,
+	is a valid (empty) value,
+	not the guaranteed-invalid value.
+	If, for whatever reason,
+	one wants to manually reset a custom property to the guaranteed-invalid value,
+	using the keyword initial will do this.
+   
+Note: Other than invoking the initial value
+	of a non-registered custom property,
+	the only way to create the guaranteed-invalid value
+	is by having an invalid arbitrary substitution function.
+   
+3. 
+Using Cascading Variables: the var() notation
+   
+The value of a custom property can be substituted into the value of another property
+	with the var() function.
+	The syntax of var() is:
+var() = var( <custom-property-name> , <declaration-value>? )
+
+   
+The var() function is an arbitrary substitution function,
+	and its argument grammar is:
+<var-args> = var( <declaration-value> , <declaration-value>? )
+
+   
+    Tests
+    
+     
+variable-reference-07.html (live test) (source)
+     
+variable-reference-08.html (live test) (source)
+     
+variable-reference-09.html (live test) (source)
+     
+variable-reference-10.html (live test) (source)
+     
+variable-reference-17.html (live test) (source)
+     
+variable-reference-20.html (live test) (source)
+     
+variable-reference-21.html (live test) (source)
+     
+variable-reference-22.html (live test) (source)
+     
+variable-reference-23.html (live test) (source)
+     
+variable-reference-24.html (live test) (source)
+     
+variable-reference-25.html (live test) (source)
+     
+variable-reference-28.html (live test) (source)
+     
+variable-reference-29.html (live test) (source)
+     
+variable-reference-31.html (live test) (source)
+     
+variable-reference-32.html (live test) (source)
+     
+variable-reference-33.html (live test) (source)
+     
+variable-reference-34.html (live test) (source)
+     
+variable-reference-35.html (live test) (source)
+     
+variable-reference.html (live test) (source)
+    
+    
+@supports
+    
+     
+variable-supports-01.html (live test) (source)
+     
+variable-supports-02.html (live test) (source)
+     
+variable-supports-03.html (live test) (source)
+     
+variable-supports-04.html (live test) (source)
+     
+variable-supports-05.html (live test) (source)
+     
+variable-supports-06.html (live test) (source)
+     
+variable-supports-07.html (live test) (source)
+     
+variable-supports-08.html (live test) (source)
+     
+variable-supports-09.html (live test) (source)
+     
+variable-supports-10.html (live test) (source)
+     
+variable-supports-11.html (live test) (source)
+     
+variable-supports-12.html (live test) (source)
+     
+variable-supports-13.html (live test) (source)
+     
+variable-supports-14.html (live test) (source)
+     
+variable-supports-15.html (live test) (source)
+     
+variable-supports-16.html (live test) (source)
+     
+variable-supports-17.html (live test) (source)
+     
+variable-supports-18.html (live test) (source)
+     
+variable-supports-19.html (live test) (source)
+     
+variable-supports-20.html (live test) (source)
+     
+variable-supports-21.html (live test) (source)
+     
+variable-supports-22.html (live test) (source)
+     
+variable-supports-23.html (live test) (source)
+     
+variable-supports-24.html (live test) (source)
+     
+variable-supports-25.html (live test) (source)
+     
+variable-supports-26.html (live test) (source)
+     
+variable-supports-27.html (live test) (source)
+     
+variable-supports-28.html (live test) (source)
+     
+variable-supports-29.html (live test) (source)
+     
+variable-supports-30.html (live test) (source)
+     
+variable-supports-31.html (live test) (source)
+     
+variable-supports-32.html (live test) (source)
+     
+variable-supports-33.html (live test) (source)
+     
+variable-supports-34.html (live test) (source)
+     
+variable-supports-35.html (live test) (source)
+     
+variable-supports-36.html (live test) (source)
+     
+variable-supports-37.html (live test) (source)
+     
+variable-supports-38.html (live test) (source)
+     
+variable-supports-39.html (live test) (source)
+     
+variable-supports-40.html (live test) (source)
+     
+variable-supports-41.html (live test) (source)
+     
+variable-supports-42.html (live test) (source)
+     
+variable-supports-43.html (live test) (source)
+     
+variable-supports-44.html (live test) (source)
+     
+variable-supports-45.html (live test) (source)
+     
+variable-supports-46.html (live test) (source)
+     
+variable-supports-47.html (live test) (source)
+     
+variable-supports-48.html (live test) (source)
+     
+variable-supports-49.html (live test) (source)
+     
+variable-supports-50.html (live test) (source)
+     
+variable-supports-51.html (live test) (source)
+     
+variable-supports-52.html (live test) (source)
+     
+variable-supports-53.html (live test) (source)
+     
+variable-supports-54.html (live test) (source)
+     
+variable-supports-55.html (live test) (source)
+     
+variable-supports-56.html (live test) (source)
+     
+variable-supports-57.html (live test) (source)
+     
+variable-supports-58.html (live test) (source)
+     
+variable-supports-59.html (live test) (source)
+     
+variable-supports-60.html (live test) (source)
+     
+variable-supports-61.html (live test) (source)
+     
+variable-supports-62.html (live test) (source)
+     
+variable-supports-63.html (live test) (source)
+     
+variable-supports-64.html (live test) (source)
+     
+variable-supports-65.html (live test) (source)
+     
+variable-supports-66.html (live test) (source)
+     
+variable-supports-67.html (live test) (source)
+    
+    
+   
+   
+The first argument to the function is the name of the custom property to be substituted.
+	The second argument to the function, if provided,
+	is a fallback value,
+	which is used as the substitution value when the value of the referenced custom property
+	is the guaranteed-invalid value.
+   
+    Tests
+    
+     
+variable-declaration-08.html (live test) (source)
+     
+variable-declaration-09.html (live test) (source)
+     
+variable-declaration-10.html (live test) (source)
+     
+variable-declaration-11.html (live test) (source)
+     
+variable-declaration-12.html (live test) (source)
+     
+variable-declaration-13.html (live test) (source)
+     
+variable-declaration-22.html (live test) (source)
+    
+   
+   
+In an exception to the usual comma elision rules,
+	which require commas to be omitted when they’re not separating values,
+	a bare comma, with nothing following it,
+	must be treated as valid in var(),
+	indicating an empty fallback value.
+   
+    Tests
+    
+     
+variable-declaration-07.html (live test) (source)
+     
+variable-declaration-37.html (live test) (source)
+     
+variable-reference-06.html (live test) (source)
+     
+variable-reference-11.html (live test) (source)
+     
+variable-reference-26.html (live test) (source)
+     
+variable-reference-27.html (live test) (source)
+    
+   
+   
+Note: That is, var(--a,) is a valid function,
+	specifying that if the --a custom property is invalid or missing,
+	the var() should be replaced with nothing.
+   
+Note: The syntax of the fallback, like that of custom properties, allows commas.
+	For example, var(--foo, red, blue) defines a fallback of red, blue;
+	that is, anything between the first comma and the end of the function is considered a fallback value.
+   
+
+    
+		The fallback value allows for some types of defensive coding.
+		For example,
+		an author may create a component
+		intended to be included in a larger application,
+		and use variables to style it
+		so that it’s easy for the author of the larger application
+		to theme the component to match the rest of the app.
+
+
+    
+Without fallback,
+		the app author must supply a value for every variable that your component uses.
+		With fallback, the component author can supply defaults,
+		so the app author only needs to supply values for the variables they wish to override.
+/* In the component's style: */
+.component .header {
+  color: var(--header-color, blue);
+}
+.component .text {
+  color: var(--text-color, black);
+}
+
+/* In the larger application's style: */
+.component {
+  --text-color: #080;
+  /* header-color isn't set,
+     and so remains blue,
+     the fallback value */
+}
+
+   
+   
+
+    
+		To replace a var() function,
+		given a list of arguments:
+
+
+    
+     
+
+      
+Let el be the element that the style containing the var() function
+is being applied to.
+Let first arg be the first <declaration-value> in arguments.
+Let second arg be the <declaration-value>? passed after the comma,
+or null if there was no comma.
+     
+
+      
+Substitute arbitrary substitution functions in first arg,
+then parse it as a <custom-property-name>.
+If parsing returned a <custom-property-name>,
+let result be the computed value
+of the corresponding custom property on el.
+Otherwise,
+let result be the guaranteed-invalid value.
+      
+Note: Determining the computed value for the custom property
+implies that property replacement takes place,
+which may cause a cycle.
+     
+
+      
+If the custom property
+named by the var()’s first argument
+is animation-tainted,
+and the var() is being used in a property that is not animatable,
+set result to the guaranteed-invalid value.
+     
+
+      
+If result contains the guaranteed-invalid value,
+and second arg was provided,
+set result to the result of substitute arbitrary substitution functions
+on second arg.
+     
+
+      
+Return result.
+    
+   
+   
+
+    
+		Due to property replacement,
+		custom properties can form cycles:
+
+		
+:root {
+  --one: calc(var(--two) + 20px);
+  --two: calc(var(--one) - 20px);
+}
+
+    
+		In the above,
+		both --one and --two compute to the guaranteed-invalid value,
+		since their substitution contexts have been marked
+		as cyclic.
+	
+   
+   
+    Tests
+    
+     
+variable-cycles.html (live test) (source)
+     
+variable-declaration-30.html (live test) (source)
+     
+variable-declaration-48.html (live test) (source)
+     
+variable-declaration-49.html (live test) (source)
+     
+variable-declaration-50.html (live test) (source)
+     
+variable-reference-39.html (live test) (source)
+    
+   
+   
+
+    
+		Note that the custom property name looked up by a var()
+		may itself come from a var() function:
+
+		
+:root {
+  --other: 10px;
+  --myvar: --other;
+  --result: var(var(--myvar));
+}
+
+    
+		Since the inner var() is resolved before the outer var(),
+		the computed value of --result becomes 10px.
+	
+   
+   
+3.1. 
+Variable Units
+   
+In addition to being referenced directly with the var() function,
+	custom properties can be referenced as custom units,
+	making it easy to use multiples of significant "base sizes" in a document,
+	perhaps established by a design system.
+   
+A dimension whose unit is a <dashed-ident> is a variable unit reference.
+	It has identical effects and restrictions to using var();
+	the unit name is the custom property being referenced.
+   
+The only difference is during substitution—​rather than just substituting the custom property value directly,
+	it substitutes as calc(X * (var(Y))),
+	where X is numeric component of the dimension,
+	and Y is the unit component of the dimension.
+   
+
+    
+		For example,
+		"fluid typography" sizes text according to the viewport size.
+		A very simple version of this can be created as:
+
+		
+@property --fem { /* "fluid em" */
+  syntax: "<length>";
+  initial: 2vw;
+  inherits: true;
+}
+
+.fluid-type {
+  font-size: 1.2--fem;
+  /* equivalent to */
+  font-size: calc(1.2 * (var(--fem)));
+}
+
+    
+More complex expressions can be used as well.
+		For example, fluid typography often wants to impose limits
+		on how much the size responds to the viewport,
+		to avoid degenerate situations
+		on very large or very small screens:
+@property --fem { /* "fluid em" */
+  syntax: "<length>";
+  initial: clamp(10px, 1vw + 1vh, 1rem);
+  inherits: true;
+}
+
+.fluid-type {
+  font-size: 1.2--fem;
+  /* Won't get smaller than 12px,
+     or larger than 1.2rem. */
+}
+
+    
+As the variable unit reference is a custom property reference,
+		it can be overridden by setting the custom property normally.
+		This can be useful to specialize a component for a particular position on the page,
+		while still styling it generically:
+@property --bs { /* block size */
+  syntax: "<length>";
+  initial: 8px;
+  inherits: true;
+}
+
+.module {
+  margin-block: 1.5--bs;
+  border-block: .5--bs;
+  /* gives a vertical margin of 12px,
+     and vertical border of 4px */
+}
+
+.sidebar .module {
+  --bs: 6px;
+  /* Makes the components slightly more compact
+     in the sidebar, with a vertical margin of 9px
+     and a vertical border of 3px. */
+}
+
+   
+   
+Note: Variable unit references can’t have fallback values,
+	so if the referenced custom property doesn’t exist or is invalid,
+	the unit reference will be invalid as well.
+	Use @property to create a registered custom property,
+	as the initial' value will instead be used
+	as the default.
+   
+Note: While variable unit references
+	clearly expect their referenced custom property to have a numeric value
+	(so that it’s valid to substitute into a calc()),
+	nothing enforces this.
+	Supplying a non-numeric value,
+	such as by using --fem: red;
+	to override the initial value in the above examples,
+	will simply result in an invalid property after substitution,
+	like font-size: calc(1.2 * (red));.
+   
+4. 
+APIs
+   
+All custom property declarations have the case-sensitive flag set.
+   
+    Tests
+    
+     
+variable-definition.html (live test) (source)
+     
+variable-invalidation.html (live test) (source)
+    
+   
+   
+Note: Custom properties do not appear on a CSSStyleDeclaration object in camel-cased form,
+	because their names may have both upper and lowercase letters
+	which indicate distinct custom properties.
+	The sort of text transformation that automatic camel-casing performs is incompatible with this.
+	They can still be accessed by their proper name via getPropertyValue()/etc.
+   
+4.1. 
+Serializing Custom Properties
+   
+Custom property names must be serialized
+	as the exact code point sequence provided by the author,
+	including not altering the case.
+   
+Note: For non-custom properties,
+	property names are restricted to the ASCII range and are ASCII case-insensitive,
+	so implementations typically serialize the name lowercased.
+   
+Specified values of custom properties must be serialized
+	exactly as specified by the author.
+	Simplifications that might occur in other properties,
+	such as dropping comments,
+	normalizing whitespace,
+	reserializing numeric tokens from their value,
+	etc.,
+	must not occur.
+   
+Computed values of custom properties must similarly be serialized
+	exactly as specified by the author,
+	save for the replacement of any var() functions.
+   
+    Tests
+    
+     
+variable-reference-shorthands-cssom.html (live test) (source)
+     
+variable-reference-variable.html (live test) (source)
+    
+   
+   
+
+    
+		For example, given the following properties:
+
+		
+--y: /* baz */;
+--x: /* foo */ var(--y) /* bar */;
+
+    
+the serialization of the specified value of --x
+		must be "/* foo */ var(--y) /* bar */",
+		while the serialization of the computed value of --x
+		must be "/* foo */ /* baz */ /* bar */".
+    
+(Note that the leading whitespace on the value is automatically trimmed by the CSS parser;
+		it’s not preserved here.)
+   
+   
+
+    
+		This requirement exists because authors sometimes store non-CSS information in custom properties,
+		and "normalizing" this information can change it in ways that break author code.
+
+
+    
+For example, storing a UUID in a custom property,
+		like --uuid: 12345678-12e3-8d9b-a456-426614174000,
+		requires the UUID to be echoed back out as written
+		when it’s accessed by script.
+    
+This value is technically parsed by CSS as a series of adjacent numbers and dimensions.
+		In particular, the segment "-12e3" parses as a number, equal to -12000.
+		Reserializing it in that form,
+		as required by CSSOM in other contexts,
+		would fatally break the author’s use of the value.
+   
+   
+5. 
+Changes
+   
+5.1. 
+Changes Since the 16 June 2022 CR Snapshot
+   
+    
+
+     
+Clarified that the comment-insertion can happen with 0+ comments between the original tokens, not just exactly 1.
+    
+
+     
+Clarified the transition behavior of custom properties, in a note
+    
+
+     
+Made var() short-circuiting.
+(Issue 11500)
+   
+   
+5.2. 
+Changes Since the 11 November 2021 CR Draft
+   
+    
+
+     
+Clarified that custom properties apply all pseudo-elements (including those with restricted property lists)
+    
+
+     
+Added example to illustrate issues with combining characters, ligatures, etc
+    
+
+     
+Strengthened wording around similar-appearing variable names that use distinct codepoint sequences
+    
+
+     
+Clarified an example by using more visually distinct languages as examples (English and Greek)
+    
+
+     
+Split Security and Privacy into separate sections
+   
+   
+5.3. 
+Changes Since the 03 December 2015 CR
+   
+    
+
+     
+Now that [css-syntax-3] auto-trims whitespace from declaration values,
+made <declaration-value> optional in the custom property grammar,
+so that empty variables are still allowed.
+(Issue 774)
+    
+
+     
+Similarly, made empty fallbacks valid in var().
+    
+
+     
+The -- property is reserved for future use by CSS.
+    
+
+     
+Added concept of "animation-tainted",
+to prevent non-animatable properties
+from using a variable to smuggle in some animatability.
+    
+
+     
+Defined the guaranteed-invalid value
+to make the initial value of custom properties
+and the result of cycles or substitution failure
+more straightforward,
+and allow failure to propagate thru substitutions
+until finally intercepted by a fallback.
+    
+
+     
+Defined that cycles trigger invalid at computed-value time behavior.
+    
+
+     
+Allowed variables to resolve to a CSS-wide keyword
+(only possible by providing it as a fallback).
+    
+
+     
+Clarified that registered custom properties act like non-custom properties
+when they’re invalid at computed-value time.
+    
+
+     
+Made longhands with var()s also trigger their shorthands to be unserializable,
+like longhands with pending-substitution values already did.
+    
+
+     
+Required UAs to defend against exponential substitution attacks.
+    
+
+     
+Defined how to serialize the values of custom properties
+(previously, only the property name’s serialization was specified).
+   
+   
+5.4. 
+Changes since the May 6 2014 Last Call Working Draft
+   
+    
+
+     
+Serialization of longhands when shorthand uses a variable was defined.
+    
+
+     
+Link to DOM’s definition of "case-sensitive".
+    
+
+     
+Added example of using variables with :lang() to do simple i18n.
+    
+
+     
+Clarified that usage of var() in a custom property must be valid per the var() grammar.
+   
+   
+6. 
+Acknowledgments
+   
+Many thanks to several people in the CSS Working Group for keeping the dream of variables alive over the years,
+	particularly Daniel Glazman and David Hyatt.
+	Thanks to multiple people on the mailing list for helping contribute to the development of this incarnation of variables,
+	particularly
+	Brian Kardell,
+	David Baron,
+	François Remy,
+	Roland Steiner,
+	and Shane Stephens.
+   
+7. Privacy Considerations
+   
+This specification defines a purely author-level mechanism for passing styling information around within a page they control.
+As such, there are no new privacy considerations.
+   
+8. Security Considerations
+   
+CSS Values 5 §  Safely Handling Overly-Long Substitution calls out a long-standing Denial-of-Service attack
+that can be mounted against "macro-expansion"-like mechanisms,
+such as the var() function,
+and mandates a defense against that attack.
+   
+    Tests
+    
+     
+revert-in-fallback.html (live test) (source)
+     
+revert-layer-in-fallback.html (live test) (source)
+     
+variables-animation-math-functions.html (live test) (source)
+     
+variable-recalc-with-initial.html (live test) (source)
+    
+   
+   
+
+    
+     Tests
+     
+      
+missing-closing-nested-fallback-crash.html (live test) (source)
+      
+url-syntax-crash.html (live test) (source)
+      
+whitespace-in-fallback-crash.html (live test) (source)
+      
+registered-property-light-dark.html (live test) (source)
+      
+variable-animation-visited-link.html (live test) (source)
+      
+variable-declaration-01.html (live test) (source)
+      
+variable-declaration-02.html (live test) (source)
+      
+variable-declaration-03.html (live test) (source)
+      
+variable-declaration-04.html (live test) (source)
+      
+variable-declaration-05.html (live test) (source)
+      
+variable-declaration-14.html (live test) (source)
+      
+variable-declaration-16.html (live test) (source)
+      
+variable-declaration-17.html (live test) (source)
+      
+variable-declaration-18.html (live test) (source)
+      
+variable-declaration-19.html (live test) (source)
+      
+variable-declaration-21.html (live test) (source)
+      
+variable-declaration-51.html (live test) (source)
+      
+variable-declaration-52.html (live test) (source)
+      
+variable-declaration-53.html (live test) (source)
+      
+variable-declaration-54.html (live test) (source)
+      
+variable-declaration-55.html (live test) (source)
+      
+variable-external-font-face-01.html (live test) (source)
+      
+variable-font-face-01.html (live test) (source)
+      
+variable-font-face-02.html (live test) (source)
+      
+variable-generated-content-dynamic-001.html (live test) (source)
+      
+variable-invalid-recovery.html (live test) (source)
+      
+variable-reference-01.html (live test) (source)
+      
+variable-reference-02.html (live test) (source)
+      
+variable-reference-03.html (live test) (source)
+      
+variable-reference-04.html (live test) (source)
+      
+variable-reference-05.html (live test) (source)
+      
+variable-reference-12.html (live test) (source)
+      
+variable-reference-15.html (live test) (source)
+      
+variable-reference-16.html (live test) (source)
+      
+variable-reference-18.html (live test) (source)
+      
+variable-reference-19.html (live test) (source)
+      
+variable-reference-30.html (live test) (source)
+      
+variable-reference-36.html (live test) (source)
+      
+variable-reference-37.html (live test) (source)
+      
+variable-reference-38.html (live test) (source)
+      
+variable-reference-40.html (live test) (source)
+      
+variable-reference-without-whitespace.html (live test) (source)
+      
+vars-background-shorthand-001.html (live test) (source)
+      
+vars-font-shorthand-001.html (live test) (source)
+      
+wide-keyword-fallback-001.html (live test) (source)
+      
+wide-keyword-fallback-002.html (live test) (source)
+      
+css-variable-change-style-001.html (live test) (source)
+      
+css-variable-change-style-002.html (live test) (source)
+      
+custom-properties-inherit.html (live test) (source)
+      
+missing-closing-nested-fallback.html (live test) (source)
+      
+revert-rule-in-fallback.html (live test) (source)
+      
+revert-rule-to-var.html (live test) (source)
+      
+transition-with-attribute-taint.html (live test) (source)
+      
+url-token-serialization.html (live test) (source)
+      
+var-ident-function.html (live test) (source)
+      
+var-parsing.html (live test) (source)
+      
+variable-animation-guaranteed-invalid.html (live test) (source)
+      
+variable-css-wide-keywords-after-substitution.html (live test) (source)
+      
+variable-definition-border-shorthand-serialize.html (live test) (source)
+      
+variable-exponential-blowup.html (live test) (source)
+      
+variable-presentation-attribute.html (live test) (source)
+      
+variable-reference-cssom.html (live test) (source)
+      
+variable-reference-name-substitution-attr-taint.html (live test) (source)
+      
+variable-reference-name-substitution.html (live test) (source)
+      
+variable-reference-perspective-origin.html (live test) (source)
+      
+variable-reference-refresh.html (live test) (source)
+      
+variable-resolution-during-prioritary-properties.html (live test) (source)
+      
+variable-substitution-background-properties.html (live test) (source)
+      
+variable-substitution-basic.html (live test) (source)
+      
+variable-substitution-filters.html (live test) (source)
+      
+variable-substitution-replaced-size.html (live test) (source)
+      
+variable-substitution-shadow-properties.html (live test) (source)
+      
+variable-substitution-shorthands.html (live test) (source)
+      
+variable-substitution-variable-declaration.html (live test) (source)
+      
+variable-transitions-transition-property-all-before-value.html (live test) (source)
+      
+variable-transitions-value-before-transition-property-all.html (live test) (source)
+      
+variables-substitute-guaranteed-invalid.html (live test) (source)
+      
+vars-border-shorthand-serialize.html (live test) (source)
+     
+    
+   
+  
+  
+
+Conformance
+  
+
+Document conventions
+  
+Conformance requirements are expressed with a combination of
+    descriptive assertions and RFC 2119 terminology. The key words “MUST”,
+    “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL NOT”, “SHOULD”, “SHOULD NOT”,
+    “RECOMMENDED”, “MAY”, and “OPTIONAL” in the normative parts of this
+    document are to be interpreted as described in RFC 2119.
+    However, for readability, these words do not appear in all uppercase
+    letters in this specification.
+
+    
+  
+All of the text of this specification is normative except sections
+    explicitly marked as non-normative, examples, and notes. [RFC2119]
+  
+Examples in this specification are introduced with the words “for example”
+    or are set apart from the normative text with class="example",
+    like this:
+
+    
+  
+
+   
+        
+   
+This is an example of an informative example.
+  
+  
+Informative notes begin with the word “Note” and are set apart from the
+    normative text with class="note", like this:
+
+    
+  
+Note, this is an informative note.
+  
+Advisements are normative sections styled to evoke special attention and are
+    set apart from other normative text with <strong class="advisement">, like
+    this:
+
+    
+        UAs MUST provide an accessible alternative.
+    
+  
+   Tests
+   
+Tests relating to the content of this specification
+                     may be documented in “Tests” blocks like this one.
+                     Any such block is non-normative.
+   
+   
+  
+  
+
+Conformance classes
+  
+Conformance to this specification
+    is defined for three conformance classes:
+    
+  
+   
+style sheet
+            
+   
+A CSS
+            style sheet.
+        
+   
+renderer
+            
+   
+A UA
+            that interprets the semantics of a style sheet and renders
+            documents that use them.
+        
+   
+authoring tool
+            
+   
+A UA
+            that writes a style sheet.
+    
+  
+  
+A style sheet is conformant to this specification
+    if all of its statements that use syntax defined in this module are valid
+    according to the generic CSS grammar and the individual grammars of each
+    feature defined in this module.
+
+    
+  
+A renderer is conformant to this specification
+    if, in addition to interpreting the style sheet as defined by the
+    appropriate specifications, it supports all the features defined
+    by this specification by parsing them correctly
+    and rendering the document accordingly. However, the inability of a
+    UA to correctly render a document due to limitations of the device
+    does not make the UA non-conformant. (For example, a UA is not
+    required to render color on a monochrome monitor.)
+
+    
+  
+An authoring tool is conformant to this specification
+    if it writes style sheets that are syntactically correct according to the
+    generic CSS grammar and the individual grammars of each feature in
+    this module, and meet all other conformance requirements of style sheets
+    as described in this module.
+
+
+  
+
+Partial implementations
+  
+So that authors can exploit the forward-compatible parsing rules to
+    assign fallback values, CSS renderers must
+    treat as invalid (and ignore
+    as appropriate) any at-rules, properties, property values, keywords,
+    and other syntactic constructs for which they have no usable level of
+    support. In particular, user agents must not selectively
+    ignore unsupported component values and honor supported values in a single
+    multi-value property declaration: if any value is considered invalid
+    (as unsupported values must be), CSS requires that the entire declaration
+    be ignored.
+  
+
+Implementations of Unstable and Proprietary Features
+  
+To avoid clashes with future stable CSS features,
+        the CSSWG recommends following best practices for the implementation of unstable features and proprietary extensions to CSS.
+
+
+  
+
+Non-experimental implementations
+  
+Once a specification reaches the Candidate Recommendation stage,
+    non-experimental implementations are possible, and implementors should
+    release an unprefixed implementation of any CR-level feature they
+    can demonstrate to be correctly implemented according to spec.
+
+    
+  
+To establish and maintain the interoperability of CSS across
+    implementations, the CSS Working Group requests that non-experimental
+    CSS renderers submit an implementation report (and, if necessary, the
+    testcases used for that implementation report) to the W3C before
+    releasing an unprefixed implementation of any CSS features. Testcases
+    submitted to W3C are subject to review and correction by the CSS
+    Working Group.
+
+    
+  
+Further information on submitting testcases and implementation reports
+    can be found from on the CSS Working Group’s website at
+    http://www.w3.org/Style/CSS/Test/.
+    Questions should be directed to the
+    public-css-testsuite@w3.org
+    mailing list.
+  
+  
+Index
+  
+Terms defined by this specification
+  
+   
+--*, in § 2
+   
+animation-tainted, in § 2
+   
+custom property, in § 2
+   
+<custom-property-name>, in § 2
+   
+guaranteed-invalid value, in § 2.2
+   
+replace a var() function, in § 3
+   
+var(), in § 3
+   
+<var-args>, in § 3
+   
+variable unit reference, in § 3.1
+  
+  
+Terms defined by reference
+  
+   
+
+    [CSS-ANIMATIONS-1] defines the following terms:
+    
+     
+@keyframes
+    
+   
+
+    [CSS-BACKGROUNDS-3] defines the following terms:
+    
+     
+background
+     
+background-color
+    
+   
+
+    [CSS-CASCADE-5] defines the following terms:
+    
+     
+all
+     
+computed value
+     
+initial
+     
+initial value
+    
+   
+
+    [CSS-CONDITIONAL-3] defines the following terms:
+    
+     
+@media
+    
+   
+
+    [CSS-FONTS-5] defines the following terms:
+    
+     
+font-size
+    
+   
+
+    [CSS-PROPERTIES-VALUES-API-1] defines the following terms:
+    
+     
+@property
+     
+registered custom property
+    
+   
+
+    [CSS-SYNTAX-3] defines the following terms:
+    
+     
+<)-token>
+     
+<]-token>
+     
+<bad-string-token>
+     
+<bad-url-token>
+     
+<declaration-value>
+     
+<delim-token>
+     
+<semicolon-token>
+     
+<}-token>
+     
+parse
+    
+   
+
+    [CSS-VALUES-4] defines the following terms:
+    
+     
+,
+     
+<dashed-ident>
+     
+?
+     
+calc()
+     
+CSS-wide keywords
+     
+dimension
+     
+identifier
+    
+   
+
+    [CSS-VALUES-5] defines the following terms:
+    
+     
+arbitrary substitution
+     
+arbitrary substitution function
+     
+argument grammar
+     
+cyclic substitution contexts
+     
+invalid at computed-value time
+     
+property replacement
+     
+resolve an arbitrary substitution function
+     
+substitute arbitrary substitution function
+     
+substitution context
+    
+   
+
+    [CSSOM-1] defines the following terms:
+    
+     
+case-sensitive flag
+     
+declarations
+     
+getPropertyValue(property)
+    
+   
+
+    [INFRA] defines the following terms:
+    
+     
+ASCII case-insensitive
+     
+identical to
+    
+   
+
+    [SELECTORS-4] defines the following terms:
+    
+     
+:lang()
+    
+   
+
+    [WEB-ANIMATIONS-1] defines the following terms:
+    
+     
+not animatable
+    
+  
+  
+References
+  
+Normative References
+  
+   
+[CSS-ANIMATIONS-1]
+   
+David Baron; et al. CSS Animations Level 1. URL: https://drafts.csswg.org/css-animations/
+   
+[CSS-CASCADE-5]
+   
+Elika Etemad; Miriam Suzanne; Tab Atkins Jr.. CSS Cascading and Inheritance Level 5. URL: https://drafts.csswg.org/css-cascade-5/
+   
+[CSS-CONDITIONAL-3]
+   
+Chris Lilley; David Baron; Elika Etemad. CSS Conditional Rules Module Level 3. URL: https://drafts.csswg.org/css-conditional-3/
+   
+[CSS-PROPERTIES-VALUES-API-1]
+   
+Tab Atkins Jr.; Alan Stearns; Greg Whitworth. CSS Properties and Values API Level 1. URL: https://drafts.css-houdini.org/css-properties-values-api-1/
+   
+[CSS-SYNTAX-3]
+   
+Tab Atkins Jr.; Simon Sapin. CSS Syntax Module Level 3. URL: https://drafts.csswg.org/css-syntax/
+   
+[CSS-VALUES-3]
+   
+Tab Atkins Jr.; Elika Etemad. CSS Values and Units Module Level 3. URL: https://drafts.csswg.org/css-values-3/
+   
+[CSS-VALUES-4]
+   
+Tab Atkins Jr.; Elika Etemad. CSS Values and Units Module Level 4. URL: https://drafts.csswg.org/css-values-4/
+   
+[CSS-VALUES-5]
+   
+Tab Atkins Jr.; Elika Etemad; Miriam Suzanne. CSS Values and Units Module Level 5. URL: https://drafts.csswg.org/css-values-5/
+   
+[CSS2]
+   
+Bert Bos; et al. Cascading Style Sheets Level 2 Revision 1 (CSS 2.1) Specification. URL: https://drafts.csswg.org/css2/
+   
+[CSSOM-1]
+   
+Daniel Glazman; Emilio Cobos Álvarez. CSS Object Model (CSSOM). URL: https://drafts.csswg.org/cssom/
+   
+[INFRA]
+   
+Anne van Kesteren; Domenic Denicola. Infra Standard. Living Standard. URL: https://infra.spec.whatwg.org/
+   
+[RFC2119]
+   
+S. Bradner. Key words for use in RFCs to Indicate Requirement Levels. March 1997. Best Current Practice. URL: https://datatracker.ietf.org/doc/html/rfc2119
+   
+[SELECTORS-4]
+   
+Elika Etemad; Tab Atkins Jr.. Selectors Level 4. URL: https://drafts.csswg.org/selectors/
+   
+[WEB-ANIMATIONS-1]
+   
+Brian Birtles; et al. Web Animations. URL: https://drafts.csswg.org/web-animations-1/
+  
+  
+Non-Normative References
+  
+   
+[CHARMOD-NORM]
+   
+Addison Phillips; et al. Character Model for the World Wide Web: String Matching. URL: https://w3c.github.io/charmod-norm/
+   
+[CSS-BACKGROUNDS-3]
+   
+Elika Etemad; Brad Kemper. CSS Backgrounds and Borders Module Level 3. URL: https://drafts.csswg.org/css-backgrounds/
+   
+[CSS-EXTENSIONS]
+   
+Tab Atkins Jr.. CSS Extensions. ED. URL: https://drafts.csswg.org/css-extensions/
+   
+[CSS-FONTS-5]
+   
+Chris Lilley. CSS Fonts Module Level 5. URL: https://drafts.csswg.org/css-fonts-5/
+  
+  
+Property Index
+  
+
+   
+    
+     
+
+      Name
+      Value
+      Initial
+      Applies to
+      Inh.
+      %ages
+      Anim­ation type
+      Canonical order
+      Com­puted value
+    
+     
+
+      --*
+      <declaration-value>?
+      the guaranteed-invalid value
+      all elements and all pseudo-elements (including those with restricted property lists)
+      yes
+      n/a
+      discrete
+      per grammar
+      specified value with variables substituted, or the guaranteed-invalid value
+   
+  
+  
+   ✔MDN
+  
+  
+   ✔MDN
+  
+
+
+
+
+
+

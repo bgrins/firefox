@@ -1,0 +1,49 @@
+--- disabled-v2/run.py
++++ enabled-v3/run.py
+@@ -22,11 +22,38 @@
+     return module
+ 
+ 
++def verify_entry(policy):
++    entry = policy['entry_authority']
++    assert entry['kind'] == 'verified-park'
++    for key in ('inputs', 'inputs_manifest', 'application_metadata', 'result', 'terminal'):
++        assert sha(ROOT / entry[key]) == policy['references'][entry[key]]
++    inputs = read(ROOT / entry['inputs'])
++    assert inputs['head'] == policy['head'] and inputs['controls'] == policy['controls']
++    assert inputs['accepted_fixes'] == 149 and inputs['tracked_fixes'] == 150
++    assert inputs['fresh_application_metadata']
++    assert read(ROOT / entry['application_metadata']) == policy['prepared_application_metadata']
++    assert policy['wpt']['harness_revision'] == inputs['head']
++    assert policy['wpt']['phase_revisions']['original'] == policy['prepared_application_metadata']['build_revision']
++    assert all(policy['references'][name] == pin for name, pin in inputs['configuration_pins'].items())
++    assert sha(ROOT / entry['result']) == inputs['park_result_sha256']
++    assert sha(ROOT / entry['terminal']) == inputs['park_terminal_sha256']
++    terminal = read(ROOT / entry['terminal'])
++    assert terminal == entry['terminal_record'] and terminal['exit'] == 0 and terminal['signer_called'] is False
++    assert terminal['result_sha256'] == inputs['park_result_sha256']
++    result = read(ROOT / entry['result'])
++    assert result['head'] == inputs['head'] and result['epoch_sha256'] == inputs['controls']['CURRENT-EPOCH.json']
++    assert result['released_staging'] and result['roadmap_preimage_restored'] and result['research_files_preserved']
++    assert result['signer_called'] is False and result['only_epoch_change'] == 'raw_index_observation.current'
++    assert result['accepted_fixes'] == 149 and result['tracked_fixes'] == 150
++    return inputs
++
++
+ def main():
+     assert len(sys.argv) == 2 and sha(HERE / 'FILES.json') == sys.argv[1]
+     files = read(HERE / 'FILES.json')
+     policy = read(HERE / 'POLICY.json')
+     assert policy['execution_enabled'] is True and policy['activation_pending'] == [], 'Disabled pending fresh post-signing bindings'
++    entry_inputs = verify_entry(policy)
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS='0', PYTHONDONTWRITEBYTECODE='1',
+                MOZCONFIG=str(ROOT / 'mozconfig'), MOZ_OBJDIR=str(ROOT / 'objdir-full.noindex'),
+                MOZ_HEADLESS='1', MOZ_SKIP_PATH_PERFORMANCE_CHECK='1')
+@@ -36,6 +63,7 @@
+     assert epoch['semantic_index']['head'] == policy['head'] and epoch['staged_working'] == {}
+     assert epoch['accepted_pow_special_value']['fix'] == 150
+     assert epoch['pow_special_value_transition']['accepted']
++    assert epoch['pins']['servo/components/style/values/generics/calc.rs'] == entry_inputs['accepted_calc_sha256']
+     built = read(ROOT / policy['build_epoch'])
+     bound = [name for name in built['pins']
+              if name.startswith(('servo/', 'layout/', 'dom/')) or name in policy['rebuilt_binaries']]

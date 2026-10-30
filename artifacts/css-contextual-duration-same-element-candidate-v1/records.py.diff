@@ -1,0 +1,11 @@
+--- artifacts/css-contextual-duration-progress-candidate-v1/records.py
++++ artifacts/css-contextual-duration-same-element-candidate-v1/records.py
+@@ -39,7 +39,7 @@
+             records[filename] = {"sha256": hashlib.sha256(body).hexdigest(), "identity": [info.st_dev, info.st_ino], "mode": stat.S_IMODE(info.st_mode), "bytes": len(body), "callback_status": row["status"], "schema_valid": False}
+             schema = load(root / rule["schema"])
+             record = json.loads(body, parse_constant=schema.reject_constant)
+-            assert set(record) == {"run_id", "kind", "observation"} and record["run_id"] == binding["run_id"]
++            assert set(record) == {"run_id", "kind", "observations"} and record["run_id"] == binding["run_id"]
+             assert schema.validate({key: value for key, value in record.items() if key != "run_id"}) == rule["kind"]
+             records[filename]["schema_valid"] = True
+         except (AssertionError, ValueError, KeyError, TypeError, OSError) as error:

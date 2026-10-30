@@ -1,0 +1,30 @@
+--- v1/tests/css/css-variables/animation-taint-writing-mode-fallback.tentative.html
++++ v2/tests/css/css-variables/animation-taint-writing-mode-fallback.tentative.html
+@@ -13,8 +13,8 @@
+     const frame = document.createElement("iframe");
+     t.add_cleanup(() => frame.remove());
+     const loaded = new Promise(resolve => frame.onload = resolve);
+-    const sinkValue = mode === "literal" ? "horizontal-tb" :
+-      `var(${mode === "alias" ? "--a" : "--v"}, horizontal-tb)`;
++    const sinkValue = mode === "literal" ? "vertical-lr" :
++      `var(${mode === "alias" ? "--a" : "--v"}, vertical-lr)`;
+     frame.srcdoc = `<!doctype html><style>
+       @keyframes hold { from, to { --v: vertical-rl; } }
+       .target {
+@@ -84,12 +84,12 @@
+     assert_equals(membership.count, 1, `current driver count: ${diagnostic}`);
+     assert_true(membership.sameAnimation, `retained animation: ${diagnostic}`);
+     assert_true(membership.sameEffect, `current effect: ${diagnostic}`);
+-    assert_equals(initial.sink, "horizontal-tb", `initial fallback: ${diagnostic}`);
++    assert_equals(initial.sink, "vertical-lr", `initial fallback: ${diagnostic}`);
+     for (const sample of samples) {
+-      assert_equals(sample.value, "horizontal-tb", `${sample.phase}: ${diagnostic}`);
++      assert_equals(sample.value, "vertical-lr", `${sample.phase}: ${diagnostic}`);
+     }
+-    assert_equals(beforeMembership.sink, "horizontal-tb", `before membership: ${diagnostic}`);
+-    assert_equals(afterMembership.sink, "horizontal-tb", `after membership: ${diagnostic}`);
++    assert_equals(beforeMembership.sink, "vertical-lr", `before membership: ${diagnostic}`);
++    assert_equals(afterMembership.sink, "vertical-lr", `after membership: ${diagnostic}`);
+   }, `Animation-tainted writing-mode ${mode}: non-animatable sink uses fallback`);
+ }
+ </script>

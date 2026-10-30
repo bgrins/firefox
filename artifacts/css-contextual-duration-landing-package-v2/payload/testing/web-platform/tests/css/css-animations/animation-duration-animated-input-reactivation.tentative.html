@@ -1,0 +1,122 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Animated inherited font reactivates a specified inactive CSS animation</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#relevant-animations">
+<link rel="help" href="https://drafts.csswg.org/css-animations-1/#animation-fill-mode">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+const settle = () => new Promise(resolve => {
+  requestAnimationFrame(() => requestAnimationFrame(resolve));
+});
+
+promise_test(async t => {
+  const host = document.createElement("div");
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const root = host.attachShadow({mode: "open"});
+  root.innerHTML = `<style>
+    .parent { font-size: 16px; }
+    .target {
+      opacity: 0.2;
+      animation: retained linear none paused;
+      animation-duration: calc(1em / 32px * 1s);
+    }
+    .reference { opacity: 0.2; }
+    @keyframes retained { from { opacity: 0; } to { opacity: 1; } }
+  </style>
+  <div class="parent"><div class="target"></div></div>
+  <div class="reference"></div><div class="reference"></div>`;
+  const parent = root.querySelector(".parent");
+  const target = root.querySelector(".target");
+  const sheet = root.querySelector("style").sheet;
+  const keyframesRule = sheet.cssRules[3];
+  const declaration = sheet.cssRules[1].style.animationDuration;
+  assert_not_equals(declaration, "", "Contextual duration parsed");
+  assert_true(CSS.supports("animation-duration", "calc(1em / 32px * 1s)"),
+              "Contextual time calculation supported");
+  const driver = parent.animate([{fontSize: "16px"}, {fontSize: "48px"}],
+                                {duration: 1000, fill: "both"});
+  t.add_cleanup(() => driver.cancel());
+  driver.pause();
+  await driver.ready;
+  driver.currentTime = 0;
+  const initial = target.getAnimations();
+  assert_equals(initial.length, 1, "Acquire CSS animation before leaving its active interval");
+  const animation = initial[0];
+  t.add_cleanup(() => animation.cancel());
+  assert_true(animation instanceof CSSAnimation, "CSS ownership");
+  const effect = animation.effect;
+  await animation.ready;
+  animation.currentTime = 750;
+  const frames = JSON.stringify(effect.getKeyframes());
+  const referenceElements = [...root.querySelectorAll(".reference")];
+  const references = referenceElements.map((element, i) => {
+    const reference = element.animate([{opacity: 0}, {opacity: 1}],
+                                     {duration: [500, 1500][i], fill: "none"});
+    t.add_cleanup(() => reference.cancel());
+    reference.pause();
+    return reference;
+  });
+  await Promise.all(references.map(reference => reference.ready));
+  references.forEach(reference => { reference.currentTime = 750; });
+  const samples = [];
+  for (const time of [0, 1000, 0, 1000]) {
+    driver.currentTime = time;
+    await settle();
+    const style = getComputedStyle(target);
+    const relevant = target.getAnimations();
+    samples.push({
+      font: style.fontSize,
+      cssDuration: style.animationDuration,
+      cssName: style.animationName,
+      fill: style.animationFillMode,
+      opacity: Number(style.opacity),
+      duration: effect.getTiming().duration,
+      progress: effect.getComputedTiming().progress,
+      localTime: effect.getComputedTiming().localTime,
+      time: animation.currentTime,
+      state: animation.playState,
+      pending: animation.pending,
+      startTime: animation.startTime,
+      relevantCount: relevant.length,
+      relevantIsRetained: relevant.length === 1 && relevant[0] === animation,
+      sameEffect: animation.effect === effect && effect.target === target,
+      sameRule: sheet.cssRules[3] === keyframesRule &&
+                sheet.cssRules[1].style.animationDuration === declaration,
+      sameRoot: target.getRootNode() === root && target.parentElement === parent,
+      frames: JSON.stringify(effect.getKeyframes()),
+      references: referenceElements.map(element => Number(getComputedStyle(element).opacity)),
+    });
+  }
+  const diagnostic = JSON.stringify(samples);
+  for (const [i, sample] of samples.entries()) {
+    const active = i % 2 === 1;
+    const label = `sample ${i}: ${diagnostic}`;
+    assert_equals(sample.font, active ? "48px" : "16px", `Inherited input ${label}`);
+    assert_equals(sample.cssDuration, active ? "1.5s" : "0.5s", `Computed duration ${label}`);
+    assert_equals(sample.cssName, "retained", `CSS animation remains specified ${label}`);
+    assert_equals(sample.fill, "none", `No fill ${label}`);
+    assert_equals(sample.duration, active ? 1500 : 500, `Applied duration ${label}`);
+    assert_equals(sample.progress, active ? 0.5 : null, `Phase progress ${label}`);
+    assert_equals(sample.localTime, 750, `Retained local time ${label}`);
+    assert_equals(sample.time, 750, `Retained paused time ${label}`);
+    assert_equals(sample.state, "paused", `Retained paused state ${label}`);
+    assert_false(sample.pending, `No pending task ${label}`);
+    assert_equals(sample.startTime, null, `Paused start time ${label}`);
+    assert_equals(sample.relevantCount, active ? 1 : 0, `Relevant membership ${label}`);
+    if (active) assert_true(sample.relevantIsRetained, `Reactivated original identity ${label}`);
+    assert_true(sample.sameEffect && sample.sameRule && sample.sameRoot,
+                `Unchanged effect and association ${label}`);
+    assert_equals(sample.frames, frames, `Unchanged opacity keyframes ${label}`);
+    assert_approx_equals(sample.references[0], 0.2, 0.00001, `Inactive literal reference ${label}`);
+    assert_approx_equals(sample.references[1], 0.5, 0.00001, `Active literal reference ${label}`);
+    assert_approx_equals(sample.opacity, sample.references[active ? 1 : 0], 0.00001,
+                         `Selected literal output ${label}`);
+  }
+}, "Animated inherited font reactivates an inactive but specified CSS animation with its original effect");
+</script>

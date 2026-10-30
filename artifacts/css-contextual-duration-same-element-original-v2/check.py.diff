@@ -1,0 +1,14 @@
+--- artifacts/css-contextual-duration-same-element-original-v1/check.py
++++ artifacts/css-contextual-duration-same-element-original-v2/check.py
+@@ -17,10 +17,7 @@
+ 
+ 
+ def check_binding(policy):
+-    assert not policy["execution_enabled"] and not policy["candidate_execution_enabled"]
+-    assert policy["activation_pending"]
+-    for name in ("head", "controls", "prepared_application_metadata", "restoration_binding", "admission_binding"):
+-        assert policy[name] is None, "Fresh admission requires a reviewed concrete binding validator"
++    return load("same_element_actual_admission", HERE / "admission.py").validate(policy)
+ 
+ 
+ def check(policy):

@@ -1,0 +1,19 @@
+--- artifacts/css-contextual-duration-masked-snapshot-candidate-v1/comparison.py
++++ artifacts/css-contextual-duration-masked-snapshot-candidate-v2/comparison.py
+@@ -43,6 +43,7 @@
+ 
+ def replay_original(root, policy, assessor, checks):
+     source = source_policy(root, policy)
++    load('snapshot_recovery_handoff', root / policy['owner_directory'] / 'handoff.py').validate(root, policy, source)
+     binding = policy['baseline_binding']
+     assert binding is not None and policy['wpt'] == expected_wpt(root, policy)
+     directory = root / binding['directory']
+@@ -63,7 +64,7 @@
+     assert read(directory / 'PRE.json') == read(directory / 'POST.json') == read(phase / 'PRE.json') == read(phase / 'POST.json')
+     metadata = read(phase / 'APPLICATION-METADATA.json')
+     assert metadata == read(phase / 'APPLICATION-METADATA-POST.json') == source['prepared_application_metadata']
+-    assert {key: value for key, value in metadata.items() if key not in ('build_revision', 'harness_revision', 'source_role')} == policy['prepared_application_metadata']
++    assert {key: value for key, value in metadata.items() if key not in ('build_revision', 'harness_revision', 'source_role', 'entry_identity', 'identity')} == {key: value for key, value in policy['prepared_application_metadata'].items() if key not in ('entry_identity', 'identity')}
+     original_settings = read(phase / 'ASSESSMENT-POLICY.json')
+     assert original_settings == phase_policy(source['wpt'])
+     phase_result = read(phase / 'RESULT.json')

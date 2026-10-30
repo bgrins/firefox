@@ -1,0 +1,30 @@
+--- artifacts/css-contextual-duration-broader-original-v2/run.py
++++ artifacts/css-contextual-duration-feedback-original-v1/run.py
+@@ -36,6 +36,7 @@
+         assert sha(ROOT / name) == expected, name
+     if sys.argv[1] == "--run":
+         assert policy["execution_enabled"] is True
++        assert policy["activation_pending"] == []
+         assert policy["head"] and policy["prepared_application_metadata"] and policy["build_epoch"]
+         assert {name: sha(RUNTIME / name) for name in policy["controls"]} == policy["controls"]
+         assert not (RUNTIME / "SOURCE-TRANSITION.lock").exists()
+@@ -100,7 +101,7 @@
+     initial = verify()
+     runner.save(output / 'PRE.json', initial)
+     phases = {}
+-    for kind in ('normative', 'reftest', 'feedback'):
++    for kind in ('feedback',):
+         current = dict(policy, wpt=policy['phases'][kind])
+         phase_env = dict(env)
+         if kind == 'feedback':
+@@ -148,8 +149,8 @@
+     runner.save(output / 'POST.json', after)
+     runner.save(output / 'RESULT.json', {'phases':phases,'preservation_verified':True,
+         'source_or_canonical_mutation':False,'native_fix_accepted':False,
+-        'numeric_feedback_oracle':False,'separate_reftest':True})
+-    print('Completed separate normative, reftest and feedback observations; no acceptance', flush=True)
++        'numeric_feedback_oracle':False,'feedback_only':True})
++    print('Completed fresh feedback-only original observation; no acceptance', flush=True)
+ 
+ 
+ if __name__ == "__main__":

@@ -1,0 +1,42 @@
+--- opacity-first predecessor
++++ API-first corroboration
+@@ -1,7 +1,7 @@
+ <!doctype html>
+ <meta charset="utf-8">
+-<title>Updating a font masked by an animation updates contextual duration</title>
+-<link rel="help" href="https://drafts.csswg.org/web-animations-1/#model-liveness">
++<title>Pending style changes update masked duration before getAnimations returns</title>
++<link rel="help" href="https://drafts.csswg.org/css-animations-2/#requirements-on-pending-style-changes">
+ <link rel="help" href="https://drafts.csswg.org/css-animations-1/#animation-duration">
+ <script src="/resources/testharness.js"></script>
+ <script src="/resources/testharnessreport.js"></script>
+@@ -42,13 +42,17 @@
+                 "Animated font masks the initial authored font");
+ 
+   target.style.fontSize = "32px";
++  const current = target.getAnimations();
++  const duration = effects[1].getTiming().duration;
++  const computed = effects[1].getComputedTiming();
++  const progress = computed.progress;
+   const firstOpacity = Number(win.getComputedStyle(target).opacity);
+-  const duration = effects[1].getTiming().duration;
+-  const progress = effects[1].getComputedTiming().progress;
+-  const current = target.getAnimations();
+   const observed = `opacity=${firstOpacity}, duration=${duration}, progress=${progress}`;
+-  assert_approx_equals(firstOpacity, 0.375, 0.0001, `First read: ${observed}`);
+-  assert_equals(duration, 2000, "Final contextual duration is 2s");
++  assert_approx_equals(firstOpacity, 0.375, 0.0001, `Opacity after animation API: ${observed}`);
++  assert_equals(current.length, 2, "Two CSS animations remain");
++  assert_equals(duration, 2000, "Iteration duration is 2s after getAnimations");
++  assert_equals(computed.duration, 2000, "Computed duration is 2s after getAnimations");
++  assert_equals(computed.localTime, 750, "Effect local time is retained");
+   assert_approx_equals(progress, 0.375, 0.0001, "Final effect progress");
+   for (let index = 0; index < animations.length; index++) {
+     assert_true(current.includes(animations[index]), "Animation identity retained");
+@@ -56,5 +60,5 @@
+     assert_equals(animations[index].currentTime, 750, "Current time retained");
+     assert_equals(animations[index].playState, "paused", "Animation stays paused");
+   }
+-}, "Changing a masked authored font updates contextual animation duration on the first read");
++}, "getAnimations processes a masked font change before retained effect timing is queried");
+ </script>

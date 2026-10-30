@@ -1,0 +1,27 @@
+>>>  526: void nsAnimationManager::UpdateAnimations(
+     527:     dom::Element* aElement, const PseudoStyleRequest& aPseudoRequest,
+     528:     const ComputedStyle* aComputedStyle) {
+     529:   MOZ_ASSERT(mPresContext->IsDynamic(),
+     530:              "Should not update animations for print or print preview");
+     531:   MOZ_ASSERT(aElement->IsInComposedDoc(),
+     532:              "Should not update animations that are not attached to the "
+     533:              "document tree");
+     534: 
+     535:   if (!aComputedStyle ||
+     536:       (!StaticPrefs::layout_css_display_animations_enabled() &&
+     537:        aComputedStyle->StyleDisplay()->mDisplay == StyleDisplay::None)) {
+     538:     // If we are in a display:none subtree we will have no computed values.
+     539:     // However, if we are on the root of display:none subtree, the computed
+     540:     // values might not have been cleared yet.
+     541:     // Stop (actually, destroy) any animations here: either there are no
+     542:     // computed values, or display animations are disabled and this is a
+     543:     // display:none root.
+     544:     StopAnimationsForElement(aElement, aPseudoRequest);
+     545:     return;
+     546:   }
+     547: 
+     548:   NonOwningAnimationTarget target(aElement, aPseudoRequest);
+     549:   ServoCSSAnimationBuilder builder(aComputedStyle);
+     550: 
+     551:   DoUpdateAnimations(target, *aComputedStyle->StyleUIReset(), builder);
+     552: }

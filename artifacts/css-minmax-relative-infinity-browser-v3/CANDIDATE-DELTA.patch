@@ -1,0 +1,45 @@
+--- pow-browser-v2/candidate.py
++++ minmax-browser-v3/candidate.py
+@@ -42,16 +42,16 @@
+     assert binding and binding['directory'] == policy['runtime_output']
+     ownership.authenticate(ROOT / policy['baseline_capsule']['directory'], policy['baseline_capsule']['sha256'])
+     old_policy = read(ROOT / policy['baseline_capsule']['directory'] / 'POLICY.json')
+-    assert policy['wpt'] == old_policy['wpt']
+-    assert policy['candidate'] == old_policy['candidate'] and policy['capture_packages'] == old_policy['capture_packages']
+-    assert (HERE / 'SOURCE-ROLES.json').read_bytes() == (ROOT / policy['baseline_capsule']['directory'] / 'SOURCE-ROLES.json').read_bytes()
++    expected_wpt = copy.deepcopy(old_policy['wpt'])
++    expected_wpt['phase_revisions']['candidate'] = policy['head']
++    assert policy['wpt'] == expected_wpt
+     ownership.authenticate(output, binding['manifest_sha256'])
+     terminal = read(output / binding['terminal_path'])
+-    assert terminal == binding['terminal'] and terminal['exit_code'] == 0
+-    completed = read(output / 'BASELINE-RESULT.json')
+-    assert sha(output / 'BASELINE-RESULT.json') == binding['result_sha256']
+-    assert completed['success'] and completed['preservation_verified'] and completed['browser_build_performed'] is False
+-    assert read(output / 'BASELINE-PRE.json')['snapshot'] == original_before
++    assert terminal == binding['terminal'] and terminal['exit'] == 0
++    completed = read(output / 'RESULT.json')
++    assert sha(output / 'RESULT.json') == binding['result_sha256']
++    assert completed['preservation_verified'] and completed['source_or_canonical_mutation'] is False
++    assert read(output / 'original-wpt/RESULT.json')['success']
+     assert read(output / 'original-wpt/PRE.json') == read(output / 'original-wpt/POST.json') == original_before
+     for name, pin in completed['phase'].items():
+         filename = {'assessment_sha256': 'ASSESSMENT.json', 'raw_sha256': 'raw.jsonl', 'result_sha256': 'RESULT.json'}[name]
+@@ -107,7 +107,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'contextual-easing-candidate'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'minmax-relative-infinity-candidate'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+@@ -213,7 +213,7 @@
+     state.save(output / 'BACKUP-CLEANUP.json', {'removed': success and not backups.exists(), 'verified_original_restoration': True, 'owned_backup_bytes': size, 'retained_after_failure': not success})
+     assert (lock.stat().st_dev, lock.stat().st_ino) == lock_identity
+     lock.unlink()
+-    state.save(output / 'RESULT.json', {'success': success, 'error': failure, 'publication_errors': errors, 'candidate_phase': phase_result, 'restoration_verified': True, 'runtime_controls_unchanged': True, 'empty_staging_preserved': True, 'native_fix_acceptance': False, 'full_epoch_copies_saved': 0})
++    state.save(output / 'CANDIDATE-RESULT.json', {'success': success, 'error': failure, 'publication_errors': errors, 'candidate_phase': phase_result, 'restoration_verified': True, 'runtime_controls_unchanged': True, 'empty_staging_preserved': True, 'native_fix_acceptance': False, 'full_epoch_copies_saved': 0})
+     assert success, failure
+     print('Activation paired observation complete; original source and application restored', flush=True)
+ 

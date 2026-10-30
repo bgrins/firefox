@@ -1,0 +1,78 @@
+--- artifacts/css-registered-selected-color-narrow-combined-terminal-review-v1/review.py
++++ artifacts/css-registered-color-image-common-only-terminal-review-v1/review.py
+@@ -4,6 +4,7 @@
+ import importlib.util
+ import json
+ import os
++import re
+ from pathlib import Path
+ import sys
+ 
+@@ -35,6 +36,33 @@
+                    for key in sorted(old) if old[key]["status"] == status]
+             for label, status in [("original_pass_controls", "PASS"),
+                                   ("original_fail_research_targets", "FAIL")]}
++
++
++def preservation(original, candidate, signature):
++    assert original["complete"] and candidate["complete"]
++    comparisons = {}
++    for field, count, keys in [("rows", 45, ("test", "subtest")), ("ends", 4, ("test",))]:
++        before = {tuple(row[key] for key in keys): row for row in original[field]}
++        after = {tuple(row[key] for key in keys): row for row in candidate[field]}
++        assert len(before) == len(original[field]) == count
++        assert len(after) == len(candidate[field]) == count and set(before) == set(after)
++        comparisons[field] = [{"original": signature(before[key]), "candidate": signature(after[key]),
++                               "full_signature_unchanged": signature(before[key]) == signature(after[key])}
++                              for key in sorted(before)]
++    return {"full_original_signature_equality": all(row["full_signature_unchanged"] for rows in comparisons.values() for row in rows),
++            "callbacks": comparisons["rows"], "endings": comparisons["ends"],
++            "native_neutrality_proved": False}
++
++
++def warning_summary(body):
++    text = body.decode("utf-8", errors="replace")
++    lines = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", text).splitlines()
++    matches = [{"line": i + 1, "text": line, "following_context": lines[i + 1:i + 5]}
++               for i, line in enumerate(lines) if re.search(r"\bwarning(?:\[[^\]\r\n]+\])?\s*:", line, re.IGNORECASE)]
++    return {"matching_warning_lines": matches, "matched_line_count": len(matches),
++            "count_is_unique_diagnostic_count": False, "complete_warning_inventory_claimed": False,
++            "decoding_replacement_present": "\ufffd" in text, "human_log_review_required": True,
++            "warning_suppression_added": False}
+ 
+ 
+ def authenticate():
+@@ -104,7 +132,13 @@
+     assert record("candidate-build/WAKE-RESULT.json")["owned_group_absent"]
+     for name in ("build-PROCESS.json", "WAKE-PROCESS.json"):
+         ownership.group_absent(record("candidate-build/" + name)["pgid"])
+-    observation = {"browser_executed": False, "observation_complete": False, "build_exit": build["exit"]}
++    build_log = pair / "candidate-build/build.log"
++    assert build_log.is_file() and not build_log.is_symlink()
++    build_body = build_log.read_bytes()
++    inputs["candidate-build/build.log"] = hashlib.sha256(build_body).hexdigest()
++    compiler_warnings = dict(warning_summary(build_body), log="candidate-build/build.log", sha256=inputs["candidate-build/build.log"], bytes=len(build_body))
++    observation = {"browser_executed": False, "observation_complete": False, "build_exit": build["exit"],
++                   "common_preservation": None}
+     if (pair / "candidate-wpt/RESULT.json").is_file():
+         assert build["exit"] == 0 and build["error"] is None and build["stop_reason"] is None
+         built = record("candidate-build/RESULT.json")
+@@ -184,7 +218,8 @@
+         observation = {"browser_executed": True, "observation_complete": True, "build_exit": build["exit"],
+                        "browser_exit": phase["exit"], "outcomes": outcomes,
+                        "research_cohorts": partition(original["rows"], replay["rows"], assessor.signature),
+-                       "cohorts_change_assessor_policy": False}
++                       "cohorts_change_assessor_policy": False,
++                       "common_preservation": preservation(original, replay, assessor.signature)}
+     else:
+         assert not (pair / "candidate-wpt").exists(), "Partial browser observation requires separate recovery review"
+         assert build["exit"] != 0 and result["success"] is False and result["candidate_phase"] is None
+@@ -236,7 +271,7 @@
+     assert output.parent == HERE and not output.exists()
+     report = {"actual_terminal": terminal, "owner_manifest_sha256": config["owner_manifest_sha256"],
+               "input_hashes": inputs, "owner_result": result, "observation": observation,
+-              "restoration_independently_verified": True, "source_identities": restoration["sources"],
++              "restoration_independently_verified": True, "compiler_warnings": compiler_warnings, "source_identities": restoration["sources"],
+               "restored_application_metadata": app, "raw_index_observation": raw_index,
+               "snapshot": snapshot, "backup": backup, "backup_deleted_by_reviewer": False,
+               "canonical_updated": False, "native_acceptance": False}

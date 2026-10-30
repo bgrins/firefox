@@ -1,0 +1,163 @@
+--- executed-reduced-original/check.py
++++ disabled-progress-original/check.py
+@@ -1,4 +1,5 @@
+ import copy
++import ast
+ import importlib.util
+ import hashlib
+ import json
+@@ -23,7 +24,7 @@
+     refresh = read(ROOT / policy["restoration_binding"]["refresh"]["path"])
+     owner = ROOT / policy["restored_owner"]
+     assert terminal["owner_sha256"] == sha(owner / "FILES.json")
+-    assert terminal["exit"] == 0 and terminal["state_and_application_restoration_independently_verified"]
++    assert terminal["exit"] == 1 and terminal["callbacks_failed"] == 2 and terminal["comparison_gate_passed"] is False and terminal["state_and_application_restoration_independently_verified"]
+     assert terminal["result_sha256"] == sha(runtime / "CANDIDATE-RESULT.json")
+     result = read(runtime / "CANDIDATE-RESULT.json")
+     assert result["restoration_verified"] and result["runtime_controls_unchanged"]
+@@ -31,7 +32,7 @@
+     restored = read(runtime / "RESTORATION.json")
+     assert restored["errors"] == [] and restored["owned_processes"] == {}
+     assert all(policy["source_role_pins"][n] == r["sha256"] for n, r in restored["sources"].items())
+-    cleanup = read(runtime / "BACKUP-CLEANUP.json")
++    cleanup = read(runtime / "ROOT-BACKUP-CLEANUP.json")
+     assert cleanup["removed"] and cleanup["verified_original_restoration"]
+     assert refresh["full_restored_state_verified"] and refresh["accepted_fix_increment"] == 0
+     assert refresh["only_changed_field"] == "raw_index_observation.current"
+@@ -48,10 +49,52 @@
+     expected.update(build_revision=expected["revision"], harness_revision=policy["head"], source_role="original")
+     assert policy["prepared_application_metadata"] == expected
+     assert policy["wpt"]["phase_revisions"] == {"original": expected["revision"]}
++    assert policy["accepted_current_payloads"] == before["accepted_current_payloads"] and len(policy["accepted_current_payloads"]) == 29
++    audit = read(ROOT / policy["postfailure_audit"])
++    signing = read(ROOT / policy["failed_signing_result"])
++    assert audit["head"] == policy["head"] and audit["index_and_epoch_unchanged"] and audit["transition_lock_absent"]
++    assert (audit["signing_session"], audit["signing_terminal_chunk"], audit["owner_exit"]) == (61015, "7c997c", 1)
++    assert audit["signing_result"] == signing == {"committed": False, "exit": 128, "real_index_and_canonical_state_unchanged": True}
++    assert audit["untracked_count"] == 563 and audit["prototype_hashes_and_committed_recoveries_verified"] == 68 and audit["unrelated_metadata_verified"] == 495
++    assert not audit["unexpected_paths"] and not audit["missing_paths"]
+ 
+ 
+ def check(policy):
+     settings = policy["wpt"]
++    runtime_assertions = [node for node in ast.walk(ast.parse((HERE / "run.py").read_text())) if isinstance(node, ast.Assert)]
++    assert any(ast.dump(node.test) == ast.dump(ast.parse('len(policy["accepted_current_payloads"]) == 29', mode='eval').body) for node in runtime_assertions)
++    expected_names, expected_resources, expected_metadata, expected_records = {}, {}, {}, {}
++    merged_manifest = None
++    def merge(left, right):
++        for name, value in right.items():
++            if name not in left:
++                left[name] = copy.deepcopy(value)
++            elif isinstance(value, dict):
++                merge(left[name], value)
++            else:
++                assert left[name] == value, name
++    for package in policy["probe_packages"]:
++        inputs = json.loads((ROOT / package / "INPUTS.json").read_bytes())
++        expected_names.update(inputs["source_roster"]["tests"])
++        merge(expected_resources, inputs["resources"])
++        merge(expected_metadata, {key: value for key, value in inputs["metadata"].items() if value["sha256"] is not None})
++        manifest = json.loads((ROOT / inputs["manifest"]["path"]).read_bytes())
++        if merged_manifest is None:
++            merged_manifest = manifest
++        else:
++            merge(merged_manifest, manifest)
++        page, names = next(iter(inputs["source_roster"]["tests"].items()))
++        schema = inputs["transport"].get("handler", {"path": "artifacts/css-contextual-duration-progress-transport-v1/duration-progress-record.py"})["path"]
++        for kind, name in zip(inputs["transport"]["expected_kinds"], names):
++            expected_records[kind + ".json"] = dict(kind=kind, page=page, subtest=name, schema=schema)
++        relative = page.lstrip("/") + ".ini"
++        expected_metadata[relative] = dict(path="testing/web-platform/meta/" + relative, sha256=None, status="proposed fixture metadata must be absent at admission")
++    assert settings["expected_subtests"] == expected_names and len(expected_names) == 3
++    assert sum(map(len, expected_names.values())) == 9
++    assert settings["resources"] == expected_resources and settings["metadata"] == expected_metadata
++    assert policy["record_kinds"] == expected_records and len(expected_records) == 9
++    assert json.loads((ROOT / settings["manifest"]["path"]).read_bytes()) == merged_manifest
++    assert (settings["expected_subtest_count"], settings["expected_control_count"], settings["expected_target_count"], settings["expected_page_count"], settings["expected_regression_signature_count"]) == (9, 9, 0, 3, 12)
+     roles = json.loads((ROOT / "artifacts/css-contextual-easing-activation-prototype-v2/SOURCE-ROLES.json").read_bytes())
+     assert len(roles) == 8 and "servo/components/style/values/generics/calc.rs" not in roles
+     assert policy["source_role_pins"] == dict(
+@@ -128,6 +171,83 @@
+     reject("wrong BuildID", lambda s: s[0]["run_info"].update(browser_build_id="wrong"))
+     reject("wrong harness revision", lambda s: s[0]["run_info"].update(revision="0" * 40))
+     reject("fixture setup exception", lambda s: next(e for e in s if e.get("action") == "test_status" and e["test"] in settings["fixture_target_pages"]).update(status="FAIL", expected="PASS", message="ReferenceError: missing helper"), 1)
++    check_records(policy)
+     print(json.dumps({"synthetic_positive_checks": 3, "negative_checks": rejected,
+                       "original_statuses_measured_without_required_failure_count": True,
+                       "fresh_application_metadata_required_at_activation": True, "browser_executed": False}))
++
++
++def check_records(policy):
++    import os
++    import tempfile
++    collector = load("progress_collection_check", HERE / "records.py")
++    samples = {}
++    for filename, rule in policy["record_kinds"].items():
++        kind = rule["kind"]
++        mode = kind.rsplit("-", 1)[1]
++        timing = dict(duration=2000, progress=.375, time=750, state="paused")
++        flags = {"membership": dict(middle=True, child=True, middleEffect=True, childEffect=True)}
++        driver = timing.copy()
++        if kind.startswith("two-hop-"):
++            snapshot = dict(childOpacity=.5, childDuration=1500, child=timing.copy(), middleFont=24, middleDuration=2000, middle=timing.copy(), rootFont=32)
++        elif kind.startswith("lh-chain-"):
++            snapshot = dict(childOpacity=.5, childDuration=1500, childLineHeight=24, child=timing.copy(), middleLineHeight=24, middleDuration=2000, middle=timing.copy(), parentFont=32)
++        else:
++            snapshot = dict(width=56, cssDuration=2000, parentFont=32, **timing)
++            flags = {"same": True}
++            driver = dict(time=1000, state="paused")
++        dimension = "width" if kind.startswith("property-only-") else "opacity"
++        observation = dict(mode=mode, samples=[dict(phase=phase, **{dimension: index}) for index, phase in enumerate(("first-child-read", "passive-frame-1", "passive-frame-2", "passive-frame-3"))], beforeMembership=copy.deepcopy(snapshot), driverTiming=driver if mode == "animated" else None, afterMembership=copy.deepcopy(snapshot), seek751=copy.deepcopy(snapshot), afterSeek=copy.deepcopy(snapshot), **flags)
++        samples[filename] = dict(run_id="synthetic_progress_run_123456", kind=kind, observation=observation)
++    with tempfile.TemporaryDirectory(prefix="css-progress-record-check-", dir="/private/tmp") as temporary:
++        directory = Path(temporary)
++        directory.chmod(0o700)
++        binding = dict(directory=str(directory), identity=[directory.stat().st_dev, directory.stat().st_ino], run_id="synthetic_progress_run_123456")
++        rows = [{"test": rule["page"], "subtest": rule["subtest"], "status": "PASS"} for rule in policy["record_kinds"].values()]
++        def put(name, value):
++            (directory / name).write_text(json.dumps(value))
++            (directory / name).chmod(0o600)
++        for name, value in samples.items():
++            put(name, value)
++        def collect(current=rows, bound=binding):
++            return collector.collect(ROOT, directory, bound, policy, {"rows": current})
++        assert collect()["complete"]
++        failed = copy.deepcopy(rows)
++        for row in failed:
++            row["status"] = "FAIL"
++        assert collect(failed)["complete"]
++        first = next(iter(samples))
++        (directory / first).unlink()
++        partial = collect(failed)
++        assert not partial["complete"] and len(partial["missing"]) == 1 and not partial["errors"] and len(partial["records"]) == 8
++        assert collect()["errors"]
++        put(first, samples[first])
++        negatives = []
++        for label, mutate in [
++            ("wrong run", lambda v: v.update(run_id="wrong")),
++            ("extra envelope field", lambda v: v.update(extra=1)),
++            ("wrong kind", lambda v: v.update(kind="unknown")),
++            ("missing first sample", lambda v: v["observation"]["samples"].pop(0)),
++            ("out of order samples", lambda v: v["observation"]["samples"].reverse()),
++            ("nonfinite numeric sample", lambda v: v["observation"]["samples"][0].update(opacity=float("inf"))),
++        ]:
++            value = copy.deepcopy(samples[first]); mutate(value); put(first, value)
++            result = collect(); assert result["errors"] and first in result["records"] and not result["records"][first]["schema_valid"], label
++            negatives.append(label)
++        put(first, samples[first]); (directory / first).chmod(0o644)
++        assert collect()["errors"]; negatives.append("nonprivate file")
++        (directory / first).chmod(0o600)
++        (directory / "unknown.json").write_text("{}")
++        assert collect()["errors"]; (directory / "unknown.json").unlink(); negatives.append("unknown file")
++        (directory / first).unlink(); (directory / first).symlink_to(directory / list(samples)[1])
++        assert collect()["errors"]; (directory / first).unlink(); put(first, samples[first]); negatives.append("symlink")
++        wrong = dict(binding, identity=[0, 0])
++        try:
++            collect(bound=wrong)
++        except AssertionError:
++            negatives.append("directory identity")
++        else:
++            raise AssertionError("wrong directory identity accepted")
++        assert collect()["complete"]
++    assert not directory.exists()
++    print(json.dumps({"record_positive_checks": 3, "record_negative_checks": ["missing PASS record", *negatives], "ordinary_FAIL_missing_collection_retained": True, "temporary_removed": True}))

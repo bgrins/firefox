@@ -1,0 +1,18 @@
+--- artifacts/css-animation-taint-candidate-v3-terminal-review-v1/check.py
++++ artifacts/css-animation-taint-candidate-v5-terminal-review-v1/check.py
+@@ -10,12 +10,12 @@
+ namespace = {}
+ exec(compile(ast.Module(body=[node], type_ignores=[]), "partition", "exec"), namespace)
+ partition = namespace["partition"]
+-original = [{"test": "/page", "subtest": str(i), "status": "PASS" if i < 98 else "FAIL", "message": str(i)} for i in range(106)]
++original = [{"test": "/page", "subtest": str(i), "status": "PASS" if i < 103 else "FAIL", "message": str(i)} for i in range(120)]
+ unchanged = partition(original, original, dict)
+-assert len(unchanged["original_pass_controls"]) == 98 and len(unchanged["original_fail_research_targets"]) == 8
++assert len(unchanged["original_pass_controls"]) == 103 and len(unchanged["original_fail_research_targets"]) == 17
+ assert all(row["full_signature_unchanged"] for rows in unchanged.values() for row in rows)
+ improved = copy.deepcopy(original)
+-for row in improved[98:]:
++for row in improved[103:]:
+     row["status"] = "PASS"
+ result = partition(original, improved, dict)
+ assert all(row["full_signature_unchanged"] for row in result["original_pass_controls"])

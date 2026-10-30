@@ -1,0 +1,79 @@
+--- artifacts/css-contextual-duration-index-refresh-v2/run.py
++++ artifacts/css-contextual-duration-index-refresh-v3/run.py
+@@ -34,13 +34,60 @@
+     assert not (RUNTIME / 'SOURCE-TRANSITION.lock').exists()
+     result = read(PAIR / 'CANDIDATE-RESULT.json')
+     terminal = read(PAIR / policy['terminal_path'])
+-    assert result['success'] and result['restoration_verified'] and result['runtime_controls_unchanged']
+-    assert result['error'] is None and result['publication_errors'] == []
+-    assert result['empty_staging_preserved'] and result['native_fix_acceptance'] is False
+-    assert terminal == policy['terminal']
+-    assert terminal['exit'] == 0 and terminal['result_sha256'] == sha(PAIR / 'CANDIDATE-RESULT.json')
+-    assert read(PAIR / 'RESTORATION.json')['owned_processes'] == {}
+-    assert read(PAIR / 'BACKUP-CLEANUP.json')['removed'] and not (PAIR / 'backups').exists()
++    assert terminal == policy['terminal'] and terminal['exit'] == 1
++    assert terminal['result_sha256'] == sha(PAIR / 'CANDIDATE-RESULT.json')
++    assert terminal['restoration_independently_verified'] and terminal['restoration_check_exit'] == 0
++    assert terminal['phase_replay_sha256'] == sha(PAIR / 'ROOT-PHASE-REPLAY.json')
++    replay = read(PAIR / 'ROOT-PHASE-REPLAY.json')
++    assert replay == policy['phase_replay'] and replay['feedback_executed'] is False
++    assert replay['restyle_raw_replayed'] and replay['restyle_timestamp_signature_differences'] == 4
++    assert result == policy['expected_candidate_result']
++    assert not result['success'] and result['restoration_verified']
++    assert result['runtime_controls_unchanged'] and result['empty_staging_preserved']
++    assert result['publication_errors'] == [] and result['candidate_phase'] is None
++    assert result['native_fix_acceptance'] is False
++    restoration = read(PAIR / 'RESTORATION.json')
++    assert restoration['owned_processes'] == {} and restoration['errors'] == []
++    backup = read(PAIR / 'BACKUP-CLEANUP.json')
++    assert backup['verified_original_restoration'] and backup['retained_after_failure'] and not backup['removed']
++    cleanup = read(PAIR / 'ROOT-BACKUP-CLEANUP.json')
++    assert cleanup == policy['root_backup_cleanup'] and cleanup['removed']
++    assert cleanup['verified_original_restoration'] and cleanup['full_state_verified_against_restored_POST']
++    assert cleanup['owned_inventory_verified'] and cleanup['historical_owner_result_unchanged']
++    assert cleanup['owned_backup_bytes'] == backup['owned_backup_bytes']
++    assert not (PAIR / 'backups').exists() and not (PAIR / 'backups').is_symlink()
++    build = read(PAIR / 'candidate-build/build-RESULT.json')
++    assert build['exit'] == 0 and build['owned_group_absent'] and build['cleanup_errors'] == []
++    assert build['error'] is None and build['stop_reason'] is None
++    for kind, count in [('normative', 49), ('reftest', 0), ('inactive', 1)]:
++        phase = PAIR / (kind + '-wpt')
++        assert replay['successful_phases'][kind]['raw_sha256'] == sha(phase / 'raw.jsonl')
++        assert replay['successful_phases'][kind]['rows'] == count
++        outcome = read(phase / 'RESULT.json')
++        assert outcome['success'] and outcome['comparison_gate_passed'] and outcome['preservation_verified']
++        assert outcome['exit'] == 0 and outcome['execution_error'] is None
++        assessment = read(phase / 'ASSESSMENT.json')
++        assert assessment['complete'] and assessment['errors'] == [] and assessment['comparison_errors'] == []
++        assert assessment['comparison_gate_passed'] and assessment['observed_subtest_count'] == count
++        assert all(row['status'] == 'PASS' for row in assessment['rows'])
++        phase_cleanup = read(phase / 'CLEANUP.json')
++        assert phase_cleanup['owned_group_absent'] and phase_cleanup['temporary_root_removed']
++        assert read(phase / 'PRE.json') == read(phase / 'POST.json')
++        assert read(phase / 'APPLICATION-METADATA.json') == read(phase / 'APPLICATION-METADATA-POST.json')
++    restyles = read(PAIR / 'restyles/RESULT.json')
++    assert restyles == policy['expected_restyle_result']
++    assert restyles['exit'] == 0 and restyles['execution_error'] is None and restyles['owned_group_absent']
++    assert restyles['preservation_verified'] and not restyles['comparison_passed']
++    assert read(PAIR / 'restyles/CLEANUP.json')['owned_group_absent']
++    assert read(PAIR / 'restyles/PRE.json') == read(PAIR / 'restyles/POST.json')
++    assert read(PAIR / 'restyles/APPLICATION-METADATA.json') == read(PAIR / 'restyles/APPLICATION-METADATA-POST.json')
++    differences = read(PAIR / 'RESTYLE-SIGNATURE-DIFFERENCES.json')
++    assert differences == policy['expected_restyle_differences']
++    assert [item['index'] for item in differences] == [24, 25, 27, 28]
++    for item in differences:
++        assert item['original']['status'] == item['candidate']['status'] == 'PASS'
++        assert {k:v for k,v in item['original'].items() if k != 'message'} == {k:v for k,v in item['candidate'].items() if k != 'message'}
++    assert all(not (PAIR / name).exists() for name in ('feedback-wpt','feedback-records','FEEDBACK-BINDING.json','FEEDBACK-RECORDS.json','PHASES-POST.json'))
+     observation = read(PAIR / 'RAW-INDEX-OBSERVATION.json')
+     assert observation == policy['raw_index_observation']
+     assert observation['semantic_index_unchanged'] and not observation['canonical_updated']
+@@ -76,6 +123,8 @@
+         'after_epoch': sha(source), 'raw_index': observation,
+         'source_application_git_and_acceptance_unchanged': True,
+         'full_state_matches_restored_pair': True,
++        'candidate_comparison_success': False,
++        'candidate_failure': 'four restyle timestamp diagnostic differences; feedback not run',
+         'raw_byte_drift_cause': 'unknown',
+     })
+     print('Refreshed only the raw-index observation; full restored state verified', flush=True)

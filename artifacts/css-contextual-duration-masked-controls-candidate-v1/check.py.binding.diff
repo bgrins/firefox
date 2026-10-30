@@ -1,0 +1,12 @@
+--- artifacts/css-contextual-duration-masked-controls-candidate-disabled-v1/check.py
++++ artifacts/css-contextual-duration-masked-controls-candidate-v1/check.py
+@@ -49,6 +49,9 @@
+     assert policy["head"] == original["head"]
+     assert policy["controls"] == original["controls"]
+     assert policy["prepared_application_metadata"] == {key: value for key, value in original["prepared_application_metadata"].items() if key not in ("build_revision", "harness_revision", "source_role")}
++    flag_capture = policy["prepared_flag_capture"]
++    assert policy["references"][flag_capture["path"]] == sha(ROOT / flag_capture["path"]) == flag_capture["sha256"]
++    assert read(ROOT / flag_capture["path"]) == policy["prepared_flag_hashes"]
+     assert set(policy["prepared_flag_hashes"]) == {"root", "nested"}
+     assert all(isinstance(value, str) and len(value) == 64 for value in policy["prepared_flag_hashes"].values())
+     comparison.replay_all(ROOT, policy)

@@ -1,0 +1,17 @@
+This unexecuted successor strengthens the first child-opacity observation for the three unchanged callbacks in `animation-duration-acyclic-two-hop.tentative.html`. Its only HTML delta from `css-contextual-duration-acyclic-two-hop-probe-v2` is a two-line assertion of `samples[0].opacity == final.opacity` within tolerance0.0001 (final.opacity is6/11), immediately after the existing awaited private-record POST and before subsequent observation assertions.
+
+Collection, setup/calibration, sample order, four child-only samples, detailed observations, membership, 751→750 intervention, trace serialization, POST/acknowledgement, handler bytes and registered test names are unchanged. Removing exactly the added assertion recovers the predecessor HTML byte for byte. Therefore all observations remain recorded even when the new first-sample assertion fails. An initial setup failure can still prevent collection, as before.
+
+The first-read requirement is derived for already paused, ready, finite acyclic dependencies from [Web Animations model liveness](https://drafts.csswg.org/web-animations-1/#model-liveness), [dependency ordering](https://drafts.csswg.org/web-animations-1/#computing-property-values), and [CSSOM resolved values](https://drafts.csswg.org/cssom/#resolved-values). The normative model-liveness opening is distinct from its informative immediate-query examples. CSS Animations pending-style rules specifically govern animation APIs, not getComputedStyle directly. The fuller reviewed bridge is `css-contextual-duration-progress-original-interpretation-v1`; this adds an observable value assertion, not an internal traversal count or convergence policy.
+
+Static validation authenticates the sealed predecessor, compares exact added/deleted bytes, registers the three names without executing callback bodies, exercises the exact added assertion on two correct inputs and five wrong/nonfinite/null controls, and generates a genuine WPT manifest. Only the HTML blob entry changes in that manifest; registration and handler entries remain equal. WPT lint reports zero errors. The manifest tooling emits its known scratch-directory Git diagnostic before succeeding; both check logs retain it. Scratch directories are removed. No browser, native source, app, Git index or canonical-state operation occurred.
+
+Run the shared static checker from the repository root:
+
+```sh
+python3 -I -B -S artifacts/css-contextual-duration-acyclic-two-hop-probe-v3/check.py --package artifacts/css-contextual-duration-acyclic-two-hop-probe-v3
+```
+
+This checker writes only the selected artifact's generated INPUTS, manifest and CHECK plus temporary scratch. It is preparation tooling, not an execution owner. The handler, support resources and captured metadata remain referenced from predecessor packages; INPUTS retains the historical metadata description and supplies no fresh live absence or app binding. A future owner must supply actual reviewed current bindings and precise per-page metadata, as the executed nine-callback owner did.
+
+No actual WPT result is attributed to these successor bytes. The original nine-callback observation and any candidate results produced with predecessor fixtures remain historical evidence under their original assertions. No owner is enabled, no fixture is placed in the WPT tree, and the landing patch remains unchanged. Review the eventual saved first/passive records separately; a later-frame PASS is not first-read correctness.

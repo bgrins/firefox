@@ -1,0 +1,57 @@
+--- artifacts/css-contextual-duration-broader-candidate-v4/baseline.py
++++ artifacts/css-contextual-duration-feedback-candidate-v1/baseline.py
+@@ -42,24 +42,34 @@
+             assert not path.is_absolute() and '..' not in path.parts and not (ROOT / path).is_symlink()
+             assert policy['references'][str(path)] == sha(ROOT / path) == record[kind + '_sha256']
+     if policy['baseline_binding'] is None:
+-        assert policy['inactive_binding'] is None
+         assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
+         return policy, ownership, roles
+     ownership.authenticate(ROOT / policy['baseline_capsule']['directory'], policy['baseline_capsule']['sha256'])
+     assert policy['wpt'] == expected_wpt(policy)
+-    assert (policy['wpt']['expected_subtest_count'], policy['wpt']['expected_target_count'], policy['wpt']['expected_control_count'], policy['wpt']['expected_page_count'], policy['wpt']['expected_regression_signature_count']) == (49,4,45,10,55)
++    assert (policy['wpt']['expected_subtest_count'], policy['wpt']['expected_target_count'], policy['wpt']['expected_control_count'], policy['wpt']['expected_page_count'], policy['wpt']['expected_regression_signature_count']) == (3,0,3,1,4)
+     binding = policy['baseline_binding']
+     directory = ROOT / binding['directory']
+     ownership.authenticate(directory, binding['manifest_sha256'])
+     assert read(directory / binding['terminal_path']) == binding['terminal'] and binding['terminal']['exit'] == 0
+     assert sha(directory / 'RESULT.json') == binding['result_sha256']
+-    assert policy['inactive_binding'] is not None
+-    ownership.authenticate(ROOT / policy['inactive_capsule']['directory'], policy['inactive_capsule']['sha256'])
+-    ownership.authenticate(ROOT / policy['inactive_binding']['directory'], policy['inactive_binding']['manifest_sha256'])
+     comparison = load('broader_complete_replay', str((HERE / 'comparison.py').relative_to(ROOT)))
+     comparison.replay_all(ROOT, policy)
+     return policy, ownership, roles
+ 
++
++
++def checkpoint_chain(policy, native, research):
++    assert native['head'] == policy['research_parent_head']
++    assert native['signature_chain_verified'] and native['runtime_epoch_synchronized']
++    assert (native['accepted_fix'], native['accepted_fixes'], native['tracked']) == (150,149,150)
++    assert set(research) == {'committed','head','parent','signature_verified','selected_paths','epoch_sha256','accepted_fix_increment','native_working_diff_preserved'}
++    assert research['committed'] is True and research['signature_verified'] is True
++    assert research['native_working_diff_preserved'] is True
++    assert type(research['accepted_fix_increment']) is int and research['accepted_fix_increment'] == 0
++    assert type(research['selected_paths']) is int and research['selected_paths'] > 0
++    assert research['parent'] == native['head'] and research['head'] == policy['head']
++    assert research['head'] != research['parent']
++    assert research['epoch_sha256'] == policy['controls']['CURRENT-EPOCH.json']
+ 
+ def guard(policy, ownership, roles):
+     assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'CC', 'CXX', 'RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS', 'CARGO_TARGET_DIR', 'RUSTC', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER', 'MOZ_ARTIFACT_BUILDS', 'MOZ_CONFIGURE_OPTIONS', 'MOZ_PROFILE'))
+@@ -69,8 +79,12 @@
+     assert {name: hashlib.sha256(body).hexdigest() for name, body in controls.items()} == policy['controls']
+     checkpoint = read(ROOT / policy['reference_checkpoint']['path'])
+     assert sha(ROOT / policy['reference_checkpoint']['path']) == policy['reference_checkpoint']['sha256']
+-    assert checkpoint['head'] == policy['head'] and checkpoint['signature_chain_verified'] and checkpoint['runtime_epoch_synchronized']
+-    assert checkpoint['accepted_fix'] == 150 and checkpoint['accepted_fixes'] == 149 and checkpoint['tracked'] == 150
++    native_checkpoint = read(ROOT / policy['native_checkpoint']['path'])
++    assert sha(ROOT / policy['native_checkpoint']['path']) == policy['native_checkpoint']['sha256']
++    checkpoint_chain(policy, native_checkpoint, checkpoint)
++    assert state.h.git(ROOT, env, 'rev-list', '--parents', '-n', '1', policy['head']).decode().split() == [policy['head'], policy['research_parent_head']]
++    research_paths = state.h.git(ROOT, env, 'diff', '--no-renames', '--name-only', policy['research_parent_head'], policy['head']).decode().splitlines()
++    assert research_paths and all(name.startswith('artifacts/') for name in research_paths)
+     epoch = json.loads(controls['CURRENT-EPOCH.json'])
+     assert epoch['semantic_index']['head'] == policy['head'] and epoch['staged_working'] == {}
+     assert epoch['modified_native_paths'] == ['servo/components/style/custom_properties.rs']

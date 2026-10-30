@@ -1,0 +1,19 @@
+--- a/run.py
++++ b/run.py
+@@ -92,7 +92,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'registered-selected-color-original-v2'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'prioritary-selection-original74-v1'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+@@ -101,6 +101,7 @@
+     failure, phase_result, binaries = None, None, None
+     touched = []
+     def stable_controls():
++        baseline.metadata_guard(policy)
+         for name in policy['preserved_absent_metadata'] + policy['preserved_absent_resources']:
+             assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()
+         assert all((RUNTIME / name).read_bytes() == body for name, body in controls.items())

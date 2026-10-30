@@ -1,0 +1,36 @@
+--- artifacts/css-prioritary-selection-candidate-terminal-review-v2/observations.py
++++ artifacts/css-prioritary-selection-candidate-terminal-review-v3/observations.py
+@@ -153,13 +153,13 @@
+     outcome=None
+     if complete:
+         try:
+-            assert len(all_rows)==74 and len(all_ends)==11
+-            assert len({(r['test'],r['subtest']) for r in all_rows})==74 and len({r['test'] for r in all_ends})==11
++            assert len(all_rows)==77 and len(all_ends)==12
++            assert len({(r['test'],r['subtest']) for r in all_rows})==77 and len({r['test'] for r in all_ends})==12
+             outcome=record('OUTCOMES.json')
+             assert outcome['rows']==all_rows and outcome['endings']==all_ends
+             assert outcome['callbacks_passed']==sum(r['status']=='PASS' for r in all_rows)
+             assert outcome['callbacks_failed']==sum(r['status']=='FAIL' for r in all_rows)
+-            assert outcome['provider_source_role']=='clean-provider-cascade-candidate' and outcome['native_acceptance'] is False and outcome['zoom_target_correctness'] is None
++            assert outcome['provider_source_role']=='provider-cascade-value-candidate' and outcome['native_acceptance'] is False and outcome['zoom_target_correctness'] is None
+             assert outcome['lanes']==result['candidate_phase'] and set(result['candidate_phase'])==set(policy['lane_order'])
+             for lane,entry in result['candidate_phase'].items():
+                 assert entry['lane']==lane
+@@ -171,8 +171,8 @@
+                     assert inputs[prefix+'ZOOM-COMPARISON.json']==entry['zoom_comparison_sha256']
+                 else:assert entry['zoom_observation_sha256'] is None
+             assert record('PHASES-POST.json')==record('PHASES-PRE.json')==record('candidate-build/RESULT.json')['snapshot']
+-            aggregate={'lanes':behaviors,'repair_observation_gate':all(v['repair_observation_gate'] for v in behaviors.values()),'all85_signatures_equal':all(v['all_signatures_equal'] for v in behaviors.values()),'zoom_comparison_sha256':result['candidate_phase']['ordinary']['zoom_comparison_sha256'],'native_acceptance':False}
+-            assert sum(len(v['candidate_signatures']) for v in behaviors.values())==85
++            aggregate={'lanes':behaviors,'repair_observation_gate':all(v['repair_observation_gate'] for v in behaviors.values()),'all89_signatures_equal':all(v['all_signatures_equal'] for v in behaviors.values()),'zoom_comparison_sha256':result['candidate_phase']['ordinary']['zoom_comparison_sha256'],'native_acceptance':False}
++            assert sum(len(v['candidate_signatures']) for v in behaviors.values())==89
+             assert record('COMPARISON.json')==aggregate
+             assert result['success']
+         except (AssertionError,OSError,ValueError,TypeError,KeyError) as error:
+@@ -180,4 +180,4 @@
+     if not result['success']:
+         assert result['candidate_phase'] is None
+         assert record('FAILURE-TRACEBACK.json')['error']==result['error']
+-    return {'lanes':lanes,'browser_executed':True if any(lane['browser_executed'] is True for lane in lanes.values()) else None if any(lane['wpt_process_started'] for lane in lanes.values()) else False,'observation_complete':complete,'build_exit':build['exit'],'raw_rows':all_rows,'raw_endings':all_ends,'raw_counts':counts(all_rows),'outcomes':outcome,'errors':errors,'native_acceptance':False,'zoom_target_correctness':None,'original_counts':counts([row for original in originals.values() for row in original['rows']]),'original_endings':sum(len(original['ends']) for original in originals.values()),'target_callbacks':sum(settings['expected_target_count'] for settings in policy['wpt_lanes'].values()),'behaviors':behaviors,'repair_observation_gate':all(v['repair_observation_gate'] for v in behaviors.values()) if complete else None,'all85_signatures_equal':all(v['all_signatures_equal'] for v in behaviors.values()) if complete else None}
++    return {'lanes':lanes,'browser_executed':True if any(lane['browser_executed'] is True for lane in lanes.values()) else None if any(lane['wpt_process_started'] for lane in lanes.values()) else False,'observation_complete':complete,'build_exit':build['exit'],'raw_rows':all_rows,'raw_endings':all_ends,'raw_counts':counts(all_rows),'outcomes':outcome,'errors':errors,'native_acceptance':False,'zoom_target_correctness':None,'original_counts':counts([row for original in originals.values() for row in original['rows']]),'original_endings':sum(len(original['ends']) for original in originals.values()),'target_callbacks':sum(settings['expected_target_count'] for settings in policy['wpt_lanes'].values()),'behaviors':behaviors,'repair_observation_gate':all(v['repair_observation_gate'] for v in behaviors.values()) if complete else None,'all89_signatures_equal':all(v['all_signatures_equal'] for v in behaviors.values()) if complete else None}

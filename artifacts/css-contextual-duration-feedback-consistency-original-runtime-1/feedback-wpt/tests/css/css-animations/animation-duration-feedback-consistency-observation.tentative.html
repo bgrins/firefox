@@ -1,0 +1,148 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Bounded observations of duration feedback sampling and invalidation</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+const roles = ["passive", "seek", "outline", "override", "literal"];
+const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+
+function styleOf(target) {
+  const style = getComputedStyle(target);
+  return {font: style.fontSize, cssDuration: style.animationDuration,
+          opacity: style.opacity, outlineWidth: style.outlineWidth};
+}
+
+function effectsOf(animations) {
+  return animations.map(animation => ({name: animation.animationName,
+    time: animation.currentTime, duration: animation.effect.getTiming().duration,
+    progress: animation.effect.getComputedTiming().progress, state: animation.playState}));
+}
+
+function read(entry, order) {
+  let style, effects;
+  if (order === "style-first") {
+    style = styleOf(entry.target);
+    effects = effectsOf(entry.animations);
+  } else {
+    effects = effectsOf(entry.animations);
+    style = styleOf(entry.target);
+  }
+  const repeatEffects = effectsOf(entry.animations);
+  const repeatStyle = styleOf(entry.target);
+  const current = entry.target.getAnimations();
+  return {order, style, effects, repeatEffects, repeatStyle,
+          sameAnimations: entry.animations.map(animation => current.includes(animation)),
+          sameEffects: entry.animations.map((animation, index) => animation.effect === entry.effects[index]),
+          currentEffects: effectsOf(current), afterMembershipStyle: styleOf(entry.target)};
+}
+
+function create(t, role, zero) {
+  const host = document.createElement("div");
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const root = host.attachShadow({mode: "open"});
+  root.innerHTML = `<style>
+    .target {
+      font-size: 16px;
+      animation-name: ${zero ? "fontCycle" : "fontCycle, fade"};
+      animation-duration: ${role === "literal" ? "2s" : "calc(1em / 16px * 1s)"};
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-play-state: paused;
+    }
+    .target.poke { outline: 1px solid transparent; }
+    @keyframes fontCycle { from { font-size: ${zero ? 0 : 16}px; } to { font-size: 32px; } }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  </style><div class="target"></div>`;
+  const target = root.querySelector(".target");
+  const animations = target.getAnimations();
+  assert_equals(animations.length, zero ? 1 : 2, `${role}: animation acquisition`);
+  return {role, host, target, animations, effects: animations.map(animation => animation.effect)};
+}
+
+async function observe(t, zero) {
+  const trajectories = [];
+  for (const role of roles) {
+    const entry = create(t, role, zero);
+    try {
+      const beforeReady = read(entry, "timing-first");
+      await Promise.all(entry.animations.map(animation => animation.ready));
+      const afterReady = read(entry, "timing-first");
+      entry.animations.forEach(animation => { animation.currentTime = 750; });
+      const phases = [];
+      async function collect(name) {
+        await frame();
+        const orders = phases.length % 2 ? ["timing-first", "style-first"] : ["style-first", "timing-first"];
+        phases.push({name, reads: orders.map(order => read(entry, order))});
+      }
+      await collect("initial-750");
+      if (role === "seek") {
+        entry.animations.forEach(animation => { animation.currentTime = 751; });
+      } else if (role === "outline") {
+        entry.target.classList.add("poke");
+      } else if (role === "override") {
+        entry.animations.forEach(animation => animation.effect.updateTiming({duration: 2000}));
+      }
+      await collect("action-751");
+      if (role === "seek") {
+        entry.animations.forEach(animation => { animation.currentTime = 750; });
+      } else if (role === "outline") {
+        entry.target.classList.remove("poke");
+      }
+      await collect("return-750");
+      await collect("repeat-750");
+      trajectories.push({role, acquisition: {beforeReady, afterReady}, phases});
+    } finally {
+      entry.host.remove();
+    }
+  }
+  const record = {kind: zero ? "zero-start" : "coupled", trajectories};
+  const response = await fetch("duration-feedback-discriminator-record.py", {
+    method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(record),
+  });
+  assert_true(response.ok, "Complete observations acknowledged before validation");
+  const acknowledgement = await response.json();
+  assert_equals(acknowledgement.kind, record.kind);
+  assert_equals(acknowledgement.sampleCount, 20);
+  assert_true(typeof acknowledgement.run_id === "string" && acknowledgement.run_id.length > 0);
+  assert_equals(trajectories.length, 5, "Five independent trajectories; no feedback fixed-point oracle");
+  for (const trajectory of trajectories) {
+    for (let phaseIndex = 0; phaseIndex < trajectory.phases.length; ++phaseIndex) {
+      const phase = trajectory.phases[phaseIndex];
+      for (const sample of phase.reads) {
+        const diagnostic = JSON.stringify({phase: phase.name, role: trajectory.role, sample});
+        const time = trajectory.role === "seek" && phaseIndex === 1 ? 751 : 750;
+        for (const effect of sample.effects) {
+          assert_equals(effect.time, time, `Assigned time: ${diagnostic}`);
+          assert_equals(effect.state, "paused", `Paused acquisition: ${diagnostic}`);
+        }
+        assert_equals(sample.style.outlineWidth,
+                      trajectory.role === "outline" && phaseIndex === 1 ? "1px" : "0px",
+                      `Ordinary restyle calibration: ${diagnostic}`);
+        if (trajectory.role === "literal" || (trajectory.role === "override" && phaseIndex > 0)) {
+          for (const effect of sample.effects) {
+            assert_equals(effect.duration, 2000, `Fixed-duration control: ${diagnostic}`);
+            assert_approx_equals(effect.progress, 0.375, 0.000001, `Fixed progress: ${diagnostic}`);
+          }
+          for (const style of [sample.style, sample.repeatStyle, sample.afterMembershipStyle]) {
+            assert_approx_equals(parseFloat(style.font), zero ? 12 : 22, 0.02, `Literal font: ${diagnostic}`);
+            assert_approx_equals(parseFloat(style.opacity), zero ? 1 : 0.375, 0.000001, `Literal opacity: ${diagnostic}`);
+          }
+          assert_true(sample.sameAnimations.every(Boolean), `Control animation identity: ${diagnostic}`);
+          assert_true(sample.sameEffects.every(Boolean), `Control effect identity: ${diagnostic}`);
+        }
+      }
+    }
+  }
+}
+
+promise_test(t => observe(t, false),
+             "Observation only: coupled duration feedback read order, seek, restyle and override");
+promise_test(t => observe(t, true),
+             "Observation only: zero-start duration feedback read order, seek, restyle and override");
+</script>

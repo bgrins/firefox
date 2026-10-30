@@ -1,0 +1,21 @@
+--- artifacts/css-registered-selected-color-image-only-candidate-v1/check.py
++++ artifacts/css-registered-selected-color-narrow-combined-candidate-v1/check.py
+@@ -25,7 +25,7 @@
+     mutable = {'owner_directory','runtime_output','predecessor','proposal','references','source_paths','execution_enabled','candidate_execution_enabled','activation_pending','head','controls','prepared_application_metadata','prepared_flag_hashes','prepared_flag_capture','execution_handoff','baseline_binding','baseline_capsule','original_admission_policy_sha256','restoration_binding','preparation_predecessor','correction_predecessor','suite_binding','wpt','source_roster','preserved_absent_resources','proposal_independent_review','restoration_handoff','signing_failure'}
+     assert {k:v for k,v in policy.items() if k not in mutable} == {k:v for k,v in old.items() if k not in mutable}
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-registered-selected-color-image-only-candidate-runtime-1'
++    assert policy['runtime_output'] == 'artifacts/css-registered-selected-color-narrow-combined-candidate-runtime-1'
+     assert type(policy['execution_enabled']) is bool and policy['execution_enabled'] == policy['candidate_execution_enabled']
+     assert bool(policy['activation_pending']) != policy['execution_enabled']
+     assert all(policy[k] is not None for k in ('head','controls','prepared_application_metadata','prepared_flag_hashes','prepared_flag_capture','execution_handoff','baseline_binding','baseline_capsule','original_admission_policy_sha256'))
+@@ -53,7 +53,8 @@
+     for name,pin in policy['references'].items(): assert sha(ROOT / name) == pin, name
+     proposal = ROOT / policy['proposal']['directory']
+     ownership.authenticate(proposal, policy['proposal']['manifest_sha256'])
+-    proposed = read(proposal / 'SOURCE-ROLES.json')
++    packaging = read(proposal / 'SOURCE-DEPENDENCIES.json')
++    proposed = {name: {'base_sha256': role['base_sha256'], 'candidate_sha256': packaging['narrow_postimages'][name]} for name, role in packaging['roles']['A'].items()}
+     roles = read(HERE / 'SOURCE-ROLES.json')
+     assert set(roles) == set(policy['source_paths'])
+     original = 'provider_source_role' in policy

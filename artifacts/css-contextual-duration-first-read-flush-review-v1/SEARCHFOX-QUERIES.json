@@ -1,0 +1,210 @@
+[
+  {
+    "query": "nsComputedDOMStyle::NeedsToFlushStyle",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "12532b",
+        "wall_time_seconds": 0.123849667,
+        "exit_code": 0,
+        "original_token_count": 259,
+        "output": ">>>  853: bool nsComputedDOMStyle::NeedsToFlushStyle(\n     854:     NonCustomCSSPropertyId aPropId) const {\n     855:   bool mayNeedToFlushLayout = MayNeedToFlushLayout(aPropId);\n     856: \n     857:   // We always compute styles from the element's owner document.\n     858:   if (ElementNeedsRestyle(mElement, mPseudo, mayNeedToFlushLayout)) {\n     859:     return true;\n     860:   }\n     861: \n     862:   Document* doc = mElement->OwnerDoc();\n     863:   // If parent document is there, also needs to check if there is some change\n     864:   // that needs to flush this document (e.g. size change for iframe).\n     865:   while (doc->StyleOrLayoutObservablyDependsOnParentDocumentLayout()) {\n     866:     if (Element* element = doc->GetEmbedderElement()) {\n     867:       if (ElementNeedsRestyle(element, {}, mayNeedToFlushLayout)) {\n     868:         return true;\n     869:       }\n     870:     }\n     871: \n     872:     doc = doc->GetInProcessParentDocument();\n     873:   }\n     874: \n     875:   return false;\n     876: }\n"
+      }
+    }
+  },
+  {
+    "query": "nsComputedDOMStyle::Flush",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "3c03a7",
+        "wall_time_seconds": 0.234291542,
+        "exit_code": 0,
+        "original_token_count": 138,
+        "output": ">>> 1014: void nsComputedDOMStyle::Flush(Document& aDocument, FlushType aFlushType) {\n    1015:   MOZ_ASSERT(mElement->IsInComposedDoc());\n    1016:   MOZ_ASSERT(mDocumentWeak == &aDocument);\n    1017: \n    1018:   if (MOZ_UNLIKELY(&aDocument != mElement->OwnerDoc())) {\n    1019:     aDocument.FlushPendingNotifications(aFlushType);\n    1020:   }\n    1021:   // This performs the flush, and also guarantees that content-visibility:\n    1022:   // hidden elements get laid out, if needed.\n    1023:   mElement->GetPrimaryFrame(aFlushType);\n    1024: }\n"
+      }
+    }
+  },
+  {
+    "query": "ElementNeedsRestyle",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "44d28e",
+        "wall_time_seconds": 0.205412584,
+        "exit_code": 0,
+        "original_token_count": 25,
+        "output": "[2026-10-30T05:16:51Z ERROR searchfox_cli] No potential definitions found for 'ElementNeedsRestyle'\n"
+      }
+    }
+  },
+  {
+    "query": "PresShell::DoFlushPendingNotifications",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "4221a0",
+        "wall_time_seconds": 0.193501792,
+        "exit_code": 0,
+        "original_token_count": 88,
+        "output": ">>> 4507: void PresShell::DoFlushPendingNotifications(FlushType aType) {\n    4508:   // by default, flush animations if aType >= FlushType::Style\n    4509:   mozilla::ChangesToFlush flush(aType, aType >= FlushType::Style,\n    4510:                                 aType >= FlushType::Layout);\n    4511:   FlushPendingNotifications(flush);\n    4512: }\n"
+      }
+    }
+  },
+  {
+    "query": "searchfox-cli --path layout/style/nsComputedDOMStyle.cpp -q ElementNeedsRestyle",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "a8a420",
+        "wall_time_seconds": 0.650009291,
+        "exit_code": 0,
+        "original_token_count": 82,
+        "output": "layout/style/nsComputedDOMStyle.cpp:87: static bool ElementNeedsRestyle(Element* aElement,\nlayout/style/nsComputedDOMStyle.cpp:858:   if (ElementNeedsRestyle(mElement, mPseudo, mayNeedToFlushLayout)) {\nlayout/style/nsComputedDOMStyle.cpp:867:       if (ElementNeedsRestyle(element, {}, mayNeedToFlushLayout)) {\nTotal matches: 3\n"
+      }
+    }
+  },
+  {
+    "query": "searchfox-cli --define 'PresShell::FlushPendingNotifications'",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "9bb966",
+        "wall_time_seconds": 0.234868417,
+        "exit_code": 0,
+        "original_token_count": 163,
+        "output": "    1565:   /**\n    1566:    * Flush pending notifications of the type specified.  This method\n    1567:    * will not affect the content model; it'll just affect style and\n    1568:    * frames. Callers that actually want up-to-date presentation (other\n    1569:    * than the document itself) should probably be calling\n>>> 1570:    * Document::FlushPendingNotifications.\n    1571:    *\n    1572:    * This method can execute script, which can destroy this presshell object\n    1573:    * unless someone is holding a reference to it on the stack.  The presshell\n    1574:    * itself will ensure it lives up until the method returns, but callers who\n"
+      }
+    }
+  },
+  {
+    "query": "searchfox-cli --define 'RestyleManager::UpdateOnlyAnimationStyles'",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "903cb8",
+        "wall_time_seconds": 0.356068792,
+        "exit_code": 0,
+        "original_token_count": 80,
+        "output": ">>> 3456: void RestyleManager::UpdateOnlyAnimationStyles() {\n    3457:   bool doCSS = PresContext()->EffectCompositor()->HasPendingStyleUpdates();\n    3458:   if (!doCSS) {\n    3459:     return;\n    3460:   }\n    3461: \n    3462:   DoProcessPendingRestyles(ServoTraversalFlags::FlushThrottledAnimations);\n    3463: }\n"
+      }
+    }
+  },
+  {
+    "query": "searchfox-cli --path layout/style/nsComputedDOMStyle.cpp -q 'static bool ElementNeedsRestyle' --context 110",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "a58791",
+        "wall_time_seconds": 0.20868875,
+        "exit_code": 0,
+        "original_token_count": 27,
+        "output": "layout/style/nsComputedDOMStyle.cpp:87: static bool ElementNeedsRestyle(Element* aElement,\nTotal matches: 1\n"
+      }
+    }
+  },
+  {
+    "query": "searchfox-cli --path layout/base/PresShell.cpp -q 'mFlushAnimations' --context 35",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "4ab7fe",
+        "wall_time_seconds": 0.345465708,
+        "exit_code": 0,
+        "original_token_count": 21,
+        "output": "layout/base/PresShell.cpp:4649:     if (aFlush.mFlushAnimations) {\nTotal matches: 1\n"
+      }
+    }
+  },
+  {
+    "query": "searchfox-cli --path layout/style/nsComputedDOMStyle.cpp -q 'text:ElementNeedsRestyle' --context 85",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "d3ca42",
+        "wall_time_seconds": 0.196713,
+        "exit_code": 0,
+        "original_token_count": 82,
+        "output": "layout/style/nsComputedDOMStyle.cpp:87: static bool ElementNeedsRestyle(Element* aElement,\nlayout/style/nsComputedDOMStyle.cpp:858:   if (ElementNeedsRestyle(mElement, mPseudo, mayNeedToFlushLayout)) {\nlayout/style/nsComputedDOMStyle.cpp:867:       if (ElementNeedsRestyle(element, {}, mayNeedToFlushLayout)) {\nTotal matches: 3\n"
+      }
+    }
+  },
+  {
+    "query": "searchfox-cli --path layout/base/PresShell.cpp -q 'text:mFlushAnimations' --context 35",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "70a48c",
+        "wall_time_seconds": 0.178606208,
+        "exit_code": 0,
+        "original_token_count": 21,
+        "output": "layout/base/PresShell.cpp:4649:     if (aFlush.mFlushAnimations) {\nTotal matches: 1\n"
+      }
+    }
+  },
+  {
+    "query": "searchfox-cli --define Servo_HasPendingRestyleAncestor",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "e59789",
+        "wall_time_seconds": 0.292480917,
+        "exit_code": 0,
+        "original_token_count": 29,
+        "output": "[2026-10-30T05:17:41Z ERROR searchfox_cli] Could not fetch context: Could not fetch file from GitHub: 404 Not Found\n"
+      }
+    }
+  },
+  {
+    "query": "searchfox-cli --define 'RestyleManager::ProcessPendingRestyles'",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "09b083",
+        "wall_time_seconds": 0.175633291,
+        "exit_code": 0,
+        "original_token_count": 95,
+        "output": ">>> 3431: void RestyleManager::ProcessPendingRestyles() {\n    3432:   AUTO_PROFILER_LABEL_RELEVANT_FOR_JS(\"Styles\", LAYOUT);\n    3433: #ifdef DEBUG\n    3434:   if (auto* root = mPresContext->Document()->GetRootElement()) {\n    3435:     VerifyFlatTree(*root);\n    3436:   }\n    3437: #endif\n    3438: \n    3439:   DoProcessPendingRestyles(ServoTraversalFlags::Empty);\n    3440: }\n"
+      }
+    }
+  },
+  {
+    "query": "searchfox-cli --define 'Element::GetPrimaryFrame'",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "ad41a7",
+        "wall_time_seconds": 0.382515875,
+        "exit_code": 0,
+        "original_token_count": 27,
+        "output": "[2026-10-30T05:17:41Z ERROR searchfox_cli] No potential definitions found for 'Element::GetPrimaryFrame'\n"
+      }
+    }
+  },
+  {
+    "query": "searchfox-cli --define 'nsIContent::GetPrimaryFrame'",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "717755",
+        "wall_time_seconds": 0.381432375,
+        "exit_code": 0,
+        "original_token_count": 207,
+        "output": ">>>  275: nsIFrame* nsIContent::GetPrimaryFrame(mozilla::FlushType aType) {\n     276:   Document* doc = GetComposedDoc();\n     277:   if (!doc) {\n     278:     return nullptr;\n     279:   }\n     280: \n     281:   // Cause a flush, so we get up-to-date frame information.\n     282:   if (aType != mozilla::FlushType::None) {\n     283:     doc->FlushPendingNotifications(aType);\n     284:   }\n     285: \n     286:   auto* frame = GetPrimaryFrame();\n     287:   if (!frame) {\n     288:     return nullptr;\n     289:   }\n     290: \n     291:   RefPtr<mozilla::PresShell> presShell = frame->PresShell();\n     292:   if (aType == mozilla::FlushType::Layout) {\n     293:     presShell->EnsureReflowIfFrameHasHiddenContent(frame);\n     294:     frame = GetPrimaryFrame();\n     295:   }\n     296: \n     297:   return frame;\n     298: }\n"
+      }
+    }
+  },
+  {
+    "query": "searchfox-cli --define 'Document::FlushPendingNotifications'",
+    "result": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "6d84ed",
+        "wall_time_seconds": 0.367071875,
+        "exit_code": 0,
+        "original_token_count": 293,
+        "output": "    12031:   if (canFlushParent()) {\n    12032:     RefPtr<Document> parentDocument = mParentDocument;\n    12033:     ChangesToFlush parentFlush = aFlush;\n    12034:     if (flushType >= FlushType::Style) {\n    12035:       // Since media queries mean that a size change of our container can affect\n    12036:       // style, we need to promote a style flush on ourself to a layout flush on\n    12037:       // our parent, since we need our container to be the correct size to\n    12038:       // determine the correct style.\n    12039:       parentFlush.mFlushType = std::max(FlushType::Layout, flushType);\n    12040:     }\n>>> 12041:     parentDocument->FlushPendingNotifications(parentFlush);\n    12042:     if (aFlush.mFlushHiddenEmbeddingFrames &&\n    12043:         mParentDocument == parentDocument && canFlushParent()) {\n    12044:       RefPtr<Element> embedder = GetEmbedderElement();\n    12045:       if (embedder && embedder->GetComposedDoc() == parentDocument) {\n    12046:         embedder->GetPrimaryFrame(FlushType::Layout);\n    12047:       }\n    12048:     }\n    12049:   }\n    12050: \n    12051:   if (RefPtr<PresShell> presShell = GetPresShell()) {\n\n"
+      }
+    }
+  }
+]

@@ -1,0 +1,12 @@
+import QueueState
+#print axioms QueueState.request_bool_projection
+#print axioms QueueState.forced_bool_projection
+#print axioms QueueState.eligibility_projection
+#print axioms QueueState.throttled_request_never_posts
+#print axioms QueueState.forced_skips_non_throttled
+#print axioms QueueState.blocked_forced_retains_eligibility
+#print axioms QueueState.safe_forced_attempt_then_skip
+#print axioms QueueState.direct_post_does_not_insert
+#print axioms QueueState.layer_generation_is_not_dispatch
+#print axioms QueueState.pending_protocol_join
+#print axioms QueueState.consume_clears_presence

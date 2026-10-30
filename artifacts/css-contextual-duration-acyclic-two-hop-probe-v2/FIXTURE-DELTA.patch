@@ -1,0 +1,29 @@
+--- v1/animation-duration-acyclic-two-hop.tentative.html
++++ v2/animation-duration-acyclic-two-hop.tentative.html
+@@ -131,6 +131,7 @@
+   const afterSeek = details(context);
+   const trace = JSON.stringify({mode, samples, beforeMembership, driverTiming, membership,
+                                afterMembership, seek751, afterSeek});
++  await record("two-hop-" + mode, trace);
+   for (const [name, same] of Object.entries(membership)) {
+     assert_true(same, `${name} identity/membership; ${trace}`);
+   }
+@@ -146,6 +147,18 @@
+   assertValues(afterSeek, final, `After explicit seek intervention; ${trace}`);
+ }
+ 
++async function record(kind, trace) {
++  const response = await fetch("duration-progress-record.py", {
++    method: "POST", headers: {"Content-Type": "application/json"},
++    body: JSON.stringify({kind, observation: JSON.parse(trace)})
++  });
++  assert_true(response.ok, "Private observation record acknowledged");
++  const acknowledgement = await response.json();
++  assert_equals(acknowledgement.kind, kind, "Recorded observation kind");
++  assert_equals(acknowledgement.sampleCount, 4, "Recorded passive samples");
++  assert_true(/^[A-Za-z0-9_-]{16,128}$/.test(acknowledgement.run_id), "Owner-bound record identity");
++}
++
+ promise_test(t => observe(t, "literal"),
+              "Literal duration changes calibrate a paused two-hop font and opacity chain");
+ promise_test(t => observe(t, "ordinary"),

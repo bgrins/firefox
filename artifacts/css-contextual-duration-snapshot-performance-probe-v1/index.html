@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CSS animation duration verification cost probe</title>
+<style>
+  body { font: 16px system-ui; margin: 1.5rem; max-inline-size: 70rem; }
+  form { display: flex; flex-wrap: wrap; gap: 1rem; align-items: end; }
+  label { display: grid; gap: .25rem; }
+  input[type=number] { inline-size: 6rem; }
+  button, input, select { font: inherit; }
+  button { min-block-size: 2.5rem; }
+  #status { min-block-size: 1.5rem; }
+  textarea { box-sizing: border-box; inline-size: 100%; min-block-size: 24rem; font: 12px monospace; }
+  #stage { display: flex; flex-wrap: wrap; inline-size: 500px; }
+  .target { inline-size: 3px; block-size: 3px; background: black;
+    font-size: 16px; outline: 1px solid transparent;
+    animation-name: fixed-font, fade; animation-duration: 2s, calc(1em / 16px * 1s);
+    animation-timing-function: linear; animation-fill-mode: both; animation-play-state: paused; }
+  #stage.outline-b .target { outline-color: blue; }
+  #stage.font-b .target { font-size: 32px; }
+  #stage.unmasked .target { animation-name: fade; animation-duration: calc(1em / 16px * 1s); }
+  @keyframes fixed-font { from { font-size: 32px; } to { font-size: 32px; } }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+</style>
+<h1>CSS animation duration verification cost</h1>
+<p>This page does nothing until Run is pressed. It compares unrelated outline-color changes with authored font-size changes. Timings include mutation and one explicit opacity style read per iteration. They are observations, not a performance pass/fail threshold.</p>
+<form id="settings">
+  <label>Build label <input id="label" value="unlabelled" maxlength="80"></label>
+  <label>Elements <input id="count" type="number" min="1" max="3000" value="200" required></label>
+  <label>Iterations per case <input id="iterations" type="number" min="1" max="500" value="50" required></label>
+  <label>Warm-up per case <input id="warmup" type="number" min="0" max="100" value="10" required></label>
+  <label>Rounds <input id="rounds" type="number" min="1" max="10" value="3" required></label>
+  <label>First case <select id="order"><option value="outline">Outline</option><option value="font">Font</option></select></label>
+  <label>Font animation <select id="mask"><option value="yes">Hold composed font at 32px</option><option value="no">No font animation</option></select></label>
+  <button type="submit" id="run">Run</button>
+  <button type="button" id="stop" disabled>Stop</button>
+  <button type="button" id="small">Small preset</button>
+  <button type="button" id="large">Larger preset</button>
+</form>
+<p id="status" role="status">Ready. Keep the tab visible and use the same settings for both builds.</p>
+<div id="stage" aria-hidden="true"></div>
+<label>Results (JSON)<textarea id="output" readonly spellcheck="false"></textarea></label>
+<button type="button" id="download" disabled>Download JSON</button>
+<p>The target grid stays in the document without content-visibility or display suppression. Final value inspection is outside all timed samples.</p>
+<script src="probe.js"></script>
+</html>

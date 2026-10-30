@@ -1,0 +1,191 @@
+{
+  "servo/ports/geckolib/glue.rs": {
+    "url": "https://searchfox.org/firefox-main/source/servo/ports/geckolib/glue.rs",
+    "retrieval": "searchfox-cli --get-file servo/ports/geckolib/glue.rs",
+    "whole_body_sha256": "a3509395c9927d7351a52acf99eabc11cd9b1894b9b319b8835a53b8515f607d",
+    "whole_body_bytes": 393355,
+    "branch_applicability": "upstream capture only; not joined to active branch",
+    "excerpts": [
+      {
+        "first_line": 1066,
+        "last_line": 1093,
+        "text": "fn resolve_rules_for_element_with_context<'a>(\n    element: GeckoElement<'a>,\n    mut context: StyleContext<GeckoElement<'a>>,\n    rules: StrongRuleNode,\n    original_computed_values: &ComputedValues,\n) -> Arc<ComputedValues> {\n    use style::style_resolver::{PseudoElementResolution, StyleResolverForElement};\n\n    // This currently ignores visited styles, which seems acceptable, as\n    // existing browsers don't appear to animate visited styles.\n    let inputs = CascadeInputs {\n        rules: Some(rules),\n        visited_rules: None,\n        flags: original_computed_values.flags.for_cascade_inputs(),\n        included_cascade_flags: RuleCascadeFlags::empty(),\n    };\n\n    // Actually `PseudoElementResolution` doesn't matter.\n    let mut resolver = StyleResolverForElement::new(\n        element,\n        &mut context,\n        RuleInclusion::All,\n        PseudoElementResolution::IfApplicable,\n    );\n    resolver\n        .cascade_style_and_visited_with_default_parents(inputs)\n        .0\n}\n"
+      },
+      {
+        "first_line": 1122,
+        "last_line": 1167,
+        "text": "pub extern \"C\" fn Servo_StyleSet_GetBaseComputedValuesForElement(\n    raw_style_set: &PerDocumentStyleData,\n    element: &RawGeckoElement,\n    computed_values: &ComputedValues,\n    snapshots: *const ServoElementSnapshotTable,\n) -> Strong<ComputedValues> {\n    debug_assert!(!snapshots.is_null());\n    let computed_values = unsafe { ArcBorrow::from_ref(computed_values) };\n\n    let rules = match computed_values.rules {\n        None => return computed_values.clone_arc().into(),\n        Some(ref rules) => rules,\n    };\n\n    let doc_data = raw_style_set.borrow();\n    let without_animations_rules = doc_data.stylist.rule_tree().remove_animation_rules(rules);\n    if without_animations_rules == *rules {\n        return computed_values.clone_arc().into();\n    }\n\n    let element = GeckoElement(element);\n\n    let global_style_data = &*GLOBAL_STYLE_DATA;\n    let guard = global_style_data.shared_lock.read();\n    let shared = create_shared_context(\n        &global_style_data,\n        &guard,\n        &doc_data.stylist,\n        TraversalFlags::empty(),\n        unsafe { &*snapshots },\n    );\n    let mut tlc = ThreadLocalStyleContext::new();\n    tlc.current_dom_depth = element.as_node().depth();\n    let context = StyleContext {\n        shared: &shared,\n        thread_local: &mut tlc,\n    };\n\n    resolve_rules_for_element_with_context(\n        element,\n        context,\n        without_animations_rules,\n        &computed_values,\n    )\n    .into()\n}\n"
+      }
+    ]
+  },
+  "dom/animation/KeyframeEffect.cpp": {
+    "url": "https://searchfox.org/firefox-main/source/dom/animation/KeyframeEffect.cpp",
+    "retrieval": "searchfox-cli --get-file dom/animation/KeyframeEffect.cpp",
+    "whole_body_sha256": "9780dfcac6a8590e1c8c82afa1490590cd54ffe3c829ecabbcfa13e8b4b3919c",
+    "whole_body_bytes": 80365,
+    "branch_applicability": "upstream capture only; not joined to active branch",
+    "excerpts": [
+      {
+        "first_line": 493,
+        "last_line": 549,
+        "text": "void KeyframeEffect::EnsureBaseStyles(\n    const ComputedStyle* aComputedValues,\n    const nsTArray<AnimationProperty>& aProperties,\n    const AnimationTimeline* aTimeline, bool* aBaseStylesChanged) {\n  if (aBaseStylesChanged != nullptr) {\n    *aBaseStylesChanged = false;\n  }\n\n  if (!mTarget) {\n    return;\n  }\n\n  BaseValuesHashmap previousBaseStyles;\n  if (aBaseStylesChanged != nullptr) {\n    previousBaseStyles = std::move(mBaseValues);\n  }\n\n  mBaseValues.Clear();\n\n  nsPresContext* presContext =\n      nsContentUtils::GetContextForContent(mTarget.mElement);\n  // If |aProperties| is empty we're not going to dereference |presContext| so\n  // we don't care if it is nullptr.\n  //\n  // We could just return early when |aProperties| is empty and save looking up\n  // the pres context, but that won't save any effort normally since we don't\n  // call this function if we have no keyframes to begin with. Furthermore, the\n  // case where |presContext| is nullptr is so rare (we've only ever seen in\n  // fuzzing, and even then we've never been able to reproduce it reliably)\n  // it's not worth the runtime cost of an extra branch.\n  MOZ_ASSERT(presContext || aProperties.IsEmpty(),\n             \"Typically presContext should not be nullptr but if it is\"\n             \" we should have also failed to calculate the computed values\"\n             \" passed-in as aProperties\");\n\n  if (!aTimeline) {\n    // If we pass a valid timeline, we use it (note: this happens when we create\n    // a new animation or replace the old one, for CSS Animations and CSS\n    // Transitions). Otherwise, we check the timeline from |mAnimation|.\n    aTimeline = mAnimation ? mAnimation->GetTimeline() : nullptr;\n  }\n\n  RefPtr<const ComputedStyle> baseComputedStyle;\n  for (const AnimationProperty& property : aProperties) {\n    EnsureBaseStyle(property, presContext, aComputedValues, aTimeline,\n                    baseComputedStyle);\n  }\n\n  if (aBaseStylesChanged != nullptr &&\n      std::any_of(\n          mBaseValues.cbegin(), mBaseValues.cend(), [&](const auto& entry) {\n            return AnimationValue(entry.GetData()) !=\n                   AnimationValue(previousBaseStyles.Get(entry.GetKey()));\n          })) {\n    *aBaseStylesChanged = true;\n  }\n}\n"
+      },
+      {
+        "first_line": 551,
+        "last_line": 604,
+        "text": "void KeyframeEffect::EnsureBaseStyle(\n    const AnimationProperty& aProperty, nsPresContext* aPresContext,\n    const ComputedStyle* aComputedStyle, const AnimationTimeline* aTimeline,\n    RefPtr<const ComputedStyle>& aBaseComputedStyle) {\n  auto needBaseStyleForScrollTimeline =\n      [this](const AnimationProperty& aProperty,\n             const AnimationTimeline* aTimeline) {\n        static constexpr TimeDuration zeroDuration;\n        const TimingParams& timing = NormalizedTiming();\n        // For scroll-timeline with a positive delay, it's possible to scroll\n        // back and forth between delay phase and active phase, so we need to\n        // keep its base style and maybe use it to override the animations in\n        // delay on the compositor.\n        return aTimeline && aTimeline->IsScrollTimeline() &&\n               nsCSSPropertyIDSet::CompositorAnimatables().HasProperty(\n                   aProperty.mProperty) &&\n               (timing.Delay() > zeroDuration ||\n                timing.EndDelay() > zeroDuration);\n      };\n  auto hasAdditiveValues = [](const AnimationProperty& aProperty) {\n    for (const AnimationPropertySegment& segment : aProperty.mSegments) {\n      if (!segment.HasReplaceableValues()) {\n        return true;\n      }\n    }\n    return false;\n  };\n\n  // Note: Check base style for compositor (i.e. for scroll-driven animations)\n  // first because it is much cleaper.\n  const bool needBaseStyle =\n      needBaseStyleForScrollTimeline(aProperty, aTimeline) ||\n      hasAdditiveValues(aProperty);\n  if (!needBaseStyle) {\n    return;\n  }\n\n  if (!aBaseComputedStyle) {\n    MOZ_ASSERT(mTarget, \"Should have a valid target\");\n\n    Element* animatingElement =\n        mTarget.mElement->GetPseudoElement(mTarget.mPseudoRequest);\n    if (!animatingElement) {\n      return;\n    }\n    aBaseComputedStyle = aPresContext->StyleSet()->GetBaseContextForElement(\n        animatingElement, aComputedStyle);\n  }\n  RefPtr<StyleAnimationValue> baseValue =\n      Servo_ComputedValues_ExtractAnimationValue(aBaseComputedStyle,\n                                                 &aProperty.mProperty)\n          .Consume();\n  mBaseValues.InsertOrUpdate(aProperty.mProperty, std::move(baseValue));\n}\n"
+      }
+    ]
+  },
+  "servo/components/style/style_resolver.rs": {
+    "url": "https://searchfox.org/firefox-main/source/servo/components/style/style_resolver.rs",
+    "retrieval": "searchfox-cli --get-file servo/components/style/style_resolver.rs",
+    "whole_body_sha256": "ddafaac2e3c1c5f673bb18558d9ac6d35d6355f21f5d638918dad1771c5909d5",
+    "whole_body_bytes": 22899,
+    "branch_applicability": "upstream capture only; not joined to active branch",
+    "excerpts": [
+      {
+        "first_line": 110,
+        "last_line": 132,
+        "text": "pub(crate) fn with_default_parent_styles<E, F, R>(element: E, f: F) -> R\nwhere\n    E: TElement,\n    F: FnOnce(Option<&ComputedValues>, Option<&ComputedValues>) -> R,\n{\n    let parent_el = element.inheritance_parent();\n    let parent_data = parent_el.as_ref().and_then(|e| e.borrow_data());\n    let parent_style = parent_data.as_ref().map(|d| d.styles.primary());\n\n    let mut layout_parent_el = parent_el;\n    let layout_parent_data;\n    let mut layout_parent_style = parent_style;\n    if parent_style.is_some_and(|s| s.is_display_contents()) {\n        layout_parent_el = Some(layout_parent_el.unwrap().layout_parent());\n        layout_parent_data = layout_parent_el.as_ref().unwrap().borrow_data().unwrap();\n        layout_parent_style = Some(layout_parent_data.styles.primary());\n    }\n\n    f(\n        parent_style.map(|x| &**x),\n        layout_parent_style.map(|s| &**s),\n    )\n}\n"
+      },
+      {
+        "first_line": 342,
+        "last_line": 354,
+        "text": "pub fn cascade_style_and_visited_with_default_parents(\n        &mut self,\n        inputs: CascadeInputs,\n    ) -> ResolvedStyle {\n        with_default_parent_styles(self.element, |parent_style, layout_parent_style| {\n            self.cascade_style_and_visited(\n                inputs,\n                parent_style,\n                layout_parent_style,\n                /* pseudo = */ None,\n            )\n        })\n    }\n"
+      },
+      {
+        "first_line": 376,
+        "last_line": 409,
+        "text": "fn cascade_style_and_visited(\n        &mut self,\n        inputs: CascadeInputs,\n        parent_style: Option<&ComputedValues>,\n        layout_parent_style: Option<&ComputedValues>,\n        pseudo: Option<&PseudoElement>,\n    ) -> ResolvedStyle {\n        debug_assert!(pseudo.is_none_or(|p| p.is_eager()));\n\n        let mut conditions = Default::default();\n        let values = self.context.shared.stylist.cascade_style_and_visited(\n            Some(self.element),\n            pseudo,\n            &inputs,\n            &self.context.shared.guards,\n            parent_style,\n            layout_parent_style,\n            FirstLineReparenting::No,\n            /* try_tactic = */ &Default::default(),\n            Some(&self.context.thread_local.rule_cache),\n            &mut conditions,\n            &mut self.context.thread_local.tree_counting_caches,\n        );\n\n        self.context.thread_local.rule_cache.insert_if_possible(\n            &self.context.shared.guards,\n            &values,\n            pseudo,\n            &inputs,\n            &conditions,\n        );\n\n        ResolvedStyle(values)\n    }\n"
+      }
+    ]
+  },
+  "servo/components/style/rule_tree/level.rs": {
+    "url": "https://searchfox.org/firefox-main/source/servo/components/style/rule_tree/level.rs",
+    "retrieval": "searchfox-cli --get-file servo/components/style/rule_tree/level.rs",
+    "whole_body_sha256": "55686c3914038a6f93c1457bdd4d2c41022496f337fde3a30ceaaf67ce812c4d",
+    "whole_body_bytes": 12304,
+    "branch_applicability": "upstream capture only; not joined to active branch",
+    "excerpts": [
+      {
+        "first_line": 260,
+        "last_line": 270,
+        "text": "    /// Returns whether this cascade level represents an animation rules.\n    #[inline]\n    pub fn is_animation(self) -> bool {\n        match self.origin() {\n            CascadeOrigin::SMILOverride\n            | CascadeOrigin::Animations\n            | CascadeOrigin::Transitions => true,\n            _ => false,\n        }\n    }\n\n"
+      }
+    ]
+  },
+  "servo/components/style/rule_tree/mod.rs": {
+    "url": "https://searchfox.org/firefox-main/source/servo/components/style/rule_tree/mod.rs",
+    "retrieval": "searchfox-cli --get-file servo/components/style/rule_tree/mod.rs",
+    "whole_body_sha256": "e9af72c2de06f6ff18f3eb8893f9e65281e9b878959516f62c91c418f45dc189",
+    "whole_body_bytes": 17436,
+    "branch_applicability": "upstream capture only; not joined to active branch",
+    "excerpts": [
+      {
+        "first_line": 320,
+        "last_line": 352,
+        "text": "fn remove_rules_at_levels(\n        &self,\n        path: &StrongRuleNode,\n        lowest_level: CascadeLevel,\n        mut should_remove: impl FnMut(CascadeLevel) -> bool,\n    ) -> StrongRuleNode {\n        let mut last = path;\n        let iter = path\n            .self_and_ancestors()\n            .take_while(|node| node.cascade_level() >= lowest_level);\n        let mut any_to_remove = false;\n        let mut children = SmallVec::<[_; 10]>::new();\n        for node in iter {\n            if !should_remove(node.cascade_level()) {\n                children.push((\n                    node.style_source().unwrap().clone(),\n                    node.cascade_priority(),\n                ));\n            } else {\n                any_to_remove = true;\n            }\n            last = node;\n        }\n\n        if !any_to_remove {\n            return path.clone();\n        }\n\n        self.insert_ordered_rules_from(\n            last.parent().unwrap().clone(),\n            children.iter().rev().map(|(s, p)| (s.borrow(), *p)),\n        )\n    }\n"
+      },
+      {
+        "first_line": 355,
+        "last_line": 361,
+        "text": "pub fn remove_animation_rules(&self, path: &StrongRuleNode) -> StrongRuleNode {\n        self.remove_rules_at_levels(\n            path,\n            CascadeLevel::new(CascadeOrigin::SMILOverride),\n            CascadeLevel::is_animation,\n        )\n    }\n"
+      }
+    ]
+  },
+  "servo/components/style/values/specified/length.rs": {
+    "url": "https://searchfox.org/firefox-main/source/servo/components/style/values/specified/length.rs",
+    "retrieval": "searchfox-cli --get-file servo/components/style/values/specified/length.rs",
+    "whole_body_sha256": "6f6927c766b29c655f4310644799a6ce7828871441f598fe5715a8bde92dfcda",
+    "whole_body_bytes": 71401,
+    "branch_applicability": "upstream capture only; not joined to active branch",
+    "excerpts": [
+      {
+        "first_line": 754,
+        "last_line": 895,
+        "text": "                base_size,\n                FontMetricsOrientation::MatchContextPreferVertical,\n                QueryFontMetricsFlags::NEEDS_IC,\n            );\n            metrics.ic_width_or_default(reference_font_size.used_size())\n        }\n\n        context\n            .builder\n            .add_flags(ComputedValueFlags::USES_FONT_OR_WM_RELATIVE_UNITS);\n\n        let reference_font_size = base_size.resolve(context);\n        let length = self.value;\n        match self.unit {\n            LengthUnit::Em => {\n                if context.for_non_inherited_property && base_size == FontBaseSize::CurrentStyle {\n                    context\n                        .rule_cache_conditions\n                        .borrow_mut()\n                        .set_font_size_dependency(reference_font_size.computed_size);\n                }\n\n                (reference_font_size.computed_size(), length)\n            },\n            LengthUnit::Lh => {\n                let reference_size = if context.in_media_query {\n                    context\n                        .device()\n                        .calc_line_height(\n                            context.default_style().get_font(),\n                            context.style().writing_mode,\n                            None,\n                        )\n                        .0\n                } else {\n                    let line_height = context.builder.calc_line_height(\n                        context.device(),\n                        line_height_base,\n                        context.style().writing_mode,\n                    );\n                    if context.for_non_inherited_property\n                        && line_height_base == LineHeightBase::CurrentStyle\n                    {\n                        context\n                            .rule_cache_conditions\n                            .borrow_mut()\n                            .set_line_height_dependency(line_height)\n                    }\n                    line_height.0\n                };\n                (reference_size, length)\n            },\n            LengthUnit::Ex => (ex_size(context, base_size, &reference_font_size), length),\n            LengthUnit::Ch => (ch_size(context, base_size, &reference_font_size), length),\n            LengthUnit::Cap => (cap_size(context, base_size), length),\n            LengthUnit::Ic => (ic_size(context, base_size, &reference_font_size), length),\n            LengthUnit::Rex => {\n                let reference_size = if context.builder.is_root_element || context.in_media_query {\n                    ex_size(context, base_size, &reference_font_size)\n                } else {\n                    context\n                        .device()\n                        .root_font_metrics_ex()\n                        .zoom(context.builder.effective_zoom)\n                };\n                (reference_size, length)\n            },\n            LengthUnit::Rch => {\n                let reference_size = if context.builder.is_root_element || context.in_media_query {\n                    ch_size(context, base_size, &reference_font_size)\n                } else {\n                    context\n                        .device()\n                        .root_font_metrics_ch()\n                        .zoom(context.builder.effective_zoom)\n                };\n                (reference_size, length)\n            },\n            LengthUnit::Rcap => {\n                let reference_size = if context.builder.is_root_element || context.in_media_query {\n                    cap_size(context, base_size)\n                } else {\n                    context\n                        .device()\n                        .root_font_metrics_cap()\n                        .zoom(context.builder.effective_zoom)\n                };\n                (reference_size, length)\n            },\n            LengthUnit::Ric => {\n                let reference_size = if context.builder.is_root_element || context.in_media_query {\n                    ic_size(context, base_size, &reference_font_size)\n                } else {\n                    context\n                        .device()\n                        .root_font_metrics_ic()\n                        .zoom(context.builder.effective_zoom)\n                };\n                (reference_size, length)\n            },\n            LengthUnit::Rem => {\n                let reference_size = if context.builder.is_root_element || context.in_media_query {\n                    reference_font_size.computed_size()\n                } else {\n                    context\n                        .device()\n                        .root_font_size()\n                        .zoom(context.builder.effective_zoom)\n                };\n                (reference_size, length)\n            },\n            LengthUnit::Rlh => {\n                let reference_size = if context.builder.is_root_element {\n                    context\n                        .builder\n                        .calc_line_height(\n                            context.device(),\n                            line_height_base,\n                            context.style().writing_mode,\n                        )\n                        .0\n                } else if context.in_media_query {\n                    context\n                        .device()\n                        .calc_line_height(\n                            context.default_style().get_font(),\n                            context.style().writing_mode,\n                            None,\n                        )\n                        .0\n                } else {\n                    context.device().root_line_height()\n                };\n                let reference_size = reference_size.zoom(context.builder.effective_zoom);\n                (reference_size, length)\n            },\n            _ => unreachable!(\"reference_font_size_and_length: not a font-relative unit\"),\n        }\n    }\n\n    /// Compute the viewport-percentage length. Must only be called on a\n    /// viewport-relative unit.\n"
+      }
+    ]
+  },
+  "servo/components/style/matching.rs": {
+    "url": "https://searchfox.org/firefox-main/source/servo/components/style/matching.rs",
+    "retrieval": "searchfox-cli --get-file servo/components/style/matching.rs",
+    "whole_body_sha256": "fd88bca7bf1a860b8af199dd3359b8d0a231b317d3f437eeba9eaaea3d2dc6ef",
+    "whole_body_bytes": 45662,
+    "branch_applicability": "upstream capture only; not joined to active branch",
+    "excerpts": [
+      {
+        "first_line": 1014,
+        "last_line": 1076,
+        "text": "\n        // First of all, update the styles.\n        let old_styles = data.set_styles(new_styles);\n\n        let new_primary_style = data.styles.primary.as_ref().unwrap();\n\n        let mut child_restyle_hint = RestyleHint::empty();\n        let is_root = new_primary_style\n            .flags\n            .contains(ComputedValueFlags::IS_ROOT_ELEMENT_STYLE);\n\n        let device = context.shared.stylist.device();\n        let new_font_size = new_primary_style.get_font().slow_clone_font_size();\n        let new_container_type = *new_primary_style.get_container_type();\n\n        let old_style = old_styles.primary.as_ref();\n        let old_font_size = old_style.map(|s| s.get_font().slow_clone_font_size());\n        let font_size_changed = old_font_size.is_none_or(|fs| fs != new_font_size);\n\n        let line_height_likely_changed =\n            font_size_changed || Self::line_height_likely_changed(old_style, new_primary_style);\n\n        // Update root font-relative units. If any of these unit values changed\n        // since last time, ensure that we recascade the entire tree.\n        if is_root {\n            debug_assert!(self.owner_doc_matches_for_testing(device));\n            device.set_root_style(new_primary_style);\n\n            // Update root font size for rem units\n            if font_size_changed {\n                let size = new_font_size.computed_size();\n                device.set_root_font_size(new_primary_style.effective_zoom.unzoom(size.px()));\n            }\n\n            // Update root line height for rlh units\n            if line_height_likely_changed {\n                let new_line_height = device\n                    .calc_line_height(\n                        new_primary_style.get_font(),\n                        new_primary_style.writing_mode,\n                        None,\n                    )\n                    .0;\n                device.set_root_line_height(\n                    new_primary_style\n                        .effective_zoom\n                        .unzoom(new_line_height.px()),\n                );\n            }\n\n            // Update root font metrics for rcap, rch, rex, ric units. Since querying\n            // font metrics can be an expensive call, they are only updated if these\n            // units are used in the document.\n            if device.used_root_font_metrics() && device.update_root_font_metrics() {\n                child_restyle_hint |= RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT;\n            }\n        }\n\n        if font_size_changed || line_height_likely_changed {\n            child_restyle_hint |= RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT;\n        }\n\n        if context.shared.stylist.quirks_mode() == QuirksMode::Quirks\n"
+      }
+    ]
+  },
+  "servo/components/style/device/mod.rs": {
+    "url": "https://searchfox.org/firefox-main/source/servo/components/style/device/mod.rs",
+    "retrieval": "searchfox-cli --get-file servo/components/style/device/mod.rs",
+    "whole_body_sha256": "700e3bd80b95674dd2f5af8c2711631b607c08111b31cb087428aec2032070b2",
+    "whole_body_bytes": 12529,
+    "branch_applicability": "upstream capture only; not joined to active branch",
+    "excerpts": [
+      {
+        "first_line": 116,
+        "last_line": 143,
+        "text": "    }\n\n    /// Get the font size of the root element (for rem)\n    pub fn root_font_size(&self) -> Length {\n        self.used_root_font_size.store(true, Ordering::Relaxed);\n        Length::new(f32::from_bits(self.root_font_size.load(Ordering::Relaxed)))\n    }\n\n    /// Set the font size of the root element (for rem), in zoom-independent CSS pixels.\n    pub fn set_root_font_size(&self, size: f32) {\n        self.root_font_size.store(size.to_bits(), Ordering::Relaxed)\n    }\n\n    /// Get the line height of the root element (for rlh)\n    pub fn root_line_height(&self) -> Length {\n        self.used_root_line_height.store(true, Ordering::Relaxed);\n        Length::new(f32::from_bits(\n            self.root_line_height.load(Ordering::Relaxed),\n        ))\n    }\n\n    /// Set the line height of the root element (for rlh), in zoom-independent CSS pixels.\n    pub fn set_root_line_height(&self, size: f32) {\n        self.root_line_height\n            .store(size.to_bits(), Ordering::Relaxed);\n    }\n\n    /// Get the x-height of the root element (for rex)\n"
+      }
+    ]
+  },
+  "servo/components/style/rule_cache.rs": {
+    "url": "https://searchfox.org/firefox-main/source/servo/components/style/rule_cache.rs",
+    "retrieval": "searchfox-cli --get-file servo/components/style/rule_cache.rs",
+    "whole_body_sha256": "5ee118bf5da8325565b7170bb1037a52de3da6bdbea601c0d9a33b7f579ee528",
+    "whole_body_bytes": 9101,
+    "branch_applicability": "upstream capture only; not joined to active branch",
+    "excerpts": [
+      {
+        "first_line": 77,
+        "last_line": 107,
+        "text": "    fn matches(&self, cached_style: &ComputedValues, style: &StyleBuilder) -> bool {\n        if cached_style.effective_zoom != style.effective_zoom {\n            return false;\n        }\n\n        if cached_style\n            .flags\n            .intersects(ComputedValueFlags::IS_IN_APPEARANCE_BASE_SUBTREE)\n            != style\n                .flags()\n                .intersects(ComputedValueFlags::IS_IN_APPEARANCE_BASE_SUBTREE)\n        {\n            return false;\n        }\n\n        if let Some(fs) = self.font_size\n            && style.get_font().slow_clone_font_size().computed_size != fs\n        {\n            return false;\n        }\n\n        if let Some(lh) = self.line_height {\n            let new_line_height =\n                style\n                    .device\n                    .calc_line_height(style.get_font(), style.writing_mode, None);\n            if new_line_height != lh {\n                return false;\n            }\n        }\n\n"
+      },
+      {
+        "first_line": 142,
+        "last_line": 177,
+        "text": "\n    /// Walk the rule tree and return a rule node for using as the key\n    /// for rule cache.\n    ///\n    /// It currently skips animation / style attribute / preshint rules when they don't contain any\n    /// declaration of a reset property. We don't skip other levels because walking the whole\n    /// parent chain can be expensive.\n    ///\n    /// TODO(emilio): Measure this, this was not super-well measured for performance (this was done\n    /// for memory in bug 1427681)... Walking the rule tree might be worth it if we hit the cache\n    /// enough?\n    fn get_rule_node_for_cache<'r>(\n        guards: &StylesheetGuards,\n        mut rule_node: Option<&'r StrongRuleNode>,\n    ) -> Option<&'r StrongRuleNode> {\n        use crate::rule_tree::CascadeOrigin;\n        while let Some(node) = rule_node {\n            let priority = node.cascade_priority();\n            let cascade_level = priority.cascade_level();\n            let should_try_to_skip = cascade_level.is_animation()\n                || cascade_level.origin() == CascadeOrigin::PresHints\n                || priority.layer_order().is_style_attribute_layer();\n            if !should_try_to_skip {\n                break;\n            }\n            if let Some(source) = node.style_source() {\n                let decls = source.get().read_with(cascade_level.guard(guards));\n                if decls.contains_any_reset() {\n                    break;\n                }\n            }\n            rule_node = node.parent();\n        }\n        rule_node\n    }\n\n"
+      },
+      {
+        "first_line": 179,
+        "last_line": 231,
+        "text": "    ///\n    /// This needs to receive a `StyleBuilder` with the `early` properties\n    /// already applied.\n    pub fn find(&self, guards: &StylesheetGuards, context: &Context) -> Option<&ComputedValues> {\n        // A pseudo-element with property restrictions can result in different\n        // computed values if it's also used for a non-pseudo.\n        if context\n            .builder\n            .pseudo\n            .is_some_and(|p| !p.property_restriction().is_empty())\n        {\n            return None;\n        }\n\n        if context\n            .included_cascade_flags\n            .contains(RuleCascadeFlags::STARTING_STYLE)\n        {\n            // We don't want to cache nor include starting-style rules.\n            return None;\n        }\n\n        let rules = context.builder.rules.as_ref();\n        let rules = Self::get_rule_node_for_cache(guards, rules)?;\n        let cached_values = self.map.get(rules)?;\n\n        for (conditions, values) in cached_values.iter() {\n            if conditions.matches(values, &context.builder) {\n                debug!(\"Using cached reset style with conditions {:?}\", conditions);\n                return Some(&**values);\n            }\n        }\n        None\n    }\n\n    /// Inserts a node into the rules cache if possible.\n    ///\n    /// Returns whether the style was inserted into the cache.\n    pub fn insert_if_possible(\n        &mut self,\n        guards: &StylesheetGuards,\n        style: &Arc<ComputedValues>,\n        pseudo: Option<&PseudoElement>,\n        inputs: &CascadeInputs,\n        conditions: &RuleCacheConditions,\n    ) -> bool {\n        if !conditions.cacheable() {\n            return false;\n        }\n\n        // A pseudo-element with property restrictions can result in different computed values if\n        // it's also used for a non-pseudo.\n        // TODO: we could consider inserting them and just checking the builder like we do for zoom.\n"
+      }
+    ]
+  },
+  "servo/components/style/properties/mod.rs": {
+    "url": "https://searchfox.org/firefox-main/source/servo/components/style/properties/mod.rs",
+    "retrieval": "searchfox-cli --get-file servo/components/style/properties/mod.rs",
+    "whole_body_sha256": "06a44f7fa641d4a2a0f0a1511ad9b9570bc197e6dbb512f524482e6df1d87ee9",
+    "whole_body_bytes": 66547,
+    "branch_applicability": "upstream capture only; not joined to active branch",
+    "excerpts": [
+      {
+        "first_line": 1640,
+        "last_line": 1685,
+        "text": "        let invalid_at_computed_value_time = || {\n            let keyword = if longhand_id.inherited() {\n                CSSWideKeyword::Inherit\n            } else {\n                CSSWideKeyword::Initial\n            };\n            Cow::Owned(PropertyDeclaration::css_wide_keyword(longhand_id, keyword))\n        };\n\n        if computed_context\n            .builder\n            .invalid_non_custom_properties\n            .contains(longhand_id)\n        {\n            return invalid_at_computed_value_time();\n        }\n\n        if let Some(shorthand_id) = self.from_shorthand {\n            let key = (shorthand_id, longhand_id);\n            if shorthand_cache.contains_key(&key) {\n                // FIXME: This double lookup should be avoidable, but rustc\n                // doesn't like that, see:\n                //\n                // https://github.com/rust-lang/rust/issues/82146\n                return Cow::Borrowed(&shorthand_cache[&key]);\n            }\n        }\n\n        let property_id = PropertyIdRef::from(match self.from_shorthand {\n            Some(shorthand_id) => NonCustomPropertyId::from(shorthand_id),\n            None => NonCustomPropertyId::from(longhand_id),\n        });\n\n        let SubstitutionResult { css, attr_taint } = match substitution::substitute(\n            &self.variable_value,\n            Some(property_id),\n            substitution_functions,\n            stylist,\n            computed_context,\n            attribute_tracker,\n        ) {\n            Ok(css) => css,\n            Err(..) => return invalid_at_computed_value_time(),\n        };\n\n        // As of this writing, only the base URL is used for property\n"
+      }
+    ]
+  },
+  "servo/components/style/properties/cascade.rs": {
+    "url": "https://searchfox.org/firefox-main/source/servo/components/style/properties/cascade.rs",
+    "retrieval": "searchfox-cli --get-file servo/components/style/properties/cascade.rs",
+    "whole_body_sha256": "a390f98da61c86b2538671dde375e4b0f5d8f052f7f9a3d5e0c70daa231fbbc2",
+    "whole_body_bytes": 109959,
+    "branch_applicability": "upstream capture only; not joined to active branch",
+    "excerpts": [
+      {
+        "first_line": 300,
+        "last_line": 345,
+        "text": ") -> Arc<ComputedValues>\nwhere\n    E: TElement,\n    I: Iterator<Item = (&'decls PropertyDeclaration, CascadePriority)>,\n{\n    debug_assert!(layout_parent_style.is_none() || parent_style.is_some());\n    let device = stylist.device();\n    let inherited_style = parent_style.unwrap_or(device.default_computed_values());\n    let is_root_element = pseudo.is_none() && element.is_some_and(|e| e.is_root());\n    let container_size_query =\n        ContainerSizeQuery::for_option_element(element, Some(inherited_style), pseudo.is_some());\n\n    let originating_element = element.map(|e| e.ultimate_originating_element());\n    let element_context = match originating_element {\n        Some(ref e) => e as &dyn ElementContext,\n        None => &DummyElementContext {},\n    };\n\n    let mut context = computed::Context::new(\n        // We'd really like to own the rules here to avoid refcount traffic, but\n        // animation's usage of `apply_declarations` make this tricky. See bug\n        // 1375525.\n        StyleBuilder::new(\n            device,\n            Some(stylist),\n            parent_style,\n            pseudo,\n            Some(rules.clone()),\n            is_root_element,\n        ),\n        stylist.quirks_mode(),\n        rule_cache_conditions,\n        container_size_query,\n        included_cascade_flags,\n        element_context,\n        tree_counting_caches,\n    );\n\n    context.style().add_flags(cascade_input_flags);\n    // Reuse flags from computing registered custom properties initial values, such as\n    // whether they depend on viewport units.\n    context\n        .style()\n        .add_flags(stylist.get_custom_property_initial_values_flags());\n\n    let using_cached_reset_properties;\n"
+      }
+    ]
+  }
+}

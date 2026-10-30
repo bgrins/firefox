@@ -1,0 +1,65 @@
+>>>  671: void nsAnimationManager::DoUpdateAnimations(
+     672:     const NonOwningAnimationTarget& aTarget, const nsStyleUIReset& aStyle,
+     673:     ServoCSSAnimationBuilder& aBuilder) {
+     674:   // Everything that causes our animation data to change triggers a
+     675:   // style change, which in turn triggers a non-animation restyle.
+     676:   // Likewise, when we initially construct frames, we're not in a
+     677:   // style change, but also not in an animation restyle.
+     678: 
+     679:   auto* collection =
+     680:       CSSAnimationCollection::Get(aTarget.mElement, aTarget.mPseudoRequest);
+     681:   if (!collection && aStyle.mAnimationNameCount == 1 &&
+     682:       aStyle.mAnimations[0].GetName() == nsGkAtoms::_empty) {
+     683:     return;
+     684:   }
+     685: 
+     686:   nsAutoAnimationMutationBatch mb(aTarget.mElement->OwnerDoc());
+     687: 
+     688:   // Build the updated animations list. Even if we remove entries in
+     689:   // `mAnimationsWithNamedTimeline` in this function later, entries are added
+     690:   // when we build the list, breaking the symmetry. This is unfortunate, but
+     691:   // unavoidable, because `newAmimations.Length()` does not necessarily equal to
+     692:   // the length of animations defined in `aStyle`, e.g. when a referenced
+     693:   // `animiation-name` does not exist.
+     694:   //
+     695:   // Old entries in `collection` may be reused. If they are, they are removed
+     696:   // from `collection` and put into `newAnimations`.
+     697:   OwningCSSAnimationPtrArray newAnimations =
+     698:       BuildAnimations(mPresContext, aTarget, aStyle, aBuilder, collection,
+     699:                       mMaybeReferencedAnimations, mAnimationsWithNamedTimeline);
+     700: 
+     701:   if (newAnimations.IsEmpty()) {
+     702:     if (collection) {
+     703:       for (const auto& animation : collection->mAnimations) {
+     704:         if (!RefersToNamedTimeline(animation)) {
+     705:           continue;
+     706:         }
+     707:         RemoveCorrespondingAnimation(animation->GetTimelineName().mName,
+     708:                                      animation, mAnimationsWithNamedTimeline);
+     709:       }
+     710:       collection->Destroy();
+     711:     }
+     712:     return;
+     713:   }
+     714: 
+     715:   if (!collection) {
+     716:     collection =
+     717:         &aTarget.mElement->EnsureAnimationData().EnsureAnimationCollection(
+     718:             *aTarget.mElement, aTarget.mPseudoRequest);
+     719:     if (!collection->isInList()) {
+     720:       AddElementCollection(collection);
+     721:     }
+     722:   }
+     723:   collection->mAnimations.SwapElements(newAnimations);
+     724: 
+     725:   // Cancel removed animations
+     726:   for (size_t newAnimIdx = newAnimations.Length(); newAnimIdx-- != 0;) {
+     727:     const auto& anim = newAnimations[newAnimIdx];
+     728:     aBuilder.NotifyNewOrRemovedAnimation(*anim);
+     729:     newAnimations[newAnimIdx]->CancelFromStyle(PostRestyleMode::IfNeeded);
+     730:     if (RefersToNamedTimeline(anim)) {
+     731:       RemoveCorrespondingAnimation(anim->GetTimelineName().mName, anim,
+     732:                                    mAnimationsWithNamedTimeline);
+     733:     }
+     734:   }
+     735: }

@@ -1,0 +1,698 @@
+--- a/dom/animation/EffectCompositor.cpp
++++ b/dom/animation/EffectCompositor.cpp
+@@ -3,6 +3,14 @@
+  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ 
+ #include "EffectCompositor.h"
++
++#include <algorithm>
++#include <cstdio>
++#include <cstdlib>
++#include "base/process_util.h"
++#include "mozilla/dom/Document.h"
++#include "nsGkAtoms.h"
++#include "nsIURI.h"
+ 
+ #include "mozilla/AnimationComparator.h"
+ #include "mozilla/AnimationPerformanceWarning.h"
+@@ -37,6 +45,332 @@
+ 
+ namespace mozilla {
+ 
++namespace {
++uint64_t sDurationQuery = 0;
++uint64_t sDurationParentQuery = 0;
++uint64_t sDurationNextQuery = 0;
++unsigned sDurationSequence = 0;
++size_t sDurationBytes = 0;
++bool sDurationCapped = false;
++
++bool DurationTraceEnabled() {
++  if (!NS_IsMainThread()) {
++    return false;
++  }
++  static const bool enabled = [] {
++    const char* value = std::getenv("MOZ_DURATION_FIRST_READ_TRACE");
++    return value && value[0] == '1' && value[1] == '\0';
++  }();
++  return enabled;
++}
++
++const char* DurationTracePage(dom::Document* aDocument) {
++  if (!DurationTraceEnabled() || !aDocument) {
++    return nullptr;
++  }
++  auto* parent = aDocument->GetInProcessParentDocument();
++  auto* uri = aDocument->GetDocumentURI();
++  if (!parent || !uri || !parent->GetDocumentURI()) {
++    return nullptr;
++  }
++  nsAutoCString spec;
++  if (NS_FAILED(uri->GetSpec(spec)) || !spec.EqualsLiteral("about:srcdoc")) {
++    return nullptr;
++  }
++  nsAutoCString path;
++  if (NS_FAILED(parent->GetDocumentURI()->GetPathQueryRef(path))) {
++    return nullptr;
++  }
++  if (path.EqualsLiteral("/css/css-animations/animation-duration-acyclic-two-hop.tentative.html")) {
++    return "rem";
++  }
++  if (path.EqualsLiteral("/css/css-animations/animation-duration-acyclic-line-height-chain.tentative.html")) {
++    return "lh";
++  }
++  if (path.EqualsLiteral("/css/css-animations/animation-duration-property-only-wakeup.tentative.html")) {
++    return "property";
++  }
++  return nullptr;
++}
++
++const char* DurationTraceRole(Element* aElement) {
++  if (!aElement) {
++    return "none";
++  }
++  nsAutoString classes;
++  aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::_class, classes);
++  if (classes.EqualsLiteral("child")) {
++    return "child";
++  }
++  if (classes.EqualsLiteral("middle")) {
++    return "middle";
++  }
++  if (aElement == aElement->OwnerDoc()->GetRootElement()) {
++    return "root";
++  }
++  if (classes.EqualsLiteral("parent literal") ||
++      classes.EqualsLiteral("parent ordinary") ||
++      classes.EqualsLiteral("parent animated") ||
++      classes.EqualsLiteral("parent literal advanced") ||
++      classes.EqualsLiteral("parent ordinary advanced")) {
++    return "parent";
++  }
++  return "other";
++}
++
++const char* DurationTraceMode(Element* aElement) {
++  unsigned depth = 0;
++  for (auto* element = aElement; element && depth++ < 8;
++       element = element->GetParentElement()) {
++    nsAutoString classes;
++    element->GetAttr(kNameSpaceID_None, nsGkAtoms::_class, classes);
++    if (classes.EqualsLiteral("literal") ||
++        classes.EqualsLiteral("literal advanced") ||
++        classes.EqualsLiteral("parent literal") ||
++        classes.EqualsLiteral("parent literal advanced")) {
++      return "literal";
++    }
++    if (classes.EqualsLiteral("ordinary") ||
++        classes.EqualsLiteral("ordinary advanced") ||
++        classes.EqualsLiteral("parent ordinary") ||
++        classes.EqualsLiteral("parent ordinary advanced")) {
++      return "ordinary";
++    }
++    if (classes.EqualsLiteral("animated") ||
++        classes.EqualsLiteral("parent animated")) {
++      return "animated";
++    }
++  }
++  return "unknown";
++}
++
++struct DurationTraceRecord {
++  const char* stage;
++  dom::Document* document;
++  Element* target = nullptr;
++  const PseudoStyleRequest* pseudo = nullptr;
++  const void* compositor = nullptr;
++  const void* shell = nullptr;
++  const void* traversalRoot = nullptr;
++  const void* styleSource = nullptr;
++  int cascade = -1;
++  int state = -2;
++  int request = -1;
++  int pre = -1;
++  int property = -1;
++  int flush = -1;
++  int animations = -1;
++  int need = -1;
++  int style = -1;
++  int throttled = -1;
++  int layout = -1;
++  unsigned flags = 0;
++  unsigned count = 0;
++  const nsACString* value = nullptr;
++};
++
++void DurationTraceEmit(const DurationTraceRecord& aRecord) {
++  const char* page = DurationTracePage(aRecord.document);
++  if (!page || sDurationCapped) {
++    return;
++  }
++  auto cap = [](const char* aReason) {
++    sDurationCapped = true;
++    std::fprintf(stderr,
++                 "DURATION_FIRST_READ_TRACE v=1 pid=%lu cap=%s seq=%u\n",
++                 static_cast<unsigned long>(base::GetCurrentProcId()), aReason,
++                 sDurationSequence);
++  };
++  if (sDurationSequence >= 16384 || sDurationBytes >= 4 * 1024 * 1024) {
++    cap("limit");
++    return;
++  }
++  auto* shell = aRecord.document->GetPresShell();
++  auto* context = shell ? shell->GetPresContext() : nullptr;
++  auto* restyleManager = context ? context->RestyleManager() : nullptr;
++  int refresh = restyleManager ? int(restyleManager->IsInStyleRefresh()) : -1;
++  char value[257] = "-";
++  unsigned valueLength = 0;
++  int valueTruncated = 0;
++  if (aRecord.value) {
++    valueLength = aRecord.value->Length();
++    valueTruncated = valueLength > 128;
++    unsigned copied = std::min(valueLength, 128u);
++    static constexpr char hex[] = "0123456789abcdef";
++    for (unsigned i = 0; i < copied; ++i) {
++      auto c = static_cast<unsigned char>((*aRecord.value)[i]);
++      value[i * 2] = hex[c >> 4];
++      value[i * 2 + 1] = hex[c & 15];
++    }
++    value[copied * 2] = '\0';
++    if (!copied) {
++      value[0] = '-';
++      value[1] = '\0';
++    }
++  }
++  char line[1536];
++  int length = std::snprintf(
++      line, sizeof(line),
++      "DURATION_FIRST_READ_TRACE v=1 pid=%lu seq=%u query=%llu parent=%llu "
++      "window=%llu document=%p page=%s target=%p role=%s mode=%s pseudo=%d "
++      "identifier=%p compositor=%p shell=%p stage=%s cascade=%d state=%d "
++      "request=%d servo=%d pre=%d refresh=%d root=%p traversal=%p flags=%u "
++      "property=%d flush=%d animations=%d need=%d style=%d throttle=%d "
++      "layout=%d source=%p count=%u value=%s valueLength=%u valueTruncated=%d\n",
++      static_cast<unsigned long>(base::GetCurrentProcId()), sDurationSequence + 1,
++      static_cast<unsigned long long>(sDurationQuery),
++      static_cast<unsigned long long>(sDurationParentQuery),
++      static_cast<unsigned long long>(aRecord.document->InnerWindowID()),
++      static_cast<void*>(aRecord.document), page,
++      static_cast<void*>(aRecord.target), DurationTraceRole(aRecord.target),
++      DurationTraceMode(aRecord.target),
++      aRecord.pseudo ? int(aRecord.pseudo->mType) : -1,
++      aRecord.pseudo ? static_cast<void*>(aRecord.pseudo->mIdentifier.get()) : nullptr,
++      aRecord.compositor, aRecord.shell ? aRecord.shell : shell, aRecord.stage,
++      aRecord.cascade, aRecord.state, aRecord.request,
++      int(ServoStyleSet::IsInServoTraversal()), aRecord.pre, refresh,
++      static_cast<void*>(aRecord.document->GetServoRestyleRoot()),
++      aRecord.traversalRoot, aRecord.flags, aRecord.property, aRecord.flush,
++      aRecord.animations, aRecord.need, aRecord.style, aRecord.throttled,
++      aRecord.layout, aRecord.styleSource, aRecord.count, value, valueLength,
++      valueTruncated);
++  if (length < 0 || size_t(length) >= sizeof(line) ||
++      sDurationBytes + size_t(length) > 4 * 1024 * 1024) {
++    cap("bytes");
++    return;
++  }
++  ++sDurationSequence;
++  sDurationBytes += length;
++  std::fwrite(line, 1, length, stderr);
++}
++}  // namespace
++
++EffectCompositor::DurationTraceQuery EffectCompositor::BeginDurationQuery(
++    Element* aElement, const PseudoStyleRequest& aPseudo, int aProperty) {
++  if (!aElement || !DurationTracePage(aElement->OwnerDoc())) {
++    return {};
++  }
++  DurationTraceQuery query{++sDurationNextQuery, sDurationQuery,
++                           sDurationParentQuery};
++  sDurationParentQuery = sDurationQuery;
++  sDurationQuery = query.mId;
++  DurationTraceRecord record{"query-enter", aElement->OwnerDoc(), aElement,
++                             &aPseudo};
++  record.property = aProperty;
++  DurationTraceEmit(record);
++  TraceDurationSources("query-entry-state", aElement, aPseudo);
++  return query;
++}
++
++void EffectCompositor::EndDurationQuery(DurationTraceQuery aQuery,
++                                        Element* aElement,
++                                        const PseudoStyleRequest& aPseudo,
++                                        int aProperty,
++                                        const nsACString& aValue) {
++  if (!aQuery.mId) {
++    return;
++  }
++  if (aElement) {
++    TraceDurationSources("query-return-state", aElement, aPseudo);
++    DurationTraceRecord record{"query-exit", aElement->OwnerDoc(), aElement,
++                               &aPseudo};
++    record.property = aProperty;
++    record.value = &aValue;
++    DurationTraceEmit(record);
++  }
++  sDurationQuery = aQuery.mParent;
++  sDurationParentQuery = aQuery.mGrandparent;
++}
++
++void EffectCompositor::TraceDurationSources(
++    const char* aStage, Element* aElement, const PseudoStyleRequest& aPseudo,
++    const void* aStyleSource, int aFlush) {
++  if (!aElement || !DurationTracePage(aElement->OwnerDoc())) {
++    return;
++  }
++  DurationTraceRecord record{aStage, aElement->OwnerDoc(), aElement, &aPseudo};
++  record.styleSource = aStyleSource;
++  record.flush = aFlush;
++  DurationTraceEmit(record);
++  if (auto* shell = aElement->OwnerDoc()->GetPresShell()) {
++    shell->TraceDurationFlush(aStage, -1, -1, -1);
++    if (auto* context = shell->GetPresContext()) {
++      if (auto* compositor = context->EffectCompositor()) {
++        compositor->TraceDurationSnapshot(aElement, aPseudo);
++      }
++    }
++  }
++}
++
++void PresShell::TraceDurationFlush(const char* aStage, int aFlush,
++                                  int aAnimations, int aNeed) {
++  DurationTraceRecord record{aStage, mDocument};
++  record.shell = this;
++  record.flush = aFlush;
++  record.animations = aAnimations;
++  record.need = aNeed;
++  record.style = mNeedStyleFlush;
++  record.throttled = mNeedThrottledAnimationFlush;
++  record.layout = mNeedLayoutFlush;
++  DurationTraceEmit(record);
++}
++
++void EffectCompositor::TraceDurationRestyle(
++    const char* aStage, Element* aElement, const PseudoStyleRequest& aPseudo,
++    int aCascade, int aRequest, Element* aRoot, unsigned aFlags) {
++  if (!aElement) {
++    return;
++  }
++  auto* document = mPresContext ? mPresContext->Document() : aElement->OwnerDoc();
++  if (!DurationTracePage(document)) {
++    return;
++  }
++  DurationTraceRecord record{aStage, document, aElement, &aPseudo};
++  record.compositor = this;
++  record.pre = mIsInPreTraverse;
++  record.cascade = aCascade;
++  record.request = aRequest;
++  record.traversalRoot = aRoot;
++  record.flags = aFlags;
++  if (aCascade >= 0) {
++    auto entry = mElementsToRestyle[CascadeLevel(aCascade)].Lookup(
++        {aElement, aPseudo});
++    record.state = entry ? int(entry.Data()) : -1;
++  }
++  DurationTraceEmit(record);
++}
++
++void EffectCompositor::TraceDurationSnapshot(
++    Element* aElement, const PseudoStyleRequest& aPseudo) {
++  if (!aElement || !DurationTracePage(aElement->OwnerDoc())) {
++    return;
++  }
++  unsigned inspected = 0;
++  for (size_t i = 0; i < kCascadeLevelCount; ++i) {
++    TraceDurationRestyle("snapshot-query-key", aElement, aPseudo, int(i));
++    for (auto iter = mElementsToRestyle[CascadeLevel(i)].ConstIter();
++         !iter.Done(); iter.Next()) {
++      if (++inspected > 64) {
++        DurationTraceRecord record{"snapshot-truncated", aElement->OwnerDoc(),
++                                   aElement, &aPseudo};
++        record.count = inspected;
++        DurationTraceEmit(record);
++        return;
++      }
++      const auto& target = iter.Key();
++      if (target.mElement->OwnerDoc() == aElement->OwnerDoc()) {
++        TraceDurationRestyle("snapshot-entry", target.mElement,
++                             target.mPseudoRequest, int(i));
++      }
++    }
++  }
++  DurationTraceRecord record{"snapshot-end", aElement->OwnerDoc(), aElement,
++                             &aPseudo};
++  record.count = inspected;
++  DurationTraceEmit(record);
++}
++
++
+ NS_IMPL_CYCLE_COLLECTION_CLASS(EffectCompositor)
+ 
+ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(EffectCompositor)
+@@ -213,6 +547,8 @@
+   auto& elementsToRestyle = mElementsToRestyle[aCascadeLevel];
+   PseudoElementHashEntry::KeyType key = {aElement, aPseudoRequest};
+ 
++  TraceDurationRestyle("request-before", aElement, aPseudoRequest,
++                       int(aCascadeLevel), int(aRestyleType));
+   RestyleState previousState;
+   {
+     auto& entry = elementsToRestyle.LookupOrInsert(key, RestyleState::Throttled);
+@@ -222,6 +558,8 @@
+       entry = RestyleState::Pending;
+     }
+   }
++  TraceDurationRestyle("request-state", aElement, aPseudoRequest,
++                       int(aCascadeLevel), int(aRestyleType));
+   if (aRestyleType == RestyleType::Throttled) {
+     mPresContext->PresShell()->SetNeedThrottledAnimationFlush();
+   } else if (previousState != RestyleState::DispatchAttempted &&
+@@ -231,6 +569,8 @@
+     PostRestyleForAnimation(aElement, aPseudoRequest, aCascadeLevel);
+   }
+ 
++  TraceDurationRestyle("request-after", aElement, aPseudoRequest,
++                       int(aCascadeLevel), int(aRestyleType));
+   if (aRestyleType == RestyleType::Layer) {
+     mPresContext->RestyleManager()->IncrementAnimationGeneration();
+     if (auto* effectSet = EffectSet::Get(aElement, aPseudoRequest)) {
+@@ -252,8 +592,10 @@
+   // have the generated element here, so we failed the wpt.
+   //
+   // See wpt for more info: web-animations/interfaces/KeyframeEffect/target.html
++  TraceDurationRestyle("post-enter", aElement, aPseudoRequest, int(aCascadeLevel));
+   Element* element = aElement->GetPseudoElement(aPseudoRequest);
+   if (!element) {
++    TraceDurationRestyle("post-no-element", aElement, aPseudoRequest, int(aCascadeLevel));
+     return;
+   }
+ 
+@@ -265,6 +607,7 @@
+              "Restyle request during restyling should be requested only on "
+              "the main-thread. e.g. after the parallel traversal");
+   if (ServoStyleSet::IsInServoTraversal() || mIsInPreTraverse) {
++    TraceDurationRestyle("post-deferred-traversal", aElement, aPseudoRequest, int(aCascadeLevel));
+     MOZ_ASSERT(hint == RestyleHint::RESTYLE_CSS_ANIMATIONS ||
+                hint == RestyleHint::RESTYLE_CSS_TRANSITIONS);
+ 
+@@ -280,6 +623,7 @@
+   }
+ 
+   if (mPresContext->RestyleManager()->IsInStyleRefresh()) {
++    TraceDurationRestyle("post-deferred-refresh", aElement, aPseudoRequest, int(aCascadeLevel));
+     return;
+   }
+ 
+@@ -287,6 +631,7 @@
+   if (auto entry = mElementsToRestyle[aCascadeLevel].Lookup(key)) {
+     entry.Data() = RestyleState::DispatchAttempted;
+   }
++  TraceDurationRestyle("post-attempt", aElement, aPseudoRequest, int(aCascadeLevel));
+   mPresContext->PresShell()->RestyleForAnimation(element, hint);
+ }
+ 
+@@ -296,6 +641,8 @@
+     auto& elementSet = mElementsToRestyle[cascadeLevel];
+ 
+     for (auto iter = elementSet.Iter(); !iter.Done(); iter.Next()) {
++      TraceDurationRestyle("forced-inspect", iter.Key().mElement,
++                           iter.Key().mPseudoRequest, int(cascadeLevel));
+       if (iter.Data() != RestyleState::Throttled) {
+         continue;
+       }
+@@ -838,11 +1185,13 @@
+   using ElementsToRestyleIterType =
+       nsTHashMap<PseudoElementHashEntry, RestyleState>::ConstIterator;
+   auto getNeededRestyleTarget =
+-      [&](const ElementsToRestyleIterType& aIter) -> NonOwningAnimationTarget {
++      [&](const ElementsToRestyleIterType& aIter, CascadeLevel aCascadeLevel) -> NonOwningAnimationTarget {
+     NonOwningAnimationTarget returnTarget;
+ 
+     // Throttled restyles can be skipped unless explicitly flushed.
+     if (!flushThrottledRestyles && aIter.Data() == RestyleState::Throttled) {
++      TraceDurationRestyle("pre-skip-throttled", aIter.Key().mElement,
++                           aIter.Key().mPseudoRequest, int(aCascadeLevel), -1, aRoot, unsigned(aFlags));
+       return returnTarget;
+     }
+ 
+@@ -856,6 +1205,8 @@
+     // document restyle (at the end of this function) but for consistency with
+     // how we treat such elements in RequestRestyle, we just ignore them here.
+     if (!nsContentUtils::GetPresShellForContent(target.mElement)) {
++      TraceDurationRestyle("pre-skip-no-shell", aIter.Key().mElement,
++                           aIter.Key().mPseudoRequest, int(aCascadeLevel), -1, aRoot, unsigned(aFlags));
+       return returnTarget;
+     }
+ 
+@@ -863,9 +1214,13 @@
+     // aRoot.
+     if (aRoot && !nsContentUtils::ContentIsFlattenedTreeDescendantOfForStyle(
+                      target.mElement, aRoot)) {
++      TraceDurationRestyle("pre-skip-subtree", aIter.Key().mElement,
++                           aIter.Key().mPseudoRequest, int(aCascadeLevel), -1, aRoot, unsigned(aFlags));
+       return returnTarget;
+     }
+ 
++    TraceDurationRestyle("pre-selected", target.mElement, target.mPseudoRequest,
++                         int(aCascadeLevel), -1, aRoot, unsigned(aFlags));
+     returnTarget = target;
+     return returnTarget;
+   };
+@@ -877,7 +1232,7 @@
+     CascadeLevel cascadeLevel = CascadeLevel(i);
+     auto& elementSet = mElementsToRestyle[cascadeLevel];
+     for (auto iter = elementSet.ConstIter(); !iter.Done(); iter.Next()) {
+-      const NonOwningAnimationTarget& target = getNeededRestyleTarget(iter);
++      const NonOwningAnimationTarget& target = getNeededRestyleTarget(iter, cascadeLevel);
+       if (!target.mElement) {
+         continue;
+       }
+@@ -900,12 +1255,14 @@
+     CascadeLevel cascadeLevel = CascadeLevel(i);
+     auto& elementSet = mElementsToRestyle[cascadeLevel];
+     for (auto iter = elementSet.Iter(); !iter.Done(); iter.Next()) {
+-      const NonOwningAnimationTarget& target = getNeededRestyleTarget(iter);
++      const NonOwningAnimationTarget& target = getNeededRestyleTarget(iter, cascadeLevel);
+       if (!target.mElement) {
+         continue;
+       }
+ 
+       if (target.mElement->GetComposedDoc() != mPresContext->Document()) {
++        TraceDurationRestyle("pre-remove-wrong-document", target.mElement,
++                             target.mPseudoRequest, int(cascadeLevel), -1, aRoot, unsigned(aFlags));
+         iter.Remove();
+         continue;
+       }
+@@ -914,6 +1271,8 @@
+       // ensure the final restyling for removed animations.
+       // We can't call PostRestyleEvent directly here since we are still in the
+       // middle of the servo traversal.
++      TraceDurationRestyle("pre-post-hint", target.mElement,
++                           target.mPseudoRequest, int(cascadeLevel), -1, aRoot, unsigned(aFlags));
+       mPresContext->RestyleManager()->PostRestyleEventForAnimations(
+           target.mElement, target.mPseudoRequest,
+           cascadeLevel == CascadeLevel::Transitions
+@@ -925,16 +1284,22 @@
+       auto* effects = EffectSet::Get(target);
+       if (!effects) {
+         // Drop EffectSets that have been destroyed.
++        TraceDurationRestyle("pre-remove-no-effects", target.mElement,
++                             target.mPseudoRequest, int(cascadeLevel), -1, aRoot, unsigned(aFlags));
+         iter.Remove();
+         continue;
+       }
+ 
+       for (KeyframeEffect* effect : *effects) {
++        TraceDurationRestyle("pre-will-compose", target.mElement,
++                             target.mPseudoRequest, int(cascadeLevel), -1, aRoot, unsigned(aFlags));
+         effect->GetAnimation()->WillComposeStyle();
+       }
+ 
+       // Remove the element from the list of elements to restyle since we are
+       // about to restyle it.
++      TraceDurationRestyle("pre-remove-consumed", target.mElement,
++                           target.mPseudoRequest, int(cascadeLevel), -1, aRoot, unsigned(aFlags));
+       iter.Remove();
+     }
+ 
+@@ -943,6 +1308,13 @@
+     // because they were moved to a document without a pres shell after
+     // posting an animation restyle.
+     if (!aRoot && flushThrottledRestyles) {
++      if (DurationTraceEnabled() && !sDurationCapped) {
++        for (auto iter = elementSet.ConstIter(); !iter.Done(); iter.Next()) {
++          TraceDurationRestyle("pre-clear", iter.Key().mElement,
++                               iter.Key().mPseudoRequest, int(cascadeLevel), -1,
++                               aRoot, unsigned(aFlags));
++        }
++      }
+       elementSet.Clear();
+     }
+   }
+--- a/dom/animation/EffectCompositor.h
++++ b/dom/animation/EffectCompositor.h
+@@ -18,6 +18,7 @@
+ #include "mozilla/dom/EndpointBehavior.h"
+ #include "nsCycleCollectionParticipant.h"
+ #include "nsTArray.h"
++#include "nsStringFwd.h"
+ #include "nsTHashMap.h"
+ 
+ class nsCSSPropertyIDSet;
+@@ -44,6 +45,26 @@
+ 
+ class EffectCompositor {
+  public:
++  struct DurationTraceQuery {
++    uint64_t mId = 0;
++    uint64_t mParent = 0;
++    uint64_t mGrandparent = 0;
++  };
++  static DurationTraceQuery BeginDurationQuery(
++      dom::Element*, const PseudoStyleRequest&, int aProperty);
++  static void EndDurationQuery(DurationTraceQuery, dom::Element*,
++                               const PseudoStyleRequest&, int aProperty,
++                               const nsACString& aValue);
++  static void TraceDurationSources(const char* aStage, dom::Element*,
++                                    const PseudoStyleRequest&,
++                                    const void* aStyleSource = nullptr,
++                                    int aFlush = -1);
++  void TraceDurationRestyle(const char* aStage, dom::Element*,
++                            const PseudoStyleRequest&, int aCascade,
++                            int aRequest = -1, dom::Element* aRoot = nullptr,
++                            unsigned aFlags = 0);
++  void TraceDurationSnapshot(dom::Element*, const PseudoStyleRequest&);
++
+   explicit EffectCompositor(nsPresContext* aPresContext)
+       : mPresContext(aPresContext) {}
+ 
+--- a/layout/base/PresShell.h
++++ b/layout/base/PresShell.h
+@@ -1577,9 +1577,14 @@
+    *
+    * @param aType the type of notifications to flush
+    */
++  void TraceDurationFlush(const char* aStage, int aFlush, int aAnimations,
++                          int aNeed);
++
+   MOZ_CAN_RUN_SCRIPT
+   void FlushPendingNotifications(FlushType aType) {
+-    if (!NeedFlush(aType, /* aFlushAnimations = */ true)) {
++    const bool durationNeedFlush = NeedFlush(aType, /* aFlushAnimations = */ true);
++    TraceDurationFlush("shell-gate-type", int(aType), 1, durationNeedFlush);
++    if (!durationNeedFlush) {
+       return;
+     }
+ 
+@@ -1588,7 +1593,10 @@
+ 
+   MOZ_CAN_RUN_SCRIPT
+   void FlushPendingNotifications(ChangesToFlush aType) {
+-    if (!NeedFlush(aType)) {
++    const bool durationNeedFlush = NeedFlush(aType);
++    TraceDurationFlush("shell-gate-changes", int(aType.mFlushType),
++                       aType.mFlushAnimations, durationNeedFlush);
++    if (!durationNeedFlush) {
+       return;
+     }
+ 
+--- a/layout/style/nsComputedDOMStyle.cpp
++++ b/layout/style/nsComputedDOMStyle.cpp
+@@ -15,6 +15,7 @@
+ #include "mozilla/ComputedStyle.h"
+ #include "mozilla/ComputedStyleInlines.h"
+ #include "mozilla/EffectSet.h"
++#include "mozilla/EffectCompositor.h"
+ #include "mozilla/FontPropertyTypes.h"
+ #include "mozilla/IntegerRange.h"
+ #include "mozilla/Preferences.h"
+@@ -426,6 +427,13 @@
+     NonCustomCSSPropertyId aPropId, const nsACString& aMaybeCustomPropertyName,
+     nsACString& aReturn) {
+   MOZ_ASSERT(aReturn.IsEmpty());
++  const int durationTraceProperty = int(size_t(aPropId));
++  const auto durationTraceQuery = EffectCompositor::BeginDurationQuery(
++      mElement, mPseudo, durationTraceProperty);
++  auto durationTraceReturn = MakeScopeExit([&] {
++    EffectCompositor::EndDurationQuery(durationTraceQuery, mElement, mPseudo,
++                                       durationTraceProperty, aReturn);
++  });
+ 
+   const ComputedStyleMap::Entry* entry = nullptr;
+   if (aPropId != eCSSPropertyExtra_variable) {
+@@ -1012,6 +1020,12 @@
+ }
+ 
+ void nsComputedDOMStyle::Flush(Document& aDocument, FlushType aFlushType) {
++  EffectCompositor::TraceDurationSources("flush-enter", mElement, mPseudo,
++                                          nullptr, int(aFlushType));
++  auto durationFlushExit = MakeScopeExit([&] {
++    EffectCompositor::TraceDurationSources("flush-exit", mElement, mPseudo,
++                                            nullptr, int(aFlushType));
++  });
+   MOZ_ASSERT(mElement->IsInComposedDoc());
+   MOZ_ASSERT(mDocumentWeak == &aDocument);
+ 
+@@ -1033,9 +1047,16 @@
+ 
+ void nsComputedDOMStyle::UpdateCurrentStyleSources(
+     NonCustomCSSPropertyId aPropId) {
++  const char* durationTraceExit = "sources-complete";
++  EffectCompositor::TraceDurationSources("sources-enter", mElement, mPseudo);
++  auto durationTraceSourcesExit = MakeScopeExit([&] {
++    EffectCompositor::TraceDurationSources(durationTraceExit, mElement, mPseudo,
++                                            mComputedStyle.get());
++  });
+   nsCOMPtr<Document> document(mDocumentWeak);
+   if (!document) {
+     ClearComputedStyle();
++    durationTraceExit = "sources-no-document";
+     return;
+   }
+ 
+@@ -1046,16 +1067,21 @@
+   // flat tree too: https://github.com/w3c/csswg-drafts/issues/1964
+   if (!mElement->IsInComposedDoc()) {
+     ClearComputedStyle();
++    durationTraceExit = "sources-disconnected";
+     return;
+   }
+ 
+   if (mAlwaysReturnEmpty == AlwaysReturnEmptyStyle::Yes) {
+     ClearComputedStyle();
++    durationTraceExit = "sources-empty";
+     return;
+   }
+ 
+   DebugOnly<bool> didFlush = false;
+-  if (NeedsToFlushStyle(aPropId)) {
++  const bool durationNeedsStyle = NeedsToFlushStyle(aPropId);
++  EffectCompositor::TraceDurationSources(
++      durationNeedsStyle ? "style-needed" : "style-not-needed", mElement, mPseudo);
++  if (durationNeedsStyle) {
+     didFlush = true;
+     // We look at the frame in NeedsToFlushLayout, so flush frames, not only
+     // styles.
+@@ -1079,6 +1105,7 @@
+   mPresShell = document->GetPresShell();
+   if (!mPresShell || !mPresShell->GetPresContext()) {
+     ClearComputedStyle();
++    durationTraceExit = "sources-no-shell";
+     return;
+   }
+ 
+@@ -1094,6 +1121,7 @@
+   if (mComputedStyle && mComputedStyleGeneration == currentGeneration &&
+       mPresShellId == mPresShell->GetPresShellId()) {
+     // Our cached style is still valid.
++    durationTraceExit = "sources-cached";
+     return;
+   }
+ 
+@@ -1126,6 +1154,7 @@
+             presShellForContent ? presShellForContent : mPresShell, mStyleType);
+     if (!resolvedComputedStyle) {
+       ClearComputedStyle();
++      durationTraceExit = "sources-unresolved";
+       return;
+     }
+ 

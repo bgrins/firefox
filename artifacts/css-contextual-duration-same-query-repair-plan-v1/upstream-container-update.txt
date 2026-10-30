@@ -1,0 +1,74 @@
+>>> 1067: void nsPresContext::UpdateContainerQueryStylesAndAnchorPosLayout() {
+    1068:   const auto result = PresShell()->UpdateAnchorPosLayout();
+    1069:   if (mContainerQueryFrames.IsEmpty()) {
+    1070:     return;
+    1071:   }
+    1072: 
+    1073:   AUTO_PROFILER_LABEL_RELEVANT_FOR_JS("Container Query Styles Update", LAYOUT);
+    1074:   AUTO_PROFILER_MARKER_UNTYPED("UpdateContainerQueryStyles", LAYOUT, {});
+    1075: 
+    1076:   using AnchorPosUpdateResult = PresShell::AnchorPosUpdateResult;
+    1077:   if (result == AnchorPosUpdateResult::NotApplicable ||
+    1078:       result == AnchorPosUpdateResult::NeedReflow) {
+    1079:     PresShell()->DoFlushLayout(/* aInterruptible = */ false);
+    1080:   }
+    1081: 
+    1082:   AutoTArray<nsIFrame*, 8> framesToUpdate;
+    1083: 
+    1084:   for (nsIFrame* frame : mContainerQueryFrames.IterFromShallowest()) {
+    1085:     MOZ_ASSERT(frame->IsPrimaryFrame());
+    1086: 
+    1087:     auto type = frame->StyleDisplay()->mContainerType;
+    1088:     MOZ_ASSERT(type != StyleContainerType::NORMAL,
+    1089:                "Non-container frames shouldn't be in this set");
+    1090: 
+    1091:     const QueryContainerState newState{
+    1092:         frame->GetContentRectRelativeToSelf().Size(), frame->GetWritingMode(),
+    1093:         type};
+    1094:     QueryContainerState* oldState = frame->GetProperty(ContainerState());
+    1095: 
+    1096:     const bool changed = !oldState || oldState->Changed(newState);
+    1097: 
+    1098:     // Make sure to update the state regardless. It's cheap and it keeps tracks
+    1099:     // of both axes correctly even if only one axis is contained.
+    1100:     if (oldState) {
+    1101:       *oldState = newState;
+    1102:     } else {
+    1103:       frame->SetProperty(ContainerState(), new QueryContainerState(newState));
+    1104:     }
+    1105: 
+    1106:     if (!changed) {
+    1107:       continue;
+    1108:     }
+    1109: 
+    1110:     const bool updatingAncestor = [&] {
+    1111:       for (nsIFrame* f : framesToUpdate) {
+    1112:         if (nsLayoutUtils::IsProperAncestorFrame(f, frame)) {
+    1113:           return true;
+    1114:         }
+    1115:       }
+    1116:       return false;
+    1117:     }();
+    1118: 
+    1119:     if (updatingAncestor) {
+    1120:       // We're going to update an ancestor container of this frame already,
+    1121:       // avoid updating this one too until all our ancestor containers are
+    1122:       // updated.
+    1123:       continue;
+    1124:     }
+    1125: 
+    1126:     // To prevent unstable layout, only update once per-element per-flush.
+    1127:     if (NS_WARN_IF(!mUpdatedContainerQueryContents.EnsureInserted(
+    1128:             frame->GetContent()))) {
+    1129:       continue;
+    1130:     }
+    1131: 
+    1132:     framesToUpdate.AppendElement(frame);
+    1133: 
+    1134:     // TODO(emilio): More fine-grained invalidation rather than invalidating the
+    1135:     // whole subtree, probably!
+    1136:     RestyleManager()->PostRestyleEvent(frame->GetContent()->AsElement(),
+    1137:                                        RestyleHint::RestyleSubtree(),
+    1138:                                        nsChangeHint(0));
+    1139:   }
+    1140: }

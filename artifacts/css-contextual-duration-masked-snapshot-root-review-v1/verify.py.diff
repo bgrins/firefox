@@ -1,0 +1,31 @@
+--- artifacts/css-contextual-duration-masked-controls-root-review-v1/verify.py
++++ artifacts/css-contextual-duration-masked-snapshot-root-review-v1/verify.py
+@@ -36,8 +36,8 @@
+ 
+ def outcome_join(result, phase, assessment, terminal_exit, phase_hashes):
+     assert assessment['complete'] and assessment['errors'] == []
+-    assert len(assessment['rows']) == 7 and all(r['status'] in ('PASS', 'FAIL') for r in assessment['rows'])
+-    assert len(assessment['ends']) == 2 and all(row['status'] == 'OK' for row in assessment['ends'])
++    assert len(assessment['rows']) == 9 and all(r['status'] in ('PASS', 'FAIL') for r in assessment['rows'])
++    assert len(assessment['ends']) == 4 and all(row['status'] == 'OK' for row in assessment['ends'])
+     assert phase['execution_error'] is None and phase['preservation_verified']
+     assert phase['native_fix_acceptance'] is False
+     passed = assessment['comparison_gate_passed']
+@@ -88,7 +88,7 @@
+     baseline = load('matching_root_baseline', str((HERE / 'baseline.py').relative_to(ROOT)))
+     prepared, owner, roles = baseline.prepare(OWNER_SHA)
+     assert prepared == policy and policy['execution_enabled'] and policy['candidate_execution_enabled']
+-    assert set(roles) == {'servo/components/style/matching.rs'}
++    assert set(roles) == {'layout/style/AnimationCollection.h', 'layout/style/nsAnimationManager.cpp', 'layout/style/GeckoBindings.cpp', 'layout/style/nsAnimationManager.h', 'servo/components/style/context.rs', 'servo/components/style/matching.rs', 'layout/style/ServoTypes.h'}
+     assert policy['runtime_output'] == str(PAIR.relative_to(ROOT))
+     state = load('matching_root_state', policy['state_helper'])
+     bundle = load('matching_root_bundle', policy['bundle_helper'])
+@@ -179,7 +179,7 @@
+     summary = {'original_rows': original['rows'], 'candidate_rows': assessment['rows'], 'candidate_endings': assessment['ends'], 'comparison_errors': assessment['comparison_errors'], 'comparison_gate_passed': passed, 'phase': phase_hashes, 'outcomes_sha256': sha(PAIR / 'OUTCOMES.json'), 'observation_complete': True, 'all_callbacks_passed': outcomes['all_callbacks_passed'], 'native_acceptance': False}
+     save(PAIR / 'ROOT-REPLAY.json', summary)
+     terminal = {'session_id': args.session, 'terminal_chunk': args.terminal, 'exit': args.exit_code, 'owner_sha256': OWNER_SHA, 'result_sha256': result_sha, 'build_success': True, 'callbacks_passed': sum(r['status'] == 'PASS' for r in assessment['rows']), 'callbacks_failed': sum(r['status'] == 'FAIL' for r in assessment['rows']), 'ending': 'OK', 'comparison_gate_passed': passed, 'raw_replay_verified': True, 'state_and_application_restoration_independently_verified': True, 'raw_index_observation': observation, 'restored_application_entry': bundle.entry(app_entry), 'restored_application_target': bundle.entry(app_entry.resolve()), 'backup_removed_bytes': backup['owned_backup_bytes'], 'native_acceptance': False}
+-    terminal.update(page_endings_ok=2, browser_exit=phase_result['exit'], observation_complete=True, all_callbacks_passed=outcomes['all_callbacks_passed'], success_scope=result['success_scope'])
++    terminal.update(page_endings_ok=4, browser_exit=phase_result['exit'], observation_complete=True, all_callbacks_passed=outcomes['all_callbacks_passed'], success_scope=result['success_scope'])
+     save(PAIR / 'ROOT-TERMINAL.json', terminal)
+     symlinks, manifest = {}, {}
+     for directory, dirs, files in os.walk(PAIR, followlinks=False):

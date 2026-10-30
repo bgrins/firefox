@@ -1,0 +1,19 @@
+--- draft/reduced.py
++++ bound/reduced.py
+@@ -42,7 +42,15 @@
+     directory = root / binding['directory']
+     phase = directory / 'original-wpt'
+     assert read(directory / binding['terminal_path']) == binding['terminal']
+-    assert binding['terminal']['exit'] == 0
++    terminal = binding['terminal']
++    assert terminal['session_id'] == 68662 and terminal['terminal_chunk'] == '634d07' and terminal['exit'] == 0
++    assert terminal['owner_sha256'] == policy['reduced_capsule']['sha256']
++    assert terminal['result_sha256'] == binding['result_sha256']
++    assert terminal['raw_replay_verified'] and terminal['state_and_application_preservation_independently_verified']
++    assert terminal['callbacks_passed'] == 2 and terminal['ending'] == 'OK' and terminal['fixed_controls_passed']
++    assert terminal['native_acceptance'] is False and terminal['matching_only_or_combined_reduced_validation_performed'] is False
++    assert terminal['epoch_sha256'] == policy['controls']['CURRENT-EPOCH.json']
++    assert terminal['raw_index'] == read(phase / 'PRE.json')['index']['raw_index']
+     assert sha(directory / 'RESULT.json') == binding['result_sha256']
+     settings = source['wpt']
+     expected = dict(settings,tests={page:'testharness' for page in settings['expected_subtests']},held_subtests={})

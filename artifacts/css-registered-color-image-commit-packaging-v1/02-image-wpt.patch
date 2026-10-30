@@ -1,0 +1,82 @@
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-image-font-dependencies.tentative.html
+@@ -0,0 +1,79 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Registered images resolve font-relative stops without contextual colors</title>
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<pre id="observations" hidden></pre>
++<script>
++window.imageUnitObservations = [];
++for (const mode of ["direct em and lh", "typed attr em and lh", "inherited computed image"]) {
++  promise_test(async t => {
++    const frame = document.createElement("iframe");
++    t.add_cleanup(() => frame.remove());
++    const loaded = new Promise(resolve => { frame.onload = resolve; });
++    frame.srcdoc = "<!doctype html><body>";
++    document.body.append(frame);
++    await loaded;
++    const win = frame.contentWindow;
++    const doc = frame.contentDocument;
++    win.CSS.registerProperty({name: "--image", syntax: "<image>", inherits: false,
++      initialValue: "linear-gradient(red, blue)"});
++    const parent = doc.createElement("div");
++    const target = doc.createElement("div");
++    const reference = doc.createElement("div");
++    const calibration = doc.createElement("div");
++    const calibrationLiteral = doc.createElement("div");
++    const inherited = mode === "inherited computed image";
++    const typed = mode === "typed attr em and lh";
++    const literalImage = `linear-gradient(red ${typed ? "2em" : "1em"}, blue 1lh)`;
++    const expression = typed ? "linear-gradient(red attr(data-stop type(<length>), 1px), blue 1lh)" : literalImage;
++    target.style.cssText = "font-size: var(--size); line-height: var(--height)";
++    target.style.setProperty("--image", inherited ? "var(--missing, inherit)" : expression);
++    target.setAttribute("data-stop", "2em");
++    parent.style.setProperty("--image", literalImage);
++    reference.style.backgroundImage = literalImage;
++    calibration.style.width = "attr(data-stop type(<length>))";
++    calibration.setAttribute("data-stop", "2em");
++    calibrationLiteral.style.width = "2em";
++    parent.append(target);
++    doc.body.append(parent, reference, calibration, calibrationLiteral);
++    const rows = [];
++    for (const [size, height, parentSize, parentHeight] of [[20, 40, 12, 24], [32, 64, 18, 36]]) {
++      parent.style.fontSize = `${parentSize}px`;
++      parent.style.lineHeight = `${parentHeight}px`;
++      target.style.setProperty("--size", `${size}px`);
++      target.style.setProperty("--height", `${height}px`);
++      reference.style.fontSize = `${inherited ? parentSize : size}px`;
++      reference.style.lineHeight = `${inherited ? parentHeight : height}px`;
++      calibration.style.fontSize = calibrationLiteral.style.fontSize = `${size}px`;
++      const first = win.getComputedStyle(target).getPropertyValue("--image").trim();
++      const expected = win.getComputedStyle(reference).backgroundImage;
++      rows.push({size, height, parentSize, parentHeight, first, expected,
++        font: win.getComputedStyle(target).fontSize,
++        lineHeight: win.getComputedStyle(target).lineHeight,
++        parentFont: win.getComputedStyle(parent).fontSize,
++        parentLineHeight: win.getComputedStyle(parent).lineHeight,
++        attrActual: win.getComputedStyle(calibration).width,
++        attrExpected: win.getComputedStyle(calibrationLiteral).width});
++    }
++    const observation = {mode, expression, literalImage, rows};
++    window.imageUnitObservations.push(observation);
++    document.getElementById("observations").textContent = JSON.stringify(window.imageUnitObservations);
++    const diagnostic = JSON.stringify(observation);
++    assert_not_equals(reference.style.backgroundImage, "", diagnostic);
++    for (const row of rows) {
++      assert_equals(row.font, `${row.size}px`, diagnostic);
++      assert_equals(row.lineHeight, `${row.height}px`, diagnostic);
++      assert_equals(row.parentFont, `${row.parentSize}px`, diagnostic);
++      assert_equals(row.parentLineHeight, `${row.parentHeight}px`, diagnostic);
++      if (typed) {
++        assert_equals(row.attrActual, row.attrExpected, `Typed attr support: ${diagnostic}`);
++      }
++      assert_equals(row.first, row.expected, `Computed registered image: ${diagnostic}`);
++    }
++  }, `Registered image font dependencies without contextual colors: ${mode}`);
++}
++</script>

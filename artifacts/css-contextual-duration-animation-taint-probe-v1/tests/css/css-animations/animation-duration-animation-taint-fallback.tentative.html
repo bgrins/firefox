@@ -1,0 +1,107 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Animation-tainted duration variables preserve their fallback on ordinary changes</title>
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#animation-tainted">
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#replace-a-var-function">
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animation-duration">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const mode of ["tainted", "literal", "untainted"]) {
+  promise_test(async t => {
+    const driven = mode !== "untainted";
+    const iframe = document.createElement("iframe");
+    t.add_cleanup(() => iframe.remove());
+    const loaded = new Promise(resolve => iframe.onload = resolve);
+    const duration = mode === "literal" ? "1.5s" : "var(--d, 1.5s)";
+    iframe.srcdoc = `<!doctype html><style>
+      ${driven ? "@keyframes driver { from { --d: 2.5s; } to { --d: 2.5s; } }" : ""}
+      @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+      #target { animation-name: ${driven ? "driver, fade" : "fade"};
+        animation-duration: ${driven ? "2s, " : ""}${duration};
+        animation-timing-function: linear; animation-fill-mode: both;
+        animation-play-state: paused; }
+    </style><div id="target" style="--d: 1s"></div>`;
+    document.body.append(iframe);
+    await loaded;
+    const win = iframe.contentWindow;
+    const target = iframe.contentDocument.getElementById("target");
+    const names = driven ? ["driver", "fade"] : ["fade"];
+    const acquired = target.getAnimations();
+    assert_equals(acquired.length, names.length, "Expected CSS animation count");
+    const animations = names.map(name => acquired.find(a => a.animationName === name));
+    assert_true(animations.every(Boolean), "Named CSS animations acquired");
+    const effects = animations.map(a => a.effect);
+    for (const animation of animations) {
+      await animation.ready;
+      animation.currentTime = 750;
+    }
+    const frame = () => new Promise(resolve => win.requestAnimationFrame(resolve));
+    const opacity = () => Number(win.getComputedStyle(target).opacity);
+    const details = () => {
+      const value = opacity();
+      const customD = win.getComputedStyle(target).getPropertyValue("--d").trim();
+      const cssDuration = win.getComputedStyle(target).animationDuration;
+      const timings = animations.map(animation => {
+        const specified = animation.effect.getTiming();
+        const computed = animation.effect.getComputedTiming();
+        return {duration: specified.duration, computedDuration: computed.duration,
+          progress: computed.progress, time: animation.currentTime, state: animation.playState};
+      });
+      return {opacity: value, customD, cssDuration, timings};
+    };
+    for (let i = 0; i < 3; i++) {
+      await frame();
+    }
+    const initial = details();
+    target.style.setProperty("--d", "2s");
+    const samples = [{phase: "first-read", opacity: opacity()}];
+    for (let i = 1; i <= 3; i++) {
+      await frame();
+      samples.push({phase: `passive-frame-${i}`, opacity: opacity()});
+    }
+    const beforeMembership = details();
+    const current = target.getAnimations();
+    const membership = {count: current.length,
+      retained: animations.map((animation, index) =>
+        current.includes(animation) && animation.effect === effects[index])};
+    const afterMembership = details();
+    const trace = JSON.stringify({mode, initial, samples, beforeMembership, membership, afterMembership});
+    const fadeIndex = names.length - 1;
+    const initialDuration = mode === "untainted" ? 1000 : 1500;
+    const finalDuration = mode === "untainted" ? 2000 : 1500;
+    assert_equals(target.style.getPropertyValue("--d"), "2s", `Authored mutation; ${trace}`);
+    assert_equals(membership.count, names.length, `Animation count preserved; ${trace}`);
+    assert_true(membership.retained.every(Boolean), `Animation and effect identities preserved; ${trace}`);
+    for (const [stage, value, expectedDuration] of [
+      ["initial", initial, initialDuration],
+      ["before membership", beforeMembership, finalDuration],
+      ["after membership", afterMembership, finalDuration],
+    ]) {
+      const expectedCustom = driven ? "2.5s" : stage === "initial" ? "1s" : "2s";
+      assert_equals(value.customD, expectedCustom, `${stage}: composed custom property; ${trace}`);
+      const expectedCSS = driven ? ["2s", "1.5s"] : [stage === "initial" ? "1s" : "2s"];
+      assert_array_equals(value.cssDuration.split(",").map(s => s.trim()), expectedCSS,
+                          `${stage}: duration substitution; ${trace}`);
+      assert_true(value.timings.every(timing => timing.time === 750 && timing.state === "paused"),
+                  `${stage}: held times and states; ${trace}`);
+      if (driven) {
+        assert_equals(value.timings[0].duration, 2000, `${stage}: fixed driver timing; ${trace}`);
+      }
+      assert_equals(value.timings[fadeIndex].duration, expectedDuration,
+                    `${stage}: fade specified duration; ${trace}`);
+      assert_equals(value.timings[fadeIndex].computedDuration, expectedDuration,
+                    `${stage}: fade computed duration; ${trace}`);
+      assert_approx_equals(value.timings[fadeIndex].progress, 750 / expectedDuration, 0.0001,
+                           `${stage}: fade progress; ${trace}`);
+      assert_approx_equals(value.opacity, 750 / expectedDuration, 0.0001,
+                           `${stage}: fade output; ${trace}`);
+    }
+    for (const sample of samples) {
+      assert_approx_equals(sample.opacity, 750 / finalDuration, 0.0001,
+                           `${sample.phase}: fade output after ordinary mutation; ${trace}`);
+    }
+  }, `Animation duration variable ${mode}: ordinary declaration change preserves taint and fallback semantics`);
+}
+</script>

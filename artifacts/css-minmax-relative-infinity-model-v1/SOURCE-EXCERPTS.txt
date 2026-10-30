@@ -1,0 +1,39 @@
+Known locally modified generic calc source, SHA-256 b291d6e9a30e486fd42ff0cb3cda00cfead0ee7f7149761d8685a8cc85889576
+
+    fn is_nan_leaf(&self) -> Result<bool, ()> {
+        Ok(match *self {
+            Self::Leaf(ref l) => l.is_nan()?,
+            _ => false,
+        })
+    }
+
+
+                if value_or_stop!(children[0].is_nan_leaf()) {
+                    replace_self_with!(&mut children[0]);
+                    return SimplificationResult::Simplified;
+                }
+
+                let mut result = 0;
+                for i in 1..children.len() {
+                    if value_or_stop!(children[i].is_nan_leaf()) {
+                        replace_self_with!(&mut children[i]);
+                        return SimplificationResult::Simplified;
+                    }
+                    let o = match children[i].compare(&children[result]) {
+                        // We can't compare all the children, so we can't
+                        // know which one will actually win. Bail out and
+                        // keep ourselves as a min / max function.
+                        //
+                        // TODO: Maybe we could simplify compatible children,
+                        // see https://github.com/w3c/csswg-drafts/issues/4756
+                        None => return SimplificationResult::Unchanged,
+                        Some(o) => o,
+                    };
+
+                    if o == winning_order {
+                        result = i;
+                    }
+                }
+
+                replace_self_with!(&mut children[result]);
+                SimplificationResult::Simplified

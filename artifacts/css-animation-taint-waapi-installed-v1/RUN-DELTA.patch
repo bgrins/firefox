@@ -1,0 +1,115 @@
+--- artifacts/css-partial-base-installed-browsers-v1/run.py
++++ artifacts/css-animation-taint-waapi-installed-v1/run.py
+@@ -75,52 +75,62 @@
+         assert binary_rows[0]['sha256'] == selected['binary_sha256']
+ 
+ 
++
++
++
+ def validate(payload, run_id, browser):
+     assert isinstance(payload, dict) and set(payload) == {'run_id', 'report'} and payload['run_id'] == run_id
+     report = payload['report']
+-    assert set(report) == {'schema', 'status', 'userAgent', 'contextualTimingVerdict', 'observations'}
+-    assert report['schema'] == 'partial-base-observation-v1' and report['contextualTimingVerdict'] is None
+-    assert report['status'] in ['complete', 'incomplete']
++    assert set(report) == {'schema', 'status', 'userAgent', 'policyVerdict', 'observations'}
++    assert report['schema'] == 'waapi-taint-observation-v1' and report['policyVerdict'] is None
++    assert report['status'] in ('complete', 'incomplete')
+     pattern = r'Firefox/158\.0(?:\s|$)' if browser == 'firefox' else r'(?:Headless)?Chrome/156\.0\.\d+\.\d+(?:\s|$)'
+     assert isinstance(report['userAgent'], str) and re.search(pattern, report['userAgent'])
+-    cases = [('contextual-24', 'contextual', 24), ('literal-24', 'literal', 24), ('contextual-32', 'contextual', 32), ('literal-32', 'literal', 32)]
+-    assert len(report['observations']) == 4
++    assert isinstance(report['observations'], list) and len(report['observations']) == 3
++
+     def number(value):
+         return value is None or type(value) in (int, float) or (isinstance(value, dict) and set(value) == {'nonfinite'} and value['nonfinite'] in ['NaN', 'Infinity', '-Infinity'])
+ 
+-    def details(value):
+-        assert set(value) == {'opacity', 'font', 'cssDuration', 'timings'}
+-        assert number(value['opacity']) and isinstance(value['font'], str) and isinstance(value['cssDuration'], str)
+-        assert len(value['timings']) == 2
+-        for timing in value['timings']:
++    def details(value, before=False):
++        assert set(value) == {'sink', 'variable', 'timing', 'effectSame'}
++        assert isinstance(value['sink'], str) and isinstance(value['variable'], str)
++        if before:
++            assert value['timing'] is None and value['effectSame'] is None
++        else:
++            timing = value['timing']
+             assert set(timing) == {'duration', 'computedDuration', 'progress', 'time', 'state'}
+             assert all(number(timing[key]) or timing[key] == 'auto' for key in ['duration', 'computedDuration'])
+             assert number(timing['progress']) and number(timing['time']) and isinstance(timing['state'], str)
+-
+-    for row, expected in zip(report['observations'], cases):
+-        assert set(row) == {'id', 'mode', 'finalFont', 'authoredInitialFont', 'stage', 'error', 'acquired', 'initial', 'samples', 'beforeMembership', 'membership', 'afterMembership', 'referenceChecks', 'contextualTimingVerdict'}
+-        assert (row['id'], row['mode'], row['finalFont']) == expected
+-        assert row['authoredInitialFont'] == 16 and row['contextualTimingVerdict'] is None
+-        assert isinstance(row['samples'], list) and len(row['samples']) <= 4
+-        assert [sample['phase'] for sample in row['samples']] == ['first-read', 'passive-frame-1', 'passive-frame-2', 'passive-frame-3'][:len(row['samples'])]
+-        assert all(set(sample) == {'phase', 'opacity'} for sample in row['samples'])
+-        assert all(number(sample['opacity']) for sample in row['samples'])
+-        assert isinstance(row['referenceChecks'], list) and row['referenceChecks']
+-        assert all(set(check) == {'name', 'passed'} and isinstance(check['name'], str) and type(check['passed']) is bool for check in row['referenceChecks'])
++            assert type(value['effectSame']) is bool
++
++    for row, mode in zip(report['observations'], ['waapi', 'css', 'literal']):
++        assert set(row) == {'mode', 'stage', 'error', 'before', 'activeSamples', 'active', 'activeMembership', 'cancelSamples', 'cancelled', 'cancelMembership', 'referenceChecks', 'policyVerdict'}
++        assert row['mode'] == mode and row['policyVerdict'] is None
++        assert row['stage'] in ['setup', 'create', 'active samples', 'cancel', 'complete']
++        for key in ['activeSamples', 'cancelSamples']:
++            samples = row[key]
++            assert isinstance(samples, list) and len(samples) <= 4
++            assert [v['phase'] for v in samples] == ['first-read', 'passive-frame-1', 'passive-frame-2', 'passive-frame-3'][:len(samples)]
++            assert all(set(v) == {'phase', 'sink'} and isinstance(v['sink'], str) for v in samples)
++        for key in ['before', 'active', 'cancelled']:
++            if row[key] is not None:
++                details(row[key], before=key == 'before')
++        for key in ['activeMembership', 'cancelMembership']:
++            value = row[key]
++            if value is not None:
++                assert set(value) == {'count', 'sameAnimation', 'sameEffect'}
++                assert type(value['count']) is int and value['count'] >= 0
++                assert type(value['sameAnimation']) is bool and type(value['sameEffect']) is bool
++        checks = row['referenceChecks']
++        assert isinstance(checks, list) and checks
++        assert all(set(v) == {'name', 'passed'} and isinstance(v['name'], str) and type(v['passed']) is bool for v in checks)
+         if row['error'] is None:
+-            assert row['stage'] == 'complete' and len(row['samples']) == 4
+-            assert all(isinstance(row[key], dict) for key in ['initial', 'beforeMembership', 'membership', 'afterMembership'])
++            assert row['stage'] == 'complete'
++            assert len(row['activeSamples']) == len(row['cancelSamples']) == 4
++            assert all(row[key] is not None for key in ['before', 'active', 'cancelled', 'activeMembership', 'cancelMembership'])
+         else:
+             assert set(row['error']) == {'name', 'message', 'stack'}
+-        for key in ['initial', 'beforeMembership', 'afterMembership']:
+-            if row[key] is not None:
+-                details(row[key])
+-        if row['membership'] is not None:
+-            membership = row['membership']
+-            assert set(membership) == {'count', 'currentNames', 'held'}
+-            assert type(membership['count']) is int and isinstance(membership['currentNames'], list)
+-            assert len(membership['held']) == 2
+-            assert all(set(item) == {'name', 'animation', 'effect'} and isinstance(item['name'], str) and type(item['animation']) is bool and type(item['effect']) is bool for item in membership['held'])
++            assert all(isinstance(v, str) for v in row['error'].values())
+     assert (report['status'] == 'complete') == all(row['error'] is None for row in report['observations'])
+     return report
+ 
+@@ -265,7 +275,7 @@
+     selected = policy['browsers'][args.browser]
+     output = ROOT / selected['output']
+     output.mkdir(mode=0o700)
+-    temporary = Path(tempfile.mkdtemp(prefix='css-partial-base-', dir='/private/tmp'))
++    temporary = Path(tempfile.mkdtemp(prefix='css-waapi-taint-', dir='/private/tmp'))
+     info = temporary.lstat()
+     identity = [info.st_dev, info.st_ino]
+     profile = temporary / 'profile'
+@@ -340,7 +350,7 @@
+     reference_checks_pass = receiver.report is not None and all(check['passed'] for item in receiver.report['observations'] for check in item['referenceChecks'])
+     complete = error is None and not receiver.errors and receiver.report is not None and cleanup.get('temporary_removed', False)
+     save(output / 'RESULT.json', {'execution_complete': complete, 'observation_complete': observation_complete,
+-        'reference_checks_pass': reference_checks_pass, 'contextual_timing_verdict': None, 'error': error,
++        'reference_checks_pass': reference_checks_pass, 'animation_taint_policy_verdict': None, 'error': error,
+         'report_received': receiver.report is not None, 'cleanup_complete': cleanup.get('temporary_removed', False),
+         'native_acceptance': False, 'launcher_returncode_after_cleanup': process.returncode if process else None})
+     return 0 if complete else 1

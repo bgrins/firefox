@@ -1,0 +1,13 @@
+import SelectedValue
+#print axioms SelectedValue.selected_valid_preserves_payload
+#print axioms SelectedValue.selected_absent_stays_absent
+#print axioms SelectedValue.selected_taint_is_infectious
+#print axioms SelectedValue.repeated_selection_accumulates
+#print axioms SelectedValue.csswide_selection_rejects_at_sink
+#print axioms SelectedValue.csswide_selection_survives_alias
+#print axioms SelectedValue.publication_matches_fresh
+#print axioms SelectedValue.silent_publication_preserves_semantics
+#print axioms SelectedValue.same_token_taint_change_notifies
+#print axioms SelectedValue.token_comparison_misses_required_notification
+#print axioms SelectedValue.attr_only_change_still_notifies
+#print axioms SelectedValue.concrete_selected_and_outer_fallback_controls

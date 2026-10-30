@@ -1,0 +1,116 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Animation-only duration refresh preserves unrelated effects and pseudo elements</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+async function settle() { await frame(); await frame(); }
+
+async function probe(t, mode) {
+  const host = document.createElement("div");
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const root = host.attachShadow({mode: "open"});
+  const pseudo = mode.startsWith("::") ? mode : null;
+  root.innerHTML = `<style>
+    .parent { font-size: 16px; }
+    .target${pseudo || ""} {
+      content: "x";
+      animation: fade linear both paused;
+      animation-duration: calc(1em / 16px * 1s);
+    }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  </style><div class="parent"><div class="target"></div></div>`;
+  const parent = root.querySelector(".parent");
+  const target = root.querySelector(".target");
+  if (mode === "literal") target.style.animationDuration = "1s";
+  if (mode === "no CSS animation") target.style.animationName = "none";
+  const driver = parent.animate([{fontSize: "16px"}, {fontSize: "24px"}],
+                                {duration: 1000, fill: "both"});
+  t.add_cleanup(() => driver.cancel());
+  driver.pause();
+  await driver.ready;
+  driver.currentTime = 0;
+  const animations = target.getAnimations({subtree: true});
+  const css = animations.find(animation => animation instanceof CSSAnimation &&
+                              animation.effect.pseudoElement === pseudo);
+  assert_equals(animations.length, mode === "no CSS animation" ? 0 : 1,
+                "Initial CSS animation count");
+  let effect;
+  if (css) {
+    await css.ready;
+    css.currentTime = 750;
+    effect = css.effect;
+  }
+  const script = target.animate([{transform: "translateX(0px)"},
+                                 {transform: "translateX(100px)"}],
+                                {duration: 1000, fill: "both"});
+  t.add_cleanup(() => script.cancel());
+  script.pause();
+  await script.ready;
+  script.currentTime = 250;
+  const scriptEffect = script.effect;
+  const scriptFrames = JSON.stringify(scriptEffect.getKeyframes());
+  const samples = [];
+  for (const time of [0, 1000, 0, 1000]) {
+    driver.currentTime = time;
+    await settle();
+    const style = getComputedStyle(target, pseudo);
+    const current = target.getAnimations({subtree: true});
+    samples.push({
+      font: style.fontSize,
+      cssDuration: style.animationDuration,
+      opacity: Number(style.opacity),
+      duration: effect ? effect.getTiming().duration : null,
+      cssIdentity: !css || (current.includes(css) && css.effect === effect),
+      cssTime: css ? css.currentTime : null,
+      cssState: css ? css.playState : null,
+      count: current.length,
+      scriptIdentity: current.includes(script) && script.effect === scriptEffect,
+      scriptTime: script.currentTime,
+      scriptState: script.playState,
+      scriptDuration: scriptEffect.getTiming().duration,
+      scriptFrames: JSON.stringify(scriptEffect.getKeyframes()),
+      translation: new DOMMatrixReadOnly(getComputedStyle(target).transform).m41,
+    });
+  }
+  const diagnostic = JSON.stringify(samples);
+  for (const [i, sample] of samples.entries()) {
+    const font = i % 2 ? "24px" : "16px";
+    const duration = mode === "literal" ? 1000 : i % 2 ? 1500 : 1000;
+    assert_equals(sample.font, font, `Font calibration ${diagnostic}`);
+    assert_equals(sample.cssDuration, `${duration / 1000}s`, `CSS duration ${diagnostic}`);
+    assert_true(sample.scriptIdentity, `Script effect identity ${diagnostic}`);
+    assert_equals(sample.scriptTime, 250, `Script time ${diagnostic}`);
+    assert_equals(sample.scriptState, "paused", `Script state ${diagnostic}`);
+    assert_equals(sample.scriptDuration, 1000, `Script duration ${diagnostic}`);
+    assert_equals(sample.scriptFrames, scriptFrames, `Script keyframes ${diagnostic}`);
+    assert_approx_equals(sample.translation, 25, 0.00001, `Script output ${diagnostic}`);
+    assert_equals(sample.count, css ? 2 : 1, `No extra animation ${diagnostic}`);
+    if (css) {
+      assert_true(sample.cssIdentity, `CSS effect identity ${diagnostic}`);
+      assert_equals(sample.cssTime, 750, `CSS time ${diagnostic}`);
+      assert_equals(sample.cssState, "paused", `CSS state ${diagnostic}`);
+      assert_equals(sample.duration, duration, `Effect duration ${diagnostic}`);
+      assert_approx_equals(sample.opacity, 750 / duration, 0.00001,
+                           `CSS output ${diagnostic}`);
+    }
+  }
+}
+
+promise_test(t => probe(t, "literal"),
+             "Animated font preserves unchanged literal CSS timing and unrelated script effect");
+promise_test(t => probe(t, "contextual"),
+             "Contextual CSS duration refresh preserves an unrelated script effect on the same element");
+promise_test(t => probe(t, "no CSS animation"),
+             "Changing computed duration without a CSS animation preserves the script effect");
+promise_test(t => probe(t, "::before"),
+             "Animated inherited font refreshes before pseudo-element duration");
+promise_test(t => probe(t, "::after"),
+             "Animated inherited font refreshes after pseudo-element duration");
+</script>

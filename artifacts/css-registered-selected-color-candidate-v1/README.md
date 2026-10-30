@@ -1,0 +1,15 @@
+# Selected-color clean-provider candidate
+
+This disabled candidate binds formatted proposal V3 (06904a8d) and the exact 42-callback, three-page suite (baaab995). Actual clean-original 57577/eb6f51/d1cec3/0 built successfully and recorded 29 PASS, 13 FAIL and three OK page endings; browser exit 1 remains distinct from owner lifecycle exit 0. Independent review 18962/2e16ba/4cb7ca/0 and frozen runtime f0610274 authenticate that result. Candidate outcomes are unknown; no passing count is required to retain complete observations.
+
+The three candidate postimages are provider f6bd252b, cascade b3c220b1 and value 6624c2a5. V3 is the reviewed formatting-only successor of default-aware V2, including post-edge cyclic-default handling. The candidate restores held provider 2675 and original cascade/value, plus the original application and extras. Clean semantic provider 8a4 is distinct from the held restoration preimage. No animation-taint or contextual-session patch is included.
+
+Baseline replay joins the new ecfe build, binaries, application metadata, source receipts, raw assessor and exact suite. The restored application is separately the unchanged 20ab/20261029165244 browser, with entry inode 279897805 and target inode 279909797 authenticated by root review. Held source inode preservation and verified removal of the 1,008,605,176-byte backup are checked. The saved raw-only refresh binds epoch 35e53aca and raw index 6d556c02 while retaining semantic state and other controls. This preparation makes no new live-current claim.
+
+All 42 names, resources, metadata and three setup-error target pages match the executed original owner. The eventual live guard still checks metadata absences. Full original rows and endings are retained; comparison differences remain distinct from lifecycle completion and native acceptance.
+
+The executed candidate lifecycle remains label-only with the previously reviewed three-role baseline adaptation. Phase, WPT and assessor bodies remain exact inherited bytes. Admission/comparison adapt the executed clean-candidate joins to the actual original42 terminal/reviewer schema and cardinalities. Source/app restoration, 29 accepted claims, context pins, flags, index, process and backup checks remain. Root review verified flags; prepared flags equal the actual original policy.
+
+Saved validation: `python3 -I -S -B artifacts/css-registered-selected-color-candidate-v1/check.py`. It replays frozen observations, rejects 12 invalid bindings and retains all-42-FAIL candidate output in owned removable scratch; it does not execute the live guard.
+
+Root next runs `python3 -I -S -B artifacts/css-registered-selected-color-candidate-v1/candidate.py --check`. After review and guard, root preserves disabled policy/manifest, enables both gates, clears activation_pending, reseals and invokes candidate.py. Both gates currently remain false. No native, application, Git/index, build or browser action occurred during preparation.

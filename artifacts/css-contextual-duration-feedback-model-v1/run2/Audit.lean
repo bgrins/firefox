@@ -1,0 +1,6 @@
+import DurationFeedback
+#print axioms DurationFeedback.exact_active_branch_arithmetic
+#print axioms DurationFeedback.exact_two_cycle
+#print axioms DurationFeedback.iteration_stays_nonfixed
+#print axioms DurationFeedback.pair_never_reaches_fixed_point
+#print axioms DurationFeedback.fixed_input_idempotence_does_not_close_feedback

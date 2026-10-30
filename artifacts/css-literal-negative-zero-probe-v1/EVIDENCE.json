@@ -1,0 +1,46 @@
+{
+  "status": "static proposal only",
+  "local_math_parser": {
+    "path": "servo/components/style/values/specified/calc.rs",
+    "sha256": "f019bc06014a061f025e5bd02a6623b498d1e251ddf364b35d28db5a63281847",
+    "excerpt": "    fn parse_one(\n        context: &ParserContext,\n        input: &mut Parser,\n        flags: CalcParseFlags,\n    ) -> Result<Self, ParseError> {\n        match input.next()? {\n            &Token::Number { value, .. } => {\n                Ok(CalcNode::Leaf(Leaf::Number(NoCalcNumber::new(value))))\n            },\n            &Token::Dimension {\n                value, ref unit, ..\n            } => {\n                if let Ok(l) = NoCalcLength::parse_dimension_with_context(context, value, unit) {\n                    return Ok(CalcNode::Leaf(Leaf::Length(l)));\n                }\n                if let Ok(a) = NoCalcAngle::parse_dimension(value, unit) {\n                    return Ok(CalcNode::Leaf(Leaf::Angle(a)));\n                }\n                if let Ok(t) = NoCalcTime::parse_dimension(value, unit) {\n                    return Ok(CalcNode::Leaf(Leaf::Time(t)));\n                }\n                if let Ok(t) = NoCalcResolution::parse_dimension(value, unit) {\n                    return Ok(CalcNode::Leaf(Leaf::Resolution(t)));\n                }\n                Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError))\n            },\n            &Token::Percentage { unit_value, .. } => {\n                let hint = match flags.percentage_context {\n                    PercentageContext::NotAllowed => {\n                        return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));\n                    },\n                    PercentageContext::Allowed(hint) => hint,\n                };\n                Ok(CalcNode::Leaf(Leaf::Percentage(CalcPercentageLeaf::new(\n                    unit_value, hint,\n                ))))\n            },\n"
+  },
+  "metadata": {
+    "path": "testing/web-platform/meta/css/css-values/signed-zero.html.ini",
+    "local_exists": false,
+    "local_check_receipt": "af2c53/0",
+    "searchfox_receipt": "524dd5/0",
+    "directory_metadata_receipt": "4379fd/0",
+    "directory_metadata_observed": "prefs: [layout.css.random.enabled:true]"
+  },
+  "searchfox_source_receipts": {
+    "bf3501/0": {
+      "symbol": "consume_numeric",
+      "relevant_operations": [
+        "sign = -1. for a leading minus",
+        "value = sign * (integral_part + fractional_part)",
+        "value as f32",
+        "Number { value, .. } or Dimension { value, .. }"
+      ]
+    },
+    "e8673d/0": {
+      "symbol": "NoCalcNumber::new",
+      "body": "Self(val)"
+    },
+    "1d11e7/0": {
+      "symbol": "NoCalcNumber::value",
+      "body": "self.0"
+    },
+    "143cc2/0": {
+      "symbol": "NoCalcLength::parse_dimension_with_flags",
+      "body": "Ok(Self::new(length_unit, value))"
+    },
+    "cbd928/0": {
+      "symbol": "NoCalcLength::new",
+      "body": "Self { unit, value }"
+    }
+  },
+  "expected_cases": 6,
+  "executed_cases": 0,
+  "scope": "No native/provider/app/index/epoch reads or writes beyond permitted local specified parser read and metadata existence; no browser execution."
+}

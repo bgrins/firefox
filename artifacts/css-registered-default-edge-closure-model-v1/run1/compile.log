@@ -1,0 +1,36 @@
+DefaultClosure.lean:99:48: error: omega could not prove the goal:
+a possible counterexample may satisfy the constraints
+  c ≥ 0
+  b ≥ 0
+  b - c ≤ -1
+where
+ b := ↑(count xs (f a))
+ c := ↑(count xs a)
+DefaultClosure.lean:115:20: error: unsolved goals
+case succ
+V : Type
+xs : List V
+complete : ∀ (v : V), v ∈ xs
+f : Enabled V → Enabled V
+grows : ∀ (a : Enabled V), Below a (f a)
+fuel : Nat
+ih : ∀ (a : Enabled V), xs.length - count xs a ≤ fuel → ∃ k, k ≤ fuel ∧ iterate f a k = f (iterate f a k)
+a : Enabled V
+gap : xs.length - count xs a ≤ fuel + 1
+same : ¬count xs a = count xs (f a)
+inc : count xs a ≤ count xs (f a)
+bound : count xs a ≤ xs.length
+next : xs.length - count xs (f a) ≤ fuel
+k : Nat
+hk : k ≤ fuel
+fixed : iterate f (f a) k = f (iterate f (f a) k)
+n : Nat
+hn : iterate f a (n + 1) = iterate f (f a) n
+⊢ f (f (iterate f a n)) = f (iterate f (f a) n)
+DefaultClosure.lean:115:43: warning: This simp argument is unused:
+  hn
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [iterate]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

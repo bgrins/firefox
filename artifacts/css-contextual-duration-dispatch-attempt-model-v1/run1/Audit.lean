@@ -1,0 +1,7 @@
+import DispatchAttempt
+#print axioms DispatchAttempt.request_preserves_eligibility_and_observations
+#print axioms DispatchAttempt.blocked_batch_remains_retryable
+#print axioms DispatchAttempt.traversal_exit_is_not_external
+#print axioms DispatchAttempt.attempted_pending_requests_coalesce
+#print axioms DispatchAttempt.external_retry_makes_exactly_one_attempt
+#print axioms DispatchAttempt.reset_obligations_are_distinct

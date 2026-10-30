@@ -1,0 +1,17 @@
+# CSS and Stylo verification — V96
+
+Accepted local native fixes remain 149. The untracked audit V14 rechecked all 563 paths: 68 project files exactly match committed recovery blobs; 495 unrelated entries retain their recorded metadata. Recovery storage is not native acceptance.
+
+The active-value animation-taint prototype built successfully and produced 119 PASS / 1 FAIL / 16 OK, repairing 16 of the held-provider baseline failures while preserving all 103 prior PASS signatures. The direct typed-attr failure remains. Independent review verified restored source/application identities and cleanup. This is an experimental winning-value policy, not complete CSS taint semantics.
+
+The isolated priority-closure model compiled five theorem audits and rejected five false controls. It exposes the late-edge hazard: a priority node can close before a selected attr edge reveals its actual strongly connected component. Contextual implementation is integrating request identity and SCC completion. A request returning to an active ancestor must remain pending until the component resolves. Typed-value provenance propagation is a separate policy question. No native compilation or acceptance is claimed for this unfinished integration.
+
+A current-spec trace reaches a narrower registered-invalid expectation: an active matched keyframes rule naming a registered custom property still triggers the Variables named-property taint rule for a nonanimatable consumer. Registered syntax is checked at computed-value time. This does not settle global lifetime, cancellation, unused rules, script keyframes or every defaulting path. A two-callback tentative WPT is being prepared from that trace; invalid source values will not be used as an oracle.
+
+The registered same-token WPT contributes three prepared callbacks. Clean-original V3 fixes a missing setup-error page in the 123-callback suite; synthetic checks reject ReferenceError and retain ordinary CSS failures. It remains disabled and unexecuted. The next union will include the invalid/default WPT after independent review. Compile the committed-provider original and then its exact candidate against the actual new baseline; restore the held provider and original application after each trial. Do not relabel the held-provider results as clean.
+
+A fresh signed research checkpoint is being prepared from the failed V83 selection plus completed sealed research. V83 failed with the recorded 1Password buffer error and did not change HEAD or the real index. No unsigned fallback, push, Try or submission is authorized. Min/max relative infinity and explicit-base logarithm remain validated but separately unpublished native+WPT fixes. The checkpoint must not imply these fixes were committed.
+
+Next: finish the two-case WPT and exact suite union; run and independently verify clean-original restoration; compare the clean candidate; complete contextual cycle integration and its formal/native bridge; publish validated fixes separately when signed publication succeeds. Keep unfinished agent work outside the frozen checkpoint.
+
+Evidence: [V95](../css-continuation-roadmap-20261030-v95/PLAN.md), [native trial](../css-animation-active-value-taint-candidate-runtime-3/ROOT-SUMMARY.md), [priority model](../css-animation-contextual-priority-closure-model-v1/README.md), [registered-invalid trace](../css-animation-taint-registered-invalid-spec-trace-v1/README.md), [untracked audit](../css-untracked-user-recheck-20261030-v14.json).

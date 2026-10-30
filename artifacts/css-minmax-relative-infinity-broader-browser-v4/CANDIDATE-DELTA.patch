@@ -1,0 +1,14 @@
+--- executed-minmax-v3/candidate.py
++++ disabled-broader-v4/candidate.py
+@@ -41,10 +41,7 @@
+     binding = policy['baseline_binding']
+     assert binding and binding['directory'] == policy['runtime_output']
+     ownership.authenticate(ROOT / policy['baseline_capsule']['directory'], policy['baseline_capsule']['sha256'])
+-    old_policy = read(ROOT / policy['baseline_capsule']['directory'] / 'POLICY.json')
+-    expected_wpt = copy.deepcopy(old_policy['wpt'])
+-    expected_wpt['phase_revisions']['candidate'] = policy['head']
+-    assert policy['wpt'] == expected_wpt
++    assert policy['wpt'] == baseline.expected_wpt(policy)
+     ownership.authenticate(output, binding['manifest_sha256'])
+     terminal = read(output / binding['terminal_path'])
+     assert terminal == binding['terminal'] and terminal['exit'] == 0

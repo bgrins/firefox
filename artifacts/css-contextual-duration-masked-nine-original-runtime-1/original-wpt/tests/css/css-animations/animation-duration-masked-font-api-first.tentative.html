@@ -1,0 +1,64 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Pending style changes update masked duration before getAnimations returns</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#requirements-on-pending-style-changes">
+<link rel="help" href="https://drafts.csswg.org/css-animations-1/#animation-duration">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+promise_test(async t => {
+  assert_true(CSS.supports("animation-duration", "calc(1em / 16px * 1s)"),
+              "Typed arithmetic duration is supported");
+  const iframe = document.createElement("iframe");
+  t.add_cleanup(() => iframe.remove());
+  const loaded = new Promise(resolve => iframe.onload = resolve);
+  iframe.srcdoc = `<!doctype html><style>
+    @keyframes fixed-font { from { font-size: 32px; } to { font-size: 32px; } }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+    #target { font-size: 16px; animation-name: fixed-font, fade;
+      animation-duration: 2s, calc(1em / 16px * 1s);
+      animation-timing-function: linear; animation-fill-mode: both;
+      animation-play-state: paused; }
+  </style><body><div id="target"></div>`;
+  document.body.append(iframe);
+  await loaded;
+  const win = iframe.contentWindow;
+  const target = iframe.contentDocument.getElementById("target");
+  const acquired = target.getAnimations();
+  assert_equals(acquired.length, 2, "Two CSS animations acquired");
+  const animations = ["fixed-font", "fade"].map(
+    name => acquired.find(animation => animation.animationName === name));
+  assert_true(animations.every(Boolean), "Both named animations acquired");
+  for (const animation of animations) {
+    await animation.ready;
+    animation.currentTime = 750;
+  }
+  const effects = animations.map(animation => animation.effect);
+  for (let index = 0; index < 3; index++) {
+    await new Promise(resolve => win.requestAnimationFrame(resolve));
+  }
+  assert_equals(win.getComputedStyle(target).fontSize, "32px",
+                "Animated font masks the initial authored font");
+
+  target.style.fontSize = "32px";
+  const current = target.getAnimations();
+  const duration = effects[1].getTiming().duration;
+  const computed = effects[1].getComputedTiming();
+  const progress = computed.progress;
+  const firstOpacity = Number(win.getComputedStyle(target).opacity);
+  const observed = `opacity=${firstOpacity}, duration=${duration}, progress=${progress}`;
+  assert_approx_equals(firstOpacity, 0.375, 0.0001, `Opacity after animation API: ${observed}`);
+  assert_equals(current.length, 2, "Two CSS animations remain");
+  assert_equals(duration, 2000, "Iteration duration is 2s after getAnimations");
+  assert_equals(computed.duration, 2000, "Computed duration is 2s after getAnimations");
+  assert_equals(computed.localTime, 750, "Effect local time is retained");
+  assert_approx_equals(progress, 0.375, 0.0001, "Final effect progress");
+  for (let index = 0; index < animations.length; index++) {
+    assert_true(current.includes(animations[index]), "Animation identity retained");
+    assert_equals(animations[index].effect, effects[index], "Effect identity retained");
+    assert_equals(animations[index].currentTime, 750, "Current time retained");
+    assert_equals(animations[index].playState, "paused", "Animation stays paused");
+  }
+}, "getAnimations processes a masked font change before retained effect timing is queried");
+</script>

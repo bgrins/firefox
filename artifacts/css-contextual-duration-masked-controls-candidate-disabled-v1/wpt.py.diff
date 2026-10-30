@@ -1,0 +1,12 @@
+--- artifacts/css-contextual-duration-base-timing-candidate-v1/wpt.py
++++ artifacts/css-contextual-duration-masked-controls-candidate-v1/wpt.py
+@@ -137,7 +137,7 @@
+         replay = None
+     assessment = assessor.assess(events, code, phase_policy, checks, original=replay, run_binding=app_before)
+     save(output / 'ASSESSMENT.json', assessment)
+-    success = error is None and preserved and cleanup and cleanup.get('temporary_root_removed') and assessment['complete'] and (role == 'original' or assessment['comparison_gate_passed'])
+-    save(output / 'RESULT.json', {'success': bool(success), 'exit': code, 'execution_error': error, 'preservation_verified': preserved, 'comparison_gate_passed': assessment['comparison_gate_passed'], 'native_fix_acceptance': False})
++    success = error is None and preserved and cleanup and cleanup.get('temporary_root_removed') and assessment['complete']
++    save(output / 'RESULT.json', {'success': bool(success), 'exit': code, 'execution_error': error, 'preservation_verified': preserved, 'comparison_gate_passed': assessment['comparison_gate_passed'], 'native_fix_acceptance': False, 'success_scope': 'complete observation and preservation; comparison verdict retained separately'})
+     assert success, (error, preserved, assessment['errors'], assessment['comparison_errors'])
+     return {'assessment_sha256': sha(output / 'ASSESSMENT.json'), 'raw_sha256': sha(output / 'raw.jsonl'), 'result_sha256': sha(output / 'RESULT.json')}

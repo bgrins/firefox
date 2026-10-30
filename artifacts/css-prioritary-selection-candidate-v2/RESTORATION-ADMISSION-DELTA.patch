@@ -1,0 +1,62 @@
+--- executed-original45-join
++++ actual-original74-join
+@@ -35,8 +35,9 @@
+     assert source['preserved_absent_metadata'] == policy['preserved_absent_metadata']
+     assert source['preserved_absent_resources'] == policy['preserved_absent_resources']
+     terminal = read(directory / binding['terminal_path'])
++    assert terminal.pop('active_owner_manifest_sha256') == capsule['sha256']
+     assert terminal == binding['terminal']
+-    assert (terminal['session'], terminal['launch_chunk'], terminal['terminal_chunk'], terminal['exit']) == (48866, '734dd7', 'c3df52', 0)
++    assert (terminal['session'], terminal['launch_chunk'], terminal['terminal_chunk'], terminal['exit']) == (99665, '31e9ed', '08b9e2', 0)
+     result = read(directory / 'RESULT.json')
+     assert sha(directory / 'RESULT.json') == binding['result_sha256'] == terminal['result_sha256']
+     assert result['success'] and result['error'] is None and result['publication_errors'] == []
+@@ -48,7 +49,7 @@
+     assert sha(directory / 'ROOT-REVIEWER-TERMINAL.json') == handoff['root_terminal_sha256']
+     assert sha(directory / 'ROOT-REVIEW.json') == handoff['review_sha256']
+     assert sha(directory / 'ROOT-EPOCH-REFRESH.json') == handoff['epoch_refresh_sha256']
+-    assert (root_terminal['session'], root_terminal['launch_chunk'], root_terminal['terminal_chunk'], root_terminal['exit']) == (86819, '8afde2', '7e586b', 0)
++    assert (root_terminal['session'], root_terminal['launch_chunk'], root_terminal['terminal_chunk'], root_terminal['exit']) == (4433, '018000', '6cf122', 0)
+     assert capsule['sha256'] == review['owner_manifest_sha256']
+     assert review['actual_terminal'] == terminal and review['owner_result'] == result
+     assert review['restoration_independently_verified'] and review['native_acceptance'] is False
+@@ -57,7 +58,7 @@
+         assert sha(directory / name) == digest
+     reviewer = root / handoff['reviewer_directory']
+     authenticate(reviewer, handoff['reviewer_manifest_sha256'])
+-    assert root_terminal == {'session':86819,'launch_chunk':'8afde2','terminal_chunk':'7e586b','exit':0,'review_sha256':handoff['review_sha256']}
++    assert root_terminal == {'session':4433,'launch_chunk':'018000','terminal_chunk':'6cf122','exit':0,'report_sha256':handoff['review_sha256'],'active_reviewer_manifest_sha256':handoff['reviewer_manifest_sha256']}
+     reviewer_policy = read(reviewer / 'POLICY.json')
+     assert reviewer_policy['actual_terminal'] == terminal and reviewer_policy['execution_enabled']
+     assert reviewer_policy['owner_manifest_sha256'] == capsule['sha256']
+@@ -74,7 +75,7 @@
+     assert refresh['previous_epoch_sha256'] == source['controls']['CURRENT-EPOCH.json']
+     assert refresh['only_changed_field'] == 'raw_index_observation.current' and refresh['semantic_index_unchanged']
+     assert (refresh['raw_index_before'], refresh['raw_index_after']) == (raw['before'], raw['after'])
+-    assert refresh['independent_review_sha256'] == handoff['review_sha256'] and refresh['independent_review_terminal'] == '86819/7e586b/0'
++    assert refresh['independent_review_sha256'] == handoff['review_sha256'] and refresh['independent_review_terminal'] == '4433/6cf122/0'
+     assert refresh['other_controls_unchanged'] == {k:v for k,v in source['controls'].items() if k != 'CURRENT-EPOCH.json'}
+     assert policy['controls'] == dict(source['controls'], **{'CURRENT-EPOCH.json': refresh['new_epoch_sha256']})
+     backup = read(directory / 'BACKUP-CLEANUP.json')
+@@ -95,5 +96,20 @@
+     assert policy['prepared_flag_capture'] == {'path': str((directory / 'ROOT-REVIEW.json').relative_to(root)), 'sha256': handoff['review_sha256']}
+     assert review['observation']['browser_executed'] and review['observation']['observation_complete'] and review['observation']['build_exit'] == 0
+     assert review['observation']['outcomes'] == read(directory / 'OUTCOMES.json')
+-    assert review['observation']['comparison_to_held_baseline_performed'] is False
++    assert review['observation']['lanes']['ordinary']['zoom_capture_complete']
++    assert review['observation_complete']
++    assert all(lane['observation_complete'] and lane['resources_and_metadata_verified'] for lane in review['observation']['lanes'].values())
+     return review
++
++
++def validate(root, policy):
++    assert policy['activation_pending']==[]
++    review=validate_original(root,policy)
++    assert policy['restoration_binding']=={'directory':policy['baseline_binding']['directory'],'manifest_sha256':policy['baseline_binding']['manifest_sha256']}
++    import importlib.util
++    path=root/policy['owner_directory']/'comparison.py'
++    spec=importlib.util.spec_from_file_location('actual_original74_replay',path)
++    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
++    lanes=module.replay_all(root,policy)
++    assert set(lanes)==set(policy['lane_order'])
++    return review

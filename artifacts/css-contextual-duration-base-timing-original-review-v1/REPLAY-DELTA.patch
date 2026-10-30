@@ -1,0 +1,80 @@
+--- artifacts/css-contextual-duration-same-element-full-original-review-v1/replay.py
++++ artifacts/css-contextual-duration-base-timing-original-review-v1/replay.py
+@@ -7,8 +7,8 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ sys.dont_write_bytecode = True
+ ROOT = Path(__file__).resolve().parents[2]
+-OWNER = ROOT / 'artifacts/css-contextual-duration-same-element-original-v2'
+-RUNTIME = ROOT / 'artifacts/css-contextual-duration-same-element-original-runtime-1'
++OWNER = ROOT / 'artifacts/css-contextual-duration-base-timing-original-v1'
++RUNTIME = ROOT / 'artifacts/css-contextual-duration-base-timing-original-runtime-1'
+ read = lambda path: json.loads(path.read_bytes())
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+ 
+@@ -20,7 +20,7 @@
+     return module
+ 
+ 
+-assert sha(OWNER / 'FILES.json') == 'c997d71f27aedaed2cf91803558d4cf4207ba53894a68937845f711b78f07c75'
++assert sha(OWNER / 'FILES.json') == '0458a9ec928d2100abcf0b4ec5f158301da3d3c2912790d242e478b6a5b3560b'
+ for name, digest in read(OWNER / 'FILES.json').items():
+     assert sha(OWNER / name) == digest
+ policy = read(OWNER / 'POLICY.json')
+@@ -49,13 +49,13 @@
+ events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
+ observed = assessor.assess(events, inner['exit'], settings, checks, run_binding=metadata)
+ assert observed == read(phase / 'ASSESSMENT.json') and observed['complete'] and not observed['errors']
+-assert len(observed['rows']) == 2 and len(observed['ends']) == 1 and observed['ends'][0]['status'] == 'OK'
++assert len(observed['rows']) == 7 and len(observed['ends']) == 3 and all(row['status'] == 'OK' for row in observed['ends'])
+ assert result['callbacks_passed'] == sum(row['status'] == 'PASS' for row in observed['rows'])
+ assert result['callbacks_failed'] == sum(row['status'] == 'FAIL' for row in observed['rows'])
+ collection = load('same_element_original_records', OWNER / 'records.py').collect(
+     ROOT, RUNTIME / 'progress-records', read(RUNTIME / 'PROGRESS-BINDING.json'), policy, observed)
+ assert collection == read(RUNTIME / 'PROGRESS-RECORDS.json')
+-assert collection['complete'] and not collection['missing'] and not collection['errors'] and len(collection['records']) == 2
++assert collection['complete'] and not collection['missing'] and not collection['errors'] and len(collection['records']) == 7
+ assert result['records_complete'] == result['observation_complete'] == collection['complete']
+ cleanup = read(phase / 'CLEANUP.json')
+ assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
+@@ -69,15 +69,29 @@
+         assert sha(phase / 'metadata' / name) == item['sha256']
+ roster = read(RUNTIME / 'OBSERVED-ROSTER.json')
+ assert roster['owner_sha256'] == sha(OWNER / 'FILES.json') and roster['phase'] == result['phase']
+-assert roster['observed_subtest_count'] == 2 and roster['expected_subtests'] == settings['expected_subtests']
+-records = {}
+-for filename in policy['record_kinds']:
+-    current = read(RUNTIME / 'progress-records' / filename)
+-    prior = read(ROOT / policy['historical_compact_original']['directory'] / 'records' / filename)
+-    records[filename] = {'record': current, 'matches_prior_observations': current['observations'] == prior['observations']}
+-print(json.dumps({'actual_outer_session': 88115, 'actual_outer_terminal': '77652e', 'actual_outer_exit': 0,
+-                  'raw_replay_exact': True, 'saved_pre_post_app_binary_joins_exact': True,
+-                  'saved_cleanup_complete': True, 'browser_exit': inner['exit'],
+-                  'callbacks_passed': result['callbacks_passed'], 'callbacks_failed': result['callbacks_failed'],
+-                  'complete_records': 2, 'records': records, 'rows': observed['rows'],
+-                  'fresh_current_state_check_performed': False, 'native_acceptance': False}, indent=2))
++assert roster['observed_subtest_count'] == 7 and roster['expected_subtests'] == settings['expected_subtests']
++calibration = load('original7_calibration', OWNER / 'calibration.py').report(RUNTIME / 'progress-records', collection, policy)
++assert calibration == read(RUNTIME / 'CALIBRATION.json') and calibration['all_calibrated']
++assert result['literal_initial_calibration_passed']
++for name, pin in policy['source_role_pins'].items():
++    if name in built['pins']:
++        assert built['pins'][name] == pin
++    else:
++        assert name in policy['build_unpinned_sources'] and name not in built['modified_native_paths']
++chrome = ROOT / 'artifacts/css-chrome-masked-base-runtime-1'
++chrome_manifest = read(chrome / 'FILES.json')
++assert sha(chrome / 'FILES.json') == '84e0c8cd421d7a7802cebbff6764610cee620a45bc523d0895fbaac8311f40b4'
++for name, item in chrome_manifest.items():
++    assert sha(chrome / name) == item['sha256']
++masked = read(RUNTIME / 'progress-records/masked-base-acyclic.json')
++chrome_masked = read(chrome / 'progress-records/masked-base-acyclic.json')
++print(json.dumps({'actual_outer_session': 61482, 'actual_outer_terminal': '249ad8', 'actual_outer_exit': 0,
++    'terminal_attribution': 'Root supplied actual handle; this script does not wait on or inspect a process',
++    'owner_sha256': sha(OWNER / 'FILES.json'), 'result_sha256': sha(RUNTIME / 'RESULT.json'),
++    'raw_replay_exact': True, 'saved_pre_post_app_binary_joins_exact': True,
++    'private_records_replay_exact': True, 'literal_calibration_replay_exact': True,
++    'saved_cleanup_complete': True, 'browser_exit': inner['exit'],
++    'callbacks_passed': result['callbacks_passed'], 'callbacks_failed': result['callbacks_failed'],
++    'page_endings_ok': 3, 'complete_records': 7, 'rows': observed['rows'],
++    'masked_firefox': masked, 'masked_chrome': chrome_masked,
++    'fresh_current_state_check_performed': False, 'native_acceptance': False}, indent=2))

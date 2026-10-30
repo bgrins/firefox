@@ -1,0 +1,40 @@
+--- artifacts/css-prioritary-selection-original-terminal-review-v1/review.py
++++ future77/review.py
+@@ -31,7 +31,7 @@
+ 
+ 
+ 
+-def validate_build_phase(policy, pre, built, metadata, metadata_after, snapshots, binaries):
++def validate_build_phase(policy, pre, built, metadata, metadata_after, snapshots, binaries, *, consumed_inputs):
+     assert metadata == metadata_after
+     assert metadata["revision"] == metadata["build_revision"] == policy["head"]
+     assert metadata["harness_revision"] == policy["wpt"]["harness_revision"] == policy["head"]
+@@ -40,7 +40,8 @@
+     assert all(snapshot == built["snapshot"] for snapshot in snapshots) and len(snapshots) >= 3
+     assert binaries == built["binaries"] and set(binaries) == set(policy["rebuilt_binaries"])
+     assert built["browser_build_performed"]
+-    assert built["snapshot"]["working_sources_binaries_research_preserved"]
++    scope = load('intermediate_review_scope', HERE / 'review_scope.py')
++    scope.require_intermediate(built['snapshot'], consumed_inputs)
+     assert built["snapshot"]["current_raw_stable_during_check"]
+     assert built["snapshot"]["index"]["working_diff"] == hashlib.sha256(b"").hexdigest()
+     assert built["snapshot"]["nested_index"] == pre["snapshot"]["nested_index"]
+@@ -95,6 +96,8 @@
+     assert (result["error"] is None) == result["success"]
+     baseline = load("terminal_baseline", here / "baseline.py")
+     policy, ownership, roles = baseline.prepare(config["owner_manifest_sha256"])
++    input_binding = load('review_input_binding', HERE / 'inputs.py')
++    consumed_inputs = input_binding.bind_inputs(str(here.relative_to(ROOT)), (here / 'FILES.json').read_bytes(), config['owner_manifest_sha256'], policy['intermediate_consumed_inputs'])
+     assert policy["runtime_output"] == config["runtime_directory"] and set(roles) == {"servo/components/style/custom_properties.rs"}
+     assert result["build_revision"] == policy["head"]
+     assert roles["servo/components/style/custom_properties.rs"]["candidate_sha256"] == policy["committed_source_preimages"]["servo/components/style/custom_properties.rs"]
+@@ -123,7 +126,8 @@
+     for name in ("build-PROCESS.json", "WAKE-PROCESS.json"):
+         ownership.group_absent(record("original-build/" + name)["pgid"])
+     lane_review = load("original74_observation_review", HERE / "observations.py")
+-    observation = lane_review.review(ROOT, HERE, pair, policy, pre, result, build, record, inputs, ownership, validate_build_phase)
++    validate = lambda *args: validate_build_phase(*args, consumed_inputs=consumed_inputs)
++    observation = lane_review.review(ROOT, HERE, pair, policy, pre, result, build, record, inputs, ownership, validate)
+     with (HERE / "RAW-REPLAY.json").open("x") as stream:
+         json.dump(observation, stream, indent=2, sort_keys=True)
+         stream.write("\n")

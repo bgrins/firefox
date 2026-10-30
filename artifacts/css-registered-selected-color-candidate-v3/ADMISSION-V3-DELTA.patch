@@ -1,0 +1,31 @@
+--- artifacts/css-registered-selected-color-candidate-v2/admission.py
++++ artifacts/css-registered-selected-color-candidate-v3/admission.py
+@@ -18,7 +18,7 @@
+             assert path.stat().st_size == pin['bytes']
+ 
+ 
+-def validate(root, policy):
++def validate_original(root, policy):
+     capsule, binding, handoff = policy['baseline_capsule'], policy['baseline_binding'], policy['execution_handoff']
+     assert capsule is not None and binding is not None and handoff is not None
+     owner, directory = root / capsule['directory'], root / binding['directory']
+@@ -98,3 +98,19 @@
+     assert review['observation']['outcomes'] == read(directory / 'OUTCOMES.json')
+     assert review['observation']['comparison_to_held_baseline_performed'] is False
+     return review
++
++
++def validate(root, policy):
++    import importlib.util
++    binding = policy['restoration_handoff']
++    owner = root / binding['owner']['directory']
++    authenticate(owner, binding['owner']['manifest_sha256'])
++    previous = read(owner / 'POLICY.json')
++    historical = copy.deepcopy(policy)
++    for key in ('controls','prepared_application_metadata','prepared_flag_hashes','prepared_flag_capture'):
++        historical[key] = previous[key]
++    validate_original(root, historical)
++    spec = importlib.util.spec_from_file_location('selected_color_failed_handoff', root / policy['owner_directory'] / 'handoff.py')
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module.validate(root, policy, previous, authenticate)

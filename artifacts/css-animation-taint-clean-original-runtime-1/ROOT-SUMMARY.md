@@ -1,0 +1,9 @@
+# Clean-provider original baseline
+
+Actual owner92991/249a65/0 built committed provider8a4 and completed125 callbacks:105 PASS,20 FAIL,18 OK page endings. Build exit0; browser exit1 reflects ordinary assertion failures. Independent reviewer77553/290b1a/0 replayed the exact raw stream and verified build→browser source/binary/metadata joins, resource/metadata membership, full restoration and cleanup. Native acceptance remains false.
+
+The prior held-provider original120 is only an auxiliary comparison. All136 shared full signatures, including messages and expectation-field presence, are unchanged. The five added callbacks have two literal-control passes and three failures: universal/typed registered same-token fallback and registered invalid-keyframe fallback. The latter produces horizontal-tb in both observed phases; the same-token targets produce vertical-rl in both phases. The tentative expected fallback is vertical-lr. These observations do not identify internal filtering paths or resolve broader taint lifetime semantics.
+
+Held provider2675 was restored with its original inode; original application semantics, BuildID20261029165244 and build revision20ab were restored. The new clean build has its own ecfe source/binary/metadata receipts. All owned processes/profiles are absent. The verified1,008,605,176-byte backup was removed. Only the observed raw-index field was refreshed after independent review, leaving source, semantic Git state, other controls and accepted counts unchanged.
+
+This is the actual clean-provider baseline for a future exact clean-provider candidate, not a relabeling of held results and not proof of independence from earlier accepted branch fixes. Mach's existing export-tier monitor trace remains in the successful build log. The complete contextual attr successor is still separate, uncompiled work.

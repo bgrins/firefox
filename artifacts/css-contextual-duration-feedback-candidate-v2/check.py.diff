@@ -1,0 +1,78 @@
+--- artifacts/css-contextual-duration-feedback-candidate-v1/check.py
++++ artifacts/css-contextual-duration-feedback-candidate-v2/check.py
+@@ -20,9 +20,10 @@
+ def check():
+     policy = json.loads((HERE/'POLICY.json').read_bytes())
+     assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
+-    assert policy['activation_pending'] and policy['baseline_binding'] is None
+-    assert all(policy[k] is None for k in ('head','controls','prepared_application_metadata','prepared_flag_hashes'))
+-    assert policy['reference_checkpoint'] == {'path':None,'sha256':None}
++    assert policy['activation_pending']
++    assert policy['checkpoint_mode'] == 'current_native_checkpoint'
++    assert policy['head'] and policy['controls'] and policy['prepared_application_metadata'] and policy['prepared_flag_hashes']
++    assert 'reference_checkpoint' not in policy and 'research_parent_head' not in policy
+     assert set(policy['phases']) == {'feedback'} and policy['wpt'] == policy['phases']['feedback']
+     comparison = load('feedback_compare',HERE/'comparison.py')
+     assert comparison.expected_wpt(ROOT,policy) == policy['wpt']
+@@ -83,22 +84,24 @@
+             raise AssertionError(key)
+     baseline = load('feedback_checkpoint',HERE/'baseline.py')
+     native = json.loads((ROOT/policy['native_checkpoint']['path']).read_bytes())
+-    chain_policy = dict(policy,head='a'*40,controls={'CURRENT-EPOCH.json':'e'*64})
+-    research = {'committed':True,'head':'a'*40,'parent':native['head'],
+-                'signature_verified':True,'selected_paths':1,'epoch_sha256':'e'*64,
+-                'accepted_fix_increment':0,'native_working_diff_preserved':True}
+-    baseline.checkpoint_chain(chain_policy,native,research)
+-    for key,value in [('committed',False),('signature_verified',False),('parent','0'*40),
+-                      ('head','0'*40),('epoch_sha256','0'*64),('accepted_fix_increment',1),
+-                      ('native_working_diff_preserved',False),('selected_paths',0)]:
+-        wrong = dict(research)
++    baseline.checkpoint_chain(policy,native)
++    for key,value in [('head','0'*40),('signature_chain_verified',False),
++                      ('runtime_epoch_synchronized',False),('accepted_fix',151),
++                      ('accepted_fixes',150),('tracked',151)]:
++        wrong = dict(native)
+         wrong[key] = value
+         try:
+-            baseline.checkpoint_chain(chain_policy,native,wrong)
++            baseline.checkpoint_chain(policy,wrong)
+         except AssertionError:
+-            rejected.append('research checkpoint '+key)
++            rejected.append('native checkpoint '+key)
+         else:
+             raise AssertionError(key)
++    try:
++        baseline.checkpoint_chain(dict(policy,checkpoint_mode='future_research'),native)
++    except AssertionError:
++        rejected.append('wrong checkpoint mode')
++    else:
++        raise AssertionError('wrong checkpoint mode')
+     phases = load('feedback_records',HERE/'phases.py')
+     with tempfile.TemporaryDirectory(prefix='duration-feedback-static-') as temporary:
+         output = Path(temporary)
+@@ -146,9 +149,24 @@
+         restore()
+         changed_record(lambda b:b['samples'][0]['effects'][0].update(duration='unrestricted-measurement',progress=None))
+         assert phases.feedback_records(output)['numeric_or_convergence_oracle'] is False
++    actual_replayed = False
++    if policy['baseline_binding'] is not None:
++        binding = policy['baseline_binding']
++        directory = ROOT/binding['directory']
++        for capsule,pin in [(ROOT/policy['baseline_capsule']['directory'],policy['baseline_capsule']['sha256']),
++                            (directory,binding['manifest_sha256'])]:
++            assert hashlib.sha256((capsule/'FILES.json').read_bytes()).hexdigest() == pin
++            for name,expected in json.loads((capsule/'FILES.json').read_bytes()).items():
++                assert hashlib.sha256((capsule/name).read_bytes()).hexdigest() == expected
++        terminal = json.loads((directory/binding['terminal_path']).read_bytes())
++        assert terminal == binding['terminal'] and terminal['exit'] == 0
++        assert terminal['owner_sha256'] == policy['baseline_capsule']['sha256']
++        assert terminal['result_sha256'] == binding['result_sha256'] == hashlib.sha256((directory/'RESULT.json').read_bytes()).hexdigest()
++        comparison.replay_all(ROOT,policy)
++        actual_replayed = True
+     return {'positive_comparisons':1,'positive_metadata_joins':1,'positive_checkpoint_chains':1,'positive_record_sets':2,
+             'negative_controls':rejected,'artifact_references_authenticated':authenticated,
+-            'deferred_nonartifact_references':deferred,'fresh_original_replayed':False,
++            'deferred_nonartifact_references':deferred,'fresh_original_replayed':actual_replayed,
+             'browser_build_or_live_guard_executed':False,'scratch_removed':True}
+ 
+ 

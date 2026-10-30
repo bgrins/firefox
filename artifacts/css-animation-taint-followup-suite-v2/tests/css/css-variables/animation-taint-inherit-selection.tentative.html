@@ -1,0 +1,97 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Animation taint survives inherited keyframe value selection</title>
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#animation-tainted">
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#replace-a-var-function">
+<link rel="help" href="https://www.w3.org/TR/css-writing-modes-3/#propdef-writing-mode">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#inherit">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const mode of ["inherit", "substituted-inherit", "literal"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    const keyframeValue = mode === "substituted-inherit" ? "var(--missing, inherit)" : "inherit";
+    const sinkValue = mode === "literal" ? "vertical-lr" : "var(--v, vertical-lr)";
+    const expected = "vertical-lr";
+    frame.srcdoc = `<!doctype html><style>
+      @keyframes hold { from, to { --v: ${keyframeValue}; } }
+      .parent { --v: horizontal-tb; writing-mode: vertical-rl; }
+      .target {
+        --v: vertical-rl;
+        writing-mode: ${sinkValue};
+        animation: hold 2s linear both paused;
+      }
+      .target.changed { --v: vertical-lr; }
+    </style><div class="parent"><div class="target">sample</div></div>`;
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const target = frame.contentDocument.querySelector(".target");
+    const acquired = target.getAnimations();
+    assert_equals(acquired.length, 1, "one CSS driver");
+    const animation = acquired[0];
+    assert_equals(animation.animationName, "hold", "named driver");
+    const effect = animation.effect;
+    await animation.ready;
+    animation.currentTime = 750;
+    const sink = () => win.getComputedStyle(target).getPropertyValue("writing-mode").trim();
+    const details = () => {
+      const style = win.getComputedStyle(target);
+      const timing = effect.getComputedTiming();
+      return {
+        sink: style.getPropertyValue("writing-mode").trim(),
+        variable: style.getPropertyValue("--v").trim(),
+        parentWritingMode: win.getComputedStyle(target.parentElement).writingMode,
+        cssDuration: style.animationDuration,
+        duration: effect.getTiming().duration,
+        computedDuration: timing.duration,
+        progress: timing.progress,
+        time: animation.currentTime,
+        state: animation.playState,
+        effectSame: animation.effect === effect,
+      };
+    };
+    const initial = details();
+    target.classList.add("changed");
+    const samples = [{phase: "first-read", value: sink()}];
+    for (let i = 1; i <= 3; ++i) {
+      await new Promise(resolve => win.requestAnimationFrame(resolve));
+      samples.push({phase: `passive-frame-${i}`, value: sink()});
+    }
+    const beforeMembership = details();
+    const current = target.getAnimations();
+    const membership = {
+      count: current.length,
+      sameAnimation: current.length === 1 && current[0] === animation,
+      sameEffect: animation.effect === effect,
+    };
+    const afterMembership = details();
+    const trace = {property: "writing-mode", mode, expected, initial, samples,
+                   beforeMembership, membership, afterMembership};
+    const diagnostic = JSON.stringify(trace);
+    for (const value of [initial, beforeMembership, afterMembership]) {
+      assert_equals(value.variable, "horizontal-tb", `active variable: ${diagnostic}`);
+      assert_equals(value.parentWritingMode, "vertical-rl", `inherited sink calibration: ${diagnostic}`);
+      assert_equals(value.duration, 2000, `fixed driver: ${diagnostic}`);
+      assert_equals(value.computedDuration, 2000, `computed driver: ${diagnostic}`);
+      assert_approx_equals(value.progress, .375, .000001, `driver progress: ${diagnostic}`);
+      assert_equals(value.time, 750, `held time: ${diagnostic}`);
+      assert_equals(value.state, "paused", `paused driver: ${diagnostic}`);
+      assert_true(value.effectSame, `retained effect: ${diagnostic}`);
+    }
+    assert_equals(membership.count, 1, `current driver count: ${diagnostic}`);
+    assert_true(membership.sameAnimation, `retained animation: ${diagnostic}`);
+    assert_true(membership.sameEffect, `current effect: ${diagnostic}`);
+    assert_equals(initial.sink, expected, `initial fallback: ${diagnostic}`);
+    for (const sample of samples) {
+      assert_equals(sample.value, expected, `${sample.phase}: ${diagnostic}`);
+    }
+    assert_equals(beforeMembership.sink, expected, `before membership: ${diagnostic}`);
+    assert_equals(afterMembership.sink, expected, `after membership: ${diagnostic}`);
+  }, `Active animation taint ${mode}: inherited keyframe value retains sink taint`);
+}
+</script>

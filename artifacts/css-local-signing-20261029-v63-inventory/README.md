@@ -1,0 +1,9 @@
+# Disabled V63 signing inventory
+
+This is a bounded inventory, not a signer. It selects completed min/max research, the successful broader pair and raw-index reconciliation, the corrected log boundary review, the final V63 roadmap, and failed V62 signing/park provenance. No publication, signer retry, native acceptance or count increment occurs.
+
+All 199 former V62 selection entries are retained in RETAINED-V62-SELECTION. Of these, 198 existing bodies still match exactly. Park intentionally restored the historical roadmap preimage. Its former selected postimage is authenticated by concatenating the sealed V62 prefix with that preimage without writing it; the new final V63 PLAN is separately selected. A future signer must explicitly choose its reviewed roadmap update rather than silently stage the old parked postimage.
+
+SELECTION is an exact path/hash/size union before Git filtering. Package manifests and all their selected payloads authenticate. Both raw streams and replay/restore/cleanup evidence remain available. Large app and backup inventories are hash-only local references; full epoch recovery frames, symlink targets, backups, caches and targets are excluded. No live canonical state or application was accessed to construct this inventory.
+
+Root reports current epoch e30647d7 after actual refresh 3735/67a3d3/0; the exact receipt is selected. Candidate 87739/38759f/0 produced 470 PASS and two preserved legacy FAIL across 472 callbacks, with fourteen repaired targets, all 32 authored callbacks PASS, twelve OK endings, and 470 unchanged signatures. Counts remain 149 accepted fixes and 150 tracked IDs. Research must be published before any future native fix acceptance. A later signer must verify signing availability and fresh repository/state bindings; existing user authorization for local commits persists. This package provides no executable signing path.

@@ -1,0 +1,111 @@
+345-390:
+345: ) where
+346:     E: TElement,
+347:     D: DomTraversal<E>,
+348:     F: FnMut(E::ConcreteNode),
+349: {
+350:     let flags = context.shared.traversal_flags;
+351:     let is_initial_style = !data.has_styles();
+352: 
+353:     context.thread_local.statistics.elements_traversed += 1;
+354:     debug_assert!(
+355:         flags.intersects(TraversalFlags::AnimationOnly)
+356:             || is_initial_style
+357:             || !element.has_snapshot()
+358:             || element.handled_snapshot(),
+359:         "Should've handled snapshots here already"
+360:     );
+361: 
+362:     let restyle_kind = data.restyle_kind(context.shared);
+363:     debug!(
+364:         "recalc_style_at: {:?} (restyle_kind={:?}, dirty_descendants={:?}, data={:?})",
+365:         element,
+366:         restyle_kind,
+367:         element.has_dirty_descendants(),
+368:         data
+369:     );
+370: 
+371:     let mut child_restyle_hint = RestyleHint::empty();
+372: 
+373:     // Compute style for this element if necessary.
+374:     if let Some(restyle_kind) = restyle_kind {
+375:         child_restyle_hint = compute_style(context, element, data, restyle_kind);
+376: 
+377:         if !element.matches_user_and_content_rules() {
+378:             // We must always cascade native anonymous subtrees, since they
+379:             // may have pseudo-elements underneath that would inherit from the
+380:             // closest non-NAC ancestor instead of us.
+381:             child_restyle_hint |= RestyleHint::RECASCADE_SELF;
+382:         }
+383: 
+384:         // If we're restyling this element to display:none, throw away all style
+385:         // data in the subtree, notify the caller to early-return.
+386:         if data.styles.is_display_none() {
+387:             debug!(
+388:                 "{:?} style is display:none - clearing data from descendants.",
+389:                 element
+390:             );
+465-485:
+465:     clear_state_after_traversing(element, data, flags);
+466: }
+467: 
+468: fn clear_state_after_traversing<E>(element: E, data: &mut ElementData, flags: TraversalFlags)
+469: where
+470:     E: TElement,
+471: {
+472:     if flags.intersects(TraversalFlags::FinalAnimationTraversal) {
+473:         debug_assert!(flags.for_animation_only());
+474:         data.clear_restyle_flags_and_damage();
+475:         unsafe {
+476:             element.unset_animation_only_dirty_descendants();
+477:         }
+478:     }
+479: }
+480: 
+481: fn compute_style<E>(
+482:     context: &mut StyleContext<E>,
+483:     element: E,
+484:     data: &mut ElementData,
+485:     kind: RestyleKind,
+695-735:
+695:             child_data.hint.insert(propagated_hint);
+696: 
+697:             // Handle element snapshots and invalidation of descendants and siblings
+698:             // as needed.
+699:             //
+700:             // NB: This will be a no-op if there's no snapshot.
+701:             child_data.invalidate_style_if_needed(
+702:                 child,
+703:                 context.shared,
+704:                 Some(&context.thread_local.stack_limit_checker),
+705:                 &mut context.thread_local.selector_caches,
+706:             );
+707:         }
+708: 
+709:         if D::element_needs_traversal(child, flags, child_data.map(|d| &*d)) {
+710:             note_child(child_node);
+711: 
+712:             // Set the dirty descendants bit on the parent as needed, so that we
+713:             // can find elements during the post-traversal.
+714:             //
+715:             // Note that these bits may be cleared again at the bottom of
+716:             // recalc_style_at if requested by the caller.
+717:             if !is_initial_style {
+718:                 if flags.for_animation_only() {
+719:                     unsafe {
+720:                         element.set_animation_only_dirty_descendants();
+721:                     }
+722:                 } else {
+723:                     unsafe {
+724:                         element.set_dirty_descendants();
+725:                     }
+726:                 }
+727:             }
+728:         }
+729:     }
+730: }
+731: 
+732: /// Clear style data for all the subtree under `root` (but not for root itself).
+733: ///
+734: /// We use a list to avoid unbounded recursion, which we need to avoid in the
+735: /// parallel traversal because the rayon stacks are small.

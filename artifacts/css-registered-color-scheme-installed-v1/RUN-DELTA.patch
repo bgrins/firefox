@@ -1,0 +1,90 @@
+--- artifacts/css-animation-taint-registered-ordering-installed-v1/run.py
++++ artifacts/css-registered-color-scheme-installed-v1/run.py
+@@ -82,53 +82,41 @@
+     assert isinstance(payload, dict) and set(payload) == {'run_id', 'report'} and payload['run_id'] == run_id
+     report = payload['report']
+     assert set(report) == {'schema', 'status', 'userAgent', 'policyVerdict', 'observations', 'harness'}
+-    assert report['schema'] == 'registered-ordering-observation-v1' and report['policyVerdict'] is None
++    assert report['schema'] == 'color-scheme-dependency-observation-v1' and report['policyVerdict'] is None
+     assert report['status'] in ('complete', 'incomplete')
+     pattern = r'Firefox/158\.0(?:\s|$)' if browser == 'firefox' else r'(?:Headless)?Chrome/156\.0\.\d+\.\d+(?:\s|$)'
+     assert isinstance(report['userAgent'], str) and re.search(pattern, report['userAgent'])
+     assert set(report['harness']) == {'status', 'message'} and type(report['harness']['status']) is int
+     assert report['harness']['message'] is None or isinstance(report['harness']['message'], str)
+-    assert isinstance(report['observations'], list) and len(report['observations']) == 9
++    modes = ['union-plain', 'union-unused-attr', 'color-first-unused-attr', 'ident-unused-attr', 'literal']
++    assert isinstance(report['observations'], list) and len(report['observations']) == len(modes)
+     complete = True
+-    for row, mode in zip(report['observations'], ['flush0-equal0-opacity0', 'flush0-equal0-opacity1', 'flush0-equal1-opacity0', 'flush0-equal1-opacity1', 'flush1-equal0-opacity0', 'flush1-equal0-opacity1', 'flush1-equal1-opacity0', 'flush1-equal1-opacity1', 'literal']):
++    for row, mode in zip(report['observations'], modes):
+         assert set(row) == {'mode', 'record', 'wpt', 'referenceChecks', 'activeExpectation', 'policyVerdict'}
+         assert row['mode'] == mode and row['policyVerdict'] is None
+         assert set(row['wpt']) == {'name', 'status', 'message'}
+-        assert row['wpt']['name'] == 'Registered keyframe ordering observation: ' + mode
++        assert row['wpt']['name'] == 'Selected identifier color-scheme dependency: ' + mode
+         assert row['wpt']['status'] is None or type(row['wpt']['status']) is int
+         assert row['wpt']['message'] is None or isinstance(row['wpt']['message'], str)
+         record = row['record']
+         captured = False
+         if record is not None:
+-            assert set(record) == {'mode', 'registration', 'calibration', 'before', 'phases'} and record['mode'] == mode
+-            registration = record['registration']
+-            if registration is not None:
+-                assert registration == {'name': '--v', 'syntax': '<custom-ident>',
+-                    'inherits': False, 'initialValue': 'horizontal-tb', 'returnedSuccessfully': True}
+-            calibration = record['calibration']
+-            if calibration is not None:
+-                assert set(calibration) == {'initial', 'multiIdent'} and all(isinstance(v, str) for v in calibration.values())
+-            if record['before'] is not None:
+-                assert set(record['before']) == {'variable', 'sink'} and all(isinstance(v, str) for v in record['before'].values())
+-            assert isinstance(record['phases'], list) and len(record['phases']) <= 2
+-            for phase, label in zip(record['phases'], ['initial', 'ordinary-mutation']):
+-                assert set(phase) == {'label', 'readings', 'variable', 'opacity', 'cssDuration', 'currentTime', 'playState', 'duration', 'progress', 'sameAnimation', 'sameEffect'}
+-                assert phase['label'] == label and isinstance(phase['readings'], list) and len(phase['readings']) == 4
+-                assert all(isinstance(v, str) for v in phase['readings'])
+-                assert all(isinstance(phase[k], str) for k in ['variable', 'opacity', 'cssDuration', 'playState'])
+-                for key in ['currentTime', 'duration', 'progress']:
+-                    value = phase[key]
+-                    assert value is None or type(value) in [int, float] or value == 'auto' or (isinstance(value, dict) and set(value) == {'nonfinite'} and value['nonfinite'] in ['NaN', 'Infinity', '-Infinity'])
+-                assert type(phase['sameAnimation']) is bool and type(phase['sameEffect']) is bool
+-            captured = len(record['phases']) == 2 and calibration is not None and registration is not None and ((not mode.startswith('flush1') and mode != 'literal') or record['before'] is not None)
++            assert set(record) == {'mode', 'syntax', 'registeredInitial', 'snapshots'} and record['mode'] == mode
++            syntax = '<custom-ident>' if mode == 'ident-unused-attr' else '<color> | <custom-ident>' if mode == 'color-first-unused-attr' else '<custom-ident> | <color>'
++            assert record['syntax'] == syntax and isinstance(record['registeredInitial'], str)
++            assert isinstance(record['snapshots'], list) and len(record['snapshots']) <= 2
++            for snapshot, expected in zip(record['snapshots'], ['light', 'dark']):
++                assert set(snapshot) == {'expected', 'firstScheme', 'custom'} and snapshot['expected'] == expected
++                assert isinstance(snapshot['firstScheme'], str) and isinstance(snapshot['custom'], str)
++            captured = len(record['snapshots']) == 2
+         complete &= captured and row['wpt']['status'] is not None
+         checks = row['referenceChecks']
+-        assert isinstance(checks, list) and checks
++        assert isinstance(checks, list) and len(checks) == (2 if mode == 'literal' else 1)
+         assert all(set(v) == {'name', 'passed'} and isinstance(v['name'], str) and type(v['passed']) is bool for v in checks)
+         expectation = row['activeExpectation']
+         assert set(expectation) == {'expectedSink', 'kind', 'matches'}
+-        assert expectation['expectedSink'] == 'vertical-lr' and type(expectation['matches']) is bool
+-        assert expectation['kind'] == ('control' if mode == 'literal' else 'registered-ordering-observation')
++        assert expectation['expectedSink'] == ['light', 'dark'] and type(expectation['matches']) is bool
++        assert expectation['kind'] == ('control' if mode == 'literal' else 'selected-identifier-observation')
+     assert (report['status'] == 'complete') == complete
+     return report
+ 
+@@ -273,7 +261,7 @@
+     selected = policy['browsers'][args.browser]
+     output = ROOT / selected['output']
+     output.mkdir(mode=0o700)
+-    temporary = Path(tempfile.mkdtemp(prefix='css-registered-ordering-', dir='/private/tmp'))
++    temporary = Path(tempfile.mkdtemp(prefix='css-color-scheme-observation-', dir='/private/tmp'))
+     info = temporary.lstat()
+     identity = [info.st_dev, info.st_ino]
+     profile = temporary / 'profile'
+@@ -352,7 +340,7 @@
+     complete = error is None and not receiver.errors and receiver.report is not None and cleanup.get('temporary_removed', False)
+     save(output / 'RESULT.json', {'execution_complete': complete, 'observation_complete': observation_complete,
+         'reference_checks_pass': reference_checks_pass, 'active_control_expectations_pass': active_controls_pass,
+-        'animation_taint_policy_verdict': None, 'error': error,
++        'color_scheme_dependency_policy_verdict': None, 'error': error,
+         'report_received': receiver.report is not None, 'cleanup_complete': cleanup.get('temporary_removed', False),
+         'native_acceptance': False, 'launcher_returncode_after_cleanup': process.returncode if process else None})
+     return 0 if complete else 1

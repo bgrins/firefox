@@ -1,0 +1,58 @@
+--- artifacts/css-contextual-duration-progress-candidate-v1/comparison.py
++++ artifacts/css-contextual-duration-same-element-candidate-v1/comparison.py
+@@ -32,14 +32,16 @@
+     settings = copy.deepcopy(source_policy(root, policy)['wpt'])
+     settings['phase_revisions']['candidate'] = policy['head']
+     settings['candidate_required_pass_pages'] = list(settings['expected_subtests'])
++    settings['target_subtests'] = {page: [policy['acyclic_target']] for page in settings['expected_subtests']}
++    settings.update(expected_target_count=1, expected_control_count=1, expected_regression_signature_count=2)
+     binding = policy['baseline_binding']
+     if binding is not None:
+         saved = read(root / binding['directory'] / 'original-wpt/ASSESSMENT.json')
+-        settings['target_subtests'] = {page: [row['subtest'] for row in saved['rows'] if row['test'] == page and row['status'] == 'FAIL'] for page in settings['expected_subtests']}
++        settings['target_subtests'] = {page: [row['subtest'] for row in saved['rows'] if row['test'] == page and row['status'] == 'FAIL' and row['subtest'] == policy['acyclic_target']] for page in settings['expected_subtests']}
+         count = sum(map(len, settings['target_subtests'].values()))
+         settings['expected_target_count'] = count
+-        settings['expected_control_count'] = 9 - count
+-        settings['expected_regression_signature_count'] = 12 - count
++        settings['expected_control_count'] = 2 - count
++        settings['expected_regression_signature_count'] = 3 - count
+     return settings
+ 
+ 
+@@ -47,6 +49,11 @@
+     expected = copy.deepcopy(historical)
+     expected['index']['raw_index'] = current['index']['raw_index']
+     assert expected == current
++
++
++def require_complete_collection(collection, terminal):
++    assert collection['complete'] and not collection['errors'] and not collection['missing']
++    assert len(collection['records']) == terminal['complete_records'] == 2
+ 
+ 
+ def replay_original(root, policy, assessor, checks):
+@@ -59,8 +66,8 @@
+     assert sha(directory / 'RESULT.json') == binding['result_sha256']
+     assert binding['terminal']['owner_sha256'] == policy['baseline_capsule']['sha256']
+     assert binding['terminal']['result_sha256'] == binding['result_sha256']
+-    assert (binding['terminal']['session_id'], binding['terminal']['terminal_chunk'], binding['terminal']['exit']) == (84260, 'c64017', 0)
+-    assert (binding['terminal']['callbacks_passed'], binding['terminal']['callbacks_failed'], binding['terminal']['page_endings_ok'], binding['terminal']['complete_records']) == (4, 5, 3, 9)
++    assert binding['terminal']['callbacks_passed'] + binding['terminal']['callbacks_failed'] == 2
++    assert (binding['terminal']['page_endings_ok'], binding['terminal']['complete_records']) == (1, 2)
+     assert all(binding['terminal'][name] for name in ('raw_replay_verified', 'pre_post_equality_verified', 'current_source_binary_control_pins_verified', 'private_records_independently_validated', 'owned_process_cleanup_verified'))
+     result = read(directory / 'RESULT.json')
+     assert result['preservation_verified'] and result['lifecycle_complete'] and not result['source_or_canonical_mutation']
+@@ -82,10 +89,11 @@
+     events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
+     original_assessor = load('progress_original_assessor', root / policy['baseline_capsule']['directory'] / 'assess.py')
+     replay = original_assessor.assess(events, phase_result['exit'], original_settings, checks, run_binding=metadata)
+-    assert replay == read(phase / 'ASSESSMENT.json') and replay['complete'] and len(replay['rows']) == 9
++    assert replay == read(phase / 'ASSESSMENT.json') and replay['complete'] and len(replay['rows']) == 2
+     assert all(row['status'] in ('PASS', 'FAIL') for row in replay['rows'])
+     collection = load('progress_original_records', root / policy['baseline_capsule']['directory'] / 'records.py').collect(root, directory / 'progress-records', read(directory / 'PROGRESS-BINDING.json'), source, replay)
+     assert collection == read(directory / 'PROGRESS-RECORDS.json') and not collection['errors']
++    require_complete_collection(collection, binding['terminal'])
+     assert result['records_complete'] == result['observation_complete'] == collection['complete']
+     assert result['callbacks_passed'] == sum(row['status'] == 'PASS' for row in replay['rows'])
+     assert result['callbacks_failed'] == sum(row['status'] == 'FAIL' for row in replay['rows'])

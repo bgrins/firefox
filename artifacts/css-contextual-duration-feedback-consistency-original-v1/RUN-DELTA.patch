@@ -1,0 +1,46 @@
+--- artifacts/css-contextual-duration-feedback-original-v2/run.py
++++ artifacts/css-contextual-duration-feedback-consistency-original-v1/run.py
+@@ -127,7 +127,9 @@
+         if kind == 'feedback':
+             assert not records.is_symlink() and [records.stat().st_dev, records.stat().st_ino] == directory_identity
+             assert stat.S_IMODE(records.stat().st_mode) == 0o700 and records.stat().st_uid == os.getuid()
+-            expected = {'self.json':'self font', 'coupled.json':'coupled font and opacity', 'zero-start.json':'zero-start self font'}
++            expected = policy['record_kinds']
++            assert len(expected) == 2
++            schema = load('consistency_record_schema', policy['record_schema_helper'])
+             assert {p.name for p in records.iterdir()} == set(expected)
+             pins = {}
+             for filename, label in expected.items():
+@@ -136,16 +138,14 @@
+                 info = path.stat()
+                 assert stat.S_IMODE(info.st_mode) == 0o600 and info.st_uid == os.getuid() and info.st_nlink == 1
+                 record = read(path)
+-                assert set(record) == {'run_id','kind','samples'}
+-                assert record['run_id'] == run_id and record['kind'] == label
+-                assert len(record['samples']) == 8
+-                for sample in record['samples']:
+-                    assert set(sample) == {'font','cssDuration','opacity','effects','repeatFont','repeatDuration'}
+-                    assert len(sample['effects']) == (2 if label == 'coupled font and opacity' else 1)
+-                    assert all(set(effect) == {'name','time','duration','progress','state'} for effect in sample['effects'])
++                assert set(record) == {'run_id', 'kind', 'trajectories'}
++                assert record['run_id'] == run_id
++                assert schema.validate({k:v for k,v in record.items() if k != 'run_id'}) == label
+                 pins[filename] = {'sha256':sha(path),'identity':[info.st_dev,info.st_ino],'mode':stat.S_IMODE(info.st_mode)}
+-            assert all(row['status'] == 'PASS' for row in assessment['rows'])
+-            runner.save(output / 'FEEDBACK-RECORDS.json', {'run_id':run_id,'records':pins,'numeric_or_convergence_oracle':False})
++            assert assessment['complete'] and len(assessment['rows']) == 2
++            calibrated = all(row['status'] == 'PASS' for row in assessment['rows'])
++            runner.save(output / 'FEEDBACK-RECORDS.json', {'run_id':run_id,'records':pins,'calibrated_acquisition':calibrated,'numeric_or_convergence_oracle':False})
++            assert calibrated, 'Feedback consistency acquisition/calibration failed; raw and records retained'
+         runner.save(output / (kind.upper() + '-ROSTER.json'), {
+             'observed_subtest_count': len(assessment['rows']),
+             'expected_subtests': {page:[r['subtest'] for r in assessment['rows'] if r['test']==page] for page in current['wpt']['expected_subtests']},
+@@ -156,7 +156,7 @@
+     runner.save(output / 'RESULT.json', {'phases':phases,'preservation_verified':True,
+         'source_or_canonical_mutation':False,'native_fix_accepted':False,
+         'numeric_feedback_oracle':False,'feedback_only':True})
+-    print('Completed fresh feedback-only original observation; no acceptance', flush=True)
++    print('Completed original feedback-consistency observation; no acceptance', flush=True)
+ 
+ 
+ if __name__ == "__main__":

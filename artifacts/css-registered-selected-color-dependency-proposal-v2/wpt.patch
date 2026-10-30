@@ -1,0 +1,71 @@
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-ident-color-scheme-dependency.tentative.html
+@@ -0,0 +1,68 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Selected custom identifiers do not depend on color-scheme through a registration union</title>
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
++<link rel="help" href="https://drafts.csswg.org/css-color-adjust-1/#color-scheme-prop">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<pre id="observations" hidden></pre>
++<script>
++window.colorSchemeDependencyObservations = [];
++const modes = ["union-plain", "union-unused-attr", "color-first-unused-attr", "ident-unused-attr", "literal"];
++for (const mode of modes) {
++  promise_test(async t => {
++    const frame = document.createElement("iframe");
++    t.add_cleanup(() => frame.remove());
++    const loaded = new Promise(resolve => { frame.onload = resolve; });
++    frame.srcdoc = "<!doctype html><body>";
++    document.body.append(frame);
++    await loaded;
++    const win = frame.contentWindow;
++    const doc = frame.contentDocument;
++    const syntax = mode === "ident-unused-attr" ? "<custom-ident>" :
++      mode === "color-first-unused-attr" ? "<color> | <custom-ident>" : "<custom-ident> | <color>";
++    win.CSS.registerProperty({name: "--v", syntax, inherits: false, initialValue: "normal"});
++    const style = doc.createElement("style");
++    style.textContent = `
++      body { color-scheme: normal; }
++      .invalid { --v: one two; }
++      .subject { --v: light; }
++      .subject.dark { --v: dark; }
++      .union-plain { color-scheme: var(--v); }
++      .union-unused-attr, .color-first-unused-attr, .ident-unused-attr {
++        color-scheme: var(--v, attr(data-unused type(<custom-ident>), light));
++      }
++      .literal { color-scheme: light; }
++      .literal.dark { color-scheme: dark; }
++    `;
++    doc.head.append(style);
++    const calibration = doc.createElement("div");
++    calibration.className = "invalid";
++    doc.body.append(calibration);
++    const registeredInitial = win.getComputedStyle(calibration).getPropertyValue("--v").trim();
++    calibration.remove();
++    const target = doc.createElement("div");
++    target.className = `subject ${mode}`;
++    doc.body.append(target);
++    const snapshots = [];
++    for (const expected of ["light", "dark"]) {
++      if (expected === "dark") {
++        target.classList.add("dark");
++      }
++      const firstScheme = win.getComputedStyle(target).colorScheme;
++      const custom = win.getComputedStyle(target).getPropertyValue("--v").trim();
++      snapshots.push({expected, firstScheme, custom});
++    }
++    const row = {mode, syntax, registeredInitial, snapshots};
++    window.colorSchemeDependencyObservations.push(row);
++    document.getElementById("observations").textContent = JSON.stringify(window.colorSchemeDependencyObservations);
++    const diagnostic = JSON.stringify(row);
++    assert_equals(registeredInitial, "normal", `Registration calibration: ${diagnostic}`);
++    for (const snapshot of snapshots) {
++      assert_equals(snapshot.custom, snapshot.expected, `Selected custom identifier: ${diagnostic}`);
++      assert_equals(snapshot.firstScheme, snapshot.expected, `First color-scheme: ${diagnostic}`);
++    }
++  }, `Selected identifier color-scheme dependency: ${mode}`);
++}
++</script>

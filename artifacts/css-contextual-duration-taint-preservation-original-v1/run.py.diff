@@ -1,0 +1,78 @@
+--- masked-nine/run.py
++++ taint-preservation/run.py
+@@ -31,15 +31,12 @@
+     assert policy["candidate_execution_enabled"] is False
+     for name, expected in policy["references"].items():
+         assert sha(ROOT / name) == expected, name
+-    load("masked_nine_binding", str(HERE / "check.py")).check_binding(policy)
++    load("taint_preservation_binding", str(HERE / "check.py")).check_binding(policy)
+     if sys.argv[1] == "--run":
+         assert policy["execution_enabled"] is True
+         assert policy["activation_pending"] == []
+         assert policy["head"] == policy["wpt"]["harness_revision"]
+         assert set(policy["controls"]) == {"CURRENT-EPOCH.json", "OWNED.json", "ROLE.json"}
+-        assert set(policy["restoration_binding"]) == {"terminal", "refresh"}
+-        for record in policy["restoration_binding"].values():
+-            assert policy["references"][record["path"]] == record["sha256"]
+         for name, expected in policy["deferred_nonartifact_references"].items():
+             assert sha(ROOT / name) == expected, name
+         assert policy["head"] and policy["prepared_application_metadata"] and policy["build_epoch"]
+@@ -52,14 +49,14 @@
+     assert len(sys.argv) == 3 and sys.argv[1] in ("--check", "--run")
+     policy = authenticate(sys.argv[2])
+     if sys.argv[1] == "--check":
+-        load("masked_nine_static_check", str(HERE / "check.py")).check(policy)
+-        print("Static masked nine baseline checks passed; no browser or full state verification performed")
++        load("taint_preservation_static_check", str(HERE / "check.py")).check(policy)
++        print("Static taint/preservation baseline checks passed; no browser or full state verification performed")
+         return
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1",
+                MOZCONFIG=str(ROOT / "mozconfig"), MOZ_OBJDIR=str(ROOT / "objdir-full.noindex"),
+                MOZ_HEADLESS="1", MOZ_SKIP_PATH_PERFORMANCE_CHECK="1")
+     assert not any(os.environ.get(k) for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"))
+-    state = load("masked_nine_state", policy["state_helper"])
++    state = load("taint_preservation_state", policy["state_helper"])
+     epoch = read(RUNTIME / "CURRENT-EPOCH.json")
+     assert epoch["semantic_index"]["head"] == policy["head"] and epoch["staged_working"] == {}
+     assert epoch["accepted_pow_special_value"]["fix"] == 150
+@@ -91,7 +88,7 @@
+                     assert hashlib.sha256(body).hexdigest() == pin, (name, revision)
+         return state.a.verify_current(state.h, ROOT, env, epoch)
+ 
+-    metadata = load("masked_nine_metadata", policy["wpt"]["metadata_helper"])
++    metadata = load("taint_preservation_metadata", policy["wpt"]["metadata_helper"])
+     prepared = metadata.application_metadata(ROOT / policy["wpt"]["application_ini"], policy["wpt"]["phase_revisions"]["original"])
+     prepared.update(build_revision=prepared["revision"], harness_revision=policy["wpt"]["harness_revision"], source_role="original")
+     assert prepared == policy["prepared_application_metadata"]
+@@ -102,7 +99,7 @@
+     stopped = [False]
+     for sig in (signal.SIGINT, signal.SIGTERM):
+         signal.signal(sig, lambda signum, frame: stopped.__setitem__(0, True))
+-    runner = load("masked_nine_wpt", policy["wpt_helper"])
++    runner = load("taint_preservation_wpt", policy["wpt_helper"])
+     owned = {}
+     initial = verify()
+     runner.save(output / "PRE.json", initial)
+@@ -110,11 +107,11 @@
+                        env, verify, owned, lambda: stopped[0])
+     assert not owned
+     assessment = read(output / "original-wpt/ASSESSMENT.json")
+-    assert assessment["complete"] and assessment["observed_subtest_count"] == 9
++    assert assessment["complete"] and assessment["observed_subtest_count"] == 6
+     observed = {page: [row["subtest"] for row in assessment["rows"] if row["test"] == page]
+                 for page in policy["wpt"]["expected_subtests"]}
+     runner.save(output / "OBSERVED-ROSTER.json", {
+-        "expected_subtests": observed, "observed_subtest_count": 9,
++        "expected_subtests": observed, "observed_subtest_count": 6,
+         "phase": phase, "owner_sha256": sys.argv[2],
+         "source_roster_sha256": policy["references"][policy["source_roster"]],
+         "candidate_authorized": False,
+@@ -133,7 +130,7 @@
+         "preservation_verified": True, "native_fix_accepted": False,
+         "source_or_canonical_mutation": False,
+     })
+-    print("Completed original masked nine observation; outcomes recorded without acceptance", flush=True)
++    print("Completed original taint/preservation observation; outcomes recorded without acceptance", flush=True)
+ 
+ 
+ if __name__ == "__main__":

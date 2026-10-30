@@ -1,0 +1,318 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -28,6 +28,7 @@
+     ToTyped, TypedValue, UnparsedSegment, UnparsedValue, VariableReferenceValue,
+ };
+ use crate::values::computed;
++use crate::values::computed::ToComputedValue;
+ use crate::values::generics::calc::SortKey as AttrUnit;
+ use crate::values::specified::{NoCalcLength, ParsedNamespace};
+ use crate::{Atom, LocalName, Namespace, Prefix, derives::*};
+@@ -1686,6 +1687,19 @@
+         None,
+     );
+ 
++    apply_substituted_value(name, namespace, url_data, substitution, stylist, context);
++}
++
++fn apply_substituted_value(
++    name: &Name,
++    namespace: Option<&Namespace>,
++    url_data: &UrlExtraData,
++    substitution: Result<Substitution, ()>,
++    stylist: &Stylist,
++    context: &mut computed::Context,
++) {
++    let is_var = namespace.is_none();
++    let registration = stylist.get_custom_property_registration(name);
+     let Ok(substitution) = substitution else {
+         if is_var {
+             handle_invalid_at_computed_value_time(name, registration, context);
+@@ -1793,6 +1807,127 @@
+                 .substitution_functions
+                 .insert_attr(name, namespace, value);
+         },
++    }
++}
++
++enum PreparedCustomKind {
++    Existing,
++    Typed(SpecifiedRegisteredValue),
++    Initial(SpecifiedRegisteredValue),
++    Invalid,
++}
++
++pub(crate) struct PreparedCustomValue {
++    substitution: Result<Substitution<'static>, ()>,
++    url_data: UrlExtraData,
++    kind: PreparedCustomKind,
++}
++
++impl PreparedCustomValue {
++    pub fn depends_on_color_scheme(&self) -> bool {
++        match &self.kind {
++            PreparedCustomKind::Typed(value) | PreparedCustomKind::Initial(value) => value.depends_on_color_scheme(),
++            PreparedCustomKind::Existing | PreparedCustomKind::Invalid => false,
++        }
++    }
++
++    pub fn apply(self, name: &Name, stylist: &Stylist, context: &mut computed::Context) {
++        let registration = stylist.get_custom_property_registration(name);
++        match self.kind {
++            PreparedCustomKind::Typed(specified) => {
++                let mut value = specified.to_computed_value(context);
++                value.attr_tainted |= self.substitution.unwrap().attr_tainted;
++                context.builder.substitution_functions.insert_var(registration, name, value);
++            },
++            PreparedCustomKind::Initial(specified) => {
++                let value = specified.to_computed_value(context);
++                context.builder.substitution_functions.insert_var(registration, name, value);
++            },
++            PreparedCustomKind::Invalid => handle_invalid_at_computed_value_time(name, registration, context),
++            PreparedCustomKind::Existing => apply_substituted_value(
++                name, None, &self.url_data, self.substitution, stylist, context,
++            ),
++        }
++    }
++}
++
++pub(crate) fn prepare_custom_value(
++    name: &Name,
++    value: &VariableValue,
++    stylist: &Stylist,
++    context: &computed::Context,
++    attribute_tracker: &mut AttributeTracker,
++) -> PreparedCustomValue {
++    let url_data = value.url_data.clone();
++    let substitution = substitute_internal(
++        value, Some(PropertyIdRef::from(name)), &context.builder.substitution_functions,
++        stylist, context, attribute_tracker, &mut SmallVec::new(), None,
++    ).map(|value| Substitution {
++        css: Cow::Owned(value.css.into_owned()),
++        first_token_type: value.first_token_type,
++        last_token_type: value.last_token_type,
++        attr_tainted: value.attr_tainted,
++    });
++    let registration = stylist.get_custom_property_registration(name);
++    let mut kind = match substitution.as_ref() {
++        Err(()) => PreparedCustomKind::Invalid,
++        Ok(value) => {
++            let mut parser = Parser::new(&value.css);
++            if parser.try_parse(CSSWideKeyword::parse).is_ok() || registration.is_universal() {
++                PreparedCustomKind::Existing
++            } else if let Some(syntax) = registration.syntax.as_ref() {
++                let taint = if value.attr_tainted {
++                    AttrTaint::new_fully_tainted(value.css.len())
++                } else {
++                    AttrTaint::default()
++                };
++                let mut parser = Parser::new(&value.css);
++                match SpecifiedRegisteredValue::parse(
++                    &mut parser, syntax, &url_data, None,
++                    AllowComputationallyDependent::Yes, taint, Some(PropertyIdRef::from(name)),
++                ) {
++                    Ok(parsed) => PreparedCustomKind::Typed(parsed),
++                    Err(_) => PreparedCustomKind::Invalid,
++                }
++            } else {
++                PreparedCustomKind::Invalid
++            }
++        },
++    };
++    if matches!(kind, PreparedCustomKind::Invalid) {
++        kind = prepare_invalid_custom_kind(name, registration, context);
++    }
++    PreparedCustomValue { substitution, url_data: value.url_data.clone(), kind }
++}
++
++fn prepare_invalid_custom_kind(
++    name: &Name,
++    registration: &PropertyDescriptors,
++    context: &computed::Context,
++) -> PreparedCustomKind {
++    if !registration.is_universal()
++        && (!registration.inherits() || context.builder.is_root_element)
++        && let (Some(initial), Some(syntax)) = (&registration.initial_value, &registration.syntax)
++    {
++        let mut parser = Parser::new(&initial.css);
++        if let Ok(parsed) = SpecifiedRegisteredValue::parse(
++            &mut parser, syntax, &initial.url_data, None,
++            AllowComputationallyDependent::Yes, AttrTaint::default(), Some(PropertyIdRef::from(name)),
++        ) {
++            return PreparedCustomKind::Initial(parsed);
++        }
++    }
++    PreparedCustomKind::Invalid
++}
++
++pub(crate) fn invalid_custom_value_depends_on_color_scheme(
++    name: &Name,
++    stylist: &Stylist,
++    context: &computed::Context,
++) -> bool {
++    match prepare_invalid_custom_kind(name, stylist.get_custom_property_registration(name), context) {
++        PreparedCustomKind::Initial(value) => value.depends_on_color_scheme(),
++        _ => false,
+     }
+ }
+ 
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -13,7 +13,7 @@
+     ComputedCustomProperties, ComputedSubstitutionFunctions, Name, NonCustomReferenceMap,
+     ReferenceFlags, References, SingleNonCustomReference, SubstitutionFunctionKind, VariableValue,
+     get_attr_value_for_cycle_resolution, handle_invalid_at_computed_value_time,
+-    remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
++    invalid_custom_value_depends_on_color_scheme, prepare_custom_value, remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
+ };
+ use crate::dom::{AttributeTracker, DummyElementContext, ElementContext, TElement};
+ #[cfg(feature = "gecko")]
+@@ -733,9 +733,12 @@
+     if may_reference_length {
+         result |= value.references.non_custom_references(is_root_element);
+     }
+-    if dependent_types.intersects(DependentDataTypes::COLOR) {
+-        // The value depends on the used color-scheme (e.g. a `<color>` property referencing
+-        // `light-dark()` or a system color).
++    let may_reference_image = syntax.components.iter().any(|component| {
++        use crate::properties_and_values::syntax::{ComponentName, data_type::DataType};
++        matches!(component.name(), ComponentName::DataType(DataType::Image))
++    });
++    if dependent_types.intersects(DependentDataTypes::COLOR) || may_reference_image {
++        // Defer possible color computation; selected values determine the graph edge.
+         result |= ReferenceFlags::COLOR_SCHEME;
+     }
+     result
+@@ -2600,6 +2603,7 @@
+ 
+         let mut self_ref = false;
+         let mut lowlink = index;
++        let mut prepared_custom = None;
+         if let Some(v) = value.as_ref() {
+             debug_assert!(
+                 matches!(var, VarType::Custom(_) | VarType::Attr(..)),
+@@ -2623,6 +2627,22 @@
+                 attribute_tracker,
+                 &mut value_non_custom_refs,
+             );
++
++            if let VarType::Custom(ref name) = var {
++                let may_compute_color = value_non_custom_refs.intersects(ReferenceFlags::COLOR_SCHEME);
++                value_non_custom_refs.remove(ReferenceFlags::COLOR_SCHEME);
++                if registered && may_compute_color && lowlink == index && !self_ref
++                    && context.stack.last() == Some(&index)
++                {
++                    let prepared = prepare_custom_value(
++                        name, v, context.stylist, context.computed_context, attribute_tracker,
++                    );
++                    if prepared.depends_on_color_scheme() {
++                        value_non_custom_refs |= ReferenceFlags::COLOR_SCHEME;
++                    }
++                    prepared_custom = Some(prepared);
++                }
++            }
+ 
+             // ... Then the non-custom properties this value depends on (font-size, line-height,
+             // color-scheme), as computed by `find_non_custom_references` above.
+@@ -2688,6 +2708,22 @@
+             }
+         }
+ 
++        if let VarType::Custom(ref name) = var {
++            let cyclic = self_ref || lowlink < index || context.stack.last() != Some(&index);
++            if registered && cyclic
++                && !value_non_custom_refs.intersects(ReferenceFlags::COLOR_SCHEME)
++                && invalid_custom_value_depends_on_color_scheme(
++                    name, context.stylist, context.computed_context,
++                )
++            {
++                visit_link(
++                    VarType::NonCustom(SingleNonCustomReference::ColorScheme), index,
++                    references_from_non_custom_properties, context, &mut lowlink,
++                    &mut self_ref, attribute_tracker,
++                );
++            }
++        }
++
+         context.var_info[index].lowlink = lowlink;
+         if lowlink != index {
+             // This variable is in a loop, but it is not the root of this strong connected
+@@ -2732,7 +2768,9 @@
+         // Not in a loop, apply the value.
+         match var {
+             VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
+-                if let Some(ref v) = value {
++                if let Some(prepared) = prepared_custom {
++                    prepared.apply(name, context.stylist, context.computed_context);
++                } else if let Some(ref v) = value {
+                     // We know we're not in a loop now, perform substitution.
+                     // TODO(emilio): Merge with the cycle detection loop instead?
+                     substitute_references_if_needed_and_apply(
+--- a/servo/components/style/properties_and_values/value.rs
++++ b/servo/components/style/properties_and_values/value.rs
+@@ -308,6 +308,65 @@
+ pub type ComputedValue = Value<ComputedValueComponent>;
+ 
+ impl SpecifiedValue {
++
++    /// Whether computing this selected value reads the element's used color scheme.
++    pub(crate) fn depends_on_color_scheme(&self) -> bool {
++        fn color(value: &specified::Color) -> bool {
++            use specified::Color;
++            match value {
++                Color::System(_) | Color::LightDark(_) => true,
++                Color::ColorFunction(function) => function.origin_color().is_some_and(color),
++                Color::ColorMix(mix) => mix.items.iter().any(|item| color(&item.color)),
++                Color::ContrastColor(inner) => color(inner),
++                Color::CurrentColor | Color::Absolute(_) | Color::InheritFromBodyQuirk => false,
++            }
++        }
++        fn stops<T>(items: &[crate::values::generics::image::GradientItem<specified::Color, T>]) -> bool {
++            use crate::values::generics::image::GradientItem;
++            items.iter().any(|item| match item {
++                GradientItem::SimpleColorStop(value)
++                | GradientItem::ComplexColorStop { color: value, .. } => color(value),
++                GradientItem::InterpolationHint(_) => false,
++            })
++        }
++        fn image(value: &specified::Image) -> bool {
++            use crate::values::generics::image::{CrossFadeImage, Gradient, Image};
++            match value {
++                Image::LightDark(_) => true,
++                Image::Image(value) => color(value),
++                Image::Gradient(gradient) => match &**gradient {
++                    Gradient::Linear { items, .. } | Gradient::Radial { items, .. } => stops(items),
++                    Gradient::Conic { items, .. } => stops(items),
++                },
++                Image::CrossFade(fade) => fade.elements.iter().any(|item| match &item.image {
++                    CrossFadeImage::Image(value) => image(value),
++                    CrossFadeImage::Color(value) => color(value),
++                }),
++                Image::ImageSet(set) => set.items.iter().any(|item| image(&item.image)),
++                Image::None | Image::Url(_) => false,
++                #[cfg(feature = "gecko")]
++                Image::Element(_) | Image::MozSymbolicIcon(_) => false,
++                #[cfg(feature = "servo")]
++                Image::PaintWorklet(_) => false,
++            }
++        }
++        fn component(value: &SpecifiedValueComponent) -> bool {
++            use GenericValueComponent::*;
++            match value {
++                Color(value) => color(value),
++                Image(value) => image(value),
++                TransformList(list) => list.components.iter().any(component),
++                Length(_) | Number(_) | Percentage(_) | LengthPercentage(_) | Url(_)
++                | Integer(_) | Angle(_) | Time(_) | Resolution(_) | TransformFunction(_)
++                | CustomIdent(_) | String(_) => false,
++            }
++        }
++        match &self.v {
++            ValueInner::Component(value) => component(value),
++            ValueInner::List(list) => list.components.iter().any(component),
++            ValueInner::Universal(_) => false,
++        }
++    }
+     /// Convert a registered custom property to a Computed custom property value, given input and a
+     /// property registration.
+     pub fn compute(

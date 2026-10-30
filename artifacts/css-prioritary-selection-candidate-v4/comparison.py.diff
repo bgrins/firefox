@@ -1,0 +1,43 @@
+--- artifacts/css-prioritary-selection-candidate-v2/comparison.py
++++ artifacts/css-prioritary-selection-candidate-v3/comparison.py
+@@ -38,6 +38,7 @@
+     baseline=load('original74_terminal_schema',root/policy['owner_directory']/'baseline.py')
+     baseline.owner_terminal(directory,binding,capsule)
+     source=read(source_owner/'POLICY.json')
++    assert source['owner_directory']==capsule['directory']
+     assert source['suite_binding']==policy['suite_binding'] and source['capture_binding']==policy['capture_binding']
+     assert source['head']==policy['head'] and source['lane_order']==policy['lane_order']
+     result=read(directory/'RESULT.json')
+@@ -69,6 +70,13 @@
+     assert build['native_sources']=={'servo/components/style/custom_properties.rs':policy['semantic_original_sources']['servo/components/style/custom_properties.rs']}
+     assert read(phase/'BINARY-PINS.json')==build['binaries'] and set(build['binaries'])==set(policy['rebuilt_binaries'])
+     assert read(phase/'PRE.json')==read(phase/'POST.json')==read(directory/'PHASES-PRE.json')==read(directory/'PHASES-POST.json')==build['snapshot']
++    scope=load('original77_review_scope',root/policy['owner_directory']/'review_scope.py')
++    inputs=load('original77_input_binding',root/policy['owner_directory']/'inputs.py')
++    closure=load('original77_closure',source_owner/'closure.py')
++    expected_inputs=closure.external_inputs(root,source,read(source_owner/'SOURCE-ROLES.json'))
++    assert source['intermediate_consumed_inputs']==expected_inputs
++    effective=inputs.bind_inputs(capsule['directory'],(source_owner/'FILES.json').read_bytes(),capsule['sha256'],expected_inputs)
++    scope.require_intermediate(build['snapshot'],effective)
+     assert build['snapshot']['index']['working_diff']==hashlib.sha256(b'').hexdigest()
+     metadata=read(phase/'APPLICATION-METADATA.json')
+     assert metadata==read(phase/'APPLICATION-METADATA-POST.json')
+@@ -108,7 +116,7 @@
+     assert outcomes['lanes']==result['phase']
+     assert outcomes['provider_source_role']=='clean-original' and outcomes['native_acceptance'] is False
+     assert outcomes['zoom_target_correctness'] is None
+-    assert len(rows)==74 and len(ends)==11
++    assert len(rows)==77 and len(ends)==12
+     assert outcomes['callbacks_passed']==sum(row['status']=='PASS' for row in rows)
+     assert outcomes['callbacks_failed']==sum(row['status']=='FAIL' for row in rows)
+     return lanes
+@@ -129,7 +137,8 @@
+     target_rows=[row for row in candidate['rows'] if (row['test'],row['subtest']) in targets]
+     if len(target_rows)!=len(targets) or any(row['status']!='PASS' for row in target_rows):errors.append('target callback remains non-PASS')
+     errors.extend(error for error in candidate['comparison_errors'] if error!='regression identities/status/expectations/intermittents changed')
+-    return {'repair_observation_gate':not errors,'errors':errors,'all_signatures_equal':before==after,
++    result = {'repair_observation_gate':not errors,'errors':errors,'all_signatures_equal':before==after,
+             'original_signatures':before,'candidate_signatures':after,
+             'differences':[{'identity':identity,'original':old.get(identity),'candidate':new.get(identity)} for identity in sorted(set(old)|set(new)) if old.get(identity)!=new.get(identity)],
+             'target_rows':target_rows,'native_acceptance':False}
++    return json.loads(json.dumps(result))

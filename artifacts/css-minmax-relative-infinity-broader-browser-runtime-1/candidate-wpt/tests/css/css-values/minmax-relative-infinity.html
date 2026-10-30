@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Min and max preserve contextual infinite operands</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-ieee">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#comp-func">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="log"></div>
+<script>
+const cases = [
+  ["min(-1px, infinity * 1em)", ["0px", "-1px", "0px"]],
+  ["min(infinity * 1em, -1px)", ["0px", "-1px", "0px"]],
+  ["max(1px, -infinity * 1em)", ["0px", "1px", "0px"]],
+  ["max(-infinity * 1em, 1px)", ["0px", "1px", "0px"]],
+  ["calc(min(-1em, infinity * 1em) + 1px)", ["0px", "-15px", "0px"]],
+  ["calc(min(infinity * 1em, -1em) + 1px)", ["0px", "-15px", "0px"]],
+  ["calc(max(1em, -infinity * 1em) + 1px)", ["0px", "17px", "0px"]],
+  ["calc(max(-infinity * 1em, 1em) + 1px)", ["0px", "17px", "0px"]],
+  ["min(-1px, 1em)", ["-1px", "-1px", "-1px"]],
+  ["max(1px, -1em)", ["1px", "1px", "1px"]],
+  ["min(-1px, infinity * 1px)", ["-1px", "-1px", "-1px"]],
+  ["max(1px, -infinity * 1px)", ["1px", "1px", "1px"]],
+  ["clamp(-1px, infinity * 1em, 10px)", ["0px", "10px", "0px"]],
+  ["clamp(-10px, -infinity * 1em, 1px)", ["0px", "-10px", "0px"]],
+  ["min(1px, infinity * 1em)", ["0px", "1px", "0px"]],
+  ["max(-1px, -infinity * 1em)", ["0px", "-1px", "0px"]],
+  ["1em", ["0px", "16px", "0px"]],
+  ["calc(NaN * 1px + 1px)", ["0px", "0px", "0px"]],
+];
+
+for (const [expression, expected] of cases) {
+  test(t => {
+    const target = document.createElement("div");
+    target.style.position = "relative";
+    target.style.left = expression;
+    assert_not_equals(target.style.left, "", "Declaration parses");
+    document.body.append(target);
+    t.add_cleanup(() => target.remove());
+    const observed = ["0px", "16px", "0px"].map(size => {
+      target.style.fontSize = size;
+      return getComputedStyle(target).left;
+    });
+    assert_array_equals(observed, expected, "Font size changes from 0px to 16px to 0px");
+  }, `${expression} across font-size changes`);
+}
+</script>

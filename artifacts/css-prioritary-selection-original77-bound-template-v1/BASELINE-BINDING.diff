@@ -1,0 +1,13 @@
+--- artifacts/css-prioritary-selection-original77-disabled-v1/baseline.py
++++ artifacts/css-prioritary-selection-original-v3/baseline.py
+@@ -50,6 +50,10 @@
+ def metadata_guard(policy):
+     for name, digest in policy['metadata_current_pins'].items():
+         assert sha(ROOT / name) == digest
++    ownership = load('restored_context_ownership', policy['ownership_helper'])
++    for name, record in policy['restored_context_claims'].items():
++        assert policy['source_context_pins'][name] == record['sha256']
++        ownership.claim(ROOT, name, record['sha256'], record['identity'])
+ 
+ 
+ def guard(policy, ownership, roles):

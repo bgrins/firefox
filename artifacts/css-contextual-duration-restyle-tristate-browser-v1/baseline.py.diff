@@ -1,0 +1,33 @@
+--- artifacts/css-contextual-duration-feedback-consistency-candidate-v1/baseline.py
++++ artifacts/css-contextual-duration-restyle-tristate-browser-v1/baseline.py
+@@ -34,8 +34,11 @@
+     ownership.authenticate(HERE, manifest)
+     for name, pin in policy['references'].items():
+         assert sha(ROOT / name) == pin, name
++    ownership.authenticate(ROOT / policy['proposal']['directory'], policy['proposal']['manifest_sha256'])
++    checks = load('tristate_saved_checks', str((HERE / 'check.py').relative_to(ROOT)))
++    checks.validate_policy(policy)
+     roles = read(HERE / 'SOURCE-ROLES.json')
+-    assert set(roles) == set(policy['source_paths']) == {'servo/components/style/matching.rs'}
++    assert set(roles) == set(policy['source_paths']) == {'dom/animation/EffectCompositor.cpp', 'dom/animation/EffectCompositor.h', 'servo/components/style/matching.rs'}
+     for record in roles.values():
+         for kind in ('base', 'candidate'):
+             path = Path(record[kind + '_capture'])
+@@ -66,7 +69,7 @@
+ 
+ 
+ def guard(policy, ownership, roles):
+-    assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'CC', 'CXX', 'RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS', 'CARGO_TARGET_DIR', 'RUSTC', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER', 'MOZ_ARTIFACT_BUILDS', 'MOZ_CONFIGURE_OPTIONS', 'MOZ_PROFILE'))
++    assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'CC', 'CXX', 'RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS', 'CARGO_TARGET_DIR', 'RUSTC', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER', 'MOZ_ARTIFACT_BUILDS', 'MOZ_CONFIGURE_OPTIONS', 'MOZ_PROFILE', 'MOZ_DURATION_RESTYLE_TRACE'))
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS='0', PYTHONDONTWRITEBYTECODE='1', MOZCONFIG=str(ROOT / 'mozconfig'), MOZ_OBJDIR=str(ROOT / 'objdir-full.noindex'), MOZ_HEADLESS='1', MOZ_SKIP_PATH_PERFORMANCE_CHECK='1')
+     state = load('activation_state', policy['state_helper'])
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'ROLE.json', 'OWNED.json')}
+@@ -134,6 +137,8 @@
+         assert sha(ROOT / name) == record['base_sha256']
+         assert hashlib.sha256(state.h.git(ROOT, env, 'show', policy['head'] + ':' + name)).hexdigest() == record['base_sha256']
+         assert build_epoch['pins'][name] == epoch['pins'][name] == record['base_sha256']
++        assert name not in build_epoch['modified_native_paths']
++        assert hashlib.sha256(state.h.git(ROOT, env, 'show', build_epoch['semantic_index']['head'] + ':' + name)).hexdigest() == record['base_sha256']
+     for name in ('servo/components/style/values/generics/calc.rs', 'servo/components/style/custom_properties.rs'):
+         assert sha(ROOT / name) == epoch['pins'][name] == build_epoch['pins'][name]
+     for name, pin in policy['source_context_pins'].items():

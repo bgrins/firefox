@@ -1,0 +1,31 @@
+>>>  325: void ServoStyleSet::PreTraverseSync() {
+     326:   // Get the Document's root element to ensure that the cache is valid before
+     327:   // calling into the (potentially-parallel) Servo traversal, where a cache hit
+     328:   // is necessary to avoid a data race when updating the cache.
+     329:   (void)mDocument->GetRootElement();
+     330: 
+     331:   // FIXME(emilio): These two shouldn't be needed in theory, the call to the
+     332:   // same function in PresShell should do the work, but as it turns out we
+     333:   // ProcessPendingRestyles() twice, and runnables from frames just constructed
+     334:   // can end up doing editing stuff, which adds stylesheets etc...
+     335:   mDocument->FlushUserFontSet();
+     336:   UpdateStylistIfNeeded();
+     337: 
+     338:   mDocument->ResolveScheduledPresAttrs();
+     339: 
+     340:   if (gfxUserFontSet* userFontSet = mDocument->GetUserFontSet()) {
+     341:     nsPresContext* presContext = GetPresContext();
+     342:     MOZ_ASSERT(presContext,
+     343:                "For now, we don't call into here without a pres context");
+     344: 
+     345:     // Ensure that the @font-face data is not stale
+     346:     uint64_t generation = userFontSet->GetGeneration();
+     347:     if (generation != mUserFontSetUpdateGeneration) {
+     348:       mDocument->GetFonts()->CacheFontLoadability();
+     349:       presContext->UpdateFontCacheUserFonts(userFontSet);
+     350:       mUserFontSetUpdateGeneration = generation;
+     351:     }
+     352:   }
+     353: 
+     354:   MOZ_ASSERT(!StylistNeedsUpdate());
+     355: }

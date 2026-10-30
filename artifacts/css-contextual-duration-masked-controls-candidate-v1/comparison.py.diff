@@ -1,0 +1,92 @@
+--- artifacts/css-contextual-duration-base-timing-candidate-v1/comparison.py
++++ artifacts/css-contextual-duration-masked-controls-candidate-v1/comparison.py
+@@ -31,17 +31,7 @@
+ def expected_wpt(root, policy):
+     settings = copy.deepcopy(source_policy(root, policy)['wpt'])
+     settings['phase_revisions']['candidate'] = policy['head']
+-    settings['candidate_required_pass_pages'] = list(settings['expected_subtests'])
+-    settings['target_subtests'] = copy.deepcopy(settings['expected_subtests'])
+-    settings.update(expected_target_count=7, expected_control_count=0, expected_regression_signature_count=3)
+-    binding = policy['baseline_binding']
+-    if binding is not None:
+-        saved = read(root / binding['directory'] / 'original-wpt/ASSESSMENT.json')
+-        settings['target_subtests'] = {page: [row['subtest'] for row in saved['rows'] if row['test'] == page and row['status'] == 'FAIL'] for page in settings['expected_subtests']}
+-        count = sum(map(len, settings['target_subtests'].values()))
+-        settings['expected_target_count'] = count
+-        settings['expected_control_count'] = 7 - count
+-        settings['expected_regression_signature_count'] = 10 - count
++    settings['candidate_required_pass_pages'] = []
+     return settings
+ 
+ 
+@@ -49,41 +39,6 @@
+     expected = copy.deepcopy(historical)
+     expected['index']['raw_index'] = current['index']['raw_index']
+     assert expected == current
+-
+-
+-def require_complete_collection(collection, terminal):
+-    assert collection['complete'] and not collection['errors'] and not collection['missing']
+-    assert len(collection['records']) == terminal['complete_records'] == 7
+-
+-
+-def expected_snapshot(depth, advanced):
+-    value = 32 if advanced else 16
+-    nodes = []
+-    def timing(duration):
+-        return {'duration': duration, 'progress': 1 if duration == 1000 else 0.75, 'time': 1500, 'state': 'paused'}
+-    for index in range(depth):
+-        duration = value * 1000 // 16
+-        output = 48 - value
+-        nodes.append({'font': value if index % 2 == 0 else output,
+-                      'lineHeight': output if index % 2 == 0 else value,
+-                      'duration': duration, 'timing': timing(duration)})
+-        value = output
+-    duration = value * 1000 // 16
+-    return {'rootFont': 32 if advanced else 16, 'opacity': 1 if value == 16 else 0,
+-            'leafDuration': duration, 'leaf': timing(duration), 'nodes': nodes}
+-
+-
+-def require_original_calibration(observations):
+-    literal = observations['literal']
+-    depth = literal['depth']
+-    assert depth in (1, 2, 4, 8)
+-    for mode, item in observations.items():
+-        assert item['mode'] == mode and item['depth'] == depth
+-        assert item['literalInitial'] == item['initial'] == expected_snapshot(depth, False)
+-    expected = expected_snapshot(depth, True)
+-    assert literal['beforeMembership'] == literal['afterMembership'] == expected
+-    assert all(sample['opacity'] == expected['opacity'] for sample in literal['samples'])
+-    assert all(member['animation'] and member['effect'] for member in literal['membership'])
+ 
+ 
+ def replay_original(root, policy, assessor, checks):
+@@ -97,8 +52,8 @@
+     assert binding['terminal']['owner_sha256'] == policy['baseline_capsule']['sha256']
+     assert binding['terminal']['result_sha256'] == binding['result_sha256']
+     assert binding['terminal']['callbacks_passed'] + binding['terminal']['callbacks_failed'] == 7
+-    assert (binding['terminal']['page_endings_ok'], binding['terminal']['complete_records']) == (3, 7)
+-    assert all(binding['terminal'][name] for name in ('raw_replay_verified', 'pre_post_equality_verified', 'current_source_binary_control_pins_verified', 'private_records_independently_validated', 'owned_process_cleanup_verified'))
++    assert binding['terminal']['page_endings_ok'] == 2
++    assert all(binding['terminal'][name] for name in ('raw_replay_verified', 'pre_post_equality_verified', 'current_source_binary_control_pins_verified', 'owned_process_cleanup_verified'))
+     result = read(directory / 'RESULT.json')
+     assert result['preservation_verified'] and result['lifecycle_complete'] and not result['source_or_canonical_mutation']
+     assert not result['native_fix_accepted']
+@@ -121,13 +76,10 @@
+     replay = original_assessor.assess(events, phase_result['exit'], original_settings, checks, run_binding=metadata)
+     assert replay == read(phase / 'ASSESSMENT.json') and replay['complete'] and len(replay['rows']) == 7
+     assert all(row['status'] in ('PASS', 'FAIL') for row in replay['rows'])
+-    collection = load('progress_original_records', root / policy['baseline_capsule']['directory'] / 'records.py').collect(root, directory / 'progress-records', read(directory / 'PROGRESS-BINDING.json'), source, replay)
+-    assert collection == read(directory / 'PROGRESS-RECORDS.json') and not collection['errors']
+-    require_complete_collection(collection, binding['terminal'])
+-    calibration = load('timing_literal_calibration', root / policy['baseline_capsule']['directory'] / 'calibration.py').report(directory / 'progress-records', collection, source)
+-    assert calibration == read(directory / 'CALIBRATION.json') and calibration['all_calibrated']
+-    assert result['literal_initial_calibration_passed']
+-    assert result['records_complete'] == result['observation_complete'] == collection['complete']
++    assert result['observation_complete'] and result['all_callbacks_passed'] == all(row['status'] == 'PASS' for row in replay['rows'])
++    assert phase_result['exit'] == binding['terminal']['browser_exit']
++    assert result['callbacks_passed'] == binding['terminal']['callbacks_passed']
++    assert result['callbacks_failed'] == binding['terminal']['callbacks_failed']
+     assert result['callbacks_passed'] == sum(row['status'] == 'PASS' for row in replay['rows'])
+     assert result['callbacks_failed'] == sum(row['status'] == 'FAIL' for row in replay['rows'])
+     projected = assessor.assess(events, phase_result['exit'], phase_policy(policy['wpt']), checks, run_binding=metadata)

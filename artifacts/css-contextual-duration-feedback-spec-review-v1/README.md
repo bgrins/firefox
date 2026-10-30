@@ -1,0 +1,21 @@
+Question: does CSS specify how to break feedback from an animated font size into that animation's own font-relative duration?
+
+Scenario: one CSS animation, paused at 750 ms, one iteration, both fill modes, `steps(1, end)`, absolute font-size keyframes from 16px to 32px, and `animation-duration: calc(1em / 32px * 1s)`. There are no custom properties or scroll timelines. After the initial seek, the authored frame callbacks only read values; they do not change animation inputs. [Original-build observations](OBSERVED.md) are now complete; they do not establish a normative cycle policy or the assumed iterative arithmetic below.
+
+Primary specification review, 2026-10-30 UTC:
+
+1. [CSS Animations 2, section 4.1](https://drafts.csswg.org/css-animations-2/#animation-duration) maps animation-duration to the effect's iteration duration. Its animation type is not animatable.
+2. [Web Animations 1, section 5.2](https://drafts.csswg.org/web-animations-1/#animating-properties) defines that exclusion in terms of keyframes and transitions. It does not by itself establish a rule for indirect dependencies through units.
+3. [CSS Values 4, section 6.1.1](https://drafts.csswg.org/css-values-4/#font-relative-lengths) defines em from the element's computed font size. Font-affecting properties have a parent-metric exception. Whether that category covers this indirect animation feedback needs clarification; this review does not silently extend or exclude the category.
+4. [CSS Variables 1, section 3](https://drafts.csswg.org/css-variables-1/#using-variables) blocks animation-tainted var() substitutions into non-animatable properties. The proposed declaration has no var(), so that substitution guard does not resolve it.
+5. [Web Animations 1, section 6.13](https://drafts.csswg.org/web-animations-1/#model-liveness) states: "Changes made to any part of the model cause the entire timing model to be updated and any dependent style." This establishes an update obligation, not a cycle-breaking algorithm.
+
+Verdict: INCONCLUSIVE. The inspected sections do not supply a verified cycle-breaking rule for this case. This is not an exhaustive proof that no rule exists. `webspec-index` is unavailable locally; current primary documents were read through the web tool. The broad font-affecting definition and any additional animation integration rules remain unresolved. No new normative WPT expectation or browser bug is claimed for the cyclic case.
+
+The arithmetic still rejects an unrestricted fixed-point repair under the ordinary own-font interpretation. Let F be the font size used to resolve duration. Duration is 1000F/32 ms. At 750 ms, the step-end animation returns 32px when F <= 24px and 16px otherwise. Any fixed point must therefore be either 16 or 32, but evaluation maps 16 to 32 and 32 to 16. There is no fixed point under those assumptions. `check.py` verifies the two endpoint calculations with rational arithmetic; the reduction of all possible fixed points to the output set is a mathematical argument, not a native termination proof.
+
+A separate acyclic case can use two animations on the same element: a fixed-duration font-size animation and an opacity animation whose duration uses em. Their shared element/EffectCompositor key does not make the property dependency cyclic. This is why a per-element visited set is not sufficient evidence of a correct cycle policy.
+
+Prior work already covers a different feedback example: the [linear two-cycle model](../css-contextual-duration-feedback-model-v1/README.md) proves non-fixed iteration from two exact positive starting durations, and [earlier browser comparisons](../css-contextual-duration-feedback-consistency-interpretation-v1/INTERPRETATION.md) measured linear self-dependent cases and a fixed script-override regression. Those are historical evidence, not new results here. The proposed step-function case is distinct: under its assumptions there is no fixed point anywhere, rather than a two-cycle that misses an existing real-valued fixed point.
+
+Next: compare both diagnostics with the duration candidate and assess the captured source processing boundaries. Preserve the first-read requirement for finite acyclic dependencies. Do not add an unconditional native drain or a constant-pass workaround without a justified completion and termination contract.

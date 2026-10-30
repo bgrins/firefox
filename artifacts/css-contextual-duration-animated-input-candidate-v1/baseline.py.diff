@@ -1,0 +1,63 @@
+--- artifacts/css-minmax-log-candidate-v1/baseline.py
++++ artifacts/css-contextual-duration-animated-input-candidate-v1/baseline.py
+@@ -35,7 +35,7 @@
+     for name, pin in policy['references'].items():
+         assert sha(ROOT / name) == pin, name
+     roles = read(HERE / 'SOURCE-ROLES.json')
+-    assert set(roles) == set(policy['source_paths']) == {'servo/components/style/values/generics/calc.rs'}
++    assert set(roles) == set(policy['source_paths']) == {'servo/components/style/matching.rs'}
+     for record in roles.values():
+         for kind in ('base', 'candidate'):
+             path = Path(record[kind + '_capture'])
+@@ -45,12 +45,12 @@
+     assert policy['wpt'] == expected_wpt(policy)
+     wpt = policy['wpt']
+     assert (wpt['expected_subtest_count'], wpt['expected_target_count'], wpt['expected_control_count'],
+-            wpt['expected_page_count'], wpt['expected_regression_signature_count']) == (578, 33, 545, 16, 561)
++            wpt['expected_page_count'], wpt['expected_regression_signature_count']) == (3, 2, 1, 1, 2)
+     binding = policy['baseline_binding']
+     directory = ROOT / binding['directory']
+     ownership.authenticate(directory, binding['manifest_sha256'])
+     assert read(directory / binding['terminal_path']) == binding['terminal']
+-    assert binding['terminal']['exit'] == 0 and sha(directory / 'RESULT.json') == binding['result_sha256'] == binding['terminal']['result_sha256']
++    assert binding['terminal']['exit'] == 0 and sha(directory / 'RESULT.json') == binding['result_sha256']
+     assert sha(directory / 'OBSERVED-ROSTER.json') == binding['roster_sha256']
+     assessor = load('minmax_assessor', str((HERE / 'assess.py').relative_to(ROOT)))
+     checks = load('minmax_checks', wpt['checks_helper'])
+@@ -113,7 +113,7 @@
+         else:
+             assert hashlib.sha256(state.h.git(ROOT, env, 'show', build_epoch['semantic_index']['head'] + ':' + name)).hexdigest() == record['head_preimage_sha256']
+     assert build_epoch['pow_special_value_transition']['compiled'] and not build_epoch['pow_special_value_transition']['accepted']
+-    assert build_epoch['pow_special_value_transition']['source_sha256'] == roles['servo/components/style/values/generics/calc.rs']['base_sha256']
++    assert build_epoch['pow_special_value_transition']['source_sha256'] == policy['accepted_calc_sha256']
+     for name, preimage in policy['original_build']['later_removed_payloads'].items():
+         assert hashlib.sha256(state.h.git(ROOT, env, 'show', build_epoch['semantic_index']['head'] + ':' + name)).hexdigest() == preimage
+         assert not state.h.git(ROOT, env, 'ls-tree', policy['head'], '--', name)
+@@ -128,9 +128,17 @@
+     for name, record in roles.items():
+         assert sha(ROOT / name) == record['base_sha256']
+         assert hashlib.sha256(state.h.git(ROOT, env, 'show', policy['head'] + ':' + name)).hexdigest() == record['base_sha256']
+-        assert build_epoch['pins'][name] == pending[name]['compiled_sha256'] == record['base_sha256']
++        assert build_epoch['pins'][name] == epoch['pins'][name] == record['base_sha256']
+     for name in ('servo/components/style/values/generics/calc.rs', 'servo/components/style/custom_properties.rs'):
+         assert sha(ROOT / name) == epoch['pins'][name] == build_epoch['pins'][name]
++    for name, pin in policy['source_context_pins'].items():
++        assert sha(ROOT / name) == pin
++        if name in build_epoch['pins']:
++            assert epoch['pins'][name] == build_epoch['pins'][name] == pin
++        else:
++            assert name in policy['build_unpinned_sources'] and name not in build_epoch['modified_native_paths']
++            for revision in (policy['head'], policy['wpt']['phase_revisions']['original']):
++                assert hashlib.sha256(state.h.git(ROOT, env, 'show', revision + ':' + name)).hexdigest() == pin
+     for name in policy['closed_process_receipts']:
+         ownership.group_absent(read(ROOT / name)['pgid'])
+     ownership.quiescent(RUNTIME)
+@@ -154,7 +162,7 @@
+     if sys.argv[1] == '--guard':
+         state, env, controls, epoch, flags, verify = guard(policy, ownership, roles)
+         verify()
+-    print('Authenticated min/max comparison inputs; no browser or build execution')
++    print('Authenticated contextual-duration comparison inputs; no browser or build execution')
+ 
+ 
+ if __name__ == '__main__':

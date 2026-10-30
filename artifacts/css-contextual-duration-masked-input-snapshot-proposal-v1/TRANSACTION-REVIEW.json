@@ -1,0 +1,46 @@
+{
+  "ffi_borrow": {
+    "borrow": "Existing immutable ElementData borrow remains live across Gecko_UpdateAnimations.",
+    "function": "GeckoElement::update_animations",
+    "proposal": "Readonly base recascade and C++ collection writes only; no Rust style publication."
+  },
+  "independent_guard_review": {
+    "attribution": "The first two current-file checks were performed by the independent reviewer, not recaptured by this package.",
+    "guards": [
+      "nsAutoScriptBlocker around ProcessPendingRestyles",
+      "RestyleManager unsafe-to-script assertion",
+      "Release rejection of reentrant mInStyleRefresh",
+      "PresShell::AutoAssertNoFlush",
+      "Main-thread Gecko_UpdateAnimations dispatch"
+    ],
+    "receipts": {
+      "PresShell": "fb4a23: PresShell excerpt succeeded; later guessed RestyleManager path failed",
+      "RestyleManager": "0bb1e9: corrected exact current guard read succeeded"
+    },
+    "reported_exact_current_files": {
+      "layout/base/PresShell.cpp": "f6dddb40d2f2c47a3904e9f58eaec7cc13372e388bdcf72047046938ade6c72a",
+      "layout/style/GeckoBindings.cpp": "6de005383793f63fd9fd8b201eefafc09425619bb10b7a48e847b31796241ffb",
+      "layout/style/RestyleManager.cpp": "5af588e3506c79f0a2c86c17bfffaed765c2c81d17641dff7fb7f6f837e9319b"
+    },
+    "reviewer": "/root/typed_demand_review"
+  },
+  "limits": [
+    "No complete input dependency key",
+    "No parent/root freshness guarantee",
+    "No animation-only update coverage",
+    "No author-script or flushing calls may be introduced",
+    "No claim that every possible entry path satisfies the documented normal flush transaction",
+    "No native compilation or browser execution"
+  ],
+  "scope": "Saved-source and independently reported exact-current guard review; no native execution or refinement proof.",
+  "storage_lifetime": {
+    "commit": "Existing animation-array swap before cancellation loop",
+    "generation": "No generation field because fresh input is obtained synchronously at execution; no captured snapshot crosses a task boundary.",
+    "owner": "AnimationCollection for host plus PseudoStyleRequest"
+  },
+  "task_boundary": {
+    "driver": "servo/components/style/driver.rs::traverse_dom",
+    "tls": "Each ThreadLocalStyleContext drops its caches before its own tasks, not all TLS contexts before the first task. The existing driver explicitly documents base-style recascade from sequential tasks.",
+    "workers": "Scoped worker execution joins before sequential-task destruction."
+  }
+}

@@ -1,0 +1,11 @@
+Disabled failure-restoration reconciliation for consistency candidate runtime 1. V5 remains unchanged, success-only and unused. Actual owner 66670 / 684695 / exit 1 is now bound with frozen runtime seal 6e66d3dccdcec0d092d862c86f1e92e13f779c9226674028882d78b6dd936d20. Root independently replayed both failed fixed-2s override controls and verified state/app/flags/source restoration in 35467 / 4d6357 / exit 0, then verified and removed 1,008,605,176 owned backup bytes.
+
+V6 reuses executed failed-run refresh V3's single-field ownership/write/inverse/rollback lifecycle. It replaces the former restyle-message case with this distinct calibration failure: actual outer exit1 and exact failed result/error, complete two-FAIL/one-OK feedback stream with exact comparison errors/control rows, preserved phase state/app, absent owned groups, successful build, owner restoration and independently verified root removal of the retained backup. A pinned consistency helper validates both private record schemas and requires calibrated_acquisition=false. If the normal aggregate was never written, it computes the schema result in memory only; no historical output is written or changed. No test-success, numeric correctness or convergence claim.
+
+Current HEAD ecfe313d582a335c04d80bfd360fd3a591defdb7 and epoch f6593a502953ccbc3ebb633b82d0e3138aa1b3e96c46c9627b92ffcc1c60dfb6 are preserved. Only raw_index_observation.current can change after full adjusted-state equality to restored POST; all source/app/semantic index/accepted claims/history/held provider/OWNED/ROLE remain unchanged. Raw drift must be nontrivial or this owner remains unused.
+
+Terminal, runtime seal, exact results/messages/rows, raw observation and root cleanup are bound to immutable actual receipts. BINDING-DELTA.patch changes only the provisional restoration/cleanup field names to the actual schema, preserving all checks. Every saved-evidence admission assertion and the full runtime manifest authenticated without a live state/application read. Execution remains false; root alone may activate and run the full adjusted-state guard/write. No browser, build or native/Git/canonical mutation occurred in preparation.
+
+Future root-only command after actual receipt binding and review:
+
+    python3 -I -S -B artifacts/css-contextual-duration-index-refresh-v6/run.py <enabled FILES.json SHA256>

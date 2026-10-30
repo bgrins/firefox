@@ -1,0 +1,22 @@
+# Common-only post-build admission failure recovery
+
+The common-only build succeeded, but the owner stopped before browser launch when its post-build modified-native-path assertion failed. Actual session 16539, launch 335776, terminal e6dc66 exited 1. This is an incomplete observation: there are no callback outcomes or 49-signature neutrality result. The owner reports restoration and retains 1,008,605,176 bytes of backup.
+
+The predecessor reviewer is not strictly success-only: it handles nonzero compiler exits and retained failure backups. Its no-browser branch requires a nonzero build exit, however, so it cannot admit this build-zero/post-build failure. This successor pins the exact terminal, result, traceback, command and saved restoration records. It permits only this failure, rejects any browser directory or completed build/phase aggregate, and leaves the complete live restoration tail unchanged. It does not weaken the candidate owner or claim its admission assertion passed.
+
+The saved traceback reaches `candidate_verify` and `verify_current`'s modified-native-path equality assertion. The owner unconditionally adds every source role to that set, including the common-only cascade postimage that is byte-identical to its base. This is a source-supported admission mismatch diagnosis, not a browser result. Any corrected owner is a separate reviewed successor.
+
+`SAVED-CHECK.json` authenticates the saved inputs, exact reviewer delta, unchanged restoration tail, three source preimage/identity claims and PRE/POST equality except the recorded raw index hash. These are saved claims, not an independent live restoration result. No current source, application, index or process state was read during preparation. The checker does not scan the retained backup contents; the root-only verifier does.
+
+The full build log is pinned independently. Its warning lines include eight style dead-code diagnostics (the new prepared-value APIs and selected-color classifier), the style summary line, and an swgl compiler-option warning. The summary line is not a ninth style diagnostic. These warnings remain evidence irrespective of successful restoration; no suppression was added and no warning-free or neutral common-prerequisite claim is made.
+
+The disabled `review.py --verify` independently checks current source hashes and original identities, accepted payloads and context pins, full application and extra-path semantic contents, restored application metadata, flags, full state and exact raw-index-only change, owned build/wake group absence, lock absence, and the retained backup's exact inventory. It writes only its own exclusive `ACTUAL-REVIEW.json`; it neither deletes the backup nor updates canonical controls. The inherited complete-browser branch remains unreachable because this successor requires the pinned failed terminal and absent browser directory.
+
+## Root procedure
+
+1. Authenticate this package and inspect `REVIEW-DELTA.patch`. Preserve disabled POLICY/FILES preimages, then enable only `execution_enabled` and reseal the activation. The actual terminal is already pinned; do not replace it with a guessed exit.
+2. Run `python3 -I -S -B artifacts/css-registered-color-image-common-only-failure-review-v1/review.py --verify`, retaining the complete log. An assertion stops recovery; do not infer restoration from a partial report. The output must independently verify restoration while preserving owner exit 1, build exit 0, no browser observation, and null common preservation.
+3. Only after successful verification, root may remove the exact owned `css-registered-color-image-common-only-candidate-runtime-1/backups` directory using the established root cleanup protocol: recheck its directory identity, non-symlink status and exact `BACKUPS.json` inventory immediately before deletion; save a separate cleanup receipt with byte count and resulting absence. Do not modify the owner's retained-backup receipt.
+4. Root separately publishes the narrowly verified raw-index refresh and a current/restoration receipt under the existing control protocol, then freezes the runtime. Preserve the failed owner result, traceback and compiler warnings. A subsequent corrected common-only trial still needs an actual complete original45 comparison.
+
+No browser, native mutation, Git operation, process control, cleanup or epoch publication was executed by this package's author.

@@ -1,0 +1,26 @@
+# Same-element duration dependency diagnostics
+
+This unexecuted research fixture separates an acyclic dependency between two effects on one element from a discontinuous self-dependent font effect. It does not replace the earlier linear coupled/zero-start feedback observations, fixed-script-override regressions, or the abstract model in `css-contextual-duration-feedback-model-v1`. Those results are preserved in `css-contextual-duration-feedback-consistency-interpretation-v1` and its referenced runtimes.
+
+The acyclic callback acquires two paused CSS animations on one element. A fixed 2000 ms font animation moves from time 0 to 750 ms, changing font size from 16 px to 22 px. The separately held opacity animation remains at 750 ms; its contextual duration is `calc(1em / 16px * 1s)`, so the finite expected duration is 1375 ms and opacity is 6/11. A fresh literal-duration iframe has the same font intervention and an independent 1375 ms opacity duration. Both trajectories are fully collected and posted before assertions, with literal assertions first. The contextual first-read and subsequent sample assertions express the finite acyclic freshness oracle; they are not evidence of an observed pass. This case can revisit the same compositor element key while its effect/property dependency remains acyclic.
+
+The feedback callback uses a single paused font animation, explicit 16 px/32 px endpoints, `steps(1, end)`, fill `both`, and duration `calc(1em / 32px * 1s)`. At time 750 ms, abstract reevaluation using its own animated font would map 16 px to 500 ms to the completed-step 32 px output, and 32 px to 1000 ms to the active-step 16 px output. That conditional map has no fixed endpoint. It does not establish that CSS requires this iteration, that Gecko performs it, or that an actual run cycles or hangs. Separate literal 500 ms and 1000 ms trajectories calibrate the two outputs (32 px and 16 px). The contextual trajectory has no numeric endpoint, alternation, convergence, or retry-count assertion.
+
+Each trajectory uses a fresh iframe and is removed before the next is created. Acquisition/ready resolution and three setup frames precede the sole intervention. The first getter after the font effect's `currentTime = 750` reads only opacity (acyclic) or font size (feedback). Three subsequent animation-frame samples read only that same value. Detailed style/timing reads, current membership, and a second detailed read follow the complete four-sample interval. These getters can flush style; this is not a read-free wait. There are no additional author seeks, outline restyles, or rescue operations. Initial calibration failure can prevent complete collection and must remain distinguishable from a measured post-intervention trajectory.
+
+## Runner integration
+
+Use `tests/` as the WPT tests root, this directory as the manifest directory (`MANIFEST.json`), and `meta/` as inherited metadata root. The single test ID and exact two callback names are in `ROSTER.json`. Captured `testharness.js`, `testharnessreport.js`, their headers, and the three inherited metadata files are included with source hashes in `REFERENCES.json`. The root runner supplies WPT tools/config; no testing-tree writes or build are required by this package.
+
+Before starting WPT, create an empty private directory with mode 0700 and set these variables on the WPT server/child environment:
+
+- `DURATION_PROGRESS_RECORD_DIR`: absolute path to that directory.
+- `DURATION_PROGRESS_RUN_ID`: owner-chosen identifier matching `[A-Za-z0-9_-]{16,128}` (for example `css-duration-feedback-original-v1`).
+
+The local receiver accepts only `same-element-acyclic` and `same-element-feedback`, writing respectively `same-element-acyclic.json` and `same-element-feedback.json` as exclusive mode-0600 files. Each envelope contains `run_id`, `kind`, and the complete per-mode `observations`. Every trajectory has `initial`, four ordered `samples`, `beforeMembership`, `membership`, and `afterMembership`. The receiver validates shape, not numeric success; wrong numbers, null values and false identity observations are retained. Its filesystem/acknowledgement implementation is byte-identical to the reviewed line-height receiver. POST happens after all trajectories in a callback have been collected, before its assertions. Missing records indicate incomplete acquisition/collection or transport and must not be converted into an endpoint result. Acknowledgement alone does not mean callback PASS.
+
+Root owns the original-only run and runtime `css-contextual-duration-feedback-browser-runtime-1`. No owner, actual current-state binding, browser run, native overlay, or acceptance is supplied here.
+
+## Static validation
+
+`python3 check.py` checks inert registration (without executing callback bodies), numerical assertion positives and stale-value/identity negatives, receiver schema positives/negatives, exact receiver writer reuse, genuine WPT manifest generation, and WPT lint in removed isolated scratch. The initial check stopped at missing `lint.ignore`; the next attempt reported the repository's ignored artifact path. Both logs are retained. The corrected scratch lint passed with zero errors; no ignore suppression was added. Static checks do not establish browser acquisition, sampling behavior, or the contextual oracle's implementation.

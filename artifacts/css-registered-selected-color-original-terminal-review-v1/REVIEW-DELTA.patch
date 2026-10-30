@@ -1,0 +1,32 @@
+--- artifacts/css-animation-taint-clean-original-terminal-review-v1/review.py
++++ artifacts/css-registered-selected-color-original-terminal-review-v1/review.py
+@@ -49,7 +49,7 @@
+ 
+ 
+ def observed_outcomes(replay):
+-    assert replay["complete"] and len(replay["rows"]) == 125 and len(replay["ends"]) == 18
++    assert replay["complete"] and len(replay["rows"]) == 42 and len(replay["ends"]) == 3
+     assert all(row["status"] in ("PASS", "FAIL") for row in replay["rows"])
+     return {"callbacks_passed": sum(row["status"] == "PASS" for row in replay["rows"]),
+             "callbacks_failed": sum(row["status"] == "FAIL" for row in replay["rows"]),
+@@ -78,9 +78,9 @@
+         return
+     assert config["execution_enabled"] and config["actual_terminal"] is not None
+     terminal = config["actual_terminal"]
+-    assert terminal["session"] == config["expected_session"] == 92991
++    assert terminal["session"] == config["expected_session"] == 57577
+     assert terminal["exit"] in (0, 1) and terminal["terminal_chunk"]
+-    assert terminal["launch_chunk"] == config["expected_launch"] == "df8408"
++    assert terminal["launch_chunk"] == config["expected_launch"] == "eb6f51"
+     assert not config["mutations_allowed"] and not config["epoch_publication_allowed"]
+     assert not any(os.environ.get(k) for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"))
+     pair = ROOT / config["runtime_directory"]
+@@ -149,7 +149,7 @@
+             json.dump(evidence, stream, indent=2, sort_keys=True)
+             stream.write("\n")
+         assert replay == saved_assessment and replay["complete"], "Incomplete or changed raw observation; RAW-REPLAY retains evidence"
+-        assert len(replay["rows"]) == policy["wpt"]["expected_subtest_count"] == 125 and len(replay["ends"]) == policy["wpt"]["expected_page_count"] == 18
++        assert len(replay["rows"]) == policy["wpt"]["expected_subtest_count"] == 42 and len(replay["ends"]) == policy["wpt"]["expected_page_count"] == 3
+         assert phase["comparison_gate_passed"] == replay["comparison_gate_passed"]
+         validate_build_phase(policy, pre, built, metadata,
+                              record("original-wpt/APPLICATION-METADATA-POST.json"),

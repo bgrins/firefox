@@ -1,0 +1,51 @@
+# Masked duration invalidation: compare inputs before admitting an update
+
+No existing inspected dirty bit is sufficient to distinguish the observed authored-font change from an unrelated outline restyle. A small candidate can reuse existing scheduling and script-ownership code, but needs a new historical timing-input snapshot or a more restricted, explicitly incomplete rule-change test. This is an artifact-only design, not a patch, executed test, or normative choice of timing source. Runtime controls must run before a native implementation is chosen.
+
+The exact branch `needs_animations_update` already handles initial construction, changed animation lists, CSS-rule changes, display transitions, writing mode and scroll-self changes. Its remaining comparison sees equal composed animation lists in the masked case. The old and new composed font can both be 32px while authored font changes 16px to 32px. Comparing those fonts, animation-list equality, or effect duration against current composed CSS cannot distinguish the required update from the already observed initial CSS/effect discrepancy.
+
+## Recommended bounded experiment
+
+Keep existing update reasons authoritative. On an otherwise skipped **normal** restyle of an existing CSS-animation target, schedule a separate verification reason, not unconditional `CSS_ANIMATIONS`. Limit its initial scope to targets whose old or new style reports font/writing-mode-relative units. On the main thread, resolve a fresh underlying timing input and compare its duration list against a snapshot recorded at the preceding admitted update. Only a changed input admits the ordinary CSS manager update. EffectProperties processing remains independent and unchanged.
+
+For a standalone masked invalidation experiment, the snapshot can be an invalidation key only: the admitted manager still receives the existing composed style. This does not adopt the four-source prototype's pre-own timing selection. The observed final state has both authored and animated font 32px, so the existing manager's final duration is 2s. Initial acquisition still uses its existing manager input. An unrelated outline change leaves the underlying duration snapshot at 1s and must not turn that initial applied 1s into 2s. Script-owned duration remains 1250ms because the manager's existing per-field override check remains authoritative.
+
+This avoids unconditional *manager update*, not all extra work. A qualifying outline restyle still incurs a verification task and potentially a recascade. Measure that cost separately. The broad relative-unit flag is a prefilter for this bounded experiment, not a complete animation-duration dependency map. A production design should record timing-property dependencies at value computation or justify a broader verification admission rule; neither is implemented here.
+
+## Why the smaller existing-signal shortcuts are insufficient
+
+| Proposed shortcut | Useful part | Counterexample or limit |
+| --- | --- | --- |
+| Old/new composed font or duration | Cheap existing values | Both remain equal in the measured masked mutation. |
+| `DEPENDS_ON_SELF_FONT_METRICS` | Identifies primary-font metric dependencies | Its definition explicitly excludes em/rem; it is not the em-duration signal. |
+| `USES_FONT_OR_WM_RELATIVE_UNITS` | Includes em/lh/rem usage | Whole-style flag, not duration-specific or a changed-input indication; outline users can qualify too. Use old OR new, never assume it covers custom-property/viewport/container dependencies. |
+| Rule-cache font/line-height conditions | Correctly condition reset-style cache reuse on actual metrics | Cache-local conditions are not historical per-target animation input state. Correct recascade can still produce the same composed duration while the manager was never admitted. |
+| Old/new non-animation rule nodes differ | Covers this element's changed inline font declaration in a tightly limited case | Outline class changes may also change the path. Equal rule nodes miss changed inherited fonts, inherited `--font`, font metrics, viewport/container/root inputs, and reused mutable declaration content unless immutability is established. Pointer equality is not a general safe negative gate. |
+| Recascade old/new rule paths using current parents | Distinguishes direct 16px→32px declaration change and can reject outline-only differences | Both recascades see the *new* inherited/custom/root environment. A pseudo whose host `--font` changes can therefore lose its old input. Requires saved old environment or a historical resolved snapshot. |
+| Compare applied duration with composed CSS | Detects the observed final mismatch | Also detects the legitimate-to-this-experiment initial disagreement and ignores script ownership. An outline restyle would spuriously “repair” the initial state. |
+
+The sparse `KeyframeEffect::mBaseValues` cache was already rejected as a timing snapshot: it is for selected animated/additive properties, not an always-present duration input list. Fresh upstream cache/flag captures here aid discovery; their whole bodies are not joined to the tested build. Exact branch source excerpts are separately identified in SOURCE.json.
+
+## Snapshot, lifecycle and stale tasks
+
+Store an owned value snapshot per CSS animation collection/target and pseudo request, not per rule-node pointer or shared ComputedValues. For duration, preserve the complete authored computed list, including list length, auto/unit representation and order; changes in animation names and other list structure retain the existing full-update path. Do not use the script-overridden applied duration as the snapshot. A full timing-input snapshot could later cover more longhands, but must state its policy explicitly.
+
+Seed the snapshot during the first actual manager construction/update, using the same rule/parent environment captured for that transaction. Do not wait until the first outline verification and silently initialize it then: that would lose an earlier font change. For a fresh process this can be installed at all collection-creation/update sites. A missing snapshot on an existing collection is **unknown**, not equal. Conservatively perform the existing update and seed under a valid transaction, or leave verification pending; do not claim that fallback preserves the initial-policy controls. This fallback must be tested and cannot hide missing creation coverage.
+
+Cancellation, display:none destruction, removal/recreation, pseudo reframe and retargeting must invalidate the snapshot. Key it to the actual current collection/target lifetime and pseudo request; a host pointer plus `::before` string is insufficient across recreation. No collection means use existing creation/cancellation logic; a missing named animation or specified-but-inactive target must not be falsely represented by a successful cached sample. The first bounded verification path covers existing collections only; other cases retain legacy behavior and are not claimed repaired.
+
+A deferred task is a request to verify, not authority to commit its captured value. At execution acquire the current target, current primary style and collection identity. Retain owned style inputs, avoid worker ElementData borrows across FFI, compute the fresh snapshot and perform the update using that same captured transaction. Before recording the new snapshot, validate collection lifetime and source-style/update generation still match; a changed/destroyed target must retain or reschedule verification, not acknowledge newer work with stale input. A monotonic per-target update epoch or an equivalent validated transaction is a **new obligation**, not an existing generation field identified by this research. Arc equality alone cannot establish unchanged parent/root/layout inputs. Existing task handoff/publication prerequisites explain this ownership boundary but do not implement it for this proposal.
+
+For normal synchronous non-reentrant execution, reading the latest published style at task execution avoids seeding from an older queued provisional Arc. That still does not prove all parent/root inputs are fresh. Do not extend this design to animation-only late descendant work by simply removing the guard.
+
+## Focused validation matrix
+
+1. Exact final-only masked update and diagnostic: authored 16→32, own font fixed32, final effect2s/opacity.375 from first getter; retain the initial CSS/effect discrepancy.
+2. Element and `::before` outline and same-value controls: measured timing/output unchanged. Same-value assignment may be optimized away, so include a separately observed actual normal restyle and task/update counters for performance work.
+3. Script duration1250 at currentTime750: .6 before/after; unchanged animation/effect identity, paused state and currentTime. Also CSS animation cancellation/replacement must retain existing semantics.
+4. Pseudo destroy/recreate, display:none toggle, missing-name→defined-name, animation-name/list reorder, zero/auto duration: seed/invalidate correctly and never reuse another collection's snapshot.
+5. Inherited host `--font`, inherited font and lh, root rem/rlh, font loading/ex/ch, viewport/container changes, variable fallback/registration: counterexamples to rule-path and em-only completeness claims. Do not mark them covered without dependency admission and actual runs.
+6. Two mutations before a task, target removal, parent/root change during transaction: stale work must not overwrite a newer snapshot or clear required verification. Use actual native instrumentation if needed, not JS task order as a generation proof.
+7. Repeated outline restyles on literal-duration, relative-unit-on-unrelated-property, and real relative-duration targets: count verification, recascade and full manager updates separately. Expected full manager updates for unchanged input is zero; no performance result is asserted.
+
+The independent descendant first-read failures remain a separate publication problem. A correctly admitted timing update can still generate work after a child has been evaluated. This snapshot design supplies neither a parent publication barrier nor arbitrary-depth completion, and it does not resolve same-element cycles, animation taint, all-own-origin exclusion or selected timing-input policy.

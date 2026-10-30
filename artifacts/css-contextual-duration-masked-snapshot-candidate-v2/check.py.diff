@@ -1,0 +1,84 @@
+--- artifacts/css-contextual-duration-masked-snapshot-candidate-v1/check.py
++++ artifacts/css-contextual-duration-masked-snapshot-candidate-v2/check.py
+@@ -27,7 +27,7 @@
+     assert policy["source_context_pins"] == original["source_role_pins"]
+     assert policy["accepted_current_payloads"] == original["accepted_current_payloads"] and len(policy["accepted_current_payloads"]) == 29
+     roles = read(HERE / "SOURCE-ROLES.json")
+-    assert set(roles) == set(policy["source_paths"]) == {'layout/style/nsAnimationManager.cpp', 'layout/style/AnimationCollection.h', 'layout/style/ServoTypes.h', 'servo/components/style/context.rs', 'layout/style/GeckoBindings.cpp', 'servo/components/style/matching.rs', 'layout/style/nsAnimationManager.h'}
++    assert set(roles) == set(policy["source_paths"]) == {'layout/style/nsAnimationManager.cpp', 'layout/style/AnimationCollection.h', 'layout/style/ServoTypes.h', 'servo/components/style/context.rs', 'layout/style/GeckoBindings.cpp', 'layout/style/GeckoBindings.h', 'servo/components/style/matching.rs', 'layout/style/nsAnimationManager.h'}
+     proposal = ROOT / policy["proposal"]["directory"]
+     assert sha(proposal / "FILES.json") == policy["proposal"]["manifest_sha256"]
+     saved = read(proposal / "SOURCE-ROLES.json")
+@@ -52,7 +52,10 @@
+     assert receipt["head"] == original["head"]
+     assert receipt["original_build_revision"] == built["semantic_index"]["head"] == original["wpt"]["phase_revisions"]["original"]
+     assert receipt["original_build_epoch_sha256"] == sha(ROOT / policy["original_build"]["epoch"])
+-    assert receipt["roles_sha256"] == sha(HERE / "SOURCE-ROLES.json")
++    assert receipt["roles_sha256"] == sha(ROOT / policy["source_equivalence_role_capture"])
++    earlier_roles = read(ROOT / policy["source_equivalence_role_capture"])
++    assert set(earlier_roles) == set(roles) - {"layout/style/GeckoBindings.h"}
++    assert all(roles[name]["base_sha256"] == record["base_sha256"] and roles[name]["candidate_sha256"] == record["candidate_sha256"] for name, record in earlier_roles.items())
+     unpinned = {name for name in roles if name not in built["pins"]}
+     assert set(receipt["sources"]) == unpinned
+     assert set(policy["build_unpinned_sources"]) == set(original["build_unpinned_sources"]) | unpinned
+@@ -74,8 +77,7 @@
+     original = comparison.source_policy(ROOT, policy)
+     assert policy["baseline_binding"] is not None
+     assert policy["head"] == original["head"]
+-    assert policy["controls"] == original["controls"]
+-    assert policy["prepared_application_metadata"] == {key: value for key, value in original["prepared_application_metadata"].items() if key not in ("build_revision", "harness_revision", "source_role")}
++    load("snapshot_recovery_handoff", HERE / "handoff.py").validate(ROOT, policy, original)
+     flag_capture = policy["prepared_flag_capture"]
+     assert policy["references"][flag_capture["path"]] == sha(ROOT / flag_capture["path"]) == flag_capture["sha256"]
+     assert read(ROOT / flag_capture["path"]) == policy["prepared_flag_hashes"]
+@@ -102,6 +104,7 @@
+             pass
+         else:
+             raise AssertionError("invalid source lineage admitted")
++    handoff_check(policy)
+     original = load("masked_original_checks", ROOT / policy["baseline_capsule"]["directory"] / "check.py")
+     original.check(read(ROOT / policy["baseline_capsule"]["directory"] / "POLICY.json"))
+     checks = load("masked_base_stream_checks", ROOT / policy["wpt"]["checks_helper"])
+@@ -129,6 +132,42 @@
+     assert all(row["status"] == "FAIL" for row in observed["rows"])
+     phases_check(policy, baseline, observed)
+     print(json.dumps({"references": len(policy["references"]), "all_failed_comparison_preserved": True, "actual_baseline_pending": policy["baseline_binding"] is None, "browser_or_build_executed": False}))
++
++
++def handoff_check(policy):
++    module = load("snapshot_handoff_tests", HERE / "handoff.py")
++    binding = policy["restoration_handoff"]
++    original = read(ROOT / policy["baseline_capsule"]["directory"] / "POLICY.json")
++    seed = {"admission": read(ROOT / binding["admission"]["path"]),
++            "terminal": read(ROOT / binding["terminal"]["path"]),
++            "refresh": read(ROOT / binding["refresh"]["path"]),
++            "saved": {name: read(ROOT / binding["runtime"] / name) for name in
++                      ("ROOT-BACKUP-CLEANUP.json", "RESTORATION.json", "CANDIDATE-RESULT.json")}}
++    mutations = [
++        lambda x: x["admission"]["prepared_application_metadata"].update(sha256="0" * 64),
++        lambda x: x["admission"]["prepared_application_metadata"].update(browser_build_id="wrong"),
++        lambda x: x["admission"]["prepared_application_metadata"].update(identity=[0, 0]),
++        lambda x: x["admission"].update(head="0" * 40),
++        lambda x: x["admission"]["snapshot"]["nested_index"].update(raw_index="0" * 64),
++        lambda x: x["admission"]["source_role_pins"].pop("layout/style/GeckoBindings.h"),
++        lambda x: x["admission"]["prepared_flag_hashes"].update(root="0" * 64),
++        lambda x: x["saved"]["RESTORATION.json"].update(errors=["failed restoration"]),
++        lambda x: x["saved"]["ROOT-BACKUP-CLEANUP.json"].update(removed=False),
++        lambda x: x["saved"]["CANDIDATE-RESULT.json"].update(success=True),
++        lambda x: x["terminal"].update(browser_executed=True),
++        lambda x: x["refresh"].update(after_epoch="0" * 64),
++        lambda x: x["refresh"].update(only_changed_field="source_pins"),
++    ]
++    for mutate in mutations:
++        bad = copy.deepcopy(seed)
++        mutate(bad)
++        try:
++            module.validate(ROOT, policy, original, bad)
++        except AssertionError:
++            pass
++        else:
++            raise AssertionError("invalid failed-restoration handoff admitted")
++    print(json.dumps({"handoff_positive": 1, "handoff_negatives": len(mutations), "saved_only": True}))
+ 
+ 
+ def phases_check(policy, baseline, observed):

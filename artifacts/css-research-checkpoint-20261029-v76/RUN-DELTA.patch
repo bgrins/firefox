@@ -1,0 +1,89 @@
+--- executed-v69/commit.py
++++ disabled-v76/commit.py
+@@ -12,10 +12,11 @@
+ ROOT = Path(__file__).resolve().parents[2]
+ HERE = Path(__file__).resolve().parent
+ RUNTIME = ROOT / 'artifacts/css-registered-number-native-runtime-v1'
+-HEAD = 'ecfe313d582a335c04d80bfd360fd3a591defdb7'
+-EPOCH = 'e29a6b368f2b5cc98aa8488e62cd40f316988a989ae9b41bb4fca03545f2bfe4'
+-EXECUTION_ENABLED = True
+-INVENTORY = ROOT / 'artifacts/css-continuation-completed-inventory-20261029-v69'
++BINDINGS = json.loads((HERE / 'BINDINGS.json').read_bytes())
++HEAD = BINDINGS['head']
++EPOCH = BINDINGS['epoch_sha256']
++EXECUTION_ENABLED = False
++INVENTORY = ROOT / 'artifacts/css-continuation-completed-inventory-20261029-v76'
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+@@ -36,19 +37,58 @@
+     assert sys.argv[1:] in [['--check'], ['--run']]
+     if sys.argv[1:] == ['--run']:
+         assert EXECUTION_ENABLED, 'Draft signing execution is disabled'
++    required = ('head', 'epoch_sha256', 'selection_sha256', 'inventory_manifest_sha256', 'matching_only_binding', 'reviewer_binding', 'final_state_audit', 'final_roadmap', 'prepared_application_metadata')
++    assert all(BINDINGS.get(name) is not None for name in required), 'Final restoration, selection and reviewer bindings are pending'
++    assert not (HERE / 'result.json').exists(), 'A completed attempt must not be retried'
++    for name, digest in BINDINGS['references'].items():
++        assert name.startswith('artifacts/') and '..' not in Path(name).parts
++        path = ROOT / name
++        assert path.is_file() and not path.is_symlink() and sha(path.read_bytes()) == digest, name
++    for name in ('reviewer_binding', 'final_state_audit', 'final_roadmap'):
++        binding = BINDINGS[name]
++        assert BINDINGS['references'][binding['path']] == binding['sha256']
++    matching = BINDINGS['matching_only_binding']
++    runtime = ROOT / matching['runtime']
++    terminal = json.loads((runtime / 'ROOT-TERMINAL.json').read_bytes())
++    result = json.loads((runtime / 'CANDIDATE-RESULT.json').read_bytes())
++    assert sha((runtime / 'FILES.json').read_bytes()) == matching['runtime_manifest_sha256']
++    assert (terminal['session_id'], terminal['terminal_chunk'], terminal['exit']) == (matching['session_id'], matching['terminal_chunk'], matching['exit']) == (46219, 'd97e6b', 1)
++    assert terminal['result_sha256'] == sha((runtime / 'CANDIDATE-RESULT.json').read_bytes())
++    assert terminal['callbacks_failed'] == 2 and terminal['callbacks_passed'] == 0 and terminal['ending'] == 'OK'
++    assert terminal['comparison_gate_passed'] is False and terminal['native_acceptance'] is False
++    assert terminal['raw_replay_verified'] and terminal['state_and_application_restoration_independently_verified']
++    assert result['success'] is False and result['restoration_verified'] and not result['publication_errors']
++    cleanup = json.loads((runtime / 'ROOT-BACKUP-CLEANUP.json').read_bytes())
++    assert cleanup['removed'] and cleanup['inventory_verified_before_removal'] and cleanup['verified_original_restoration'] and cleanup['owner_failure_receipt_preserved']
++    assert cleanup['owned_backup_bytes'] == terminal['backup_removed_bytes'] == 1008605176
++    refresh = json.loads((ROOT / matching['root_refresh']).read_bytes())
++    assert refresh['after_epoch'] == EPOCH and refresh['full_restored_state_verified']
++    assert refresh['only_changed_field'] == 'raw_index_observation.current'
++    assert refresh['runtime_manifest_sha256'] == matching['runtime_manifest_sha256']
++    assert refresh['observation'] == terminal['raw_index_observation']
++    assert BINDINGS['prepared_application_metadata'] == {name: terminal[name] for name in ('restored_application_entry', 'restored_application_target')}
++    reviewer = json.loads((ROOT / BINDINGS['reviewer_binding']['path']).read_bytes())
++    assert reviewer['exit'] == 0 and reviewer['commit_reviewer'] == 'r?#firefox-style-system-reviewers'
++    assert sha((ROOT / reviewer['log_path']).read_bytes()) == reviewer['log_sha256']
++    audit = json.loads((ROOT / BINDINGS['final_state_audit']['path']).read_bytes())
++    assert audit['head'] == HEAD and audit['epoch_sha256'] == EPOCH and audit['raw_index'] == refresh['observation']['after']
++    assert audit['untracked_count'] == 563 and audit['unrelated_count'] == 495 and audit['project_native_and_support'] + audit['project_wpt'] == 68
++    assert audit['project_hashes_match_committed_recovery'] and audit['unrelated_metadata_verified'] and audit['stable_on_repeat']
++    assert not audit['staged_paths'] and not audit['missing_paths'] and not audit['unexpected_paths']
++    assert (HERE / 'WORK-TABLE.md').read_bytes() == (ROOT / Path(BINDINGS['final_roadmap']['path']).parent / 'WORK-TABLE.md').read_bytes()
+     assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES'))
+     assert git('rev-parse', 'HEAD').decode().strip() == HEAD
+     assert git('symbolic-ref', '--short', 'HEAD').decode().strip() == 'stylo-bloom-verification-2'
+     assert git('config', '--get', 'commit.gpgsign').strip() == b'true'
+-    assert sha((INVENTORY / 'SELECTION.json').read_bytes()) == '4ba7af9d6a7b9e0eddbd19c6dfeb786511230a2083136b83b98f6be5aa031293'
++    assert sha((INVENTORY / 'SELECTION.json').read_bytes()) == BINDINGS['selection_sha256']
+     selected = json.loads((INVENTORY / 'SELECTION.json').read_bytes())
+-    assert sha((INVENTORY / 'FILES.json').read_bytes()) == '897c92964737762b78247452942fd413442f94c7ae5623648bc0812786040b65'
++    assert sha((INVENTORY / 'FILES.json').read_bytes()) == BINDINGS['inventory_manifest_sha256']
+     inventory_files = json.loads((INVENTORY / 'FILES.json').read_bytes())
+     for name, record in inventory_files.items():
+         assert sha((INVENTORY / name).read_bytes()) == record['sha256']
+         assert (INVENTORY / name).stat().st_size == record['bytes']
+     extras = [INVENTORY / name for name in [*inventory_files, 'FILES.json']]
+-    extras += [HERE / name for name in ['commit.py', 'README.md', 'WORK-TABLE.md', 'RUN-DELTA.patch']]
++    extras += [HERE / name for name in ['commit.py', 'README.md', 'WORK-TABLE.md', 'RUN-DELTA.patch', 'BINDINGS.json', 'CHECK.json', 'FILES.json']]
+     for path in extras:
+         selected[str(path.relative_to(ROOT))] = {'sha256': sha(path.read_bytes()), 'bytes': path.stat().st_size}
+     for path, record in selected.items():
+@@ -82,7 +122,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v69-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v76-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)

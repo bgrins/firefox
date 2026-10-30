@@ -1,0 +1,20 @@
+--- artifacts/css-prioritary-selection-candidate-review-disabled-preparation-v1/check.py
++++ artifacts/css-prioritary-selection-candidate-terminal-review-v3/check.py
+@@ -22,7 +22,16 @@
+ policy=r.read(owner/'POLICY.json')
+ roles=r.read(owner/'SOURCE-ROLES.json')
+ consumed=r.consumed_map(owner,policy,roles,config['prepared_owner_manifest_sha256'])
+-assert all(policy[name] is None for name in ['head','baseline_binding','baseline_capsule','controls','prepared_application_metadata','execution_handoff','restoration_binding'])
++assert all(policy[name] is not None for name in ['head','baseline_binding','baseline_capsule','controls','prepared_application_metadata','execution_handoff','restoration_binding'])
++assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
++assert len(policy['intermediate_consumed_inputs'])==685
++actual_comparison=load('actual_original77_replay',owner/'comparison.py')
++actual_originals=actual_comparison.replay_all(ROOT,policy)
++actual_rows=[row for lane in actual_originals.values() for row in lane['rows']]
++assert observation.counts(actual_rows)=={'PASS':49,'FAIL':28}
++assert sum(len(lane['ends']) for lane in actual_originals.values())==12
++actual_targets=[row for lane,original in actual_originals.items() for row in original['rows'] if row['subtest'] in policy['wpt_lanes'][lane]['target_subtests'].get(row['test'],[])]
++assert len(actual_targets)==24 and observation.counts(actual_targets)=={'PASS':4,'FAIL':20}
+ policy['head']='e'*40
+ for settings in [policy['wpt'],*policy['wpt_lanes'].values()]:
+     settings['harness_revision']=policy['head'];settings['phase_revisions']={'original':policy['head'],'candidate':policy['head']}

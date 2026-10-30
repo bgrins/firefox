@@ -1,0 +1,22 @@
+--- prior-disabled-v6/run.py
++++ artifacts/css-contextual-duration-index-refresh-v6/run.py
+@@ -37,7 +37,7 @@
+     terminal = read(PAIR / policy['terminal_path'])
+     assert terminal == policy['terminal'] and terminal['exit'] == 1
+     assert terminal['result_sha256'] == sha(PAIR / 'CANDIDATE-RESULT.json')
+-    assert terminal['restoration_independently_verified'] and terminal['restoration_check_exit'] == 0
++    assert terminal['state_and_application_restoration_independently_verified'] and terminal['raw_replay_verified']
+     assert result == policy['expected_candidate_result']
+     assert not result['success'] and result['restoration_verified'] and result['error'] is not None
+     assert result['runtime_controls_unchanged'] and result['empty_staging_preserved']
+@@ -49,8 +49,8 @@
+     assert backup['verified_original_restoration'] and backup['retained_after_failure'] and not backup['removed']
+     cleanup = read(PAIR / 'ROOT-BACKUP-CLEANUP.json')
+     assert cleanup == policy['root_backup_cleanup'] and cleanup['removed']
+-    assert cleanup['verified_original_restoration'] and cleanup['full_state_verified_against_restored_POST']
+-    assert cleanup['owned_inventory_verified'] and cleanup['historical_owner_result_unchanged']
++    assert cleanup['verified_original_restoration']
++    assert cleanup['inventory_verified_before_removal'] and cleanup['owner_failure_receipt_preserved']
+     assert cleanup['owned_backup_bytes'] == backup['owned_backup_bytes']
+     assert not (PAIR / 'backups').exists() and not (PAIR / 'backups').is_symlink()
+     build = read(PAIR / 'candidate-build/build-RESULT.json')

@@ -1,0 +1,8 @@
+import PendingPosted
+#print axioms PendingPosted.inside_request_does_not_post
+#print axioms PendingPosted.final_exit_premise_creates_stalled
+#print axioms PendingPosted.stalled_request_coalesces
+#print axioms PendingPosted.arbitrary_requests_remain_unposted
+#print axioms PendingPosted.no_composition_after_arbitrary_requests
+#print axioms PendingPosted.external_restyle_can_recompose
+#print axioms PendingPosted.fresh_outside_request_does_post

@@ -1,0 +1,87 @@
+--- artifacts/css-prioritary-selection-original-terminal-review-v1/check.py
++++ artifacts/css-prioritary-selection-original-terminal-review-v2/check.py
+@@ -18,14 +18,28 @@
+ r=load('review_module',HERE/'review.py');observation=load('observation_module',HERE/'observations.py')
+ config,owner=r.authenticate()
+ assert not config['execution_enabled'] and config['actual_terminal'] is None
+-assert config['expected_session']==99665 and config['expected_launch']=='31e9ed'
++assert config['expected_session'] is None and config['expected_launch'] is None and config['owner_manifest_sha256'] is None
+ policy=r.read(owner/'POLICY.json')
++roles=r.read(owner/'SOURCE-ROLES.json')
++consumed=r.consumed_map(owner,policy,roles,config['prepared_owner_manifest_sha256'])
++assert isinstance(policy['head'],str) and len(policy['head'])==40
++assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
++assert len(policy['intermediate_consumed_inputs'])==480
++assert set(policy['restored_context_claims'])=={'servo/components/style/properties/cascade.rs'}
++policy['head']='e'*40
++for settings in [policy['wpt'],*policy['wpt_lanes'].values()]:
++    settings['harness_revision']=policy['head'];settings['phase_revisions']={'original':policy['head'],'candidate':policy['head']}
+ wpt=load('actual_staging',owner/'wpt.py')
+ synthetic=load('saved_synthetic',ROOT/'artifacts/css-prioritary-selection-original-v1/check.py')
+ assessor=load('original_assessor',owner/'assess.py')
+ checks=load('saved_stream_checks',ROOT/policy['wpt']['checks_helper'])
+ results=[]
+-with tempfile.TemporaryDirectory(prefix='css-original74-review-',dir='/private/tmp') as scratch:
++bad_policy=copy.deepcopy(policy)
++bad_policy['intermediate_consumed_inputs'].pop(next(iter(bad_policy['intermediate_consumed_inputs'])))
++try:r.consumed_map(owner,bad_policy,roles,config['prepared_owner_manifest_sha256'])
++except AssertionError:results.append('omitted consumed input rejected by independent closure reconstruction')
++else:raise AssertionError('omitted consumed input accepted')
++with tempfile.TemporaryDirectory(prefix='css-original77-review-',dir='/private/tmp') as scratch:
+     scratch_path=Path(scratch);root=scratch_path/'root';root.mkdir();pair=scratch_path/'runtime';pair.mkdir()
+     (root/'testing/web-platform/tests/tools').mkdir(parents=True)
+     for relative in [policy['owner_directory']+'/assess.py','artifacts/css-minmax-relative-infinity-broader-browser-v5/assess.py',policy['wpt']['checks_helper']]:
+@@ -41,6 +55,16 @@
+     for name in ['capture.py','candidate.html','record.js','receive.py']:
+         target=root/capture_dir/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((ROOT/capture_dir/name).read_bytes())
+     snapshot={'index':{'head':policy['head'],'entries':'e','cached_diff':hashlib.sha256(b'').hexdigest(),'working_diff':hashlib.sha256(b'').hexdigest()},'nested_index':{'same':True},'working_sources_binaries_research_preserved':True,'current_raw_stable_during_check':True}
++    full_snapshot=copy.deepcopy(snapshot)
++    snapshot.pop('working_sources_binaries_research_preserved')
++    snapshot.update(working_sources_binaries_preserved=True,archival_research_not_rechecked=True,verification_scope='intermediate-consumed-inputs-v1',consumed_inputs_sha256=hashlib.sha256(json.dumps(consumed,sort_keys=True,separators=(',',':')).encode()).hexdigest())
++    scope=load('saved_scope',HERE/'review_scope.py')
++    scope.require_full(full_snapshot);scope.require_intermediate(snapshot,consumed)
++    for wrong,check_scope in [(snapshot,scope.require_full),(full_snapshot,lambda value:scope.require_intermediate(value,consumed))]:
++        try:check_scope(wrong)
++        except AssertionError:pass
++        else:raise AssertionError('wrong scope accepted')
++    results.append('limited and full schema substitution rejected directly')
+     binaries={name:'built' for name in policy['rebuilt_binaries']}
+     sources={name:role['candidate_sha256'] for name,role in r.read(owner/'SOURCE-ROLES.json').items()}
+     built={'command_success':True,'preservation_verified':True,'error':None,'native_sources':sources,'binaries':binaries,'snapshot':snapshot,'browser_build_performed':True}
+@@ -70,20 +94,30 @@
+         phase_result={'success':True,'exit':code,'execution_error':None,'preservation_verified':True,'comparison_gate_passed':False,'required_zoom_capture_complete':capture is not None}
+         wpt.save(phase/'RESULT.json',phase_result)
+         phase_receipts[lane]={'lane':lane,'zoom_observation_sha256':zoom,'assessment_sha256':r.sha(phase/'ASSESSMENT.json'),'raw_sha256':r.sha(phase/'raw.jsonl'),'result_sha256':r.sha(phase/'RESULT.json')}
+-    outcomes={'rows':all_rows,'endings':all_ends,'callbacks_passed':0,'callbacks_failed':74,'provider_source_role':'clean-original','native_acceptance':False,'zoom_target_correctness':None,'lanes':phase_receipts}
++    outcomes={'rows':all_rows,'endings':all_ends,'callbacks_passed':0,'callbacks_failed':77,'provider_source_role':'clean-original','native_acceptance':False,'zoom_target_correctness':None,'lanes':phase_receipts}
+     wpt.save(pair/'OUTCOMES.json',outcomes)
+-    result={'success':True,'phase':phase_receipts,'error':None};pre={'snapshot':snapshot};build={'exit':0,'error':None,'stop_reason':None}
++    result={'success':True,'phase':phase_receipts,'error':None};pre={'snapshot':full_snapshot};build={'exit':0,'error':None,'stop_reason':None}
+     inputs={}
+     def record(name):inputs[name]=r.sha(pair/name);return r.read(pair/name)
+     ownership=SimpleNamespace(group_absent=lambda pgid:None)
+-    def run(result):return observation.review(root,HERE,pair,policy,pre,result,build,record,inputs,ownership,r.validate_build_phase)
+-    value=run(result);assert value['observation_complete'] and value['raw_counts']=={'FAIL':74};results.append('complete all74FAIL/11OK and genuine metadata/Zoom replay')
++    def run(result):return observation.review(root,HERE,pair,policy,pre,result,build,record,inputs,ownership,lambda *args:r.validate_build_phase(*args,consumed_inputs=consumed))
++    value=run(result);assert value['observation_complete'] and value['raw_counts']=={'FAIL':77};results.append('complete all77FAIL/12OK and genuine metadata/Zoom replay')
++    original_digest=consumed[next(iter(consumed))]
++    consumed[next(iter(consumed))]='wrong-pin'
++    value=run(result);assert not value['observation_complete'] and value['raw_counts']=={'FAIL':77};results.append('wrong consumed-map digest rejected retaining all rows')
++    consumed[next(iter(consumed))]=original_digest
++    built['snapshot']=full_snapshot;(pair/'original-build/RESULT.json').write_text(json.dumps(built))
++    value=run(result);assert not value['observation_complete'];results.append('full snapshot cannot replace limited build schema')
++    built['snapshot']=snapshot;(pair/'original-build/RESULT.json').write_text(json.dumps(built))
++    pre['snapshot']=snapshot
++    value=run(result);assert not value['observation_complete'];results.append('limited snapshot cannot replace full pre-overlay schema')
++    pre['snapshot']=full_snapshot
+     ordinary=pair/'original-wpt-ordinary'
+     raw_request=ordinary/'tests/__research__/zoom/REQUEST.json';saved_bytes=raw_request.read_bytes();raw_request.unlink()
+-    value=run(result);assert not value['observation_complete'] and value['raw_counts']=={'FAIL':74};results.append('missing Zoom preserves raw but rejects completeness');raw_request.write_bytes(saved_bytes)
++    value=run(result);assert not value['observation_complete'] and value['raw_counts']=={'FAIL':77};results.append('missing Zoom preserves raw but rejects completeness');raw_request.write_bytes(saved_bytes)
+     phase_result=ordinary/'RESULT.json';saved_result=phase_result.read_bytes();phase_result.unlink()
+     failed={'success':False,'phase':None,'error':'AssertionError()'};wpt.save(pair/'FAILURE-TRACEBACK.json',{'error':'AssertionError()'})
+-    value=run(failed);assert not value['observation_complete'] and value['lanes']['ordinary']['browser_exit'] is None and len(value['raw_rows'])==74;results.append('partial lane RESULT absent retains74rows with exitnull');phase_result.write_bytes(saved_result)
++    value=run(failed);assert not value['observation_complete'] and value['lanes']['ordinary']['browser_exit'] is None and len(value['raw_rows'])==77;results.append('partial lane RESULT absent retains77rows with exitnull');phase_result.write_bytes(saved_result)
+     metadata=ordinary/'metadata/forced-colors-mode/forced-colors-mode-51.html.ini';saved_meta=metadata.read_bytes();metadata.write_text('rewritten')
+     value=run(failed);assert not value['observation_complete'] and not value['lanes']['ordinary']['resources_and_metadata_verified'];results.append('rewritten expectedFAIL metadata rejected');metadata.write_bytes(saved_meta)
+     config_file=ordinary/'wptrunner.ini';saved_config=config_file.read_bytes()

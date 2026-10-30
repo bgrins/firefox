@@ -1,0 +1,6 @@
+Research checkpoint V62 — completed bounded min/max comparison.
+
+Accepted state remains 149 fixes / 150 tracked IDs, including accepted pow150. Exact original/candidate raw replay confirms eight target failures repaired: all 18 candidate callbacks pass and ten control plus one ending full signatures are preserved. Root candidate terminal91702/cbf638/0 confirms original source and app restoration and removal of the owned backup. The installed app is the accepted pow build; min/max remains unaccepted.
+
+The source/spec audit and scoped Lean model motivate deferring unresolved relative-infinity comparisons before discarding a child. The model is not a native comparator, n-ary, IEEE or compiler proof. The next conditional browser obligation is the twelve-page broader selection: ten existing pages, the tested18-case page and ten additional n-ary position and explicit-NaN order/serialization cases. Aggregate callback cardinality has not yet been established; no broader execution result is claimed. Root raw-index reconciliation completed37178/b788f9/0; only the recorded raw-index bytes changed, with source/application/Git semantics and acceptance unchanged. The cause of that raw-byte drift remains unknown.
+

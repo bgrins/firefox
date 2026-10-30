@@ -1,0 +1,223 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -10,7 +10,7 @@
+ use crate::context::TreeCountingCaches;
+ use crate::custom_properties::{
+     ComputedCustomProperties, ComputedSubstitutionFunctions, Name, NonCustomReferenceMap,
+-    ReferenceFlags, References, SingleNonCustomReference, SubstitutionFunctionKind, VariableValue,
++    ReferenceFlags, References, SubstitutionFunctionKind, VariableValue,
+     get_attr_value_for_cycle_resolution, handle_invalid_at_computed_value_time,
+     remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
+ };
+@@ -499,6 +499,23 @@
+     }
+ }
+ 
++fn prioritary_adjustment_dependency(
++    ignore_colors: bool,
++    longhand: LonghandId,
++    declaration: &PropertyDeclaration,
++    origin: CascadeOrigin,
++) -> Option<LonghandId> {
++    if !ignore_colors
++        || !longhand.ignored_when_document_colors_disabled()
++        || matches!(origin, CascadeOrigin::UA | CascadeOrigin::User)
++        || declaration.get_css_wide_keyword().is_some()
++    {
++        return None;
++    }
++    debug_assert_eq!(longhand, LonghandId::ColorScheme);
++    Some(LonghandId::ForcedColorAdjust)
++}
++
+ fn tweak_when_ignoring_colors(
+     context: &computed::Context,
+     longhand_id: LonghandId,
+@@ -1114,7 +1131,7 @@
+         attribute_tracker: &mut AttributeTracker,
+     ) {
+         debug_assert!(!longhand_id.is_logical());
+-        if !self.longhand_is_eligible(context, longhand_id, priority) {
++        if !self.longhand_is_eligible(context.included_cascade_flags, longhand_id, priority) {
+             return;
+         }
+         let prepared = self.prepare_longhand(
+@@ -1130,7 +1147,7 @@
+ 
+     fn longhand_is_eligible(
+         &self,
+-        context: &computed::Context,
++        included_flags: RuleCascadeFlags,
+         longhand_id: LonghandId,
+         priority: CascadePriority,
+     ) -> bool {
+@@ -1139,7 +1156,7 @@
+             return false;
+         }
+ 
+-        if !(priority.flags() - context.included_cascade_flags).is_empty() {
++        if !(priority.flags() - included_flags).is_empty() {
+             return false;
+         }
+ 
+@@ -1166,8 +1183,18 @@
+     where
+         'cache: 'decl,
+     {
+-        let mut declaration =
++        let declaration =
+             self.substitute_variables_if_needed(context, cache, declaration, attribute_tracker);
++        self.adjust_prepared_longhand(context, longhand_id, declaration, priority)
++    }
++
++    fn adjust_prepared_longhand<'decl>(
++        &self,
++        context: &computed::Context,
++        longhand_id: LonghandId,
++        mut declaration: Cow<'decl, PropertyDeclaration>,
++        priority: CascadePriority,
++    ) -> PreparedLonghand<'decl> {
+         let mut deferred = DeclarationsToApplyUnlessOverriden::new();
+         if self.ignore_colors {
+             tweak_when_ignoring_colors(
+@@ -2342,13 +2369,26 @@
+             }
+         }
+ 
+-        fn apply_prepared_priority(&mut self, longhand: LonghandId) {
++        fn apply_prepared_priority(
++            &mut self,
++            longhand: LonghandId,
++            attribute_tracker: &mut AttributeTracker,
++        ) {
+             let id = PrioritaryPropertyId::from_longhand(longhand).unwrap();
+             self.cascade.ensured_prioritary.insert(id);
++            for dependency in id.dependencies().iter() {
++                self.cascade.ensure_prioritary_property(
++                    self.computed_context,
++                    self.decls,
++                    self.cache,
++                    attribute_tracker,
++                    dependency,
++                );
++            }
+             let prepared = self.prepared_priorities.remove(&longhand).unwrap();
+             for (declaration, priority) in prepared {
+                 debug_assert!(self.cascade.longhand_is_eligible(
+-                    self.computed_context,
++                    self.computed_context.included_cascade_flags,
+                     longhand,
+                     priority
+                 ));
+@@ -2707,9 +2747,9 @@
+             }
+         } else if let VarType::NonCustom(longhand) = var {
+             let id = PrioritaryPropertyId::from_longhand(longhand).unwrap();
+-            for dependency in id.dependencies().iter() {
++            if longhand == LonghandId::LineHeight {
+                 visit_link(
+-                    VarType::NonCustom(dependency.to_longhand()),
++                    VarType::NonCustom(LonghandId::FontSize),
+                     index,
+                     references_from_non_custom_properties,
+                     context,
+@@ -2728,13 +2768,41 @@
+                 && declaration_index != DeclarationIndex::MAX
+             {
+                 let entry = context.decls.longhand_declarations[declaration_index as usize];
+-                let eligible = context.cascade.longhand_is_eligible(
+-                    context.computed_context,
+-                    longhand,
+-                    entry.priority,
+-                ) && reverted.is_none_or(|(priority, kind)| {
++                let rollback_allows = reverted.is_none_or(|(priority, kind)| {
+                     priority.allows_when_reverted(&entry.priority, kind)
+                 });
++                let included = context.computed_context.included_cascade_flags;
++                if rollback_allows
++                    && entry
++                        .priority
++                        .flags()
++                        .intersects(RuleCascadeFlags::APPEARANCE_BASE)
++                    && !included.intersects(RuleCascadeFlags::APPEARANCE_BASE)
++                    && context.cascade.longhand_is_eligible(
++                        included | RuleCascadeFlags::APPEARANCE_BASE,
++                        longhand,
++                        entry.priority,
++                    )
++                {
++                    visit_link(
++                        VarType::NonCustom(LonghandId::Appearance),
++                        index,
++                        references_from_non_custom_properties,
++                        context,
++                        &mut lowlink,
++                        &mut self_ref,
++                        attribute_tracker,
++                    );
++                }
++                if lowlink != index || self_ref || context.stack.last() != Some(&index) {
++                    break;
++                }
++                let eligible = rollback_allows
++                    && context.cascade.longhand_is_eligible(
++                        context.computed_context.included_cascade_flags,
++                        longhand,
++                        entry.priority,
++                    );
+                 if eligible {
+                     if let PropertyDeclaration::WithVariables(declaration) = entry.decl {
+                         let value = &declaration.value;
+@@ -2756,13 +2824,39 @@
+                     }
+                     let declaration = context
+                         .cascade
+-                        .prepare_longhand(
++                        .substitute_variables_if_needed(
++                            context.computed_context,
++                            context.cache,
++                            entry.decl,
++                            attribute_tracker,
++                        )
++                        .into_owned();
++                    if let Some(dependency) = prioritary_adjustment_dependency(
++                        context.cascade.ignore_colors,
++                        longhand,
++                        &declaration,
++                        entry.priority.cascade_level().origin(),
++                    ) {
++                        visit_link(
++                            VarType::NonCustom(dependency),
++                            index,
++                            references_from_non_custom_properties,
++                            context,
++                            &mut lowlink,
++                            &mut self_ref,
++                            attribute_tracker,
++                        );
++                    }
++                    if lowlink != index || self_ref || context.stack.last() != Some(&index) {
++                        break;
++                    }
++                    let declaration = context
++                        .cascade
++                        .adjust_prepared_longhand(
+                             context.computed_context,
+                             longhand,
+-                            entry.decl,
++                            Cow::Owned(declaration),
+                             entry.priority,
+-                            context.cache,
+-                            attribute_tracker,
+                         )
+                         .into_owned();
+                     let revert = declaration
+@@ -2856,7 +2950,7 @@
+                 }
+             },
+             VarType::NonCustom(non_custom) => {
+-                context.apply_prepared_priority(non_custom);
++                context.apply_prepared_priority(non_custom, attribute_tracker);
+             },
+         }
+         // All resolved, so return the signal value.

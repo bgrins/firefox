@@ -1,0 +1,232 @@
+[
+  {
+    "id": "base-before-effects",
+    "capture": "blink/style_resolver.cc",
+    "source_sha256": "087e0f54a1463b0745c16ae36918d64325e39e346d1681a848cf367b26e3aa07",
+    "first_line": 1445,
+    "last_line": 1473,
+    "permalink": "https://github.com/chromium/chromium/blob/e9e6ab5f300882766d96610c34a026eacb25c88e/third_party/blink/renderer/core/css/resolver/style_resolver.cc#L1445-L1473",
+    "excerpt": "  STACK_UNINITIALIZED StyleCascade cascade(state);\n\n  // Compute the base style, or reuse an existing cached base style if\n  // applicable (ie., only animation has changed). This is the bulk of the\n  // style computation itself, also where the caching for the base\n  // computed style optimization happens.\n  ApplyBaseStyle(element, style_recalc_context, style_request, state, cascade);\n\n  if (style_recalc_context.is_ensuring_style) {\n    state.StyleBuilder().SetIsEnsuredInDisplayNone();\n  }\n\n  if (IsForPseudoElement(*element, style_request) &&\n      state.HadNoMatchedProperties()) {\n    DCHECK(!cascade.InlineStyleLost());\n    return state.TakeStyle();\n  }\n\n  if (ApplyAnimatedStyle(state, cascade, style_recalc_context)) {\n    INCREMENT_STYLE_STATS_COUNTER(GetDocument().GetStyleEngine(),\n                                  styles_animated, 1);\n    StyleAdjuster::AdjustComputedStyle(\n        state, IsForPseudoElement(*element, style_request) ? nullptr : element);\n    StyleAdjuster::RunUncacheableStyleAdjustment(\n        state.StyleBuilder(), *element,\n        IsForPseudoElement(*element, style_request) ? state.GetPseudoElement()\n                                                    : element,\n        state.GetStyledElement(), state.ParentStyle());\n  }\n",
+    "excerpt_sha256": "a41ccdc2e2d4766cb81e392f657597e18af0197462953406081ffd6f9ee790a9"
+  },
+  {
+    "id": "snapshot-and-animation-filter",
+    "capture": "blink/style_resolver.cc",
+    "source_sha256": "087e0f54a1463b0745c16ae36918d64325e39e346d1681a848cf367b26e3aa07",
+    "first_line": 2831,
+    "last_line": 2873,
+    "permalink": "https://github.com/chromium/chromium/blob/e9e6ab5f300882766d96610c34a026eacb25c88e/third_party/blink/renderer/core/css/resolver/style_resolver.cc#L2831-L2873",
+    "excerpt": "  if (!IsAnimationStyleChange(*animating_element) ||\n      !state.StyleBuilder().BaseData()) {\n    state.StyleBuilder().SetBaseData(StyleBaseData::Create(\n        state.StyleBuilder().CloneStyle(), cascade.ReleaseImportantSet()));\n  }\n\n  CSSAnimations::CalculateAnimationUpdate(\n      state.AnimationUpdate(), *animating_element, element,\n      state.StyleBuilder(), state.OldStyle(), state.ParentStyle(), this,\n      state.CanTriggerAnimations());\n  CSSAnimations::CalculateTransitionUpdate(\n      state.AnimationUpdate(), *animating_element, state.StyleBuilder(),\n      state.OldStyle(), style_recalc_context, state.CanTriggerAnimations());\n\n  bool apply = state.AnimationUpdate().HasActiveInterpolations();\n  if (!apply && !animating_element->HasAnimations() &&\n      state.AnimationUpdate().IsEmpty()) {\n    state.StyleBuilder().SetBaseData(nullptr);\n    return false;\n  }\n  if (apply) {\n    const ActiveInterpolationsMap& animations =\n        state.AnimationUpdate().ActiveInterpolationsForAnimations();\n    const ActiveInterpolationsMap& transitions =\n        state.AnimationUpdate().ActiveInterpolationsForTransitions();\n\n    cascade.AddInterpolations(&animations, CascadeOrigin::kAnimation);\n    cascade.AddInterpolations(&transitions, CascadeOrigin::kTransition);\n\n    // Note: this applies the same filter to pseudo-elements as its originating\n    // element since state.GetElement() returns the originating element when\n    // resolving style for pseudo-elements.\n    CascadeFilter filter =\n        UltimateOriginatingElementOrSelf(state.GetElement()).GetCascadeFilter();\n    if (state.StyleBuilder().StyleType() == kPseudoIdMarker) {\n      filter = filter.Add(CSSProperty::kValidForMarker);\n    }\n    if (IsHighlightPseudoElement(state.StyleBuilder().StyleType())) {\n      filter = filter.Add(CSSProperty::kValidForHighlight);\n    }\n    filter = filter.Add(CSSProperty::kNotAnimation);\n\n    cascade.Apply(filter);\n",
+    "excerpt_sha256": "5a2c268bc48f001fa3e7dd0f299ffa9901ce625a5c99512f3074b7446f06430a"
+  },
+  {
+    "id": "font-cache-invalidation",
+    "capture": "blink/style_resolver.cc",
+    "source_sha256": "087e0f54a1463b0745c16ae36918d64325e39e346d1681a848cf367b26e3aa07",
+    "first_line": 3144,
+    "last_line": 3185,
+    "permalink": "https://github.com/chromium/chromium/blob/e9e6ab5f300882766d96610c34a026eacb25c88e/third_party/blink/renderer/core/css/resolver/style_resolver.cc#L3144-L3185",
+    "excerpt": "bool StyleResolver::CanReuseBaseComputedStyle(const StyleResolverState& state) {\n  ElementAnimations* element_animations = GetElementAnimations(state);\n  if (!element_animations || !element_animations->IsAnimationStyleChange()) {\n    return false;\n  }\n\n  StyleBaseData* base_data = GetBaseData(state);\n  const ComputedStyle* base_style =\n      base_data ? base_data->GetBaseComputedStyle() : nullptr;\n  if (!base_style) {\n    return false;\n  }\n\n  // Animating a custom property can have side effects on other properties\n  // via variable references. Disallow base computed style optimization in such\n  // cases.\n  if (CSSAnimations::IsAnimatingCustomProperties(element_animations)) {\n    return false;\n  }\n\n  // We need to build the cascade to know what to revert to.\n  if (CSSAnimations::IsAnimatingRevert(element_animations)) {\n    return false;\n  }\n\n  // When applying an animation or transition for a font affecting property,\n  // font-relative units (e.g. em, ex) in the base style must respond to the\n  // animation. We cannot use the base computed style optimization in such\n  // cases.\n  if (CSSAnimations::IsAnimatingFontAffectingProperties(element_animations)) {\n    if (base_style->HasFontRelativeUnits()) {\n      return false;\n    }\n  }\n\n  // Likewise, When applying an animation or transition for line-height, lh unit\n  // lengths in the base style must respond to the animation.\n  if (CSSAnimations::IsAnimatingLineHeightProperty(element_animations)) {\n    if (base_style->HasLineHeightRelativeUnits()) {\n      return false;\n    }\n  }\n",
+    "excerpt_sha256": "2939d6c5e32452a77f1234464bf1bd3d83967e508bf4d76727bce0e280909b36"
+  },
+  {
+    "id": "animation-only-suppression",
+    "capture": "blink/css_animations.cc",
+    "source_sha256": "a220bfa2fc138b9664b344103b31fe5c331aa2fa37cd7f24be8bb99edb81368b",
+    "first_line": 1892,
+    "last_line": 1916,
+    "permalink": "https://github.com/chromium/chromium/blob/e9e6ab5f300882766d96610c34a026eacb25c88e/third_party/blink/renderer/core/animation/css/css_animations.cc#L1892-L1916",
+    "excerpt": "void CSSAnimations::CalculateAnimationUpdate(\n    CSSAnimationUpdate& update,\n    Element& animating_element,\n    Element& element,\n    const ComputedStyleBuilder& style_builder,\n    const ComputedStyle* old_style,\n    const ComputedStyle* parent_style,\n    StyleResolver* resolver,\n    bool can_trigger_animations) {\n  ElementAnimations* element_animations =\n      animating_element.GetElementAnimations();\n\n  bool is_animation_style_change =\n      !can_trigger_animations ||\n      (element_animations && element_animations->IsAnimationStyleChange());\n\n#if !DCHECK_IS_ON()\n  // If we're in an animation style change, no animations can have started, been\n  // cancelled or changed play state. When DCHECK is enabled, we verify this\n  // optimization.\n  if (is_animation_style_change) {\n    CalculateAnimationActiveInterpolations(update, animating_element);\n    return;\n  }\n#endif\n",
+    "excerpt_sha256": "20920e2ebf5d4d138ec9e0cfe01510ca3b6901a1317e720ddf69aa016af68eab"
+  },
+  {
+    "id": "duration-to-timing",
+    "capture": "blink/css_animations.cc",
+    "source_sha256": "a220bfa2fc138b9664b344103b31fe5c331aa2fa37cd7f24be8bb99edb81368b",
+    "first_line": 1940,
+    "last_line": 1976,
+    "permalink": "https://github.com/chromium/chromium/blob/e9e6ab5f300882766d96610c34a026eacb25c88e/third_party/blink/renderer/core/animation/css/css_animations.cc#L1940-L1976",
+    "excerpt": "  const CSSAnimations* css_animations =\n      element_animations ? &element_animations->CssAnimations() : nullptr;\n\n  Vector<bool> cancel_running_animation_flags(\n      css_animations ? css_animations->running_animations_.size() : 0);\n  for (bool& flag : cancel_running_animation_flags)\n    flag = true;\n\n  if (animation_data &&\n      (style_builder.Display() != EDisplay::kNone ||\n       (old_style && old_style->Display() != EDisplay::kNone))) {\n    const HeapVector<Member<const ScopedCSSName>>& name_list =\n        animation_data->NameList();\n    for (wtf_size_t i = 0; i < name_list.size(); ++i) {\n      const ScopedCSSName* scoped_name = name_list[i];\n      if (!scoped_name) {\n        continue;\n      }\n      const AtomicString& name = scoped_name->GetName();\n      const TreeScope* name_tree_scope = scoped_name->GetTreeScope();\n\n      // Find n where this is the nth occurrence of this animation name.\n      wtf_size_t name_index = 0;\n      for (wtf_size_t j = 0; j < i; j++) {\n        if (name_list[j] && name_list[j]->GetName() == name) {\n          name_index++;\n        }\n      }\n\n      const bool is_paused =\n          CSSTimingData::GetRepeated(animation_data->PlayStateList(), i) ==\n          EAnimPlayState::kPaused;\n\n      Timing timing = animation_data->ConvertToTiming(i);\n      // We need to copy timing to a second object for cases where the original\n      // is modified and we still need original values.\n      Timing specified_timing = timing;\n",
+    "excerpt_sha256": "a2c56c9e2b0392d0c4ae35c4ebd120e5d0752b8fc6c5882b8c1fb0d4544b11ff"
+  },
+  {
+    "id": "timing-update",
+    "capture": "blink/css_animations.cc",
+    "source_sha256": "a220bfa2fc138b9664b344103b31fe5c331aa2fa37cd7f24be8bb99edb81368b",
+    "first_line": 2079,
+    "last_line": 2104,
+    "permalink": "https://github.com/chromium/chromium/blob/e9e6ab5f300882766d96610c34a026eacb25c88e/third_party/blink/renderer/core/animation/css/css_animations.cc#L2079-L2104",
+    "excerpt": "        DCHECK(!trigger_attachments || !trigger_attachments->empty());\n        if (keyframes_rule != existing_animation->style_rule ||\n            keyframes_rule->Version() !=\n                existing_animation->style_rule_version ||\n            existing_animation->specified_timing != specified_timing ||\n            is_paused != was_paused || logical_property_mapping_change ||\n            timeline != existing_animation->Timeline() || range_changed ||\n            trigger_attachments != existing_trigger_attachments) {\n          DCHECK(!is_animation_style_change);\n\n          CSSAnimationProxy animation_proxy(timeline, trigger_attachments,\n                                            animation, !will_be_playing,\n                                            range_start, range_end, timing);\n          update.UpdateAnimation(\n              existing_animation_index, animation,\n              *MakeGarbageCollected<InertEffect>(\n                  CreateKeyframeEffectModel(\n                      resolver, element, animating_element, writing_direction,\n                      parent_style, name, keyframe_timing_function.get(),\n                      composite, i, name_tree_scope),\n                  timing, animation_proxy),\n              specified_timing, keyframes_rule, timeline,\n              animation_data->PlayStateList(), range_start, range_end,\n              trigger_attachments);\n          if (toggle_pause_state)\n            update.ToggleAnimationIndexPaused(existing_animation_index);\n",
+    "excerpt_sha256": "2436d10f7741c3b9eb73f5347cbaf9bc9df7d3e40eb450cb046ce022b419a929"
+  },
+  {
+    "id": "numeric-duration",
+    "capture": "blink/css_to_style_map.cc",
+    "source_sha256": "a76186bb9b749db341bc2c1d57d0fa9deaabeb3d0e0d3cf9c409215b0db8ecce",
+    "first_line": 282,
+    "last_line": 291,
+    "permalink": "https://github.com/chromium/chromium/blob/e9e6ab5f300882766d96610c34a026eacb25c88e/third_party/blink/renderer/core/css/resolver/css_to_style_map.cc#L282-L291",
+    "excerpt": "std::optional<double> CSSToStyleMap::MapAnimationDuration(\n    StyleResolverState& state,\n    const CSSValue& value) {\n  if (auto* identifier = DynamicTo<CSSIdentifierValue>(value);\n      identifier && identifier->GetValueID() == CSSValueID::kAuto) {\n    return std::nullopt;\n  }\n  return To<CSSPrimitiveValue>(value).ComputeSeconds(\n      state.CssToLengthConversionData());\n}\n",
+    "excerpt_sha256": "f511b4a0621087200e7ab058b02349e5921da22d7bc13e10d2d73d9433b06978"
+  },
+  {
+    "id": "filter-definition",
+    "capture": "blink/css_property.h",
+    "source_sha256": "a557f9e4101138ad1ca7e45f57038f9b8837a2537e01451f24fdf17bd1ca7026",
+    "first_line": 229,
+    "last_line": 235,
+    "permalink": "https://github.com/chromium/chromium/blob/e9e6ab5f300882766d96610c34a026eacb25c88e/third_party/blink/renderer/core/css/properties/css_property.h#L229-L235",
+    "excerpt": "    kNotVisited = 1ull << 33,  // Properties that are not kVisited.\n    kInternal = 1 << 8,\n    // Animation properties have this flag set. (I.e. longhands of the\n    // 'animation' and 'transition' shorthands).\n    kAnimation = 1 << 9,\n    kNotAnimation = 1ull << 34,  // Properties that are not kAnimation.\n    // https://drafts.csswg.org/css-pseudo-4/#first-letter-styling\n",
+    "excerpt_sha256": "e2e40d3448938ed413b33d8a29c88a3fdcdbee937e4939221031291adfa80b8b"
+  },
+  {
+    "id": "font-before-dependent-properties",
+    "capture": "blink/style_cascade.cc",
+    "source_sha256": "6ba9ed9670e6481a17cf59decc52bdcee3201f1034bb8e4d72821c9613bcd85b",
+    "first_line": 294,
+    "last_line": 320,
+    "permalink": "https://github.com/chromium/chromium/blob/e9e6ab5f300882766d96610c34a026eacb25c88e/third_party/blink/renderer/core/css/resolver/style_cascade.cc#L294-L320",
+    "excerpt": "void StyleCascade::Apply(CascadeFilter filter) {\n  CollectDeclarationsIfNeeded();\n  state_.InvalidateLengthConversionData();\n\n  if (has_applied_) {\n    map_.ClearAppliedFlags();\n  }\n  has_applied_ = true;\n\n  // For performance avoid stack initialization on this large object.\n  STACK_UNINITIALIZED CascadeResolver resolver(filter);\n\n  ApplyCascadeAffecting(resolver);\n\n  ApplyViewportUnitAffecting(resolver);\n  ApplyHighPriority(resolver);\n  state_.UpdateFont();\n\n  if (map_.NativeBitset().Has(CSSPropertyID::kLineHeight)) {\n    LookupAndApply(GetCSSPropertyLineHeight(), resolver);\n  }\n  state_.UpdateLineHeight();\n\n  ApplyWideOverlapping(resolver);\n\n  ApplyMatchResult(resolver);\n  ApplyInterpolations(resolver);\n",
+    "excerpt_sha256": "3a0f7f454efa90954b8138e7bf52b869dd6acccb582cf8a81b30b09fce2abc0c"
+  },
+  {
+    "id": "base-cache",
+    "capture": "webkit/StyleTreeResolver.cpp",
+    "source_sha256": "7d88d5a5b852e02f44b5f2207e87fbac400b0abeb52714963dd9652fc7c026bc",
+    "first_line": 179,
+    "last_line": 183,
+    "permalink": "https://github.com/WebKit/WebKit/blob/4f16e9eb385db3ca1460ca1ed97cc16823e190fc/Source/WebCore/style/StyleTreeResolver.cpp#L179-L183",
+    "excerpt": "ResolvedStyle TreeResolver::styleForStyleable(const Styleable& styleable, ResolutionType resolutionType, const ResolutionContext& resolutionContext, const Style::ComputedStyle* existingStyle)\n{\n    if (resolutionType == ResolutionType::AnimationOnly && styleable.lastStyleChangeEventStyle() && !styleable.hasPropertiesOverridenAfterAnimation())\n        return { Style::ComputedStyle::clonePtr(*styleable.lastStyleChangeEventStyle()) };\n\n",
+    "excerpt_sha256": "1afc46ab1012175bfdd8bcd5c5d25f42ea03f9a9f45faef4c9ffd0806688d6e6"
+  },
+  {
+    "id": "parent-context",
+    "capture": "webkit/StyleTreeResolver.cpp",
+    "source_sha256": "7d88d5a5b852e02f44b5f2207e87fbac400b0abeb52714963dd9652fc7c026bc",
+    "first_line": 725,
+    "last_line": 734,
+    "permalink": "https://github.com/WebKit/WebKit/blob/4f16e9eb385db3ca1460ca1ed97cc16823e190fc/Source/WebCore/style/StyleTreeResolver.cpp#L725-L734",
+    "excerpt": "ResolutionContext TreeResolver::makeResolutionContext()\n{\n    return {\n        .parentStyle = &parent().style,\n        .parentBoxStyle = parentBoxStyle(),\n        .documentElementStyle = documentElementStyle(),\n        .selectorMatchingState = &scope().selectorMatchingState,\n        .treeResolutionState = &m_treeResolutionState\n    };\n}\n",
+    "excerpt_sha256": "ce1367d13b81f99f74b2b223c2286f2c1d0e1db5d167c721e38269a50e93f036"
+  },
+  {
+    "id": "effect-and-dependent-cascade",
+    "capture": "webkit/StyleTreeResolver.cpp",
+    "source_sha256": "7d88d5a5b852e02f44b5f2207e87fbac400b0abeb52714963dd9652fc7c026bc",
+    "first_line": 915,
+    "last_line": 961,
+    "permalink": "https://github.com/WebKit/WebKit/blob/4f16e9eb385db3ca1460ca1ed97cc16823e190fc/Source/WebCore/style/StyleTreeResolver.cpp#L915-L961",
+    "excerpt": "        auto previousLastStyleChangeEventStyle = styleable.lastStyleChangeEventStyle() ? Style::ComputedStyle::clonePtr(*styleable.lastStyleChangeEventStyle()) : nullptr;\n        // Record the style prior to applying animations for this style change event.\n        styleable.setLastStyleChangeEventStyle(Style::ComputedStyle::clonePtr(*resolvedStyle.style));\n\n        // Apply all keyframe effects to the new style.\n        HashSet<AnimatableCSSProperty> animatedProperties;\n        auto animatedStyle = Style::ComputedStyle::clonePtr(*resolvedStyle.style);\n\n        auto animationImpact = styleable.applyKeyframeEffects(*animatedStyle, animatedProperties, previousLastStyleChangeEventStyle.get(), resolutionContext);\n\n        if (*resolvedStyle.style == *animatedStyle && animationImpact.isEmpty() && previousLastStyleChangeEventStyle)\n            return { WTF::move(resolvedStyle.style), animationImpact };\n\n        if (resolvedStyle.matchResult) {\n            auto animatedStyleBeforeCascadeApplication = Style::ComputedStyle::clonePtr(*animatedStyle);\n            // The cascade may override animated properties and have dependencies to them.\n            auto overriddenAnimatedProperties = applyCascadeAfterAnimation(*animatedStyle, animatedPropertySources(styleable, animatedProperties), *resolvedStyle.matchResult, element, resolutionContext);\n            ASSERT(styleable.keyframeEffectStack());\n            styleable.keyframeEffectStack()->cascadeDidOverrideProperties(overriddenAnimatedProperties, document);\n            styleable.setHasPropertiesOverridenAfterAnimation(!overriddenAnimatedProperties.isEmpty());\n        }\n\n        Adjuster adjuster(document, *resolutionContext.parentStyle, resolutionContext.parentBoxStyle, !styleable.pseudoElementIdentifier ? &styleable.element : nullptr);\n        adjuster.adjustAnimatedStyle(*animatedStyle, animationImpact);\n\n        return { WTF::move(animatedStyle), animationImpact };\n    };\n\n    if (currentStyle && parent().needsUpdateQueryContainerDependentStyle)\n        styleable.queryContainerDidChange();\n\n    // First, update CSS Transitions and timelines (skipped when printing or in back/forward cache).\n    updateTransitionsAndTimelines();\n\n    // CSS Animations must be updated even during printing to reflect the current animation state.\n    // FIXME: CSS Transitions and scroll/view-driven animations may also need to be updated during printing.\n    // The order in which CSS Transitions and CSS Animations are updated matters since CSS Transitions define the after-change style\n    // to use CSS Animations as defined in the previous style change event. As such, we update CSS Animations after CSS Transitions\n    // such that when CSS Transitions are updated the CSS Animations data is the same as during the previous style change event.\n    if (document->backForwardCacheState() == Document::NotInBackForwardCache && !skipAnimationForAnchorPosition) {\n        if ((oldStyle && !oldStyle->animations().isInitial()) || !resolvedStyle.style->animations().isInitial())\n            styleable.updateCSSAnimations(oldStyle, *resolvedStyle.style, resolutionContext, newStyleOriginatedAnimations, isInDisplayNoneTree);\n    }\n\n    // Now we can update all Web animations, which will include CSS Animations as well\n    // as animations created via the JS API.\n    auto [newStyle, animationImpact] = applyAnimations();\n",
+    "excerpt_sha256": "9e5d0b66edda59b8fb636e7361df74382e5bc5450eddccb06c3b006ff3be7c7a"
+  },
+  {
+    "id": "after-animation-builder",
+    "capture": "webkit/StyleTreeResolver.cpp",
+    "source_sha256": "7d88d5a5b852e02f44b5f2207e87fbac400b0abeb52714963dd9652fc7c026bc",
+    "first_line": 1098,
+    "last_line": 1120,
+    "permalink": "https://github.com/WebKit/WebKit/blob/4f16e9eb385db3ca1460ca1ed97cc16823e190fc/Source/WebCore/style/StyleTreeResolver.cpp#L1098-L1120",
+    "excerpt": "HashSet<AnimatableCSSProperty> TreeResolver::applyCascadeAfterAnimation(Style::ComputedStyle& animatedStyle, const HashMap<AnimatableCSSProperty, EnumSet<PropertyCascade::AnimationSource>>& animatedProperties, const MatchResult& matchResult, const Element& element, const ResolutionContext& resolutionContext)\n{\n    auto builderContext = BuilderContext {\n        .document = m_document.get(),\n        .parentStyle = resolutionContext.parentStyle,\n        .parentHighlightStyle = resolutionContext.parentHighlightStyle,\n        .rootElementStyle = resolutionContext.documentElementStyle,\n        .element = &element,\n        .treeResolutionState = &m_treeResolutionState\n    };\n\n    auto styleBuilder = Builder {\n        animatedStyle,\n        WTF::move(builderContext),\n        matchResult,\n        { PropertyCascade::PropertyType::AfterAnimation },\n        &animatedProperties\n    };\n\n    styleBuilder.applyAllProperties();\n\n    return styleBuilder.overriddenAnimatedProperties();\n}\n",
+    "excerpt_sha256": "97effcebcd3c895615cab815c50a6a693168668e3ddf6eef3d5b7f35ab0098de"
+  },
+  {
+    "id": "list-update-and-equality",
+    "capture": "webkit/Styleable.cpp",
+    "source_sha256": "f0de30f08bef3ba161ac49da0f712e54729502263b95fc51d6cdb1ee8b931cb6",
+    "first_line": 396,
+    "last_line": 415,
+    "permalink": "https://github.com/WebKit/WebKit/blob/4f16e9eb385db3ca1460ca1ed97cc16823e190fc/Source/WebCore/style/Styleable.cpp#L396-L415",
+    "excerpt": "void Styleable::updateCSSAnimations(const Style::ComputedStyle* currentStyle, const Style::ComputedStyle& newStyle, const Style::ResolutionContext& resolutionContext, WeakStyleOriginatedAnimations& newStyleOriginatedAnimations, Style::IsInDisplayNoneTree isInDisplayNoneTree) const\n{\n    auto& keyframeEffectStack = ensureKeyframeEffectStack();\n\n    // Cancel all animations and disregard new ones when this element is newly getting\n    // \"display: none\", or when it is in a display:none subtree due to an ancestor (so\n    // that animations restart when the subtree becomes visible again).\n    if (((!currentStyle || currentStyle->display() != Style::DisplayType::None) && newStyle.display() == Style::DisplayType::None)\n        || isInDisplayNoneTree == Style::IsInDisplayNoneTree::Yes) {\n        for (auto& cssAnimation : animationsCreatedByMarkup())\n            cssAnimation->cancelFromStyle();\n        keyframeEffectStack.setCSSAnimationList(std::nullopt);\n        setAnimationsCreatedByMarkup({ });\n        return;\n    }\n\n    auto& currentAnimationList = newStyle.animations();\n    auto& previousAnimationList = keyframeEffectStack.cssAnimationList();\n    if (!element.hasPendingKeyframesUpdate(pseudoElementIdentifier) && previousAnimationList && !previousAnimationList->isInitial() && !newStyle.animations().isInitial() && *previousAnimationList == newStyle.animations() && !animationListContainsNewlyValidAnimation(newStyle.animations()))\n        return;\n",
+    "excerpt_sha256": "0cbe0dc56547a51d78b99d85e3636e874862074337c6f914c1fd797f8a780032"
+  },
+  {
+    "id": "backing-duration-update",
+    "capture": "webkit/Styleable.cpp",
+    "source_sha256": "f0de30f08bef3ba161ac49da0f712e54729502263b95fc51d6cdb1ee8b931cb6",
+    "first_line": 444,
+    "last_line": 464,
+    "permalink": "https://github.com/WebKit/WebKit/blob/4f16e9eb385db3ca1460ca1ed97cc16823e190fc/Source/WebCore/style/Styleable.cpp#L444-L464",
+    "excerpt": "            bool foundMatchingAnimation = false;\n            for (auto& previousAnimation : previousAnimations) {\n                if (previousAnimation->animationName() == currentAnimationName) {\n                    // Timing properties or play state may have changed so we need to update the backing animation with\n                    // the Animation found in the current style.\n                    previousAnimation->setBackingStyleAnimation(currentAnimation, newStyle.usedZoomForLength());\n                    // Keyframes may have been cleared if the @keyframes rules was changed since\n                    // the last style update, so we must ensure keyframes are picked up.\n                    previousAnimation->updateKeyframesIfNeeded(currentStyle, newStyle, resolutionContext);\n                    newStyleOriginatedAnimations.append(previousAnimation.ptr());\n                    newAnimations.add(previousAnimation);\n                    // Remove the matched animation from the list of previous animations so we may not match it again.\n                    previousAnimations.remove(previousAnimation);\n                    foundMatchingAnimation = true;\n                    break;\n                }\n            }\n\n            if (!foundMatchingAnimation && isInDisplayNoneTree == Style::IsInDisplayNoneTree::No) {\n                auto cssAnimation = CSSAnimation::create(*this, Style::Animation { currentAnimation }, newStyle.usedZoomForLength(), currentStyle, newStyle, resolutionContext);\n                newStyleOriginatedAnimations.append(cssAnimation.ptr());\n",
+    "excerpt_sha256": "1ae941f31cb3d22ec0852eac521d818da17273478d3b8d76e81373541d72a5ec"
+  },
+  {
+    "id": "backing-timing-duration",
+    "capture": "webkit/CSSAnimation.cpp",
+    "source_sha256": "aa77a958fe3f5d8c997062d2af69335e5d5fe09d3c5f0ccc72da9b81617a7454",
+    "first_line": 142,
+    "last_line": 154,
+    "permalink": "https://github.com/WebKit/WebKit/blob/4f16e9eb385db3ca1460ca1ed97cc16823e190fc/Source/WebCore/animation/CSSAnimation.cpp#L142-L154",
+    "excerpt": "    if (!m_overriddenProperties.contains(Property::Delay))\n        animationEffect->setDelay(Seconds(animation.delay().value));\n\n    if (!m_overriddenProperties.contains(Property::Duration)) {\n        WTF::switchOn(animation.duration(),\n            [&](const CSS::Keyword::Auto&) {\n                animationEffect->setIterationDuration(std::nullopt);\n            },\n            [&](const Style::SingleAnimationDuration::Time& time) {\n                animationEffect->setIterationDuration(Seconds(time.value));\n            }\n        );\n    }\n",
+    "excerpt_sha256": "b1985c50c640a7b3b60a17fdd258e5487b60bda7eff88d47b4da3ec389869047"
+  },
+  {
+    "id": "post-animation-selection",
+    "capture": "webkit/PropertyCascade.cpp",
+    "source_sha256": "81f1b4a958f8552b46621bc0795d1906cfb9490f4832924102a63bcfca639783",
+    "first_line": 351,
+    "last_line": 361,
+    "permalink": "https://github.com/WebKit/WebKit/blob/4f16e9eb385db3ca1460ca1ed97cc16823e190fc/Source/WebCore/style/PropertyCascade.cpp#L351-L361",
+    "excerpt": "            // If we have applied this property for some reason already we must apply anything that overrides it.\n            if (mayOverrideExistingProperty(propertyID, *current.value()))\n                return true;\n\n            if (m_includedProperties.types.contains(PropertyType::AfterAnimation)) {\n                if (shouldApplyAfterAnimation(current)) {\n                    m_animationLayer->overriddenProperties.add(propertyID);\n                    return true;\n                }\n                return false;\n            }\n",
+    "excerpt_sha256": "38bc3c7e37fe3bbceeeca3f09fdbac120f092e9708610580e23c081d7763745a"
+  },
+  {
+    "id": "font-dependent-reapplication",
+    "capture": "webkit/PropertyCascade.cpp",
+    "source_sha256": "81f1b4a958f8552b46621bc0795d1906cfb9490f4832924102a63bcfca639783",
+    "first_line": 391,
+    "last_line": 426,
+    "permalink": "https://github.com/WebKit/WebKit/blob/4f16e9eb385db3ca1460ca1ed97cc16823e190fc/Source/WebCore/style/PropertyCascade.cpp#L391-L426",
+    "excerpt": "bool PropertyCascade::shouldApplyAfterAnimation(const StyleProperties::PropertyReference& property)\n{\n    ASSERT(m_animationLayer);\n\n    auto id = property.id();\n    RefPtr customProperty = dynamicDowncast<CSSCustomPropertyValue>(*property.value());\n\n    auto animationSource = m_animationLayer->properties.getOptional(customProperty ? AnimatableCSSProperty { customProperty->name() } : id);\n    if (animationSource) {\n        // \"Important declarations from all origins take precedence over animations.\"\n        // https://drafts.csswg.org/css-cascade-5/#importance\n        // But transitions take precedence over !important, so only allow the\n        // override for properties not animated by a transition.\n        return !animationSource->contains(AnimationSource::CSSTransition) && property.isImportant();\n    }\n\n    // If we are animating custom properties they may affect other properties so we need to re-resolve them.\n    if (m_animationLayer->hasCustomProperties) {\n        // We could check if the we are actually animating the referenced variable. Indirect cases would need to be taken into account.\n        if (customProperty && customProperty->isVariableReference())\n            return true;\n        if (property.value()->hasSubstitutionFunctions())\n            return true;\n    }\n\n    // Check for 'em' units and similar property dependencies.\n    if (m_animationLayer->hasFontSize || m_animationLayer->hasLineHeight) {\n        auto dependencies = protect(property.value())->computedStyleDependencies();\n        if (m_animationLayer->hasFontSize && dependencies.properties.contains(CSSPropertyID::FontSize))\n            return true;\n        if (m_animationLayer->hasLineHeight && dependencies.properties.contains(CSSPropertyID::LineHeight))\n            return true;\n    }\n\n    return false;\n}\n",
+    "excerpt_sha256": "df44427f316131c9af6158b569cc4fa3f9339e2dffccb25f638fa65eb334f960"
+  },
+  {
+    "id": "metric-priority",
+    "capture": "webkit/StyleBuilder.cpp",
+    "source_sha256": "199cf474cc0c60541b5463a1c7df81b7045e44cc3edc973624295fac0521deca",
+    "first_line": 117,
+    "last_line": 126,
+    "permalink": "https://github.com/WebKit/WebKit/blob/4f16e9eb385db3ca1460ca1ed97cc16823e190fc/Source/WebCore/style/StyleBuilder.cpp#L117-L126",
+    "excerpt": "void Builder::applyAllProperties()\n{\n    if (m_cascade.isEmpty())\n        return;\n\n    applyTopPriorityProperties();\n    applyHighPriorityProperties();\n    applyNonHighPriorityProperties();\n\n    adjustAfterApplying();\n",
+    "excerpt_sha256": "b23ddaf62acb1d53dacdf7ea819545c0804e011f6f34fd565230dbbe894324d6"
+  },
+  {
+    "id": "font-and-lineheight-priority",
+    "capture": "webkit/StyleBuilder.cpp",
+    "source_sha256": "199cf474cc0c60541b5463a1c7df81b7045e44cc3edc973624295fac0521deca",
+    "first_line": 148,
+    "last_line": 167,
+    "permalink": "https://github.com/WebKit/WebKit/blob/4f16e9eb385db3ca1460ca1ed97cc16823e190fc/Source/WebCore/style/StyleBuilder.cpp#L148-L167",
+    "excerpt": "// High priority properties may affect resolution of other properties (they are mostly font related).\nvoid Builder::applyHighPriorityProperties()\n{\n    if (m_cascade.applyLowPriorityOnly())\n        return;\n\n    applyProperties(firstHighPriorityProperty, lastHighPriorityProperty);\n    m_state->updateFont();\n    // This needs to apply before other properties for the `lh` unit, but after updating the font.\n    applyProperties(CSSPropertyID::LineHeight, CSSPropertyID::LineHeight);\n}\n\nvoid Builder::applyNonHighPriorityProperties()\n{\n    ASSERT(!m_state->fontDirty());\n\n    applyProperties(firstLowPriorityProperty, lastLowPriorityProperty);\n    applyLogicalGroupProperties();\n    // Any referenced custom properties are already resolved. This will resolve the remaining ones.\n    applyCustomProperties();\n",
+    "excerpt_sha256": "02eafe577e124dca95516f0bd30ca4de606bb091551536c2bda313c434bdc91c"
+  },
+  {
+    "id": "numeric-calc-evaluation",
+    "capture": "webkit/StylePrimitiveNumericTypes+Conversions.h",
+    "source_sha256": "c6f59e1f02ce57a9274937ae94027de6e9e9917b939640914125d12f04a82dd7",
+    "first_line": 327,
+    "last_line": 344,
+    "permalink": "https://github.com/WebKit/WebKit/blob/4f16e9eb385db3ca1460ca1ed97cc16823e190fc/Source/WebCore/style/values/primitives/StylePrimitiveNumericTypes+Conversions.h#L327-L344",
+    "excerpt": "template<CSS::NumericRaw RawType> struct ToStyle<CSS::UnevaluatedCalc<RawType>> {\n    using From = CSS::UnevaluatedCalc<RawType>;\n    using To = typename ToStyleMapping<typename RawToCSSMapping<RawType>::type>::type;\n\n    template<typename... Rest> auto operator()(const From& value, Rest&&... rest) -> To\n    {\n        return { canonicalize(RawType { To::unit, value.evaluate(rest...) }, rest...) };\n    }\n};\n\ntemplate<CSS::Numeric NumericType> struct ToStyle<NumericType> {\n    using From = NumericType;\n    using To = typename ToStyleMapping<From>::type;\n\n    template<typename... Rest> auto operator()(const From& value, Rest&&... rest) -> To\n    {\n        return WTF::switchOn(value, [&](const auto& value) -> To { return toStyle(value, std::forward<Rest>(rest)...); });\n    }\n",
+    "excerpt_sha256": "59aab8d44568921ad5a88bf9dfd5a4105308302f40a78a87e7b5bad42bbad931"
+  },
+  {
+    "id": "metric-dependencies",
+    "capture": "webkit/CSSPrimitiveNumericTypes+ComputedStyleDependencies.cpp",
+    "source_sha256": "91bc27f441cf07ff38d450db71c937a72440721fe9652b6924516a8b0e0e3ea0",
+    "first_line": 36,
+    "last_line": 63,
+    "permalink": "https://github.com/WebKit/WebKit/blob/4f16e9eb385db3ca1460ca1ed97cc16823e190fc/Source/WebCore/css/values/primitives/CSSPrimitiveNumericTypes+ComputedStyleDependencies.cpp#L36-L63",
+    "excerpt": "void ComputedStyleDependenciesCollector<LengthUnit>::operator()(ComputedStyleDependencies& dependencies, LengthUnit lengthUnit)\n{\n    using enum LengthUnit;\n\n    switch (lengthUnit) {\n    case Rcap:\n    case Rch:\n    case Rex:\n    case Ric:\n    case Rem:\n        dependencies.rootProperties.appendIfNotContains(CSSPropertyID::FontSize);\n        break;\n    case Rlh:\n        dependencies.rootProperties.appendIfNotContains(CSSPropertyID::FontSize);\n        dependencies.rootProperties.appendIfNotContains(CSSPropertyID::LineHeight);\n        break;\n    case Em:\n    case QuirkyEm:\n    case Ex:\n    case Cap:\n    case Ch:\n    case Ic:\n        dependencies.properties.appendIfNotContains(CSSPropertyID::FontSize);\n        break;\n    case Lh:\n        dependencies.properties.appendIfNotContains(CSSPropertyID::FontSize);\n        dependencies.properties.appendIfNotContains(CSSPropertyID::LineHeight);\n        break;\n",
+    "excerpt_sha256": "9136f6c2da8057b2e21db491246fefb0fdd75f47c7b06f1ac20b4f93c671e9d6"
+  },
+  {
+    "id": "backing-to-sync-call",
+    "capture": "webkit/CSSAnimation.cpp",
+    "source_sha256": "aa77a958fe3f5d8c997062d2af69335e5d5fe09d3c5f0ccc72da9b81617a7454",
+    "first_line": 67,
+    "last_line": 72,
+    "permalink": "https://github.com/WebKit/WebKit/blob/4f16e9eb385db3ca1460ca1ed97cc16823e190fc/Source/WebCore/animation/CSSAnimation.cpp#L67-L72",
+    "excerpt": "void CSSAnimation::setBackingStyleAnimation(const Style::Animation& backingStyleAnimation, Style::ZoomFactor backingStyleZoomForLength)\n{\n    m_backingStyleAnimation = backingStyleAnimation;\n    m_backingStyleZoomForLength = backingStyleZoomForLength;\n    syncPropertiesWithBackingAnimation();\n}\n",
+    "excerpt_sha256": "a44d380c5ca1e189f1549c15bb412753049e95c92248314a68178f3025738883"
+  }
+]

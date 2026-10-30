@@ -1,0 +1,125 @@
+--- artifacts/css-contextual-duration-progress-candidate-v1/check.py
++++ artifacts/css-contextual-duration-same-element-candidate-v1/check.py
+@@ -25,10 +25,10 @@
+     source = read(source_dir / 'POLICY.json')
+     load('original_saved_binding_check', source_dir / 'check.py').check_binding(source)
+     assert policy['controls'] == source['controls'] and policy['head'] == source['head']
+-    assert policy['prepared_application_metadata'] == {key: value for key, value in source['prepared_application_metadata'].items() if key not in ('build_revision', 'harness_revision', 'source_role')}
++    assert policy['prepared_application_metadata'] is None and source['prepared_application_metadata'] is None
+     assert policy['accepted_current_payloads'] == source['accepted_current_payloads'] and len(policy['accepted_current_payloads']) == 29
+     assert policy['source_context_pins'] == source['source_role_pins']
+-    assert policy['record_kinds'] == source['record_kinds'] and len(policy['record_kinds']) == 9
++    assert policy['record_kinds'] == source['record_kinds'] and len(policy['record_kinds']) == 2
+     roles = read(HERE / 'SOURCE-ROLES.json')
+     assert set(roles) == set(policy['source_paths']) == {'dom/animation/EffectCompositor.cpp', 'dom/animation/EffectCompositor.h', 'servo/components/style/matching.rs'}
+     landing = ROOT / policy['landing_package']['directory']
+@@ -41,7 +41,9 @@
+         assert role['candidate_sha256'] == sha(ROOT / role['candidate_capture']) == sha(landing / payloads[name]['payload']) == payloads[name]['candidate_sha256']
+     comparison = load('progress_comparison_check', HERE / 'comparison.py')
+     assert policy['wpt'] == comparison.expected_wpt(ROOT, policy)
+-    assert len(policy['wpt']['expected_subtests']) == 3 and sum(map(len, policy['wpt']['expected_subtests'].values())) == 9
++    assert len(policy['wpt']['expected_subtests']) == 1 and sum(map(len, policy['wpt']['expected_subtests'].values())) == 2
++    assert policy['admission_binding'] is None and policy['prepared_flag_hashes'] is None
++    assert policy['baseline_binding'] is None, 'Actual baseline admission requires reviewed binding validation'
+     if policy['baseline_binding'] is None:
+         assert not policy['execution_enabled'] and not policy['candidate_execution_enabled'] and policy['activation_pending']
+ 
+@@ -58,6 +60,15 @@
+         assert sha(ROOT / name) == digest, name
+     source = read(ROOT / policy['baseline_capsule']['directory'] / 'POLICY.json')
+     comparison = load('progress_static_comparison', HERE / 'comparison.py')
++    complete = {'complete': True, 'errors': [], 'missing': [], 'records': {'a': {}, 'b': {}}}
++    comparison.require_complete_collection(complete, {'complete_records': 2})
++    missing = dict(complete, complete=False, records={'a': {}}, missing=[{'status': 'FAIL'}])
++    try:
++        comparison.require_complete_collection(missing, {'complete_records': 2})
++    except AssertionError:
++        pass
++    else:
++        raise AssertionError('Missing original FAIL record was accepted as complete')
+     assessor = load('progress_static_assessor', HERE / 'assess.py')
+     checks = load('progress_static_streams', ROOT / policy['wpt']['checks_helper'])
+     settings = copy.deepcopy(policy['wpt'])
+@@ -74,13 +85,13 @@
+     events.append({'action': 'suite_end'})
+     original = copy.deepcopy(events)
+     rows = [row for row in original if row['action'] == 'test_status']
+-    for row in rows[1:6]:
++    for row in rows[:1]:
+         row.update(status='FAIL', expected='PASS', message='synthetic ordinary or animated failure')
+     settings['target_subtests'] = {page: [row['subtest'] for row in rows if row['test'] == page and row['status'] == 'FAIL'] for page in settings['expected_subtests']}
+-    settings.update(expected_target_count=5, expected_control_count=4, expected_regression_signature_count=7)
++    settings.update(expected_target_count=1, expected_control_count=1, expected_regression_signature_count=2)
+     configuration = comparison.phase_policy(settings)
+     saved = assessor.assess(original, 1, configuration, checks, run_binding=app)
+-    assert saved['complete'] and len(saved['regression_signature']) == 7
++    assert saved['complete'] and len(saved['regression_signature']) == 2
+     candidate = copy.deepcopy(events)
+     candidate[0]['run_info']['browser_build_id'] = 'candidate-build'
+ 
+@@ -97,10 +108,10 @@
+         rejected.append(label)
+ 
+     def row(value):
+-        return next(item for item in value if item.get('action') == 'test_status')
++        return [item for item in value if item.get('action') == 'test_status'][1]
+ 
+     reject('original PASS changed', lambda value: row(value).update(status='FAIL', expected='PASS', message='regression'), 1)
+-    reject('repair still FAIL', lambda value: [item for item in value if item.get('action') == 'test_status'][1].update(status='FAIL', expected='PASS', message='still stale'), 1)
++    reject('repair still FAIL', lambda value: [item for item in value if item.get('action') == 'test_status'][0].update(status='FAIL', expected='PASS', message='still stale'), 1)
+     reject('PASS message changed', lambda value: row(value).update(message='new diagnostic'))
+     reject('expected field presence changed', lambda value: row(value).update(expected='PASS'))
+     reject('intermittent field presence changed', lambda value: row(value).update(known_intermittent=[]))
+@@ -111,7 +122,8 @@
+     reject('crash', lambda value: value.append({'action': 'crash'}))
+     reject('wrong exit', lambda value: None, 1)
+     check_failure_retention(policy)
+-    print(json.dumps({'synthetic_five_failure_projection_repaired': True, 'ordinary_or_animated_failure_names_treated_equally': True, 'negative_checks': rejected, 'references_authenticated': len(policy['references']), 'baseline_actual_binding_pending': policy['baseline_binding'] is None, 'browser_or_live_guard_executed': False}))
++    check_record_projection(policy)
++    print(json.dumps({'synthetic_acyclic_failure_repaired': True, 'ordinary_or_animated_failure_names_treated_equally': True, 'negative_checks': rejected, 'references_authenticated': len(policy['references']), 'baseline_actual_binding_pending': policy['baseline_binding'] is None, 'browser_or_live_guard_executed': False}))
+ 
+ 
+ def check_failure_retention(policy):
+@@ -140,9 +152,41 @@
+         else:
+             raise AssertionError('failed comparison was relabeled successful')
+         receipt = read(output / 'PROGRESS-RECORDS.json')
+-        assert len(receipt['missing']) == 9 and not receipt['errors'] and not receipt['complete']
++        assert len(receipt['missing']) == 2 and not receipt['errors'] and not receipt['complete']
+         assert (output / 'candidate-wpt/raw.jsonl').read_text() == 'retained synthetic raw evidence'
+     assert not output.exists()
++
++
++def check_record_projection(policy):
++    import tempfile
++    phases = load('record_projection_check', HERE / 'phases.py')
++    with tempfile.TemporaryDirectory(prefix='same-element-record-projection-', dir='/private/tmp') as temporary:
++        root = Path(temporary)
++        original = root / 'original/progress-records'
++        candidate = root / 'candidate/progress-records'
++        original.mkdir(parents=True)
++        candidate.mkdir(parents=True)
++        collection = {'records': {}, 'errors': [], 'missing': []}
++        for filename in policy['record_kinds']:
++            body = read(ROOT / policy['historical_compact_original']['directory'] / 'records' / filename)
++            (original / filename).write_text(json.dumps(body))
++            changed = copy.deepcopy(body)
++            changed['run_id'] = 'distinct_candidate_run'
++            changed['observations']['contextual']['samples'][0]['value'] = None
++            (candidate / filename).write_text(json.dumps(changed))
++            collection['records'][filename] = {'schema_valid': True}
++        current = dict(policy, baseline_binding={'directory': 'original'})
++        report = phases.record_comparison(root, root / 'candidate', current, collection)
++        assert all(row['observations_equal'] is False for row in report['records'].values())
++        assert not report['numeric_or_cycle_endpoint_gate']
++        first = next(iter(policy['record_kinds']))
++        (candidate / first).write_text('malformed retained body')
++        collection['records'][first]['schema_valid'] = False
++        collection['errors'] = ['retained schema failure']
++        report = phases.record_comparison(root, root / 'candidate', current, collection)
++        assert report['records'][first]['candidate'] is None
++        assert report['candidate_collection']['errors'] == ['retained schema failure']
++    assert not root.exists()
+ 
+ 
+ if __name__ == '__main__':

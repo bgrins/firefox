@@ -1,0 +1,116 @@
+ 525: void Gecko_UpdateAnimations(const Element* aElement,
+ 526:                             const ComputedStyle* aOldComputedData,
+ 527:                             const ComputedStyle* aComputedData,
+ 528:                             UpdateAnimationsTasks aTasks) {
+ 529:   MOZ_ASSERT(NS_IsMainThread());
+ 530:   MOZ_ASSERT(aElement);
+ 531: 
+ 532:   if (!aElement->IsInComposedDoc()) {
+ 533:     return;
+ 534:   }
+ 535: 
+ 536:   nsPresContext* presContext = nsContentUtils::GetContextForContent(aElement);
+ 537:   if (!presContext || !presContext->IsDynamic()) {
+ 538:     return;
+ 539:   }
+ 540: 
+ 541:   nsAutoAnimationMutationBatch mb(aElement->OwnerDoc());
+ 542: 
+ 543:   const auto [element, pseudoRequest] =
+ 544:       AnimationUtils::GetElementPseudoPair(aElement);
+ 545: 
+ 546:   // Handle timeline scopes first, because our own scroll/view-linked animations
+ 547:   // may be affected.
+ 548:   if (aTasks & UpdateAnimationsTasks::TimelineScopes) {
+ 549:     presContext->TimelineManager()->UpdateTimelineScopes(element,
+ 550:                                                          aComputedData);
+ 551:     // We could try to limit the impact here, at least for changes involving not
+ 552:     // `all`. However, defer any such optimization until after bug 2024012.
+ 553:     presContext->AnimationManager()->UpdateAllNamedTimelineAnimations();
+ 554:   }
+ 555: 
+ 556:   // Handle scroll/view timelines first because CSS animations may refer to the
+ 557:   // timeline defined by itself.
+ 558:   if (aTasks & UpdateAnimationsTasks::ScrollTimelines) {
+ 559:     const auto affected = presContext->TimelineManager()->UpdateTimelines(
+ 560:         const_cast<Element*>(element), pseudoRequest, aComputedData,
+ 561:         TimelineManager::ProgressTimelineType::Scroll);
+ 562:     presContext->AnimationManager()->UpdateNamedTimelineAnimations(affected);
+ 563:   }
+ 564: 
+ 565:   if (aTasks & UpdateAnimationsTasks::ViewTimelines) {
+ 566:     const auto affected = presContext->TimelineManager()->UpdateTimelines(
+ 567:         const_cast<Element*>(element), pseudoRequest, aComputedData,
+ 568:         TimelineManager::ProgressTimelineType::View);
+ 569:     presContext->AnimationManager()->UpdateNamedTimelineAnimations(affected);
+ 570:   }
+ 571: 
+ 572:   if (aTasks & UpdateAnimationsTasks::CSSAnimations) {
+ 573:     presContext->AnimationManager()->UpdateAnimations(
+ 574:         const_cast<Element*>(element), pseudoRequest, aComputedData);
+ 575:   }
+ 576: 
+ 577:   // aComputedData might be nullptr if the target element is now in a
+ 578:   // display:none subtree. We still call Gecko_UpdateAnimations in this case
+ 579:   // because we need to stop CSS animations in the display:none subtree.
+ 580:   // However, we don't need to update transitions since they are stopped by
+ 581:   // RestyleManager::AnimationsWithDestroyedFrame so we just return early
+ 582:   // here.
+ 583:   if (!aComputedData) {
+ 584:     return;
+ 585:   }
+ 586: 
+ 587:   if (aTasks & UpdateAnimationsTasks::CSSTransitions) {
+ 588:     MOZ_ASSERT(aOldComputedData);
+ 589:     presContext->TransitionManager()->UpdateTransitions(
+ 590:         const_cast<Element*>(element), pseudoRequest, *aOldComputedData,
+ 591:         *aComputedData);
+ 592:   }
+ 593: 
+ 594:   if (aTasks & UpdateAnimationsTasks::EffectProperties) {
+ 595:     presContext->EffectCompositor()->UpdateEffectProperties(
+ 596:         aComputedData, const_cast<Element*>(element), pseudoRequest);
+ 597:   }
+ 598: 
+ 599:   if (aTasks & UpdateAnimationsTasks::CascadeResults) {
+ 600:     EffectSet* effectSet = EffectSet::Get(element, pseudoRequest);
+ 601:     // CSS animations/transitions might have been destroyed as part of the above
+ 602:     // steps so before updating cascade results, we check if there are still any
+ 603:     // animations to update.
+ 604:     if (effectSet) {
+ 605:       // We call UpdateCascadeResults directly (intead of
+ 606:       // MaybeUpdateCascadeResults) since we know for sure that the cascade has
+ 607:       // changed, but we were unable to call MarkCascadeUpdated when we noticed
+ 608:       // it since we avoid mutating state as part of the Servo parallel
+ 609:       // traversal.
+ 610:       presContext->EffectCompositor()->UpdateCascadeResults(
+ 611:           *effectSet, const_cast<Element*>(element), pseudoRequest);
+ 612:     }
+ 613:   }
+ 614: 
+ 615:   if (aTasks & UpdateAnimationsTasks::DisplayChangedFromNone) {
+ 616:     presContext->EffectCompositor()->RequestRestyle(
+ 617:         const_cast<Element*>(element), pseudoRequest,
+ 618:         EffectCompositor::RestyleType::Standard,
+ 619:         EffectCompositor::CascadeLevel::Animations);
+ 620:   }
+ 621: }
+ 622: 
+ 623: size_t Gecko_GetAnimationEffectCount(const Element* aElementOrPseudo) {
+ 624:   const auto [element, pseudo] =
+ 625:       AnimationUtils::GetElementPseudoPair(aElementOrPseudo);
+ 626: 
+ 627:   EffectSet* effectSet = EffectSet::Get(element, pseudo);
+ 628:   return effectSet ? effectSet->Count() : 0;
+ 629: }
+ 630: 
+ 631: bool Gecko_ElementHasAnimations(const Element* aElement) {
+ 632:   const auto [element, pseudo] = AnimationUtils::GetElementPseudoPair(aElement);
+ 633:   return !!EffectSet::Get(element, pseudo);
+ 634: }
+ 635: 
+ 636: bool Gecko_ElementHasCSSAnimations(const Element* aElement) {
+ 637:   const auto [element, pseudo] = AnimationUtils::GetElementPseudoPair(aElement);
+ 638:   auto* collection =
+ 639:       nsAnimationManager::CSSAnimationCollection::Get(element, pseudo);
+ 640:   return collection && !collection->mAnimations.IsEmpty();

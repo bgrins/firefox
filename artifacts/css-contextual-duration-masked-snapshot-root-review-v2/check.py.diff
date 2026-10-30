@@ -1,0 +1,23 @@
+--- artifacts/css-contextual-duration-masked-snapshot-root-review-v1/check.py
++++ artifacts/css-contextual-duration-masked-snapshot-root-review-v2/check.py
+@@ -74,7 +74,7 @@
+     else:
+         raise AssertionError(key)
+ 
+-old = (HERE.parents[1] / 'artifacts/css-contextual-duration-masked-controls-root-review-v1/verify.py').read_text()
++old = (HERE.parents[1] / 'artifacts/css-contextual-duration-masked-snapshot-root-review-v1/verify.py').read_text()
+ new = (HERE / 'verify.py').read_text()
+ start = "    for name, role in roles.items():"
+ end = "    assert backup['owned_backup_bytes']"
+@@ -92,3 +92,11 @@
+ assert "assert compiled['command_success']" in new
+ assert "assert backup['removed'] and not backup['retained_after_failure']" in new
+ print(json.dumps({'positive_outcomes': 20, 'paired_outcomes_positive': 1, 'negative_checks': negative, 'source_app_fullstate_prefix_unchanged': True, 'raw_index_write_rollback_tail_unchanged': True, 'retained_backup_deletion_not_supported': True, 'live_operations': False}, indent=2))
++
++assert new == old.replace("'layout/style/GeckoBindings.cpp', 'layout/style/nsAnimationManager.h'", "'layout/style/GeckoBindings.cpp', 'layout/style/GeckoBindings.h', 'layout/style/nsAnimationManager.h'")
++roles = module.read(module.HERE / 'SOURCE-ROLES.json')
++assert len(roles) == 8 and 'layout/style/GeckoBindings.h' in roles
++assert module.sha(module.HERE / 'FILES.json') == module.OWNER_SHA
++for name, digest in module.read(HERE / 'REFERENCES.json').items():
++    assert module.sha(module.ROOT / name) == digest, name
++print('Exact eight-role delta and saved owner/reference pins verified; no live operations')

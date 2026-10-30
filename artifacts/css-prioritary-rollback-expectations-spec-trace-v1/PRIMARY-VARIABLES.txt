@@ -1,0 +1,349 @@
+CSS Cascading and Inheritance Module Level 5 (https://drafts.csswg.org/css-cascade-5/)
+citeturn3058view0 [wordlim: 200] Crawled: today; Content type: text/html; Source: click({"ref_id":"turn3055view0","id":305}); Total lines: 1419
+--------------------------------------------------------------------------------
+CSS Values and Units Module Level 4 (https://drafts.csswg.org/css-values-4/)
+citeturn3058view1 [wordlim: 200] Crawled: today; Content type: text/html; Source: click({"ref_id":"turn3055view3","id":116}); Total lines: 2959
+--------------------------------------------------------------------------------
+CSS Values and Units Module Level 5 (https://drafts.csswg.org/css-values-5/)
+citeturn3058view2 [wordlim: 200] Crawled: today; Content type: text/html; Source: click({"ref_id":"turn3055view2","id":531}); Total lines: 2555
+--------------------------------------------------------------------------------
+CSS Custom Properties for Cascading Variables Module Level 1 (https://drafts.csswg.org/css-variables-1/)
+citeturn3058view3 [wordlim: 200] Crawled: today; Content type: text/html; Source: find({"ref_id":"turn3057view0","pattern":"To resolve a var()"}); Total lines: 787
+L376:   * 【553†variable-declaration-13.html†wpt.fyi】 【554†(live test)†wpt.live】 【555†(source)†github.com】
+L377:   * 【556†variable-declaration-22.html†wpt.fyi】 【557†(live test)†wpt.live】 【558†(source)†github.com】
+L378: In an exception to the usual 【277†comma elision rules】, which require commas to be omitted when they’re not separating values, a bare comma, with nothing following it, must be treated as valid in 【55†var()】, indicating an empty fallback value.
+L379: 
+L380: Tests
+L381:   * 【559†variable-declaration-07.html†wpt.fyi】 【560†(live test)†wpt.live】 【561†(source)†github.com】
+L382:   * 【562†variable-declaration-37.html†wpt.fyi】 【563†(live test)†wpt.live】 【564†(source)†github.com】
+L383:   * 【565†variable-reference-06.html†wpt.fyi】 【566†(live test)†wpt.live】 【567†(source)†github.com】
+L384:   * 【568†variable-reference-11.html†wpt.fyi】 【569†(live test)†wpt.live】 【570†(source)†github.com】
+L385:   * 【571†variable-reference-26.html†wpt.fyi】 【572†(live test)†wpt.live】 【573†(source)†github.com】
+L386:   * 【574†variable-reference-27.html†wpt.fyi】 【575†(live test)†wpt.live】 【576†(source)†github.com】
+L387: Note: That is, var(--a,) is a valid function, specifying that if the --a custom property is invalid or missing, the 【55†var()】 should be replaced with nothing.
+L388: 
+L389: Note: The syntax of the fallback, like that of 【54†custom properties】, allows commas. For example, var(--foo, red, blue) defines a fallback of red, blue; that is, anything between the first comma and the end of the function is considered a fallback value.
+L390: The fallback value allows for some types of defensive coding. For example, an author may create a component intended to be included in a larger application, and use variables to style it so that it’s easy for the author of the larger application to theme the component to match the rest of the app.
+L391: Without fallback, the app author must supply a value for every variable that your component uses. With fallback, the component author can supply defaults, so the app author only needs to supply values for the variables they wish to override.
+L392: 
+L393:     /* In the component's style: */
+L394:     .component .header {
+L395:       color: var(--header-color, blue);
+L396:     }
+L397:     .component .text {
+L398:       color: var(--text-color, black);
+L399:     }
+L400: 
+L401:     /* In the larger application's style: */
+L402:     .component {
+L403:       --text-color: #080;
+L404:       /* header-color isn't set,
+L405:          and so remains blue,
+L406:          the fallback value */
+L407:     }
+L408: To 【577†replace a var() function】, given a list of `arguments`:
+L409: 
+L410:   1. Let `el` be the element that the style containing the 【55†var()】 function is being applied to. Let `first arg` be the first 【63†<declaration-value>】 in `arguments`. Let `second arg` be the <declaration-value>? passed after the comma, or null if there was no comma.
+L411:   2. 【61†Substitute arbitrary substitution functions】 in `first arg`, then 【578†parse】 it as a 【276†<custom-property-name>】. If parsing returned a <custom-property-name>, let `result` be the 【271†computed value】 of the corresponding 【54†custom property】 on `el`. Otherwise, let `result` be the 【66†guaranteed-invalid value】.
+L412: 
+L413: Note: Determining the 【271†computed value】 for the 【54†custom property】 implies that 【579†property replacement】 takes place, which may cause a 【580†cycle】.
+L414:   3. If the 【54†custom property】 named by the 【55†var()】’s first argument is 【227†animation-tainted】, and the var() is being used in a property that is 【581†not animatable】, set `result` to the 【66†guaranteed-invalid value】.
+L415: 
+L416:   4. If `result` contains the 【66†guaranteed-invalid value】, and `second arg` was provided, set `result` to the result of 【61†substitute arbitrary substitution functions】 on `second arg`.
+L417: 
+L418:   5. Return `result`.
+L419: Due to 【579†property replacement】, 【54†custom properties】 can form 【580†cycles】:
+L420: 
+L421:     :root {
+L422:       --one: calc(var(--two) + 20px);
+L423:       --two: calc(var(--one) - 20px);
+L424:     }
+L425: 
+L426: 
+L427: In the above, both --one and --two compute to the 【66†guaranteed-invalid value】, since their 【582†substitution contexts】 have been marked as cyclic.
+L428: 
+L429: Tests
+L430:   * 【583†variable-cycles.html†wpt.fyi】 【584†(live test)†wpt.live】 【585†(source)†github.com】
+L431:   * 【586†variable-declaration-30.html†wpt.fyi】 【587†(live test)†wpt.live】 【588†(source)†github.com】
+L432:   * 【589†variable-declaration-48.html†wpt.fyi】 【590†(live test)†wpt.live】 【591†(source)†github.com】
+L433:   * 【592†variable-declaration-49.html†wpt.fyi】 【593†(live test)†wpt.live】 【594†(source)†github.com】
+L434:   * 【595†variable-declaration-50.html†wpt.fyi】 【596†(live test)†wpt.live】 【597†(source)†github.com】
+L435:   * 【598†variable-reference-39.html†wpt.fyi】 【599†(live test)†wpt.live】 【600†(source)†github.com】
+L436: Note that the 【54†custom property】 name looked up by a 【55†var()】 may itself come from a var() function:
+L437: 
+L438:     :root {
+L439:       --other: 10px;
+L440:       --myvar: --other;
+L441:       --result: var(var(--myvar));
+L442:     }
+L443: 
+L444: 
+L445: Since the inner var() is resolved before the outer var(), the computed value of --result becomes 10px.
+L446: ## 4. APIs
+L447: 
+L448: All 【54†custom property】 【601†declarations】 have the 【602†case-sensitive flag】 set.
+L449: 
+L450: Tests
+L451: 
+L452:   * 【603†variable-definition.html†wpt.fyi】 【604†(live test)†wpt.live】 【605†(source)†github.com】
+L453:   * 【606†variable-invalidation.html†wpt.fyi】 【607†(live test)†wpt.live】 【608†(source)†github.com】
+L454: Note: Custom properties do not appear on a CSSStyleDeclaration object in camel-cased form, because their names may have both upper and lowercase letters which indicate distinct custom properties. The sort of text transformation that automatic camel-casing performs is incompatible with this. They can still be accessed by their proper name via 【609†getPropertyValue()】/etc.
+L455: ### 4.1. Serializing Custom Properties
+L456: 
+L457: Custom property names must be serialized as the exact code point sequence provided by the author, including not altering the case.
+L458: 
+L459: Note: For non-custom properties, property names are restricted to the ASCII range and are 【108†ASCII case-insensitive†infra.spec.whatwg.org】, so implementations typically serialize the name lowercased.
+L460: Specified values of 【54†custom properties】 must be serialized exactly as specified by the author (with one exception, below). Simplifications that might occur in other properties, such as dropping comments, normalizing whitespace, reserializing numeric tokens from their value, etc., must not occur.
+L461: 
+L462: Computed values of 【54†custom properties】 must similarly be serialized exactly as specified by the author (with the same one exception, below), save for the replacement of any 【55†var()】 functions.
+L463: The one exception to serialization being precisely as specified in the source file is that an empty custom property (such as --foo:;) must serialize with a single space as its value.
+L464: 
+L465: Tests
+L466: 
+L467:   * 【610†variable-reference-shorthands-cssom.html†wpt.fyi】 【611†(live test)†wpt.live】 【612†(source)†github.com】
+L468:   * 【613†variable-reference-variable.html†wpt.fyi】 【614†(live test)†wpt.live】 【615†(source)†github.com】
+L469: For example, given the following properties:
+L470: 
+L471:     --y: /* baz */;
+L472:     --x: /* foo */ var(--y) /* bar */;
+L473: 
+L474: 
+L475: the serialization of the specified value of --x must be `"/* foo */ var(--y) /* bar */"`, while the serialization of the computed value of --x must be `"/* foo */ /* baz */ /* bar */"`.
+L476: 
+L477: (Note that the leading whitespace on the value is automatically trimmed by the CSS parser; it’s not preserved here.)
+L478: This "exactly as specified" requirement exists because authors sometimes store non-CSS information in custom properties, and "normalizing" this information can change it in ways that break author code.
+L479: 
+L480: For example, storing a UUID in a custom property, like --uuid: 12345678-12e3-8d9b-a456-426614174000, requires the UUID to be echoed back out as written when it’s accessed by script.
+L481: This value is technically parsed by CSS as a series of adjacent numbers and dimensions. In particular, the segment "-12e3" parses as a number, equal to -12000. Reserializing it in that form, as required by CSSOM in other contexts, would fatally break the author’s use of the value.
+L482: The requirement to serialize an empty custom property as a string with a single space in it instead is due to compatibility with the existing CSSOM API. `【616†setProperty()】` specifies that if the passed value is an empty string it instead acts as `【617†removeProperty()】`.
+L483: This is a frankly weird behavior, and not something we would do in new APIs. But we can’t change the past, and letting empty properties accurately serialize as the empty string would mean that round-tripping a custom property value, or reading a property on one element and setting a property on another element to the same value, wouldn’t work as intended.
+L484: Using a single space preserves the author-intended behavior as much as possible, while having the smallest chance of accidentally breaking things, since authors working with custom property values in JS are probably calling `【618†trim()†tc39.es】` on the values anyway.
+L485: ## 5. Changes
+L486: 
+L487: ### 5.1. Changes Since the 16 June 2022 CR Snapshot
+L488: 
+L489:   * Clarified that the comment-insertion can happen with 0+ comments between the original tokens, not just exactly 1.
+L490: 
+L491:   * Clarified the transition behavior of custom properties, in a note
+L492: 
+L493:   * Made 【55†var()】 short-circuiting. (【619†Issue 11500†github.com】)
+L494: ### 5.2. Changes Since the 11 November 2021 CR Draft
+L495: 
+L496:   * Clarified that custom properties apply all pseudo-elements (including those with restricted property lists)
+L497: 
+L498:   * Added example to illustrate issues with combining characters, ligatures, etc
+L499: 
+L500:   * Strengthened wording around similar-appearing variable names that use distinct codepoint sequences
+L501: 
+L502:   * Clarified an example by using more visually distinct languages as examples (English and Greek)
+L503: 
+L504:   * Split Security and Privacy into separate sections
+L505: ### 5.3. Changes Since the 03 December 2015 CR
+L506: 
+L507:   * Now that 【620†[css-syntax-3]】 auto-trims whitespace from declaration values, made 【63†<declaration-value>】 optional in the custom property grammar, so that empty variables are still allowed. (【621†Issue 774†github.com】)
+L508: 
+L509:   * Similarly, made empty fallbacks valid in 【55†var()】.
+L510: 
+L511:   * The -- property is reserved for future use by CSS.
+L512:   * Added concept of "animation-tainted", to prevent non-animatable properties from using a variable to smuggle in some animatability.
+L513: 
+L514:   * Defined the 【66†guaranteed-invalid value】 to make the initial value of custom properties and the result of cycles or substitution failure more straightforward, and allow failure to propagate thru substitutions until finally intercepted by a fallback.
+L515: 
+L516:   * Defined that cycles trigger 【272†invalid at computed-value time】 behavior.
+L517:   * Allowed variables to resolve to a CSS-wide keyword (only possible by providing it as a fallback).
+L518: 
+L519:   * Clarified that 【226†registered custom properties†drafts.css-houdini.org】 act like non-custom properties when they’re 【272†invalid at computed-value time】.
+L520: 
+L521:   * Made longhands with 【55†var()】s also trigger their shorthands to be unserializable, like longhands with pending-substitution values already did.
+L522: 
+L523:   * Required UAs to defend against exponential substitution attacks.
+L524:   * Defined how to serialize the values of custom properties (previously, only the property name’s serialization was specified).
+L525: ### 5.4. Changes since the May 6 2014 Last Call Working Draft
+L526: 
+L527:   * Serialization of longhands when shorthand uses a variable was defined.
+L528: 
+L529:   * Link to DOM’s definition of "case-sensitive".
+L530: 
+L531:   * Added example of using variables with 【622†:lang()】 to do simple i18n.
+L532: 
+L533:   * Clarified that usage of 【55†var()】 in a custom property must be valid per the var() grammar.
+L534: ## 6. Acknowledgments
+L535: 
+L536: Many thanks to several people in the CSS Working Group for keeping the dream of variables alive over the years, particularly Daniel Glazman and David Hyatt. Thanks to multiple people on the mailing list for helping contribute to the development of this incarnation of variables, particularly Brian Kardell, David Baron, François Remy, Roland Steiner, and Shane Stephens.
+L537: ## 7. Privacy Considerations
+L538: 
+L539: This specification defines a purely author-level mechanism for passing styling information around within a page they control. As such, there are no new privacy considerations.
+L540: ## 8. Security Considerations
+L541: 
+L542: 【623†CSS Values 5 §  Safely Handling Overly-Long Substitution】 calls out a long-standing Denial-of-Service attack that can be mounted against "macro-expansion"-like mechanisms, such as the 【55†var()】 function, and mandates a defense against that attack.
+L543: 
+L544: Tests
+L545:   * 【624†revert-in-fallback.html†wpt.fyi】 【625†(live test)†wpt.live】 【626†(source)†github.com】
+L546:   * 【627†revert-layer-in-fallback.html†wpt.fyi】 【628†(live test)†wpt.live】 【629†(source)†github.com】
+L547:   * 【630†variables-animation-math-functions.html†wpt.fyi】 【631†(live test)†wpt.live】 【632†(source)†github.com】
+L548:   * 【633†variable-recalc-with-initial.html†wpt.fyi】 【634†(live test)†wpt.live】 【635†(source)†github.com】
+L549: 
+L550: Tests
+L551:   * 【636†missing-closing-nested-fallback-crash.html†wpt.fyi】 【637†(live test)†wpt.live】 【638†(source)†github.com】
+L552:   * 【639†url-syntax-crash.html†wpt.fyi】 【640†(live test)†wpt.live】 【641†(source)†github.com】
+L553:   * 【642†whitespace-in-fallback-crash.html†wpt.fyi】 【643†(live test)†wpt.live】 【644†(source)†github.com】
+L554:   * 【645†registered-property-light-dark.html†wpt.fyi】 【646†(live test)†wpt.live】 【647†(source)†github.com】
+L555:   * 【648†variable-animation-visited-link.html†wpt.fyi】 【649†(live test)†wpt.live】 【650†(source)†github.com】
+L556:   * 【651†variable-declaration-01.html†wpt.fyi】 【652†(live test)†wpt.live】 【653†(source)†github.com】
+L557:   * 【654†variable-declaration-02.html†wpt.fyi】 【655†(live test)†wpt.live】 【656†(source)†github.com】
+L558:   * 【657†variable-declaration-03.html†wpt.fyi】 【658†(live test)†wpt.live】 【659†(source)†github.com】
+L559:   * 【660†variable-declaration-04.html†wpt.fyi】 【661†(live test)†wpt.live】 【662†(source)†github.com】
+L560:   * 【663†variable-declaration-05.html†wpt.fyi】 【664†(live test)†wpt.live】 【665†(source)†github.com】
+L561:   * 【666†variable-declaration-14.html†wpt.fyi】 【667†(live test)†wpt.live】 【668†(source)†github.com】
+L562:   * 【669†variable-declaration-16.html†wpt.fyi】 【670†(live test)†wpt.live】 【671†(source)†github.com】
+L563:   * 【672†variable-declaration-17.html†wpt.fyi】 【673†(live test)†wpt.live】 【674†(source)†github.com】
+L564:   * 【675†variable-declaration-18.html†wpt.fyi】 【676†(live test)†wpt.live】 【677†(source)†github.com】
+L565:   * 【678†variable-declaration-19.html†wpt.fyi】 【679†(live test)†wpt.live】 【680†(source)†github.com】
+L566:   * 【681†variable-declaration-21.html†wpt.fyi】 【682†(live test)†wpt.live】 【683†(source)†github.com】
+L567:   * 【684†variable-declaration-51.html†wpt.fyi】 【685†(live test)†wpt.live】 【686†(source)†github.com】
+L568:   * 【687†variable-declaration-52.html†wpt.fyi】 【688†(live test)†wpt.live】 【689†(source)†github.com】
+L569:   * 【690†variable-declaration-53.html†wpt.fyi】 【691†(live test)†wpt.live】 【692†(source)†github.com】
+L570:   * 【693†variable-declaration-54.html†wpt.fyi】 【694†(live test)†wpt.live】 【695†(source)†github.com】
+L571:   * 【696†variable-declaration-55.html†wpt.fyi】 【697†(live test)†wpt.live】 【698†(source)†github.com】
+L572:   * 【699†variable-external-font-face-01.html†wpt.fyi】 【700†(live test)†wpt.live】 【701†(source)†github.com】
+L573:   * 【702†variable-font-face-01.html†wpt.fyi】 【703†(live test)†wpt.live】 【704†(source)†github.com】
+L574:   * 【705†variable-font-face-02.html†wpt.fyi】 【706†(live test)†wpt.live】 【707†(source)†github.com】
+L575:   * 【708†variable-generated-content-dynamic-001.html†wpt.fyi】 【709†(live test)†wpt.live】 【710†(source)†github.com】
+L576:   * 【711†variable-invalid-recovery.html†wpt.fyi】 【712†(live test)†wpt.live】 【713†(source)†github.com】
+L577:   * 【714†variable-reference-01.html†wpt.fyi】 【715†(live test)†wpt.live】 【716†(source)†github.com】
+L578:   * 【717†variable-reference-02.html†wpt.fyi】 【718†(live test)†wpt.live】 【719†(source)†github.com】
+L579:   * 【720†variable-reference-03.html†wpt.fyi】 【721†(live test)†wpt.live】 【722†(source)†github.com】
+L580:   * 【723†variable-reference-04.html†wpt.fyi】 【724†(live test)†wpt.live】 【725†(source)†github.com】
+L581:   * 【726†variable-reference-05.html†wpt.fyi】 【727†(live test)†wpt.live】 【728†(source)†github.com】
+L582:   * 【729†variable-reference-12.html†wpt.fyi】 【730†(live test)†wpt.live】 【731†(source)†github.com】
+L660: A renderer is conformant to this specification if, in addition to interpreting the style sheet as defined by the appropriate specifications, it supports all the features defined by this specification by parsing them correctly and rendering the document accordingly. However, the inability of a UA to correctly render a document due to limitations of the device does not make the UA non-conformant. (For example, a UA is not required to render color on a monochrome monitor.)
+L661: An authoring tool is conformant to this specification if it writes style sheets that are syntactically correct according to the generic CSS grammar and the individual grammars of each feature in this module, and meet all other conformance requirements of style sheets as described in this module.
+L662: ### Partial implementations
+L663: So that authors can exploit the forward-compatible parsing rules to assign fallback values, CSS renderers must treat as invalid (and 【873†ignore as appropriate†www.w3.org】) any at-rules, properties, property values, keywords, and other syntactic constructs for which they have no usable level of support.
+L664: In particular, user agents must not selectively ignore unsupported component values and honor supported values in a single multi-value property declaration: if any value is considered invalid (as unsupported values must be), CSS requires that the entire declaration be ignored.
+L665: #### Implementations of Unstable and Proprietary Features
+L666: 
+L667: To avoid clashes with future stable CSS features, the CSSWG recommends 【874†following best practices†www.w3.org】 for the implementation of 【875†unstable†www.w3.org】 features and 【876†proprietary extensions†www.w3.org】 to CSS.
+L668: ### Non-experimental implementations
+L669: 
+L670: Once a specification reaches the Candidate Recommendation stage, non-experimental implementations are possible, and implementors should release an unprefixed implementation of any CR-level feature they can demonstrate to be correctly implemented according to spec.
+L671: To establish and maintain the interoperability of CSS across implementations, the CSS Working Group requests that non-experimental CSS renderers submit an implementation report (and, if necessary, the testcases used for that implementation report) to the W3C before releasing an unprefixed implementation of any CSS features. Testcases submitted to W3C are subject to review and correction by the CSS Working Group.
+L672: Further information on submitting testcases and implementation reports can be found from on the CSS Working Group’s website at 【877†http://www.w3.org/Style/CSS/Test/†www.w3.org】. Questions should be directed to the 【878†public-css-testsuite@w3.org†lists.w3.org】 mailing list.
+L673: ## Index
+L674: 
+L675: ### Terms defined by this specification
+L676: 
+L677:   * 【879†--*】, in § 2
+L678:   * 【227†animation-tainted】, in § 2
+L679:   * 【54†custom property】, in § 2
+L680:   * 【276†<custom-property-name>】, in § 2
+L681:   * 【66†guaranteed-invalid value】, in § 2.2
+L682:   * 【880†replace a var() function】, in § 3
+L683:   * 【55†var()】, in § 3
+L684:   * 【279†<var-args>】, in § 3
+L685: ### Terms defined by reference
+L686:   * [CSS-ANIMATIONS-1] defines the following terms:
+L687:     * @keyframes
+L688:   * [CSS-BACKGROUNDS-3] defines the following terms:
+L689:     * background
+L690:     * background-color
+L691:   * [CSS-CASCADE-5] defines the following terms:
+L692:     * all
+L693:     * computed value
+L694:     * initial
+L695:     * initial value
+L696:   * [CSS-CONDITIONAL-3] defines the following terms:
+L697:     * @media
+L698:   * [CSS-PROPERTIES-VALUES-API-1] defines the following terms:
+L699:     * registered custom property
+L700:   * [CSS-SYNTAX-3] defines the following terms:
+L701:     * <)-token>
+L702:     * <]-token>
+L703:     * <bad-string-token>
+L704:     * <bad-url-token>
+L705:     * <declaration-value>
+L706:     * <delim-token>
+L707:     * <semicolon-token>
+L708:     * <}-token>
+L709:     * parse
+L710:   * [CSS-VALUES-4] defines the following terms:
+L711:     * ,
+L712:     * <dashed-ident>
+L713:     * ?
+L714:     * CSS-wide keywords
+L715:     * identifier
+L716:   * [CSS-VALUES-5] defines the following terms:
+L717:     * arbitrary substitution
+L718:     * arbitrary substitution function
+L719:     * argument grammar
+L720:     * cyclic substitution contexts
+L721:     * invalid at computed-value time
+L722:     * property replacement
+L723:     * replace an arbitrary substitution function
+L724:     * substitute arbitrary substitution function
+L725:     * substitution context
+L726:   * [CSSOM-1] defines the following terms:
+L727:     * case-sensitive flag
+L728:     * declarations
+L729:     * getPropertyValue(property)
+L730:     * removeProperty(property)
+L731:     * setProperty(property, value)
+L732:   * [ECMASCRIPT] defines the following terms:
+L733:     * trim()
+L734:   * [INFRA] defines the following terms:
+L735:     * ASCII case-insensitive
+L736:     * identical to
+L737:   * [SELECTORS-4] defines the following terms:
+L738:     * :lang()
+L739:   * [WEB-ANIMATIONS-1] defines the following terms:
+L740:     * not animatable
+L741: ## References
+L742: ### Normative References
+L743: [CSS-ANIMATIONS-1]
+L744:     David Baron; et al. 【881†CSS Animations Level 1】. URL: 【881†https://drafts.csswg.org/css-animations/】
+L745: [CSS-CASCADE-5]
+L746:     Elika Etemad; Miriam Suzanne; Tab Atkins Jr.. 【882†CSS Cascading and Inheritance Level 5】. URL: 【882†https://drafts.csswg.org/css-cascade-5/】
+L747: [CSS-CONDITIONAL-3]
+L748:     Chris Lilley; David Baron; Elika Etemad. 【883†CSS Conditional Rules Module Level 3】. URL: 【883†https://drafts.csswg.org/css-conditional-3/】
+L749: [CSS-PROPERTIES-VALUES-API-1]
+L750:     Tab Atkins Jr.; Alan Stearns; Greg Whitworth. 【884†CSS Properties and Values API Level 1†drafts.css-houdini.org】. URL: 【884†https://drafts.css-houdini.org/css-properties-values-api-1/†drafts.css-houdini.org】
+L751: [CSS-SYNTAX-3]
+L752:     Tab Atkins Jr.; Simon Sapin. 【885†CSS Syntax Module Level 3】. URL: 【885†https://drafts.csswg.org/css-syntax/】
+L753: [CSS-VALUES-3]
+L754:     Tab Atkins Jr.; Elika Etemad. 【886†CSS Values and Units Module Level 3】. URL: 【886†https://drafts.csswg.org/css-values-3/】
+L755: [CSS-VALUES-4]
+L756:     Tab Atkins Jr.; Elika Etemad. 【887†CSS Values and Units Module Level 4】. URL: 【887†https://drafts.csswg.org/css-values-4/】
+L757: [CSS-VALUES-5]
+L758:     Tab Atkins Jr.; Elika Etemad; Miriam Suzanne. 【888†CSS Values and Units Module Level 5】. URL: 【888†https://drafts.csswg.org/css-values-5/】
+L759: [CSS2]
+L760:     Bert Bos; et al. 【889†Cascading Style Sheets Level 2 Revision 1 (CSS 2.1) Specification】. URL: 【889†https://drafts.csswg.org/css2/】
+L761: [CSSOM-1]
+L762:     Daniel Glazman; Emilio Cobos Álvarez. 【890†CSS Object Model (CSSOM)】. URL: 【890†https://drafts.csswg.org/cssom/】
+L763: [INFRA]
+L764:     Anne van Kesteren; Domenic Denicola. 【891†Infra Standard†infra.spec.whatwg.org】. Living Standard. URL: 【891†https://infra.spec.whatwg.org/†infra.spec.whatwg.org】
+L765: [RFC2119]
+L766:     S. Bradner. 【892†Key words for use in RFCs to Indicate Requirement Levels†datatracker.ietf.org】. March 1997. Best Current Practice. URL: 【892†https://datatracker.ietf.org/doc/html/rfc2119†datatracker.ietf.org】
+L767: [SELECTORS-4]
+L768:     Elika Etemad; Tab Atkins Jr.. 【893†Selectors Level 4】. URL: 【893†https://drafts.csswg.org/selectors/】
+L769: [WEB-ANIMATIONS-1]
+L770:     Brian Birtles; et al. 【894†Web Animations】. URL: 【894†https://drafts.csswg.org/web-animations-1/】
+L771: ### Non-Normative References
+L772: [CHARMOD-NORM]
+L773:     Addison Phillips; et al. 【895†Character Model for the World Wide Web: String Matching†w3c.github.io】. URL: 【895†https://w3c.github.io/charmod-norm/†w3c.github.io】
+L774: [CSS-BACKGROUNDS-3]
+L775:     Elika Etemad; Brad Kemper. 【896†CSS Backgrounds and Borders Module Level 3】. URL: 【896†https://drafts.csswg.org/css-backgrounds/】
+L776: [CSS-EXTENSIONS]
+L777:     Tab Atkins Jr.. 【897†CSS Extensions】. ED. URL: 【897†https://drafts.csswg.org/css-extensions/】
+L778: [ECMASCRIPT]
+L779:     【898†ECMAScript Language Specification†tc39.es】. URL: 【898†https://tc39.es/ecma262/multipage/†tc39.es】
+L780: ## Property Index
+L781: 
+L782: Name  | Value  | Initial  | Applies to  | Inh.  | %ages  | Anim­ation type  | Canonical order  | Com­puted value
+L783: --- | --- | --- | --- | --- | --- | --- | --- | ---
+L784: --*  | <declaration-value>?  | the guaranteed-invalid value  | all elements and all pseudo-elements (including those with restricted property lists)  | yes  | n/a  | discrete  | per grammar  | specified value with variables substituted, or the guaranteed-invalid value
+L785: 
+L786: ✔MDN ✔MDN
+--------------------------------------------------------------------------------
+CSS Fonts Module Level 4 (https://drafts.csswg.org/css-fonts-4/)
+citeturn3058view4 [wordlim: 200] Crawled: today; Content type: text/html; Source: find({"ref_id":"turn3057view1","pattern":"Inherited: yes"}); Total lines: 4960
+No matching text found for "Inherited: yes"

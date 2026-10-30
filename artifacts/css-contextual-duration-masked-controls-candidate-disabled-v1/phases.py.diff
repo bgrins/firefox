@@ -1,0 +1,91 @@
+--- artifacts/css-contextual-duration-base-timing-candidate-v1/phases.py
++++ artifacts/css-contextual-duration-masked-controls-candidate-v1/phases.py
+@@ -1,7 +1,6 @@
+ import hashlib
+ import importlib.util
+ import json
+-import secrets
+ 
+ read = lambda path: json.loads(path.read_bytes())
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+@@ -14,57 +13,30 @@
+     return module
+ 
+ 
+-def record_comparison(root, output, policy, collection):
+-    original = root / policy['baseline_binding']['directory'] / 'progress-records'
+-    candidate = output / 'progress-records'
+-    rows = {}
+-    for filename in policy['record_kinds']:
+-        pair = {}
+-        for role, directory in [('original', original), ('candidate', candidate)]:
+-            path = directory / filename
+-            if role == 'candidate' and not collection['records'].get(filename, {}).get('schema_valid'):
+-                pair[role] = None
+-                continue
+-            pair[role] = {'sha256': sha(path), 'record': read(path)} if path.is_file() and not path.is_symlink() else None
+-        pair['observations_equal'] = (pair['original']['record']['observations'] == pair['candidate']['record']['observations']) if all(pair[role] for role in ('original', 'candidate')) else None
+-        rows[filename] = pair
+-    return {'records': rows, 'candidate_collection': collection, 'numeric_or_cycle_endpoint_gate': False,
+-            'literal_calibration_gate': 'authored callback assertions; complete collection alone is not PASS'}
+-
+-
+ def run(root, here, output, policy, env, verify, owned, cancelled):
+-    wpt = load('progress_wpt', here / 'wpt.py')
++    wpt = load("masked_controls_wpt", here / "wpt.py")
+     initial = verify()
+-    wpt.save(output / 'PHASES-PRE.json', initial)
+-    directory = output / 'progress-records'
+-    directory.mkdir(mode=0o700)
+-    binding = {'directory': str(directory), 'identity': [directory.stat().st_dev, directory.stat().st_ino], 'run_id': secrets.token_hex(24)}
+-    wpt.save(output / 'PROGRESS-BINDING.json', binding)
+-    phase_env = dict(env, DURATION_PROGRESS_RECORD_DIR=str(directory), DURATION_PROGRESS_RUN_ID=binding['run_id'])
+-    phase = output / 'candidate-wpt'
+-    original = root / policy['baseline_binding']['directory'] / 'original-wpt'
+-    result, failure = None, None
+-    try:
+-        result = wpt.run(root, here, phase, 'candidate', policy, phase_env, verify, owned, cancelled, original)
+-    except BaseException as error:
+-        failure = error
+-    if (phase / 'ASSESSMENT.json').is_file():
+-        assessment = read(phase / 'ASSESSMENT.json')
+-        if assessment['complete']:
+-            collection = load('progress_record_collection', here / 'records.py').collect(root, directory, binding, policy, assessment)
+-            wpt.save(output / 'PROGRESS-RECORDS.json', collection)
+-            calibration = load('timing_literal_calibration', here / 'calibration.py').report(directory, collection, policy)
+-            wpt.save(output / 'CALIBRATION.json', calibration)
+-            wpt.save(output / 'RECORD-COMPARISON.json', record_comparison(root, output, policy, collection))
+-            if not failure:
+-                assert collection['complete'] and not collection['errors']
+-                assert calibration['all_calibrated']
+-    if failure:
+-        raise failure
+-    assert result is not None and not owned
+-    assert read(phase / 'PRE.json') == read(phase / 'POST.json') == initial
+-    assert read(phase / 'APPLICATION-METADATA.json') == read(phase / 'APPLICATION-METADATA-POST.json')
+-    assert read(phase / 'BINARY-PINS.json') == read(output / 'candidate-build/RESULT.json')['binaries']
++    wpt.save(output / "PHASES-PRE.json", initial)
++    phase = output / "candidate-wpt"
++    original = root / policy["baseline_binding"]["directory"] / "original-wpt"
++    result = wpt.run(root, here, phase, "candidate", policy, env, verify, owned, cancelled, original)
++    assessment = read(phase / "ASSESSMENT.json")
++    assert assessment["complete"] and len(assessment["rows"]) == 7 and not owned
++    original_rows = read(original / "ASSESSMENT.json")["rows"]
++    by_name = {(row["test"], row["subtest"]): row for row in original_rows}
++    pairs = [{"original": by_name[(row["test"], row["subtest"])], "candidate": row} for row in assessment["rows"]]
++    wpt.save(output / "OUTCOMES.json", {
++        "callbacks_passed": sum(row["status"] == "PASS" for row in assessment["rows"]),
++        "callbacks_failed": sum(row["status"] == "FAIL" for row in assessment["rows"]),
++        "all_callbacks_passed": all(row["status"] == "PASS" for row in assessment["rows"]),
++        "comparison_gate_passed": assessment["comparison_gate_passed"],
++        "comparison_errors": assessment["comparison_errors"], "rows": pairs,
++        "original_endings": read(original / "ASSESSMENT.json")["ends"],
++        "candidate_endings": assessment["ends"], "native_acceptance": False,
++    })
++    assert read(phase / "PRE.json") == read(phase / "POST.json") == initial
++    assert read(phase / "APPLICATION-METADATA.json") == read(phase / "APPLICATION-METADATA-POST.json")
++    assert read(phase / "BINARY-PINS.json") == read(output / "candidate-build/RESULT.json")["binaries"]
+     assert verify() == initial
+-    wpt.save(output / 'PHASES-POST.json', initial)
++    wpt.save(output / "PHASES-POST.json", initial)
+     return result

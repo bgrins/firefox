@@ -1,0 +1,150 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Animation-taint scope and important-winner observations</title>
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#animation-tainted">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#cascade-sort">
+<meta name="assert" content="Source, registration, animation and literal controls support diagnostics without a disputed variable-sink oracle.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<pre id="observations" hidden></pre>
+<script>
+"use strict";
+window.taintScopeObservations = {};
+
+function referenceChecks(record) {
+  const checks = [];
+  const add = (name, passed) => checks.push({name, passed: Boolean(passed)});
+  add("complete capture", record.phases.length === 3 && record.calibration != null);
+  add("registration initial/inheritance", record.calibration?.initial ===
+    (record.registered ? "horizontal-tb" : "vertical-rl"));
+  add("registration syntax", record.calibration?.multiIdent ===
+    (record.registered ? "horizontal-tb" : "one two"));
+  for (let i = 0; i < record.phases.length; ++i) {
+    const phase = record.phases[i];
+    add(`${phase.label}: four samples`, phase.readings.length === 4);
+    const source = record.family !== "scope" && i === 1 ? "vertical-rl" : "horizontal-tb";
+    add(`${phase.label}: custom source`, phase.variable === source);
+    add(`${phase.label}: subject membership`, phase.subjectAnimationCount ===
+      (record.family !== "scope" && i > 0 ? 1 : 0));
+    const hasDriver = record.family === "scope" ? i === 2 : i > 0;
+    if (hasDriver) {
+      const d = phase.driver;
+      add(`${phase.label}: fixed driver`, d?.animationName === "hold" &&
+        d.cssDuration === "2s" && d.duration === 2000 && d.currentTime === 750 &&
+        d.playState === "paused" && Math.abs(d.progress - .375) <= .00001 &&
+        d.opacity === "1" && d.sameAnimation && d.sameEffect);
+      if (record.family === "scope") {
+        add(`${phase.label}: sibling source`, d?.variable === "vertical-rl");
+      }
+    } else {
+      add(`${phase.label}: no driver yet`, phase.driver === null);
+    }
+    if (record.family === "literal") {
+      add(`${phase.label}: literal sink`, phase.readings.every(value => value === "vertical-lr"));
+    }
+  }
+  return checks;
+}
+
+for (const mode of ["scope-unregistered", "scope-registered", "important-unregistered",
+                    "important-registered", "literal-unregistered", "literal-registered"]) {
+  promise_test(async t => {
+    const family = mode.split("-")[0];
+    const registered = mode.endsWith("-registered");
+    const record = {mode, family, registered, calibration: null, phases: []};
+    window.taintScopeObservations[mode] = record;
+    const frame = document.createElement("iframe");
+    let animation;
+    let effect;
+    let driverElement;
+    t.add_cleanup(() => { animation?.cancel(); frame.remove(); });
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    frame.srcdoc = "<!doctype html><html><head></head><body></body></html>";
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    if (registered) {
+      assert_equals(typeof win.CSS.registerProperty, "function", "Registration API is available");
+      win.CSS.registerProperty({name: "--v", syntax: "<custom-ident>", inherits: false,
+        initialValue: "horizontal-tb"});
+    }
+    const style = doc.createElement("style");
+    style.textContent = `
+      body { writing-mode: horizontal-tb; }
+      #calibration { --v: vertical-rl; }
+      #child.multi { --v: one two; }
+      #subject { --v: horizontal-tb; opacity: .25;
+        writing-mode: ${family === "literal" ? "vertical-lr" : "var(--v, vertical-lr)"}; }
+      .active { animation: hold 2s linear paused both; }
+      #subject.important { --v: horizontal-tb !important; }
+    `;
+    doc.head.append(style);
+    doc.body.innerHTML = '<div id="calibration"><div id="child"></div></div>';
+    const child = doc.getElementById("child");
+    const initial = win.getComputedStyle(child).getPropertyValue("--v").trim();
+    child.classList.add("multi");
+    const multiIdent = win.getComputedStyle(child).getPropertyValue("--v").trim();
+    record.calibration = {initial, multiIdent};
+    doc.getElementById("calibration").remove();
+    const subject = doc.createElement("div");
+    subject.id = "subject";
+    doc.body.append(subject);
+    const sample = async label => {
+      const readings = [win.getComputedStyle(subject).writingMode];
+      for (let i = 0; i < 3; ++i) {
+        await new Promise(resolve => win.requestAnimationFrame(resolve));
+        readings.push(win.getComputedStyle(subject).writingMode);
+      }
+      const variable = win.getComputedStyle(subject).getPropertyValue("--v").trim();
+      const subjectAnimationCount = subject.getAnimations().length;
+      let driver = null;
+      if (animation) {
+        const computed = win.getComputedStyle(driverElement);
+        const members = driverElement.getAnimations();
+        driver = {variable: computed.getPropertyValue("--v").trim(),
+          opacity: computed.opacity, cssDuration: computed.animationDuration,
+          animationName: animation.animationName, currentTime: animation.currentTime,
+          playState: animation.playState, duration: effect.getTiming().duration,
+          progress: effect.getComputedTiming().progress,
+          sameAnimation: members.length === 1 && members[0] === animation,
+          sameEffect: animation.effect === effect};
+      }
+      record.phases.push({label, readings, variable, subjectAnimationCount, driver});
+    };
+    const acquire = async element => {
+      driverElement = element;
+      const members = element.getAnimations();
+      assert_equals(members.length, 1, "One matched CSS opacity driver");
+      animation = members[0];
+      effect = animation.effect;
+      await animation.ready;
+      animation.currentTime = 750;
+    };
+    await sample("no-keyframes");
+    const keyframes = doc.createElement("style");
+    keyframes.textContent = "@keyframes hold { from, to { --v: vertical-rl; opacity: 1; } }";
+    doc.head.append(keyframes);
+    if (family === "scope") {
+      await sample("unused-keyframes");
+      const sibling = doc.createElement("div");
+      sibling.className = "active";
+      doc.body.append(sibling);
+      await acquire(sibling);
+      await sample("sibling-active");
+    } else {
+      subject.classList.add("active");
+      await acquire(subject);
+      await sample("subject-active");
+      subject.classList.add("important");
+      await sample("important-winner");
+    }
+    document.getElementById("observations").textContent = JSON.stringify(window.taintScopeObservations, null, 2);
+    const detail = JSON.stringify(record);
+    for (const check of referenceChecks(record)) {
+      assert_true(check.passed, `${check.name}: ${detail}`);
+    }
+  }, `Animation-taint scope observation: ${mode}`);
+}
+</script>

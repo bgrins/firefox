@@ -1,0 +1,40 @@
+InputSelection.lean:37:14: warning: `simp` already closes the goal
+
+Hint: Use `simp` instead of `simpa`:
+  [apply] simp [verify, equal]
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+InputSelection.lean:39:2: error: unsolved goals
+case neg
+D : Type
+inst✝ : DecidableEq D
+s : Snapshot D
+required : D
+old : Coherent s
+equal : ¬s.cached = some required
+⊢ s.owner = Owner.css → ¬s.owner = Owner.css → s.applied = required
+InputSelection.lean:62:55: error: failed to synthesize
+  Decidable
+    (hybrid24.cached = some 1500 ∧
+      hybrid24.applied = 2000 ∧
+        ¬Certified 1500 hybrid24 ∧
+          (verify hybrid24 1500 1500).applied = 2000 ∧ ¬Certified 1500 (verify hybrid24 1500 1500))
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+InputSelection.lean:100:4: error: Type mismatch: After simplification, term
+  Eq.symm equal
+ has type
+  key = 2000
+but is expected to have type
+  2000 = key
+InputSelection.lean:101:4: error: failed to synthesize
+  Decidable
+    (erased.cached = some 2000 ∧
+      erased.applied = 2000 ∧
+        ¬Certified (requiredDuration (taintedInput 2000)) erased ∧
+          requiredDuration (taintedInput 1000) = 1500 ∧
+            requiredDuration (taintedInput 2000) = 1500 ∧
+              Certified 1500 (verify initial 1500 1500) ∧
+                requiredDuration (untaintedInput 1000) = 1000 ∧ requiredDuration (untaintedInput 2000) = 2000)
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.

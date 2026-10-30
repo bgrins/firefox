@@ -1,0 +1,65 @@
+--- artifacts/css-animation-taint-clean-original-v2/check.py
++++ artifacts/css-animation-taint-clean-original-v3/check.py
+@@ -27,9 +27,12 @@
+                'restored_application_revision', 'provider_source_role', 'predecessor',
+                'restoration_binding', 'prepared_application_metadata', 'controls', 'wpt',
+                'closed_process_receipts', 'references', 'suite_binding',
+-               'preparation_predecessor', 'source_roster', 'preserved_absent_resources'}
++               'preparation_predecessor', 'source_roster', 'preserved_absent_resources', 'correction_predecessor'}
+     assert {k: v for k, v in policy.items() if k not in mutable} == {k: v for k, v in old.items() if k not in mutable}
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
++    correction = policy['correction_predecessor']
++    assert correction == {'directory': 'artifacts/css-animation-taint-clean-original-v2', 'manifest_sha256': '226ee3408871451e925d892d838941b9c1f70080f646f99ba478f88bae1d396a'}
++    owner.authenticate(ROOT / correction['directory'], correction['manifest_sha256'])
+     assert policy['runtime_output'] == 'artifacts/css-animation-taint-clean-original-runtime-1'
+     assert policy['baseline_binding'] is None and policy['baseline_capsule'] is None
+     assert policy['provider_source_role'] == 'clean-original'
+@@ -56,7 +59,11 @@
+                     manifest={'path': suite['directory'] + '/MANIFEST.json', 'sha256': sha(ROOT / suite['directory'] / 'MANIFEST.json')},
+                     expected_subtests=union['roster'], expected_subtest_count=123,
+                     expected_control_count=123, expected_page_count=17, expected_regression_signature_count=140)
++    settings['fixture_target_pages'] = old['wpt']['fixture_target_pages'] + ['/css/css-variables/animation-taint-registered-same-token.tentative.html']
+     assert policy['wpt'] == settings
++    pages = policy['wpt']['fixture_target_pages']
++    assert len(pages) == len(set(pages)) == 17
++    assert set(pages) == set(policy['wpt']['expected_subtests'])
+     assert settings['expected_subtest_count'] == 123 and settings['expected_page_count'] == 17
+     assert settings['target_subtests'] == {} and settings['expected_regression_signature_count'] == 140
+     assert len(policy['accepted_current_payloads']) == 29
+@@ -130,6 +137,8 @@
+         lambda p: p.update(source_paths=[]),
+         lambda p: p.update(preserved_absent_resources=[]),
+         lambda p: p['wpt'].update(expected_subtest_count=120),
++        lambda p: p['wpt']['fixture_target_pages'].remove('/css/css-variables/animation-taint-registered-same-token.tentative.html'),
++        lambda p: p['wpt']['fixture_target_pages'].append(p['wpt']['fixture_target_pages'][0]),
+     ):
+         bad = copy.deepcopy(policy)
+         change(bad)
+@@ -153,6 +162,18 @@
+     observed = assessor.assess(events, 1, projection.phase_policy(settings), checks, run_binding=app)
+     assert observed['complete'] and len(observed['rows']) == 123 and all(r['status'] == 'FAIL' for r in observed['rows'])
+     assert len(observed['ends']) == 17
++    setup = copy.deepcopy(events)
++    new_page = '/css/css-variables/animation-taint-registered-same-token.tentative.html'
++    bad_row = next(row for row in setup if row.get('action') == 'test_status' and row.get('test') == new_page)
++    bad_row['message'] = 'ReferenceError: syntheticMissingFunction is not defined'
++    rejected = assessor.assess(setup, 1, projection.phase_policy(settings), checks, run_binding=app)
++    assert not rejected['complete'] and len(rejected['fixture_setup_errors']) == 1
++    assert rejected['fixture_setup_errors'] == [assessor.signature(bad_row)]
++    assert 'new target fixture has an uncaught setup/runtime exception' in rejected['errors']
++    old_gap = copy.deepcopy(settings)
++    old_gap['fixture_target_pages'].remove(new_page)
++    missed = assessor.assess(setup, 1, projection.phase_policy(old_gap), checks, run_binding=app)
++    assert missed['complete'] and missed['fixture_setup_errors'] == []
+     import tempfile
+     phases = load('clean_phase_check', HERE / 'phases.py')
+     with tempfile.TemporaryDirectory(prefix='css-clean-original-phase-', dir='/private/tmp') as temp:
+@@ -176,7 +197,7 @@
+         assert result['callbacks_failed'] == 123 and result['callbacks_passed'] == 0
+         assert not result['native_acceptance'] and len(result['endings']) == 17
+     assert not scratch.exists()
+-    print(json.dumps({'references': len(policy['references']), 'binding_negatives': 8, 'all_123_FAIL_retained': True, 'phase_failure_retention': True, 'scratch_removed': True, 'live_operations': False}))
++    print(json.dumps({'references': len(policy['references']), 'binding_negatives': 10, 'new_page_ReferenceError_rejected': True, 'old_gap_reproduced_synthetically': True, 'all_123_FAIL_retained': True, 'phase_failure_retention': True, 'scratch_removed': True, 'live_operations': False}))
+ 
+ 
+ if __name__ == '__main__':

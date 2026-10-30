@@ -1,0 +1,24 @@
+# CSS and Stylo verification — V90
+
+The accepted native-fix count remains 149. The active investigation is animation-taint provenance, with the separate duration/input-selection experiment retained. This revision supersedes V89 and records work through the completed Firefox/Chrome WAAPI observations; the corrected native trial is still running.
+
+## Evidence since V89
+
+- The expanded original native baseline completed 106 callbacks across 12 pages: 98 PASS, 8 FAIL, 12 OK page endings. All 94 attr/registered preservation callbacks and four literal controls passed. Eight direct, alias and same-token provenance cases failed. Full failure diagnostics are preserved in css-animation-taint-active-value-original-runtime-1.
+- The first four-file native proposal failed compilation: an invalid CascadeLevel enum reference and extended immutable borrows around CSS-wide selection. No browser test ran. All source/app preimages were restored, the authenticated 1GB backup was removed, and only the actual raw-index observation was refreshed in the runtime epoch.
+- The corrected proposal uses CascadeOrigin::Animations and copies the animation-taint flag before CSS-wide mutations. Its Rust release compilation passed. Native session 46619 is rebuilding affected C++ code; the owner will run the same 106 callbacks and restore source/app afterward. No candidate browser result or native acceptance exists yet.
+- The selected-value Lean model compiled 12 audited theorems and rejected six false controls. It covers supplied producer marking, metadata-aware equality, selected CSS-wide values, composition and alias guards. It assumes correct value/producer selection; it is not native refinement and adds no canonical coverage count.
+- Installed Firefox 158 and portable Chrome 156 completed a matched CSS/script-keyframe diagnostic. Firefox lets the active animated value reach writing-mode; Chrome uses the fallback for both producers. Four samples per phase are stable, literal/lifecycle controls pass, and cancellation restores the ordinary value. Both processes and temporary profiles are gone. Pure-WAAPI normative taint scope remains inconclusive despite this interoperability evidence.
+- Six inherited/CSS-wide/fallback follow-up callbacks and a three-case typed-attr probe are prepared but unexecuted. The typed-attr audit identifies possible provenance loss and a distinct substitution-context issue; its normative alias bridge is still under investigation.
+
+## Next actions and gates
+
+1. Poll existing native session 46619; do not restart on an observation timeout. Independently replay the terminal 106-case result and verify source/app restoration. Separate the eight intended repairs from 98 preservation/control cases. On failure, use actual diagnostics for a narrow correction. Do not alter the source overlay while this owner is live.
+2. After that trial, run the inherited/CSS-wide/fallback controls and a candidate script-animation observation. Extend native coverage to producer scope before acceptance. Retain CSSWG's property-name/value-taint distinction explicitly; interoperability alone does not prove the chosen policy follows the specification.
+3. Resolve direct typed-attr substitution context and alias provenance against the specification, then execute the smallest justified probe. Treat unsupported propagation hypotheses as research, not confirmed bugs. Animation taint is separate from attr() URL-security taint; this work establishes no exfiltration claim.
+4. Keep the duration/input-selection proposal separate. Its remaining gates are selected input correctness, descendant first-read behavior and comparable performance measurement. Do not hide the existing taint fallback failure with a narrower timing-only patch.
+5. Once signing becomes available, publish a fresh research checkpoint, then the validated min/max and logarithm fixes as separate native+WPT commits. V83 failed with the 1Password buffer error; independent verification found no new commit or unintended staging. Do not rerun the completed owner or fall back to unsigned commits. The current source overlay must finish and restore before any checkpoint admission.
+
+Bloom milestones 1–6 remain complete only within their recorded bounded scope. Neither the CSS model nor the isolated new proofs verify all CSS or native Stylo. Keep the full work table and standalone fix ledger; publish no new accepted count until the corresponding native fix is verified and committed.
+
+The fresh V12 untracked audit accounts for all 563 paths: 68 byte-identical committed recovery copies at untracked native/test paths, plus 495 unchanged unrelated metadata entries. The nested Lean repository has only .DS_Store untracked. Ignored research/build artifacts are outside that audit. Four tracked Rust files are temporarily modified by the live candidate; before that overlay the held custom-properties provider was the sole tracked source edit.

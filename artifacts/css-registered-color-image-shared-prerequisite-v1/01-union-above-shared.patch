@@ -1,0 +1,129 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -4,7 +4,6 @@
+ 
+ //! The main cascading algorithm of the style system.
+ 
+-use crate::{FxHashMap, Namespace};
+ use crate::applicable_declarations::{CascadePriority, RevertKind};
+ use crate::color::AbsoluteColor;
+ use crate::computed_value_flags::ComputedValueFlags;
+@@ -13,6 +12,7 @@
+     ComputedCustomProperties, ComputedSubstitutionFunctions, Name, NonCustomReferenceMap,
+     ReferenceFlags, References, SingleNonCustomReference, SubstitutionFunctionKind, VariableValue,
+     get_attr_value_for_cycle_resolution, handle_invalid_at_computed_value_time,
++    invalid_custom_value_depends_on_color_scheme, prepare_custom_value,
+     remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
+ };
+ use crate::dom::{AttributeTracker, DummyElementContext, ElementContext, TElement};
+@@ -42,6 +42,7 @@
+ use crate::values::specified::length::FontBaseSize;
+ use crate::values::specified::position::PositionTryFallbacksTryTactic;
+ use crate::values::{computed, specified};
++use crate::{FxHashMap, Namespace};
+ use hashbrown::hash_map::{Entry, EntryRef};
+ use selectors::matching::ElementSelectorFlags;
+ use servo_arc::Arc;
+@@ -2505,6 +2506,7 @@
+         // of the match so we can create the corresponding nodes once we've pushed this variable.
+         let mut value_non_custom_refs = ReferenceFlags::empty();
+         let mut registered = false;
++        let mut color_eligible = false;
+         let value = match var {
+             VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
+                 let map = &context.computed_context.builder.substitution_functions;
+@@ -2527,6 +2529,11 @@
+                 let is_root = context.computed_context.is_root_element();
+                 value_non_custom_refs = find_non_custom_references(registration, value, is_root);
+                 registered = !registration.is_universal();
++                color_eligible = registration.syntax.as_ref().is_some_and(|syntax| {
++                    syntax.dependent_types().intersects(
++                        crate::properties_and_values::syntax::data_type::DependentDataTypes::COLOR,
++                    )
++                });
+                 let has_dependency = value
+                     .references
+                     .flags
+@@ -2600,6 +2607,7 @@
+ 
+         let mut self_ref = false;
+         let mut lowlink = index;
++        let mut prepared_custom = None;
+         if let Some(v) = value.as_ref() {
+             debug_assert!(
+                 matches!(var, VarType::Custom(_) | VarType::Attr(..)),
+@@ -2623,6 +2631,32 @@
+                 attribute_tracker,
+                 &mut value_non_custom_refs,
+             );
++
++            if let VarType::Custom(ref name) = var
++                && color_eligible
++            {
++                let may_compute_color =
++                    value_non_custom_refs.intersects(ReferenceFlags::COLOR_SCHEME);
++                value_non_custom_refs.remove(ReferenceFlags::COLOR_SCHEME);
++                if registered
++                    && may_compute_color
++                    && lowlink == index
++                    && !self_ref
++                    && context.stack.last() == Some(&index)
++                {
++                    let prepared = prepare_custom_value(
++                        name,
++                        v,
++                        context.stylist,
++                        context.computed_context,
++                        attribute_tracker,
++                    );
++                    if prepared.depends_on_color_scheme() {
++                        value_non_custom_refs |= ReferenceFlags::COLOR_SCHEME;
++                    }
++                    prepared_custom = Some(prepared);
++                }
++            }
+ 
+             // ... Then the non-custom properties this value depends on (font-size, line-height,
+             // color-scheme), as computed by `find_non_custom_references` above.
+@@ -2688,6 +2722,30 @@
+             }
+         }
+ 
++        if let VarType::Custom(ref name) = var {
++            let cyclic = self_ref || lowlink < index || context.stack.last() != Some(&index);
++            if registered
++                && color_eligible
++                && cyclic
++                && !value_non_custom_refs.intersects(ReferenceFlags::COLOR_SCHEME)
++                && invalid_custom_value_depends_on_color_scheme(
++                    name,
++                    context.stylist,
++                    context.computed_context,
++                )
++            {
++                visit_link(
++                    VarType::NonCustom(SingleNonCustomReference::ColorScheme),
++                    index,
++                    references_from_non_custom_properties,
++                    context,
++                    &mut lowlink,
++                    &mut self_ref,
++                    attribute_tracker,
++                );
++            }
++        }
++
+         context.var_info[index].lowlink = lowlink;
+         if lowlink != index {
+             // This variable is in a loop, but it is not the root of this strong connected
+@@ -2732,7 +2790,9 @@
+         // Not in a loop, apply the value.
+         match var {
+             VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
+-                if let Some(ref v) = value {
++                if let Some(prepared) = prepared_custom {
++                    prepared.apply(name, context.stylist, context.computed_context);
++                } else if let Some(ref v) = value {
+                     // We know we're not in a loop now, perform substitution.
+                     // TODO(emilio): Merge with the cycle detection loop instead?
+                     substitute_references_if_needed_and_apply(

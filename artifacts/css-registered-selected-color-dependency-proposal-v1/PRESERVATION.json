@@ -1,0 +1,23 @@
+{
+  "status": "required_native_parser_and_graph_validation_not_executed",
+  "cases": [
+    {"input":"CanvasText", "syntax":"<custom-ident> | <color>", "selected":"CustomIdent", "scheme_edge":false},
+    {"input":"CanvasText", "syntax":"<color> | <custom-ident>", "selected":"System color", "scheme_edge":true},
+    {"input":"red", "syntax":"<color>", "selected":"Absolute color", "scheme_edge":false},
+    {"input":"currentColor", "syntax":"<color>", "selected":"symbolic CurrentColor", "scheme_edge":false},
+    {"input":"red CanvasText", "syntax":"<color>+", "selected":"two color components", "scheme_edge":true},
+    {"input":"red, CanvasText", "syntax":"<color>#", "selected":"two color components", "scheme_edge":true},
+    {"input":"rgb(from CanvasText r g b)", "syntax":"<color>", "selected":"relative origin", "scheme_edge":true},
+    {"input":"color-mix(in srgb, red 100%, CanvasText 0%)", "syntax":"<color>", "selected":"all items computed", "scheme_edge":true},
+    {"input":"linear-gradient(red, CanvasText)", "syntax":"<image>", "selected":"gradient stops", "scheme_edge":true},
+    {"input":"image-set(linear-gradient(red, blue) 1x, linear-gradient(CanvasText, red) 2x)", "syntax":"<image>", "selected":"all items computed before candidate filtering", "scheme_edge":true},
+    {"input":"var(--valid-ident, CanvasText)", "syntax":"<custom-ident> | <color>", "selected":"valid primary identifier; unused fallback ignored", "scheme_edge":false},
+    {"input":"var(--missing, CanvasText)", "syntax":"<color> | <custom-ident>", "selected":"used fallback System", "scheme_edge":true},
+    {"input":"attr(data-color type(<color>), red)", "syntax":"<color>", "attribute":"CanvasText", "selected":"specified System after typed attr serialization", "scheme_edge":true},
+    {"input":"attr(data-color type(<color>), red)", "syntax":"<color>", "attribute":"one two", "selected":"invalid typed attr selects absolute fallback", "scheme_edge":false},
+    {"input":"var(--missing, inherit)", "syntax":"<color>", "selected":"existing computed parent value", "scheme_edge":false},
+    {"input":"one two", "syntax":"<color>", "selected":"existing invalid/default path", "scheme_edge":false},
+    {"input":"light-dark(red, blue)", "syntax":"*", "selected":"universal token stream", "scheme_edge":false},
+    {"input":"var(--self)", "syntax":"<color> | <custom-ident>", "selected":"custom SCC invalidation; no prepared AST committed", "scheme_edge":"not a fresh color computation"}
+  ]
+}

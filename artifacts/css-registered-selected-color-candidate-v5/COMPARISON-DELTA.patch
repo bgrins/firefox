@@ -1,0 +1,40 @@
+--- artifacts/css-registered-selected-color-candidate-v4/comparison.py
++++ artifacts/css-registered-selected-color-candidate-v5/comparison.py
+@@ -28,9 +28,9 @@
+     settings = copy.deepcopy(old['wpt'])
+     settings.update(resources=union['resources'], metadata=union['metadata'],
+                     manifest={'path': str((suite / 'MANIFEST.json').relative_to(root)), 'sha256': sha(suite / 'MANIFEST.json')},
+-                    expected_subtests=union['roster'], expected_subtest_count=42,
+-                    expected_control_count=42, expected_page_count=3,
+-                    expected_regression_signature_count=45,
++                    expected_subtests=union['roster'], expected_subtest_count=45,
++                    expected_control_count=45, expected_page_count=4,
++                    expected_regression_signature_count=49,
+                     fixture_target_pages=list(union['roster']), harness_revision=policy['head'],
+                     phase_revisions={'original': policy['head'], 'candidate': policy['head']})
+     return settings
+@@ -53,6 +53,15 @@
+     assert result['provider_source_role'] == 'clean-original' and result['build_revision'] == source['head']
+     assert not result['native_fix_acceptance']
+     phase = directory / 'original-wpt'
++    for name, pin in policy['wpt']['resources'].items():
++        assert sha(phase / 'tests' / name) == pin['sha256']
++    assert sha(phase / 'metadata/MANIFEST.json') == policy['wpt']['manifest']['sha256']
++    for name, pin in policy['wpt']['metadata'].items():
++        copied = phase / 'metadata' / name
++        if pin['sha256'] is None:
++            assert not copied.exists() and not copied.is_symlink()
++        else:
++            assert sha(copied) == pin['sha256']
+     for name, key in [('ASSESSMENT.json', 'assessment_sha256'), ('raw.jsonl', 'raw_sha256'), ('RESULT.json', 'result_sha256')]:
+         assert sha(phase / name) == result['phase'][key]
+     build = read(directory / 'original-build/RESULT.json')
+@@ -79,7 +88,7 @@
+     assert outcomes['rows'] == replay['rows'] and outcomes['endings'] == replay['ends']
+     assert outcomes['callbacks_passed'] == sum(r['status'] == 'PASS' for r in replay['rows'])
+     assert outcomes['callbacks_failed'] == sum(r['status'] == 'FAIL' for r in replay['rows'])
+-    assert len(replay['rows']) == 42 and len(replay['ends']) == 3
++    assert len(replay['rows']) == 45 and len(replay['ends']) == 4
+     projected = assessor.assess(events, phase_result['exit'], phase_policy(policy['wpt']), checks, run_binding=metadata)
+     assert projected['complete'] and projected['rows'] == replay['rows'] and projected['ends'] == replay['ends']
+     return projected

@@ -1,0 +1,112 @@
+[
+  {
+    "label": "base-helper",
+    "source": "artifacts/css-duration-current-source-20261030-v1/source/layout/style/ServoStyleSet.cpp",
+    "source_sha256": "9c44b15945c9eba8d82f16d4980e76cc4ad1d9ffd330bb14cc3a2d131dc4caf5",
+    "lines": [
+      1183,
+      1188
+    ],
+    "excerpt": "already_AddRefed<ComputedStyle> ServoStyleSet::GetBaseContextForElement(\n    Element* aElement, const ComputedStyle* aStyle) {\n  return Servo_StyleSet_GetBaseComputedValuesForElement(\n             mRawData.get(), aElement, aStyle, &Snapshots())\n      .Consume();\n}\n",
+    "excerpt_sha256": "9eda43943c95b33b1021f948af86e4f95e71c4afb1541723eb7721cdd51f9d6e"
+  },
+  {
+    "label": "filtered-recascade",
+    "source": "artifacts/css-duration-current-source-20261030-v1/source/servo/ports/geckolib/glue.rs",
+    "source_sha256": "83cc1e6f6d27aa92d34377564aa6969dbdda838dd880b401e35de08f250d5027",
+    "lines": [
+      1074,
+      1101
+    ],
+    "excerpt": "fn resolve_rules_for_element_with_context<'a>(\n    element: GeckoElement<'a>,\n    mut context: StyleContext<GeckoElement<'a>>,\n    rules: StrongRuleNode,\n    original_computed_values: &ComputedValues,\n) -> Arc<ComputedValues> {\n    use style::style_resolver::{PseudoElementResolution, StyleResolverForElement};\n\n    // This currently ignores visited styles, which seems acceptable, as\n    // existing browsers don't appear to animate visited styles.\n    let inputs = CascadeInputs {\n        rules: Some(rules),\n        visited_rules: None,\n        flags: original_computed_values.flags.for_cascade_inputs(),\n        included_cascade_flags: RuleCascadeFlags::empty(),\n    };\n\n    // Actually `PseudoElementResolution` doesn't matter.\n    let mut resolver = StyleResolverForElement::new(\n        element,\n        &mut context,\n        RuleInclusion::All,\n        PseudoElementResolution::IfApplicable,\n    );\n    resolver\n        .cascade_style_and_visited_with_default_parents(inputs)\n        .0\n}\n",
+    "excerpt_sha256": "bcca42aa81983ea19677938daad4e412b82ef7b55bf80eee6c2e62065e6d7f89"
+  },
+  {
+    "label": "base-entry",
+    "source": "artifacts/css-duration-current-source-20261030-v1/source/servo/ports/geckolib/glue.rs",
+    "source_sha256": "83cc1e6f6d27aa92d34377564aa6969dbdda838dd880b401e35de08f250d5027",
+    "lines": [
+      1130,
+      1175
+    ],
+    "excerpt": "pub extern \"C\" fn Servo_StyleSet_GetBaseComputedValuesForElement(\n    raw_style_set: &PerDocumentStyleData,\n    element: &RawGeckoElement,\n    computed_values: &ComputedValues,\n    snapshots: *const ServoElementSnapshotTable,\n) -> Strong<ComputedValues> {\n    debug_assert!(!snapshots.is_null());\n    let computed_values = unsafe { ArcBorrow::from_ref(computed_values) };\n\n    let rules = match computed_values.rules {\n        None => return computed_values.clone_arc().into(),\n        Some(ref rules) => rules,\n    };\n\n    let doc_data = raw_style_set.borrow();\n    let without_animations_rules = doc_data.stylist.rule_tree().remove_animation_rules(rules);\n    if without_animations_rules == *rules {\n        return computed_values.clone_arc().into();\n    }\n\n    let element = GeckoElement(element);\n\n    let global_style_data = &*GLOBAL_STYLE_DATA;\n    let guard = global_style_data.shared_lock.read();\n    let shared = create_shared_context(\n        &global_style_data,\n        &guard,\n        &doc_data.stylist,\n        TraversalFlags::empty(),\n        unsafe { &*snapshots },\n    );\n    let mut tlc = ThreadLocalStyleContext::new();\n    tlc.current_dom_depth = element.as_node().depth();\n    let context = StyleContext {\n        shared: &shared,\n        thread_local: &mut tlc,\n    };\n\n    resolve_rules_for_element_with_context(\n        element,\n        context,\n        without_animations_rules,\n        &computed_values,\n    )\n    .into()\n}\n",
+    "excerpt_sha256": "c259f6e7e51f4a7124164922b5a038c0c513e49c3cb10394912260e8ea20fbec"
+  },
+  {
+    "label": "remove-own-rules",
+    "source": "artifacts/css-duration-current-source-20261030-v1/source/servo/components/style/rule_tree/mod.rs",
+    "source_sha256": "524aa04e49a64781038129680a94c9ed34ffa62cc8abd1e542b3fab64f601ed2",
+    "lines": [
+      328,
+      354
+    ],
+    "excerpt": "    /// Returns new rule node without rules from declarative animations.\n    pub fn remove_animation_rules(&self, path: &StrongRuleNode) -> StrongRuleNode {\n        // Return a clone if there are no animation rules.\n        if !path.has_animation_or_transition_rules() {\n            return path.clone();\n        }\n\n        let iter = path.self_and_ancestors().take_while(|node| {\n            node.cascade_level() >= CascadeLevel::new(CascadeOrigin::SMILOverride)\n        });\n        let mut last = path;\n        let mut children = SmallVec::<[_; 10]>::new();\n        for node in iter {\n            if !node.cascade_level().is_animation() {\n                children.push((\n                    node.style_source().unwrap().clone(),\n                    node.cascade_priority(),\n                ));\n            }\n            last = node;\n        }\n\n        self.insert_ordered_rules_from(\n            last.parent().unwrap().clone(),\n            children.iter().rev().map(|(s, p)| (s.borrow(), *p)),\n        )\n    }\n",
+    "excerpt_sha256": "382366e674a7691c5eaa58bc0e9c29a68ee03fad0e4a838725f6fb642ef065c3"
+  },
+  {
+    "label": "initialize-custom-map",
+    "source": "artifacts/css-contextual-easing-servo-closure-v4/baseline/servo/components/style/properties/cascade.rs",
+    "source_sha256": "2cc7b3d4047b9759277f41809ad7ba7baef99431c26b608bcf459b2d83764656",
+    "lines": [
+      1668,
+      1683
+    ],
+    "excerpt": "    fn init_custom_properties(&mut self, context: &mut computed::Context) {\n        let is_root_element = context.is_root_element();\n        let initial_values = self.stylist.get_custom_property_initial_values();\n        let inherited = if is_root_element {\n            debug_assert!(context.inherited_custom_properties().is_empty());\n            initial_values.inherited.clone()\n        } else {\n            context.inherited_custom_properties().inherited.clone()\n        };\n        let properties = ComputedCustomProperties {\n            inherited,\n            non_inherited: initial_values.non_inherited.clone(),\n        };\n        context.builder.substitution_functions =\n            ComputedSubstitutionFunctions::new(Some(properties), None);\n    }\n",
+    "excerpt_sha256": "0a83991c0bd90e86feb8a3f393f2029f11596e2e4c4b3c88e68fd14b7e606749"
+  },
+  {
+    "label": "substitution-caller",
+    "source": "artifacts/css-contextual-easing-servo-closure-v4/baseline/servo/components/style/properties/mod.rs",
+    "source_sha256": "ddd62d7c4eee145f6a21b6a92f8bd903d00f0aac4778144e122aa81c79c8ee13",
+    "lines": [
+      1634,
+      1714
+    ],
+    "excerpt": "    fn substitute_variables<'cache>(\n        &self,\n        substitution_functions: &ComputedSubstitutionFunctions,\n        stylist: &Stylist,\n        computed_context: &computed::Context,\n        shorthand_cache: &'cache mut ShorthandsWithPropertyReferencesCache,\n        attribute_tracker: &mut AttributeTracker,\n    ) -> Cow<'cache, PropertyDeclaration> {\n        let longhand_id = self.id;\n        let unparsed = &self.value;\n        let invalid_at_computed_value_time = || {\n            let keyword = if longhand_id.inherited() {\n                CSSWideKeyword::Inherit\n            } else {\n                CSSWideKeyword::Initial\n            };\n            Cow::Owned(PropertyDeclaration::css_wide_keyword(longhand_id, keyword))\n        };\n\n        if computed_context\n            .builder\n            .invalid_non_custom_properties\n            .contains(longhand_id)\n        {\n            return invalid_at_computed_value_time();\n        }\n\n        if let Some(shorthand_id) = unparsed.from_shorthand {\n            let key = (shorthand_id, longhand_id);\n            if shorthand_cache\n                .get(&key)\n                .is_some_and(|(source, _)| Arc::ptr_eq(source, unparsed))\n            {\n                // FIXME: This double lookup should be avoidable, but rustc\n                // doesn't like that, see:\n                //\n                // https://github.com/rust-lang/rust/issues/82146\n                return Cow::Borrowed(&shorthand_cache[&key].1);\n            }\n        }\n\n        let property_id = unparsed.substitution_property_id(longhand_id);\n\n        let SubstitutionResult { css, attr_taint } = match custom_properties::substitute(\n            &unparsed.variable_value,\n            Some(property_id),\n            substitution_functions,\n            stylist,\n            computed_context,\n            attribute_tracker,\n        ) {\n            Ok(css) => css,\n            Err(..) => return invalid_at_computed_value_time(),\n        };\n\n        // As of this writing, only the base URL is used for property\n        // values.\n        //\n        // NOTE(emilio): we intentionally pase `None` as the rule type here.\n        // If something starts depending on it, it's probably a bug, since\n        // it'd change how values are parsed depending on whether we're in a\n        // @keyframes rule or not, for example... So think twice about\n        // whether you want to do this!\n        //\n        // FIXME(emilio): ParsingMode is slightly fishy...\n        let mut context = ParserContext::new(\n            Origin::Author,\n            &unparsed.variable_value.url_data,\n            None,\n            ParsingMode::DEFAULT,\n            computed_context.quirks_mode,\n            /* namespaces = */ Default::default(),\n            None,\n            None,\n            attr_taint,\n        );\n\n        let mut input = Parser::new(&css);\n        input.skip_whitespace();\n\n        if let Ok(keyword) = input.try_parse(CSSWideKeyword::parse) {\n",
+    "excerpt_sha256": "813e829b5d2d5e6a947049e73c9838ef5059ab8e29f6fabb6d138bddf91f0987"
+  },
+  {
+    "label": "variable-fields",
+    "source": "artifacts/css-contextual-easing-servo-closure-v4/baseline/servo/components/style/custom_properties.rs",
+    "source_sha256": "2675b33b30ac43db5b758d5a80f42fa4530856c32d5a0923882a15f8a8bc5774",
+    "lines": [
+      276,
+      298
+    ],
+    "excerpt": "/// A value for a custom property is just a set of tokens.\n///\n/// We preserve the original CSS for serialization, and also the variable\n/// references to other custom property names.\n#[derive(Clone, Debug, MallocSizeOf, ToShmem)]\npub struct VariableValue {\n    /// The raw CSS string.\n    pub css: String,\n\n    /// The url data of the stylesheet where this value came from.\n    pub url_data: UrlExtraData,\n\n    first_token_type: TokenSerializationType,\n    last_token_type: TokenSerializationType,\n\n    /// var(), env(), attr() or non-custom property (e.g. through `em`) references.\n    pub references: References,\n\n    /// Was this variable value attr tainted before. Used to keep attr tainting\n    /// information when uncomputing a style that needs to be put back into the\n    /// cascade.\n    pub explicitly_attr_tainted: bool,\n}\n",
+    "excerpt_sha256": "fb1c190b83a0be30c403834d6be85f4dc5112cadb4d63af82e359bdab772a061"
+  },
+  {
+    "label": "held-var-branch",
+    "source": "artifacts/css-contextual-easing-servo-closure-v4/baseline/servo/components/style/custom_properties.rs",
+    "source_sha256": "2675b33b30ac43db5b758d5a80f42fa4530856c32d5a0923882a15f8a8bc5774",
+    "lines": [
+      2117,
+      2235
+    ],
+    "excerpt": "fn substitute_one_reference<'a>(\n    css: &'a str,\n    url_data: &UrlExtraData,\n    property_id: Option<PropertyIdRef>,\n    substitution_functions: &'a ComputedSubstitutionFunctions,\n    reference: &'a SubstitutionFunctionReference,\n    stylist: &Stylist,\n    computed_context: &computed::Context,\n    attribute_tracker: &mut AttributeTracker,\n    seen: &mut SubstitutionState<'a>,\n) -> Result<Substitution<'a>, ()> {\n    let simple_attr_subst = |s: &str| {\n        Some(Substitution::new(\n            Cow::Owned(quoted_css_string(s)),\n            TokenSerializationType::Nothing,\n            TokenSerializationType::Nothing,\n            /* attr_tainted */ true,\n        ))\n    };\n    let substitution: Option<_> = match reference.substitution_kind {\n        SubstitutionFunctionKind::Var => {\n            let registration = stylist.get_custom_property_registration(&reference.name);\n            match substitution_functions.get_var(registration, &reference.name) {\n                None => None,\n                // If the referenced value is itself still unresolved (i.e. it has references), we\n                // are substituting against a partially-resolved map -- this happens while applying\n                // a prioritary property in the middle of custom-property resolution. Resolve it\n                // recursively, guarding against cycles (which the resolver will also remove, but it\n                // may not have gotten to this variable yet).\n                Some(v) => match v.as_universal() {\n                    Some(u) if u.has_references() => {\n                        if let Some(index) =\n                            seen.names.iter().position(|name| *name == &reference.name)\n                        {\n                            for name in &seen.names[index..] {\n                                if !seen.cyclic_names.contains(name) {\n                                    seen.cyclic_names.push(*name);\n                                }\n                            }\n                            // Cycle: the primary is guaranteed-invalid, so fall through to the\n                            // fallback (if any), like any other invalid primary.\n                            None\n                        } else {\n                            seen.names.push(&reference.name);\n                            let result = substitute_internal(\n                                u,\n                                property_id,\n                                substitution_functions,\n                                stylist,\n                                computed_context,\n                                attribute_tracker,\n                                seen,\n                                /* attr_taint */ None,\n                            );\n                            seen.names.pop();\n                            if seen.cyclic_names.contains(&&reference.name) {\n                                invalid_at_computed_value_time_value(\n                                    &reference.name,\n                                    registration,\n                                    stylist,\n                                    computed_context,\n                                )\n                                .map(|value| {\n                                    Substitution::from_value(\n                                        value.to_variable_value(),\n                                        value.attr_tainted,\n                                    )\n                                })\n                            } else {\n                                match result {\n                                    Ok(mut substitution) => {\n                                        substitution.attr_tainted |= v.attr_tainted;\n                                        match substitution.registered_default(\n                                            &reference.name,\n                                            registration,\n                                            &u.url_data,\n                                            stylist,\n                                            computed_context,\n                                        ) {\n                                            RegisteredSubstitutionDefault::Defaulted(value) => {\n                                                value.map(|value| {\n                                                    Substitution::from_value(\n                                                        value.to_variable_value(),\n                                                        value.attr_tainted,\n                                                    )\n                                                })\n                                            },\n                                            RegisteredSubstitutionDefault::NotDefaulted => {\n                                                Some(substitution)\n                                            },\n                                        }\n                                    },\n                                    Err(()) if !registration.is_universal() => {\n                                        invalid_at_computed_value_time_value(\n                                            &reference.name,\n                                            registration,\n                                            stylist,\n                                            computed_context,\n                                        )\n                                        .map(|value| {\n                                            Substitution::from_value(\n                                                value.to_variable_value(),\n                                                value.attr_tainted,\n                                            )\n                                        })\n                                    },\n                                    // The primary couldn't be resolved (invalid); use the fallback.\n                                    Err(()) => None,\n                                }\n                            }\n                        }\n                    },\n                    _ => Some(Substitution::from_value(\n                        v.to_variable_value(),\n                        v.attr_tainted,\n                    )),\n                },\n            }\n        },\n",
+    "excerpt_sha256": "31e287c245fb5f9c3b9bee572a2ca4c00ef042a67c65047825a76f1978528574"
+  },
+  {
+    "label": "substitution-return",
+    "source": "artifacts/css-contextual-easing-servo-closure-v4/baseline/servo/components/style/custom_properties.rs",
+    "source_sha256": "2675b33b30ac43db5b758d5a80f42fa4530856c32d5a0923882a15f8a8bc5774",
+    "lines": [
+      2381,
+      2405
+    ],
+    "excerpt": "pub fn substitute<'a>(\n    variable_value: &'a VariableValue,\n    property_id: Option<PropertyIdRef>,\n    substitution_functions: &'a ComputedSubstitutionFunctions,\n    stylist: &Stylist,\n    computed_context: &computed::Context,\n    attribute_tracker: &mut AttributeTracker,\n) -> Result<SubstitutionResult<'a>, ()> {\n    debug_assert!(variable_value.has_references());\n    let mut attr_taint = AttrTaint::default();\n    let v = substitute_internal(\n        variable_value,\n        property_id,\n        substitution_functions,\n        stylist,\n        computed_context,\n        attribute_tracker,\n        &mut SubstitutionState::default(),\n        Some(&mut attr_taint),\n    )?;\n    Ok(SubstitutionResult {\n        css: v.css,\n        attr_taint,\n    })\n}\n",
+    "excerpt_sha256": "dd2241b2ced1c30c26274402fa6a5d49bce0761351196efd036cf65015d244f9"
+  },
+  {
+    "label": "duration-array",
+    "source": "artifacts/css-contextual-duration-duration-input-selection-proposal-v1/candidate/layout/style/nsAnimationManager.cpp",
+    "source_sha256": "e9cf6e44b2a6a37fb4f460df8c06f08f93d5366ad70329d8daef722f1fdb1166",
+    "lines": [
+      677,
+      723
+    ],
+    "excerpt": "void nsAnimationManager::DoUpdateAnimations(\n    const NonOwningAnimationTarget& aTarget, const nsStyleUIReset& aStyle,\n    ServoCSSAnimationBuilder& aBuilder, const nsStyleUIReset* aDurationInput,\n    bool aVerifyDurationInputOnly) {\n  // Everything that causes our animation data to change triggers a\n  // style change, which in turn triggers a non-animation restyle.\n  // Likewise, when we initially construct frames, we're not in a\n  // style change, but also not in an animation restyle.\n\n  auto* collection =\n      CSSAnimationCollection::Get(aTarget.mElement, aTarget.mPseudoRequest);\n  if (!collection && aStyle.mAnimationNameCount == 1 &&\n      aStyle.mAnimations[0].GetName() == nsGkAtoms::_empty) {\n    return;\n  }\n\n  if (aVerifyDurationInputOnly && !collection) {\n    return;\n  }\n\n  nsTArray<StyleAnimationDuration> durationInput;\n  if (aDurationInput) {\n    durationInput.SetCapacity(aDurationInput->mAnimationDurationCount);\n    for (uint32_t i = 0; i < aDurationInput->mAnimationDurationCount; ++i) {\n      durationInput.AppendElement(aDurationInput->GetAnimationDuration(i));\n    }\n    if (aVerifyDurationInputOnly &&\n        collection->mLastAnimationDurationInput == durationInput) {\n      return;\n    }\n  }\n\n  nsAutoAnimationMutationBatch mb(aTarget.mElement->OwnerDoc());\n\n  // Build the updated animations list. Even if we remove entries in\n  // `mAnimationsWithNamedTimeline` in this function later, entries are added\n  // when we build the list, breaking the symmetry. This is unfortunate, but\n  // unavoidable, because `newAmimations.Length()` does not necessarily equal to\n  // the length of animations defined in `aStyle`, e.g. when a referenced\n  // `animiation-name` does not exist.\n  //\n  // Old entries in `collection` may be reused. If they are, they are removed\n  // from `collection` and put into `newAnimations`.\n  OwningCSSAnimationPtrArray newAnimations =\n      BuildAnimations(mPresContext, aTarget, aStyle, durationInput, aBuilder,\n                      collection, mMaybeReferencedAnimations,\n                      mAnimationsWithNamedTimeline);\n",
+    "excerpt_sha256": "157d3a1de37a0c61017157ca98f6be863b6969ba7a2e8e8e66a984ef6123e2bb"
+  }
+]

@@ -1,0 +1,34 @@
+--- artifacts/css-animation-taint-candidate-v3-terminal-review-v1/review.py
++++ artifacts/css-animation-taint-candidate-v5-terminal-review-v1/review.py
+@@ -26,10 +26,10 @@
+ def partition(original, candidate, signature):
+     old = {(row["test"], row["subtest"]): row for row in original}
+     new = {(row["test"], row["subtest"]): row for row in candidate}
+-    assert len(old) == len(original) == 106 and len(new) == len(candidate) == 106
++    assert len(old) == len(original) == 120 and len(new) == len(candidate) == 120
+     assert set(old) == set(new)
+-    assert sum(row["status"] == "PASS" for row in old.values()) == 98
+-    assert sum(row["status"] == "FAIL" for row in old.values()) == 8
++    assert sum(row["status"] == "PASS" for row in old.values()) == 103
++    assert sum(row["status"] == "FAIL" for row in old.values()) == 17
+     return {label: [{"original": old[key], "candidate": new[key],
+                     "full_signature_unchanged": signature(old[key]) == signature(new[key])}
+                    for key in sorted(old) if old[key]["status"] == status]
+@@ -58,7 +58,7 @@
+         return
+     assert config["execution_enabled"] and config["actual_terminal"] is not None
+     terminal = config["actual_terminal"]
+-    assert terminal["session"] == config["expected_session"] == 46619
++    assert terminal["session"] == config["expected_session"] == 13008
+     assert terminal["exit"] in (0, 1) and terminal["terminal_chunk"]
+     assert not config["mutations_allowed"] and not config["epoch_publication_allowed"]
+     assert not any(os.environ.get(k) for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"))
+@@ -126,7 +126,7 @@
+             json.dump(evidence, stream, indent=2, sort_keys=True)
+             stream.write("\n")
+         assert replay == saved_assessment and replay["complete"], "Incomplete or changed raw observation; RAW-REPLAY retains evidence"
+-        assert len(replay["rows"]) == 106 and len(replay["ends"]) == 12
++        assert len(replay["rows"]) == 120 and len(replay["ends"]) == 16
+         assert phase["comparison_gate_passed"] == replay["comparison_gate_passed"]
+         assert metadata == record("candidate-wpt/APPLICATION-METADATA-POST.json")
+         phase_pre = record("candidate-wpt/PRE.json")

@@ -1,0 +1,47 @@
+--- artifacts/css-registered-selected-color-candidate-terminal-review-v3/check.py
++++ artifacts/css-registered-selected-color-candidate-terminal-review-v4/check.py
+@@ -10,12 +10,12 @@
+ namespace = {}
+ exec(compile(ast.Module(body=[node], type_ignores=[]), "partition", "exec"), namespace)
+ partition = namespace["partition"]
+-original = [{"test": "/page", "subtest": str(i), "status": "PASS" if i < 29 else "FAIL", "message": str(i)} for i in range(42)]
++original = [{"test": "/page", "subtest": str(i), "status": "PASS" if i < 30 else "FAIL", "message": str(i)} for i in range(45)]
+ unchanged = partition(original, original, dict)
+-assert len(unchanged["original_pass_controls"]) == 29 and len(unchanged["original_fail_research_targets"]) == 13
++assert len(unchanged["original_pass_controls"]) == 30 and len(unchanged["original_fail_research_targets"]) == 15
+ assert all(row["full_signature_unchanged"] for rows in unchanged.values() for row in rows)
+ improved = copy.deepcopy(original)
+-for row in improved[29:]:
++for row in improved[30:]:
+     row["status"] = "PASS"
+ result = partition(original, improved, dict)
+ assert all(row["full_signature_unchanged"] for row in result["original_pass_controls"])
+@@ -24,7 +24,7 @@
+ regressed[0]["status"] = "FAIL"
+ assert not partition(original, regressed, dict)["original_pass_controls"][0]["full_signature_unchanged"]
+ all_failed = [dict(row, status="FAIL") for row in original]
+-assert len(partition(original, all_failed, dict)["original_pass_controls"]) == 29
++assert len(partition(original, all_failed, dict)["original_pass_controls"]) == 30
+ negatives = [original[:-1], original + [original[0]], [dict(row, subtest="unknown") if i == 0 else row for i,row in enumerate(original)]]
+ for rows in negatives:
+     try:
+@@ -35,7 +35,7 @@
+         raise AssertionError("Malformed roster accepted")
+ policy = json.loads((HERE / "POLICY.json").read_text())
+ assert policy["execution_enabled"] is False and policy["actual_terminal"] is None
+-assert policy["expected_session"] == 86757 and policy["expected_launch"] == "2c6dfe"
++assert policy["expected_session"] == 80603 and policy["expected_launch"] == "b130f7"
+ import hashlib
+ ROOT = HERE.parents[1]
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+@@ -45,8 +45,8 @@
+ assert sha(owner / 'FILES.json') == policy['owner_manifest_sha256']
+ for name, pin in json.loads((owner / 'FILES.json').read_text()).items():
+     assert sha(owner / name) == pin['sha256']
+-old_source = (ROOT / 'artifacts/css-registered-selected-color-candidate-terminal-review-v2/review.py').read_text()
+-assert source == old_source
++old_source = (ROOT / 'artifacts/css-registered-selected-color-candidate-terminal-review-v3/review.py').read_text()
++assert source == old_source.replace('== 42','== 45').replace('len(replay["ends"]) == 3','len(replay["ends"]) == 4')
+ anchor = '    assert {name: sha(CONTROL / name) for name in policy["controls"]}'
+ assert source[source.index(anchor):] == old_source[old_source.index(anchor):]
+ assert not any(isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in {"unlink", "rmtree", "write_owned"} for node in ast.walk(module))

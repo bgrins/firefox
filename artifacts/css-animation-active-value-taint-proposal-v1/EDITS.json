@@ -1,0 +1,278 @@
+[
+  {
+    "path": "servo/components/style/properties_and_values/value.rs",
+    "old": "    pub attr_tainted: bool,",
+    "new": "    pub attr_tainted: bool,\n    /// Whether the winning value carries animation provenance.\n    #[css(skip)]\n    pub animation_tainted: bool,",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties_and_values/value.rs",
+    "old": "            attr_tainted: self.attr_tainted.to_computed_value(context),",
+    "new": "            attr_tainted: self.attr_tainted.to_computed_value(context),\n            animation_tainted: self.animation_tainted,",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties_and_values/value.rs",
+    "old": "            attr_tainted: ToComputedValue::from_computed_value(&computed.attr_tainted),",
+    "new": "            attr_tainted: ToComputedValue::from_computed_value(&computed.attr_tainted),\n            animation_tainted: computed.animation_tainted,",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties_and_values/value.rs",
+    "old": "            attr_tainted: self.attr_tainted || other.attr_tainted,",
+    "new": "            attr_tainted: self.attr_tainted || other.attr_tainted,\n            animation_tainted: self.animation_tainted || other.animation_tainted,",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties_and_values/value.rs",
+    "old": "            attr_tainted: Default::default(),",
+    "new": "            attr_tainted: Default::default(),\n            animation_tainted: false,",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties_and_values/value.rs",
+    "old": "        let attr_tainted = var.is_attr_tainted();",
+    "new": "        let attr_tainted = var.is_attr_tainted();\n        let animation_tainted = var.explicitly_animation_tainted;",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties_and_values/value.rs",
+    "old": "            attr_tainted,\n        }",
+    "new": "            attr_tainted,\n            animation_tainted,\n        }",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties_and_values/value.rs",
+    "old": "            return (**value).clone();",
+    "new": "            let mut value = (**value).clone();\n            value.explicitly_animation_tainted |= self.animation_tainted;\n            return value;",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties_and_values/value.rs",
+    "old": "        ComputedPropertyValue::new(css, &self.url_data, first, last)",
+    "new": "        let mut value = ComputedPropertyValue::new(css, &self.url_data, first, last);\n        value.explicitly_animation_tainted = self.animation_tainted;\n        value",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties_and_values/value.rs",
+    "old": "            if self.attr_tainted && !var.is_attr_tainted() {",
+    "new": "            if (self.attr_tainted && !var.is_attr_tainted())\n                || (self.animation_tainted && !var.explicitly_animation_tainted)\n            {",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties_and_values/value.rs",
+    "old": "                tainted.explicitly_attr_tainted = true;",
+    "new": "                tainted.explicitly_attr_tainted |= self.attr_tainted;\n                tainted.explicitly_animation_tainted |= self.animation_tainted;",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties_map.rs",
+    "old": "            a == b && a.attr_tainted == b.attr_tainted",
+    "new": "            a == b\n                && a.attr_tainted == b.attr_tainted\n                && a.animation_tainted == b.animation_tainted",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "    pub explicitly_attr_tainted: bool,",
+    "new": "    pub explicitly_attr_tainted: bool,\n    /// Preserves animation provenance through uncomputation.\n    pub explicitly_animation_tainted: bool,",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "            explicitly_attr_tainted: false,",
+    "new": "            explicitly_attr_tainted: false,\n            explicitly_animation_tainted: false,",
+    "count": 4
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "    attr_tainted: bool,\n}\n\nimpl<'a> Substitution<'a>",
+    "new": "    attr_tainted: bool,\n    animation_tainted: bool,\n}\n\nimpl<'a> Substitution<'a>",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "            css: v.css.into(),",
+    "new": "            animation_tainted: v.explicitly_animation_tainted,\n            css: v.css.into(),",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "            value.attr_tainted |= self.attr_tainted;",
+    "new": "            value.attr_tainted |= self.attr_tainted;\n            value.animation_tainted |= self.animation_tainted;",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "        v.attr_tainted |= self.attr_tainted;",
+    "new": "        v.attr_tainted |= self.attr_tainted;\n        v.animation_tainted |= self.animation_tainted;",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "            last_token_type,\n            attr_tainted,\n        }\n    }\n}\n\n/// Result of var()",
+    "new": "            last_token_type,\n            attr_tainted,\n            animation_tainted: false,\n        }\n    }\n}\n\n/// Result of var()",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "    let mut attr_tainted = false;",
+    "new": "    let mut attr_tainted = false;\n    let mut animation_tainted = false;",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "        attr_tainted |= substitution.attr_tainted;",
+    "new": "        attr_tainted |= substitution.attr_tainted;\n        animation_tainted |= substitution.animation_tainted;",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "    Ok(Substitution::from_value(substituted, attr_tainted))",
+    "new": "    substituted.explicitly_animation_tainted = animation_tainted;\n    Ok(Substitution::from_value(substituted, attr_tainted))",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "substitution.attr_tainted |= v.attr_tainted;",
+    "new": "substitution.attr_tainted |= v.attr_tainted;\n                                        substitution.animation_tainted |= v.animation_tainted;",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "    if let Some(s) = substitution {\n        return Ok(s);\n    }",
+    "new": "    let substitution = substitution.filter(|value| {\n        !(reference.substitution_kind == SubstitutionFunctionKind::Var\n            && value.animation_tainted\n            && !suppress_animation_taint_sink\n            && matches!(property_id, Some(PropertyIdRef::NonCustom(id)) if !id.is_animatable()))\n    });\n    if let Some(s) = substitution {\n        return Ok(s);\n    }",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "    do_substitute_chunk(\n        &variable_value.css,",
+    "new": "    let mut result = do_substitute_chunk(\n        &variable_value.css,",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "        seen,\n        attr_taint,\n    )\n}\n\n/// Replace var()",
+    "new": "        seen,\n        attr_taint,\n    )?;\n    result.animation_tainted |= variable_value.explicitly_animation_tainted;\n    Ok(result)\n}\n\n/// Replace var()",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "            return;\n        }\n    }\n\n    match namespace {",
+    "new": "            if substitution.animation_tainted {\n                let value = context.builder.substitution_functions.get_var(registration, name).cloned();\n                if let Some(mut value) = value {\n                    value.animation_tainted = true;\n                    context.builder.substitution_functions.insert_var(registration, name, value);\n                }\n            }\n            return;\n        }\n    }\n\n    match namespace {",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "fn do_substitute_chunk<'a>(\n    css: &'a str,\n    start: usize,\n    end: usize,\n    first_token_type: TokenSerializationType,\n    last_token_type: TokenSerializationType,\n    url_data: &UrlExtraData,\n    property_id: Option<PropertyIdRef>,\n    substitution_functions: &'a ComputedSubstitutionFunctions,\n    stylist: &Stylist,\n    computed_context: &computed::Context,\n    references: &'a [SubstitutionFunctionReference],\n    attribute_tracker: &mut AttributeTracker,\n    seen: &mut SubstitutionState<'a>,\n    mut attr_taint: Option<&mut AttrTaint>,\n)",
+    "new": "fn do_substitute_chunk<'a>(\n    css: &'a str,\n    start: usize,\n    end: usize,\n    first_token_type: TokenSerializationType,\n    last_token_type: TokenSerializationType,\n    url_data: &UrlExtraData,\n    property_id: Option<PropertyIdRef>,\n    substitution_functions: &'a ComputedSubstitutionFunctions,\n    stylist: &Stylist,\n    computed_context: &computed::Context,\n    references: &'a [SubstitutionFunctionReference],\n    attribute_tracker: &mut AttributeTracker,\n    seen: &mut SubstitutionState<'a>,\n    mut attr_taint: Option<&mut AttrTaint>,\n    suppress_animation_taint_sink: bool,\n)",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "do_substitute_chunk(\n        css,\n        fallback.start.get(),\n        reference.end - 1, // Skip the closing parenthesis of the reference value.\n        fallback.first_token_type,\n        fallback.last_token_type,\n        url_data,\n        property_id,\n        substitution_functions,\n        stylist,\n        computed_context,\n        &fallback.references.refs,\n        attribute_tracker,\n        seen,\n        /* attr_taint */ None,\n    )",
+    "new": "do_substitute_chunk(\n        css,\n        fallback.start.get(),\n        reference.end - 1, // Skip the closing parenthesis of the reference value.\n        fallback.first_token_type,\n        fallback.last_token_type,\n        url_data,\n        property_id,\n        substitution_functions,\n        stylist,\n        computed_context,\n        &fallback.references.refs,\n        attribute_tracker,\n        seen,\n        /* attr_taint */ None,\n        suppress_animation_taint_sink,\n    )",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "do_substitute_chunk(\n        &variable_value.css,\n        /* start = */ 0,\n        /* end = */ variable_value.css.len(),\n        variable_value.first_token_type,\n        variable_value.last_token_type,\n        &variable_value.url_data,\n        property_id,\n        substitution_functions,\n        stylist,\n        computed_context,\n        &variable_value.references.refs,\n        attribute_tracker,\n        seen,\n        attr_taint,\n    )",
+    "new": "do_substitute_chunk(\n        &variable_value.css,\n        /* start = */ 0,\n        /* end = */ variable_value.css.len(),\n        variable_value.first_token_type,\n        variable_value.last_token_type,\n        &variable_value.url_data,\n        property_id,\n        substitution_functions,\n        stylist,\n        computed_context,\n        &variable_value.references.refs,\n        attribute_tracker,\n        seen,\n        attr_taint,\n        suppress_animation_taint_sink,\n    )",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "fn substitute_one_reference<'a>(\n    css: &'a str,\n    url_data: &UrlExtraData,\n    property_id: Option<PropertyIdRef>,\n    substitution_functions: &'a ComputedSubstitutionFunctions,\n    reference: &'a SubstitutionFunctionReference,\n    stylist: &Stylist,\n    computed_context: &computed::Context,\n    attribute_tracker: &mut AttributeTracker,\n    seen: &mut SubstitutionState<'a>,\n)",
+    "new": "fn substitute_one_reference<'a>(\n    css: &'a str,\n    url_data: &UrlExtraData,\n    property_id: Option<PropertyIdRef>,\n    substitution_functions: &'a ComputedSubstitutionFunctions,\n    reference: &'a SubstitutionFunctionReference,\n    stylist: &Stylist,\n    computed_context: &computed::Context,\n    attribute_tracker: &mut AttributeTracker,\n    seen: &mut SubstitutionState<'a>,\n    suppress_animation_taint_sink: bool,\n)",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "substitute_one_reference(\n            css,\n            url_data,\n            property_id,\n            substitution_functions,\n            reference,\n            stylist,\n            computed_context,\n            attribute_tracker,\n            seen,\n        )",
+    "new": "substitute_one_reference(\n            css,\n            url_data,\n            property_id,\n            substitution_functions,\n            reference,\n            stylist,\n            computed_context,\n            attribute_tracker,\n            seen,\n            suppress_animation_taint_sink,\n        )",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "fn substitute_internal<'a>(\n    variable_value: &'a VariableValue,\n    property_id: Option<PropertyIdRef>,\n    substitution_functions: &'a ComputedSubstitutionFunctions,\n    stylist: &Stylist,\n    computed_context: &computed::Context,\n    attribute_tracker: &mut AttributeTracker,\n    seen: &mut SubstitutionState<'a>,\n    attr_taint: Option<&mut AttrTaint>,\n)",
+    "new": "fn substitute_internal<'a>(\n    variable_value: &'a VariableValue,\n    property_id: Option<PropertyIdRef>,\n    substitution_functions: &'a ComputedSubstitutionFunctions,\n    stylist: &Stylist,\n    computed_context: &computed::Context,\n    attribute_tracker: &mut AttributeTracker,\n    seen: &mut SubstitutionState<'a>,\n    attr_taint: Option<&mut AttrTaint>,\n    suppress_animation_taint_sink: bool,\n)",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "substitute_internal(\n        value,\n        Some(PropertyIdRef::from(name)),\n        &context.builder.substitution_functions,\n        stylist,\n        context,\n        attribute_tracker,\n        &mut state,\n        None,\n    )",
+    "new": "substitute_internal(\n        value,\n        Some(PropertyIdRef::from(name)),\n        &context.builder.substitution_functions,\n        stylist,\n        context,\n        attribute_tracker,\n        &mut state,\n        None,\n        false,\n    )",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "substitute_internal(\n                                u,\n                                property_id,\n                                substitution_functions,\n                                stylist,\n                                computed_context,\n                                attribute_tracker,\n                                seen,\n                                /* attr_taint */ None,\n                            )",
+    "new": "substitute_internal(\n                                u,\n                                property_id,\n                                substitution_functions,\n                                stylist,\n                                computed_context,\n                                attribute_tracker,\n                                seen,\n                                /* attr_taint */ None,\n                                true,\n                            )",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/custom_properties.rs",
+    "old": "substitute_internal(\n        variable_value,\n        property_id,\n        substitution_functions,\n        stylist,\n        computed_context,\n        attribute_tracker,\n        &mut SubstitutionState::default(),\n        Some(&mut attr_taint),\n    )",
+    "new": "substitute_internal(\n        variable_value,\n        property_id,\n        substitution_functions,\n        stylist,\n        computed_context,\n        attribute_tracker,\n        &mut SubstitutionState::default(),\n        Some(&mut attr_taint),\n        false,\n    )",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties/cascade.rs",
+    "old": "        let initial_values = self.stylist.get_custom_property_initial_values();\n        if !Self::value_may_affect_style(context, name, registration, initial_values, value) {",
+    "new": "        let initial_values = self.stylist.get_custom_property_initial_values();\n        let animation_tainted = std::ptr::eq(registration, PropertyDescriptors::unregistered())\n            && priority.cascade_level() == CascadeLevel::Animations;\n        let mark_animation_taint = |context: &mut computed::Context| {\n            if animation_tainted {\n                let value = context\n                    .builder\n                    .substitution_functions\n                    .get_var(registration, name)\n                    .cloned();\n                if let Some(mut value) = value {\n                    value.animation_tainted = true;\n                    context\n                        .builder\n                        .substitution_functions\n                        .insert_var(registration, name, value);\n                }\n            }\n        };\n        if !Self::value_may_affect_style(context, name, registration, initial_values, value, animation_tainted) {",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties/cascade.rs",
+    "old": "            entry.insert(false);\n            return;",
+    "new": "            entry.insert(false);\n            mark_animation_taint(context);\n            return;",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties/cascade.rs",
+    "old": "            CustomDeclarationValue::Unparsed(unparsed_value) => {\n                if !has_references {",
+    "new": "            CustomDeclarationValue::Unparsed(unparsed_value) => {\n                let unparsed_value = if animation_tainted {\n                    let mut value = (**unparsed_value).clone();\n                    value.explicitly_animation_tainted = true;\n                    Arc::new(value)\n                } else {\n                    Arc::clone(unparsed_value)\n                };\n                if !has_references {",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties/cascade.rs",
+    "old": "                        unparsed_value,\n                        self.stylist,",
+    "new": "                        &unparsed_value,\n                        self.stylist,",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties/cascade.rs",
+    "old": "                let value = ComputedRegisteredValue::universal(Arc::clone(unparsed_value));",
+    "new": "                let value = ComputedRegisteredValue::universal(unparsed_value);",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties/cascade.rs",
+    "old": "        }\n    }\n\n    /// Fast check to avoid calling maybe_note_non_custom_dependency",
+    "new": "        }\n        mark_animation_taint(context);\n    }\n\n    /// Fast check to avoid calling maybe_note_non_custom_dependency",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties/cascade.rs",
+    "old": "                    return existing_value.attr_tainted != value.is_attr_tainted()",
+    "new": "                    return existing_value.animation_tainted != (animation_tainted || value.explicitly_animation_tainted)\n                        || existing_value.attr_tainted != value.is_attr_tainted()",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties/cascade.rs",
+    "old": "                            return existing_value.attr_tainted || existing_value != initial_value;",
+    "new": "                            return existing_value.attr_tainted\n                                || existing_value.animation_tainted != initial_value.animation_tainted\n                                || existing_value != initial_value;",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties/cascade.rs",
+    "old": "        value: &CustomDeclarationValue,\n    ) -> bool {",
+    "new": "        value: &CustomDeclarationValue,\n        animation_tainted: bool,\n    ) -> bool {",
+    "count": 1
+  },
+  {
+    "path": "servo/components/style/properties/cascade.rs",
+    "old": "                        .insert(name.clone(), (priority, revert_kind));\n                },",
+    "new": "                        .insert(name.clone(), (priority, revert_kind));\n                    return;\n                },",
+    "count": 1
+  }
+]

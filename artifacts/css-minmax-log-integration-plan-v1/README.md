@@ -1,0 +1,27 @@
+# MinMax and logarithm integration proposal
+
+The two independently tested patches combine without conflict on accepted pow 150 calc base b291d6e9. Exact-context application in either order produces the same candidate SHA 0803cce1f4e8c7c1f589342f4ddc7a0be923a9b43c244e1d5baa9bf4243fe526. This combined source has not been built or browser-tested. No execution owner, native installation, signer action, accepted ID or count increment is included.
+
+The MinMax winner-relative guard remains byte-identical to tested candidate 065c05d8. The logarithm helper remains in its independently tested location between pow and hypot, with only its two existing explicit-base resolver/simplifier call-site replacements. No simplifier ordering or additional exceptional-value behavior is changed. native.patch is base-to-combined; log-after-minmax.patch is the narrow second-commit delta after MinMax.
+
+## Predicted fresh comparison
+
+The twelve MinMax pages and three logarithm pages are disjoint. ROSTER preserves every exact callback name and target/control partition. The future union predicts fifteen pages, 574 callbacks, 29 targets, 545 controls and fifteen endings, hence 560 full control/ending signatures. All 56 authored callbacks (32 MinMax plus 24 logarithm) must pass in the combined candidate. The two known MinMax serialization failures are historical control observations, and the four unresolved logarithm specification-boundary cases remain controls. Neither is a new repair oracle.
+
+These counts and expected outcomes are input predictions until an actual fresh combined original/candidate run completes. This package does not concatenate historical raw streams or represent them as a 574-case baseline. The future original must complete all registered callbacks and preserve full raw logs without an assumed required failure count. The combined candidate must pass all 29 targets and all 56 authored callbacks, preserve every original PASS and all 560 control/ending signatures including messages, expected values and known-intermittent fields, and complete without setup or infrastructure errors. Existing strict assessor semantics should be reused.
+
+INPUTS references the existing immutable captures: 24 resource entries and eighteen metadata entries, with ten duplicated resource/metadata keys checked for exact hash equality. Both authored MinMax bodies and the corrected logarithm fixture remain unchanged. A merged manifest retains the genuine captured entries and content identities; it is a composition of prior generated manifests, not a newly executed WPT manifest-generation result. No missing resources are manufactured. Fresh registration verification must use actual intended inputs before execution.
+
+Future app identity, full current epoch/controls and harness revision are null. Root reports all source/app restored after the latest pair and a newer canonical epoch prefix 3a7d438b; that partial value is informational only, never a binding. Capture fresh actual app metadata after the last restoration, retain source base b291 and held-provider claims, and independently join build-source provenance before root enables any later owner.
+
+## Separate future native commits
+
+After fresh combined validation and signed research publication, retain two focused native commits. First: exact tested MinMax source 065c05d8 plus minmax-relative-infinity.html and minmax-relative-infinity-ordering.html. Second: log-after-minmax.patch, producing combined source 0803cce1, plus the corrected log-clear-special-values.html. The later logarithm native commit must remove the five verified obsolete expected-FAIL annotations in testing/web-platform/meta/css/css-values/exp-log-compute.html.ini after validation. Comparison metadata remains unchanged, including those annotations; the two known MinMax legacy failures remain controls. The second commit depends on the first for its source context, while the independent logarithm-only pair remains evidence about that individual behavior. Do not relabel it as validation of the stacked source.
+
+Preserve accepted pow 150, hypot 149 and round 145 lineage, existing accepted 119 nonfinite relative-length transport, and the unchanged held custom_properties provider. Exclude that provider from both commits; independence from it and clean-upstream validity have not been established. The scoped Lean results for the separate patches remain scoped results, not an integrated native or IEEE refinement proof. Logarithm bases below one at zero/infinity and base-zero normative ambiguities remain outside the accepted repair oracle.
+
+## Static evidence
+
+check.py rederives both historical candidates from captured base, proves the text patches commute, authenticates the combined source and both output patches, checks exact disjoint rosters and partitions, and authenticates referenced capture bytes. Actual static check c744f5/0 passed. It performs no build/browser, Git/index, app or canonical state operation. PLAN references prior actual terminal/replay evidence separately; future combined baseline/candidate result fields remain null.
+
+Publication correction authorized by root: the original plan manifest df5e8e84f6e6669c97615511c32d08aedf42ca34d50789704da24f94902806d5 incorrectly said no metadata change was proposed. This superseding seal corrects only the later publication requirement and adds its exact metadata preimage; comparison inputs and source/WPT bytes are unchanged.

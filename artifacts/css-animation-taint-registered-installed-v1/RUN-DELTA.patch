@@ -1,0 +1,125 @@
+--- artifacts/css-animation-taint-direct-attr-installed-v1/run.py
++++ artifacts/css-animation-taint-registered-installed-v1/run.py
+@@ -81,64 +81,54 @@
+ def validate(payload, run_id, browser):
+     assert isinstance(payload, dict) and set(payload) == {'run_id', 'report'} and payload['run_id'] == run_id
+     report = payload['report']
+-    assert set(report) == {'schema', 'status', 'userAgent', 'policyVerdict', 'observations'}
+-    assert report['schema'] == 'direct-attr-observation-v1' and report['policyVerdict'] is None
++    assert set(report) == {'schema', 'status', 'userAgent', 'policyVerdict', 'observations', 'harness'}
++    assert report['schema'] == 'registered-taint-observation-v1' and report['policyVerdict'] is None
+     assert report['status'] in ('complete', 'incomplete')
+     pattern = r'Firefox/158\.0(?:\s|$)' if browser == 'firefox' else r'(?:Headless)?Chrome/156\.0\.\d+\.\d+(?:\s|$)'
+     assert isinstance(report['userAgent'], str) and re.search(pattern, report['userAgent'])
++    assert set(report['harness']) == {'status', 'message'} and type(report['harness']['status']) is int
++    assert report['harness']['message'] is None or isinstance(report['harness']['message'], str)
+     assert isinstance(report['observations'], list) and len(report['observations']) == 4
+-
+-    def number(value):
+-        return value is None or type(value) in (int, float) or (isinstance(value, dict) and set(value) == {'nonfinite'} and value['nonfinite'] in ['NaN', 'Infinity', '-Infinity'])
+-
+-    def details(value, before=False):
+-        assert set(value) == {'sink', 'variable', 'timing', 'effectSame'}
+-        assert isinstance(value['sink'], str) and isinstance(value['variable'], str)
+-        if before:
+-            assert value['timing'] is None and value['effectSame'] is None
+-        else:
+-            timing = value['timing']
+-            assert set(timing) == {'duration', 'computedDuration', 'progress', 'time', 'state'}
+-            assert all(number(timing[key]) or timing[key] == 'auto' for key in ['duration', 'computedDuration'])
+-            assert number(timing['progress']) and number(timing['time']) and isinstance(timing['state'], str)
+-            assert type(value['effectSame']) is bool
+-
+-    for row, mode in zip(report['observations'], ['tainted-attr', 'untainted-attr', 'literal-attr', 'direct-var']):
+-        assert set(row) == {'mode', 'stage', 'error', 'before', 'activeSamples', 'active', 'activeMembership', 'cancelSamples', 'cancelled', 'cancelMembership', 'referenceChecks', 'activeExpectation', 'policyVerdict'}
++    complete = True
++    for row, mode in zip(report['observations'], ['unregistered', 'universal', 'typed', 'literal']):
++        assert set(row) == {'mode', 'record', 'wpt', 'referenceChecks', 'activeExpectation', 'policyVerdict'}
+         assert row['mode'] == mode and row['policyVerdict'] is None
+-        assert row['stage'] in ['setup', 'create', 'active samples', 'cancel', 'complete']
+-        for key in ['activeSamples', 'cancelSamples']:
+-            samples = row[key]
+-            assert isinstance(samples, list) and len(samples) <= 4
+-            assert [v['phase'] for v in samples] == ['first-read', 'passive-frame-1', 'passive-frame-2', 'passive-frame-3'][:len(samples)]
+-            assert all(set(v) == {'phase', 'sink'} and isinstance(v['sink'], str) for v in samples)
+-        for key in ['before', 'active', 'cancelled']:
+-            if row[key] is not None:
+-                details(row[key], before=key == 'before')
+-        for key in ['activeMembership', 'cancelMembership']:
+-            value = row[key]
+-            if value is not None:
+-                assert set(value) == {'count', 'sameAnimation', 'sameEffect'}
+-                assert type(value['count']) is int and value['count'] >= 0
+-                assert type(value['sameAnimation']) is bool and type(value['sameEffect']) is bool
+-        expectation = row['activeExpectation']
+-        if row['active'] is None:
+-            assert expectation is None
+-        else:
+-            assert set(expectation) == {'expectedSink', 'kind', 'matches'}
+-            assert isinstance(expectation['expectedSink'], str) and type(expectation['matches']) is bool
+-            assert expectation['kind'] in ['control', 'direct-substitution-interpretation']
++        assert set(row['wpt']) == {'name', 'status', 'message'}
++        assert row['wpt']['name'] == 'Animation taint registered scope: ' + mode
++        assert row['wpt']['status'] is None or type(row['wpt']['status']) is int
++        assert row['wpt']['message'] is None or isinstance(row['wpt']['message'], str)
++        record = row['record']
++        captured = False
++        if record is not None:
++            assert set(record) == {'mode', 'registration', 'calibration', 'phases'} and record['mode'] == mode
++            registration = record['registration']
++            if registration is not None:
++                assert mode in ['universal', 'typed']
++                assert registration == {'name': '--scope-v', 'syntax': '<custom-ident>' if mode == 'typed' else '*',
++                    'inherits': False, 'initialValue': 'horizontal-tb', 'returnedSuccessfully': True}
++            calibration = record['calibration']
++            if calibration is not None:
++                assert set(calibration) == {'initial', 'multiIdent'} and all(isinstance(v, str) for v in calibration.values())
++            assert isinstance(record['phases'], list) and len(record['phases']) <= 2
++            for phase, label in zip(record['phases'], ['initial', 'ordinary-mutation']):
++                assert set(phase) == {'label', 'readings', 'variable', 'cssDuration', 'currentTime', 'playState', 'duration', 'progress', 'sameAnimation', 'sameEffect'}
++                assert phase['label'] == label and isinstance(phase['readings'], list) and len(phase['readings']) == 4
++                assert all(isinstance(v, str) for v in phase['readings'])
++                assert all(isinstance(phase[k], str) for k in ['variable', 'cssDuration', 'playState'])
++                for key in ['currentTime', 'duration', 'progress']:
++                    value = phase[key]
++                    assert value is None or type(value) in [int, float] or value == 'auto' or (isinstance(value, dict) and set(value) == {'nonfinite'} and value['nonfinite'] in ['NaN', 'Infinity', '-Infinity'])
++                assert type(phase['sameAnimation']) is bool and type(phase['sameEffect']) is bool
++            captured = len(record['phases']) == 2 and calibration is not None and (mode not in ['universal', 'typed'] or registration is not None)
++        complete &= captured and row['wpt']['status'] is not None
+         checks = row['referenceChecks']
+         assert isinstance(checks, list) and checks
+         assert all(set(v) == {'name', 'passed'} and isinstance(v['name'], str) and type(v['passed']) is bool for v in checks)
+-        if row['error'] is None:
+-            assert row['stage'] == 'complete'
+-            assert len(row['activeSamples']) == len(row['cancelSamples']) == 4
+-            assert all(row[key] is not None for key in ['before', 'active', 'cancelled', 'activeMembership', 'cancelMembership'])
+-        else:
+-            assert set(row['error']) == {'name', 'message', 'stack'}
+-            assert all(isinstance(v, str) for v in row['error'].values())
+-    assert (report['status'] == 'complete') == all(row['error'] is None for row in report['observations'])
++        expectation = row['activeExpectation']
++        assert set(expectation) == {'expectedSink', 'kind', 'matches'}
++        assert expectation['expectedSink'] == 'vertical-lr' and type(expectation['matches']) is bool
++        assert expectation['kind'] == ('control' if mode == 'literal' else 'registered-scope-hypothesis')
++    assert (report['status'] == 'complete') == complete
+     return report
+ 
+ 
+@@ -282,7 +272,7 @@
+     selected = policy['browsers'][args.browser]
+     output = ROOT / selected['output']
+     output.mkdir(mode=0o700)
+-    temporary = Path(tempfile.mkdtemp(prefix='css-direct-attr-', dir='/private/tmp'))
++    temporary = Path(tempfile.mkdtemp(prefix='css-registered-taint-', dir='/private/tmp'))
+     info = temporary.lstat()
+     identity = [info.st_dev, info.st_ino]
+     profile = temporary / 'profile'
+@@ -357,7 +347,7 @@
+     reference_checks_pass = receiver.report is not None and all(check['passed'] for item in receiver.report['observations'] for check in item['referenceChecks'])
+     active_controls_pass = receiver.report is not None and all(
+         row['activeExpectation'] is not None and row['activeExpectation']['matches']
+-        for row in receiver.report['observations'] if row['mode'] in ['untainted-attr', 'literal-attr'])
++        for row in receiver.report['observations'] if row['mode'] == 'literal')
+     complete = error is None and not receiver.errors and receiver.report is not None and cleanup.get('temporary_removed', False)
+     save(output / 'RESULT.json', {'execution_complete': complete, 'observation_complete': observation_complete,
+         'reference_checks_pass': reference_checks_pass, 'active_control_expectations_pass': active_controls_pass,

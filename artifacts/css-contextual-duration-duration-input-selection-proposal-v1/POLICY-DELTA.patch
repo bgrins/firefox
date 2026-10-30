@@ -1,0 +1,58 @@
+--- a/layout/style/nsAnimationManager.cpp
++++ b/layout/style/nsAnimationManager.cpp
+@@ -379,7 +379,8 @@
+ // with the new StyleAnimation.
+ static already_AddRefed<CSSAnimation> BuildAnimation(
+     nsPresContext* aPresContext, const NonOwningAnimationTarget& aTarget,
+-    const nsStyleUIReset& aStyle, uint32_t animIdx,
++    const nsStyleUIReset& aStyle,
++    const nsTArray<StyleAnimationDuration>& aDurationInput, uint32_t animIdx,
+     ServoCSSAnimationBuilder& aBuilder,
+     nsAnimationManager::CSSAnimationCollection* aCollection,
+     nsAnimationManager::TimelineNamesToAnimationMap&
+@@ -395,7 +396,10 @@
+     return nullptr;
+   }
+ 
+-  const StyleAnimationDuration& duration = aStyle.GetAnimationDuration(animIdx);
++  const StyleAnimationDuration& duration =
++      aDurationInput.IsEmpty()
++          ? aStyle.GetAnimationDuration(animIdx)
++          : aDurationInput[animIdx % aDurationInput.Length()];
+   TimingParams timing = TimingParamsFromCSSParams(
+       duration.IsAuto() ? Nothing() : Some(duration.AsTime().ToMilliseconds()),
+       aStyle.GetAnimationDelay(animIdx).ToMilliseconds(),
+@@ -491,7 +495,9 @@
+ 
+ static nsAnimationManager::OwningCSSAnimationPtrArray BuildAnimations(
+     nsPresContext* aPresContext, const NonOwningAnimationTarget& aTarget,
+-    const nsStyleUIReset& aStyle, ServoCSSAnimationBuilder& aBuilder,
++    const nsStyleUIReset& aStyle,
++    const nsTArray<StyleAnimationDuration>& aDurationInput,
++    ServoCSSAnimationBuilder& aBuilder,
+     nsAnimationManager::CSSAnimationCollection* aCollection,
+     nsTHashSet<RefPtr<nsAtom>>& aReferencedAnimations,
+     nsAnimationManager::TimelineNamesToAnimationMap&
+@@ -511,8 +517,8 @@
+ 
+     aReferencedAnimations.Insert(name);
+     RefPtr<CSSAnimation> dest =
+-        BuildAnimation(aPresContext, aTarget, aStyle, animIdx, aBuilder,
+-                       aCollection, aTimelineNamesToAnimationMap);
++        BuildAnimation(aPresContext, aTarget, aStyle, aDurationInput, animIdx,
++                       aBuilder, aCollection, aTimelineNamesToAnimationMap);
+     if (!dest) {
+       continue;
+     }
+@@ -712,8 +718,9 @@
+   // Old entries in `collection` may be reused. If they are, they are removed
+   // from `collection` and put into `newAnimations`.
+   OwningCSSAnimationPtrArray newAnimations =
+-      BuildAnimations(mPresContext, aTarget, aStyle, aBuilder, collection,
+-                      mMaybeReferencedAnimations, mAnimationsWithNamedTimeline);
++      BuildAnimations(mPresContext, aTarget, aStyle, durationInput, aBuilder,
++                      collection, mMaybeReferencedAnimations,
++                      mAnimationsWithNamedTimeline);
+ 
+   if (newAnimations.IsEmpty()) {
+     if (collection) {

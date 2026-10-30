@@ -1,0 +1,84 @@
+--- artifacts/css-registered-selected-color-candidate-v4/admission.py
++++ artifacts/css-registered-selected-color-candidate-v5/admission.py
+@@ -35,21 +35,20 @@
+     assert source['preserved_absent_metadata'] == policy['preserved_absent_metadata']
+     assert source['preserved_absent_resources'] == policy['preserved_absent_resources']
+     terminal = read(directory / binding['terminal_path'])
+-    assert terminal.pop('active_owner_manifest_sha256') == capsule['sha256']
+     assert terminal == binding['terminal']
+-    assert (terminal['session'], terminal['launch_chunk'], terminal['terminal_chunk'], terminal['exit']) == (57577, 'eb6f51', 'd1cec3', 0)
++    assert (terminal['session'], terminal['launch_chunk'], terminal['terminal_chunk'], terminal['exit']) == (48866, '734dd7', 'c3df52', 0)
+     result = read(directory / 'RESULT.json')
+     assert sha(directory / 'RESULT.json') == binding['result_sha256'] == terminal['result_sha256']
+     assert result['success'] and result['error'] is None and result['publication_errors'] == []
+     assert result['restoration_verified'] and result['runtime_controls_unchanged'] and result['empty_staging_preserved']
+     assert result['provider_source_role'] == 'clean-original' and result['build_revision'] == policy['head'] and result['native_fix_acceptance'] is False
+-    root_terminal = read(directory / 'ROOT-TERMINAL.json')
++    root_terminal = read(directory / 'ROOT-REVIEWER-TERMINAL.json')
+     review = read(directory / 'ROOT-REVIEW.json')
+     refresh = read(directory / 'ROOT-EPOCH-REFRESH.json')
+-    assert sha(directory / 'ROOT-TERMINAL.json') == handoff['root_terminal_sha256']
++    assert sha(directory / 'ROOT-REVIEWER-TERMINAL.json') == handoff['root_terminal_sha256']
+     assert sha(directory / 'ROOT-REVIEW.json') == handoff['review_sha256']
+     assert sha(directory / 'ROOT-EPOCH-REFRESH.json') == handoff['epoch_refresh_sha256']
+-    assert (root_terminal['session'], root_terminal['launch_chunk'], root_terminal['terminal_chunk'], root_terminal['exit']) == (18962, '2e16ba', '4cb7ca', 0)
++    assert (root_terminal['session'], root_terminal['launch_chunk'], root_terminal['terminal_chunk'], root_terminal['exit']) == (86819, '8afde2', '7e586b', 0)
+     assert capsule['sha256'] == review['owner_manifest_sha256']
+     assert review['actual_terminal'] == terminal and review['owner_result'] == result
+     assert review['restoration_independently_verified'] and review['native_acceptance'] is False
+@@ -58,7 +57,7 @@
+         assert sha(directory / name) == digest
+     reviewer = root / handoff['reviewer_directory']
+     authenticate(reviewer, handoff['reviewer_manifest_sha256'])
+-    assert root_terminal['active_reviewer_manifest_sha256'] == handoff['reviewer_manifest_sha256']
++    assert root_terminal == {'session':86819,'launch_chunk':'8afde2','terminal_chunk':'7e586b','exit':0,'review_sha256':handoff['review_sha256']}
+     reviewer_policy = read(reviewer / 'POLICY.json')
+     assert reviewer_policy['actual_terminal'] == terminal and reviewer_policy['execution_enabled']
+     assert reviewer_policy['owner_manifest_sha256'] == capsule['sha256']
+@@ -75,7 +74,7 @@
+     assert refresh['previous_epoch_sha256'] == source['controls']['CURRENT-EPOCH.json']
+     assert refresh['only_changed_field'] == 'raw_index_observation.current' and refresh['semantic_index_unchanged']
+     assert (refresh['raw_index_before'], refresh['raw_index_after']) == (raw['before'], raw['after'])
+-    assert refresh['independent_review_sha256'] == handoff['review_sha256'] and refresh['independent_review_terminal'] == '18962/4cb7ca/0'
++    assert refresh['independent_review_sha256'] == handoff['review_sha256'] and refresh['independent_review_terminal'] == '86819/7e586b/0'
+     assert refresh['other_controls_unchanged'] == {k:v for k,v in source['controls'].items() if k != 'CURRENT-EPOCH.json'}
+     assert policy['controls'] == dict(source['controls'], **{'CURRENT-EPOCH.json': refresh['new_epoch_sha256']})
+     backup = read(directory / 'BACKUP-CLEANUP.json')
+@@ -101,16 +100,24 @@
+ 
+ 
+ def validate(root, policy):
+-    import importlib.util
+-    binding = policy['restoration_handoff']
+-    owner = root / binding['owner']['directory']
+-    authenticate(owner, binding['owner']['manifest_sha256'])
+-    previous = read(owner / 'POLICY.json')
+-    previous_spec = importlib.util.spec_from_file_location('selected_color_previous_admission', owner / 'admission.py')
+-    previous_module = importlib.util.module_from_spec(previous_spec)
+-    previous_spec.loader.exec_module(previous_module)
+-    previous_module.validate(root, previous)
+-    spec = importlib.util.spec_from_file_location('selected_color_failed_handoff', root / policy['owner_directory'] / 'handoff.py')
+-    module = importlib.util.module_from_spec(spec)
+-    spec.loader.exec_module(module)
+-    return module.validate(root, policy, previous, authenticate)
++    review = validate_original(root, policy)
++    binding = policy['signing_failure']
++    signer = root / binding['directory']
++    authenticate(signer,binding['manifest_sha256'])
++    receipt = root / binding['root_outcome']['path']
++    assert sha(receipt) == binding['root_outcome']['sha256']
++    outcome = read(receipt)
++    assert (outcome['session_id'],outcome['launch_chunk'],outcome['terminal_chunk'],outcome['owner_exit'],outcome['git_exit']) == (54244,'053724','456cc5',1,128)
++    assert not outcome['committed'] and outcome['head'] == policy['head']
++    assert all(outcome[k] is True for k in ('head_unchanged','raw_index_unchanged','controls_unchanged','staging_empty','untracked_paths_unchanged','source_transition_lock_absent','owned_temporary_index_removed','owner_full_current_state_verification_completed'))
++    assert outcome['result_sha256'] == sha(signer / 'result.json')
++    assert outcome['signing_log_sha256'] == sha(signer / 'signing.log')
++    assert read(signer / 'result.json') == {'committed':False,'exit':128,'real_index_and_canonical_state_unchanged':True}
++    bindings = read(signer / 'BINDINGS.json')
++    assert bindings['controls'] == policy['controls'] and bindings['head'] == policy['head']
++    capture = root / bindings['current_capture']
++    assert sha(capture) == bindings['references'][bindings['current_capture']]
++    current = read(capture)
++    assert current['full_current_state_verified'] and current['source_transition_lock_absent']
++    assert current['audit'] == review['snapshot'] and current['controls'] == policy['controls']
++    return review

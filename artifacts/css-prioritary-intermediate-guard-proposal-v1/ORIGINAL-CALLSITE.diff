@@ -1,0 +1,21 @@
+--- artifacts/css-prioritary-selection-original-v2/run.py
++++ future77/run.py
+@@ -30,6 +30,9 @@
+     assert len(sys.argv) == 3 and sys.argv[1] in ('--check', '--run')
+     baseline = load('activation_baseline', str((HERE / 'baseline.py').relative_to(ROOT)))
+     policy, ownership, roles = baseline.prepare(sys.argv[2])
++    intermediate = load('owner_intermediate', str((HERE / 'intermediate.py').relative_to(ROOT)))
++    input_binding = load('owner_input_binding', str((HERE / 'inputs.py').relative_to(ROOT)))
++    consumed_inputs = input_binding.bind_inputs(str(HERE.relative_to(ROOT)), (HERE / 'FILES.json').read_bytes(), sys.argv[2], policy['intermediate_consumed_inputs'])
+     assert policy['wpt'] is not None
+     if sys.argv[1] == '--check':
+         print('Authenticated candidate recipe; no live guard')
+@@ -129,7 +132,7 @@
+         assert all(index[key] == epoch['semantic_index'][key] for key in ('head', 'entries', 'cached_diff'))
+         local['semantic_index'] = state.h.semantic_index(index)
+         local['raw_index_observation']['current'] = index['raw_index']
+-        verified = state.a.verify_current(state.h, ROOT, env, local)
++        verified = intermediate.verify_intermediate(state.h, ROOT, env, local, consumed_inputs)
+         assert verified['nested_index'] == before['nested_index']
+         for name, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]:
+             assert state.h.git(path, env, 'ls-files', '-v', '-z') == flags[name]

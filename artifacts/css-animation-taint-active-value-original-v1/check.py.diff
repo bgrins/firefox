@@ -1,0 +1,61 @@
+--- executed/check.py
++++ original106/check.py
+@@ -23,10 +23,20 @@
+         assert name.startswith("artifacts/") and ".." not in Path(name).parts
+         assert not (ROOT / name).is_symlink() and sha(ROOT / name) == expected, name
+     previous = read(ROOT / policy["predecessor"]["directory"] / "POLICY.json")
+-    for key in ("accepted_calc_sha256", "accepted_current_payloads", "build_epoch", "build_unpinned_sources", "deferred_nonartifact_references", "head", "original_only", "candidate_execution_enabled", "rebuilt_binaries", "source_role_pins", "state_helper", "wpt_helper"):
++    for key in ("accepted_calc_sha256", "accepted_current_payloads", "build_epoch", "deferred_nonartifact_references", "head", "original_only", "candidate_execution_enabled", "rebuilt_binaries", "state_helper", "wpt_helper"):
+         assert policy[key] == previous[key], key
+     mutable = {"expected_control_count", "expected_page_count", "expected_regression_signature_count", "expected_subtest_count", "expected_subtests", "fixture_target_pages", "manifest", "metadata", "resources"}
+     assert {k:v for k,v in policy["wpt"].items() if k not in mutable} == {k:v for k,v in previous["wpt"].items() if k not in mutable}
++    source_admission = read(ROOT / policy["source_admission"]["path"])
++    assert policy["references"][policy["source_admission"]["path"]] == policy["source_admission"]["sha256"]
++    assert source_admission["head"] == policy["head"] and source_admission["original_build_revision"] == policy["wpt"]["phase_revisions"]["original"]
++    expected_pins = dict(previous["source_role_pins"])
++    for name, record in source_admission["sources"].items():
++        expected_pins[name] = record["working_sha256"]
++        if name != "servo/components/style/custom_properties.rs":
++            assert record["working_sha256"] == record["head_sha256"] == record["original_build_revision_sha256"]
++    assert policy["source_role_pins"] == expected_pins
++    assert policy["build_unpinned_sources"] == previous["build_unpinned_sources"] + ["servo/components/style/custom_properties_map.rs"]
+     assert policy["original_only"] and policy["candidate_execution_enabled"] is False
+     assert policy["activation_pending"] == ([] if policy["execution_enabled"] else ["root saved review and activation"])
+     current = read(ROOT / policy["fresh_admission"]["path"])
+@@ -44,8 +54,14 @@
+     failed = read(ROOT / policy["failed_signing_receipt"]["path"])
+     assert policy["references"][policy["failed_signing_receipt"]["path"]] == policy["failed_signing_receipt"]["sha256"]
+     assert failed["head"] == policy["head"] and failed["committed"] is False and failed["git_exit"] == 128
+-    assert all(failed[k] for k in ("head_unchanged", "controls_unchanged", "raw_index_unchanged", "native_working_diff_preserved", "untracked_paths_unchanged", "source_transition_lock_absent", "owned_temporary_index_removed"))
+-    attempt = ROOT / "artifacts/css-research-checkpoint-20261030-v82"
++    assert all(failed[k] for k in ("head_unchanged", "controls_unchanged", "raw_index_unchanged", "full_porcelain_status_unchanged", "staging_empty", "source_transition_lock_absent", "owned_temporary_index_removed"))
++    assert (failed["session_id"], failed["terminal_chunk"], failed["owner_exit"]) == (79371, "54957f", 1)
++    assert (failed["project_bodies_preserved"], failed["unrelated_metadata_preserved"], failed["selected_bodies_preserved"]) == (68, 495, 7178)
++    fresh = read(ROOT / policy["post_signing_admission"]["path"])
++    assert policy["references"][policy["post_signing_admission"]["path"]] == policy["post_signing_admission"]["sha256"]
++    assert fresh["audit"] == snapshot and fresh["controls"] == policy["controls"]
++    assert fresh["source_transition_lock_absent"] and fresh["full_current_state_verified"] and fresh["matched_prior_restoration_audit"]
++    attempt = ROOT / "artifacts/css-research-checkpoint-20261030-v83"
+     assert sha(attempt / "result.json") == failed["result_sha256"] and sha(attempt / "signing.log") == failed["signing_log_sha256"]
+     assert read(attempt / "result.json") == {"committed": False, "exit": 128, "real_index_and_canonical_state_unchanged": True}
+ 
+@@ -73,14 +89,17 @@
+             combined = manifest
+         else:
+             assert combined["version"] == manifest["version"] and combined["url_base"] == manifest["url_base"] and combined["items"]["support"] == manifest["items"]["support"]
+-            combined["items"]["testharness"]["css"]["css-animations"].update(manifest["items"]["testharness"]["css"]["css-animations"])
++            for category, entries in manifest["items"]["testharness"]["css"].items():
++                destination = combined["items"]["testharness"]["css"].setdefault(category, {})
++                assert not set(destination) & set(entries)
++                destination.update(entries)
+     assert roster == settings["expected_subtests"] == read(ROOT / policy["source_roster"])
+     assert read(ROOT / settings["manifest"]["path"]) == combined
+     assert sha(ROOT / settings["manifest"]["path"]) == settings["manifest"]["sha256"]
+     for name, record in expected_resources.items():
+         assert settings["resources"][name] == record
+     assert set(settings["resources"]) == set(expected_resources) | {"resources/testharness.js.headers", "resources/testharnessreport.js.headers"}
+-    assert (settings["expected_subtest_count"], settings["expected_control_count"], settings["expected_target_count"], settings["expected_page_count"], settings["expected_regression_signature_count"]) == (6, 6, 0, 2, 8)
++    assert (settings["expected_subtest_count"], settings["expected_control_count"], settings["expected_target_count"], settings["expected_page_count"], settings["expected_regression_signature_count"]) == (106, 106, 0, 12, 118)
+     assert settings["target_subtests"] == {} and set(settings["fixture_target_pages"]) == set(roster)
+     assert len(policy["accepted_current_payloads"]) == 29
+     settings = dict(settings, harness_revision="a" * 40, phase_revisions={"original": "b" * 40})

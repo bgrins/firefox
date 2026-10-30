@@ -1,0 +1,39 @@
+--- original-v1/check.py
++++ original-v2/check.py
+@@ -20,6 +20,9 @@
+ 
+ def validate_policy(policy):
+     ownership = load('preservation_ownership', ROOT / policy['ownership_helper'])
++    prepared = ROOT / 'artifacts/css-prioritary-selection-original-v1'
++    ownership.authenticate(prepared, '25f467e4f382b575ff4d78c1e32ddb20c6fa7e80fe5063a802272c8eb4658af8')
++    assert all((HERE/name).read_bytes() == (prepared/name).read_bytes() for name in ('run.py','baseline.py','phases.py','wpt.py','assess.py','SOURCE-ROLES.json'))
+     predecessor = read(HERE / 'PREDECESSOR.json')
+     assert policy['predecessor'] == predecessor
+     previous = ROOT / predecessor['directory']
+@@ -33,7 +36,7 @@
+     assert {k:v for k,v in policy.items() if k not in mutable} == {k:v for k,v in old.items() if k not in mutable}
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+     assert policy['runtime_output'] == 'artifacts/css-prioritary-selection-original-runtime-1'
+-    load('pending_original74_admission', HERE / 'admission.py').validate(ROOT, policy)
++    load('restored_original74_admission', HERE / 'admission.py').validate(ROOT, policy)
+     suite = ROOT / policy['suite_binding']['directory']
+     assert policy['suite_binding']['directory'] == 'artifacts/css-prioritary-selection-suite-v1'
+     assert policy['suite_binding']['manifest_sha256'] == 'c93d4a7aa610113e33cd368103eb0b526cc9888e6b358358607febdd48e31031'
+@@ -44,7 +47,7 @@
+     ownership.authenticate(capture, policy['capture_binding']['manifest_sha256'])
+     union, lanes, roster = read(suite / 'INPUTS.json'), read(suite / 'LANES.json'), read(suite / 'ROSTER.json')
+     shared = {k:v for k,v in old['wpt'].items() if k not in ['resources','metadata','manifest','expected_subtests','expected_subtest_count','expected_control_count','expected_page_count','expected_regression_signature_count','fixture_target_pages']}
+-    shared.update(phase_revisions={'original':None,'candidate':None},harness_revision=None)
++    shared.update(phase_revisions={'original':policy['head'],'candidate':policy['head']},harness_revision=policy['head'])
+     assert policy['wpt'] == dict(shared,expected_subtests=roster,expected_subtest_count=74,expected_control_count=74,expected_page_count=11,expected_regression_signature_count=85,fixture_target_pages=list(roster))
+     assert policy['lane_order'] == ['ordinary','forced_colors','mozilla_appearance']
+     assert set(policy['wpt_lanes']) == set(lanes)
+@@ -96,7 +99,7 @@
+     policy = read(HERE/'POLICY.json')
+     validate_policy(policy)
+     negatives=0
+-    for change in [lambda p:p.update(execution_enabled=True,candidate_execution_enabled=True),lambda p:p.update(head='e'*40),lambda p:p.update(controls={}),lambda p:p['wpt_lanes']['ordinary'].update(capture=None),lambda p:p['lane_order'].pop(),lambda p:p['wpt_lanes']['forced_colors']['metadata']['portable'].pop('forced-colors-mode/forced-colors-mode-51.html.ini'),lambda p:p['wpt_lanes']['mozilla_appearance']['expected_subtests'].clear()]:
++    for change in [lambda p:p.update(execution_handoff=None),lambda p:p.update(head='e'*40),lambda p:p.update(controls={}),lambda p:p['wpt_lanes']['ordinary'].update(capture=None),lambda p:p['lane_order'].pop(),lambda p:p['wpt_lanes']['forced_colors']['metadata']['portable'].pop('forced-colors-mode/forced-colors-mode-51.html.ini'),lambda p:p['wpt_lanes']['mozilla_appearance']['expected_subtests'].clear(),lambda p:p['prepared_application_metadata']['identity'].__setitem__(1,0),lambda p:p['prepared_flag_hashes'].update(root='0'*64),lambda p:p['restoration_binding'].update(manifest_sha256='0'*64),lambda p:p['execution_handoff']['current'].update(sha256='0'*64),lambda p:p['execution_handoff']['reviewer'].update(manifest_sha256='0'*64)]:
+         bad=copy.deepcopy(policy);change(bad)
+         try:validate_policy(bad)
+         except (AssertionError,KeyError,TypeError):negatives+=1

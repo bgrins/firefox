@@ -1,0 +1,245 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -673,6 +673,13 @@
+ }
+ 
+ #[derive(Clone, Debug, Eq, PartialEq)]
++pub(crate) struct AttrInvocation {
++    owner: usize,
++    occurrence: usize,
++    ancestors: Vec<usize>,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
+ pub(crate) struct AttrUseKey {
+     pub name: Name,
+     pub namespace: Namespace,
+@@ -680,6 +687,7 @@
+     pub suppress_animation_taint_sink: bool,
+     pub url_data: UrlExtraData,
+     pub guard_identity: usize,
++    invocation: Option<AttrInvocation>,
+ }
+ 
+ impl AttrUseKey {
+@@ -701,7 +709,17 @@
+             suppress_animation_taint_sink,
+             url_data: url_data.clone(),
+             guard_identity,
+-        }
++            invocation: None,
++        }
++    }
++
++    fn same_prepared_use(&self, other: &Self) -> bool {
++        self.invocation.is_some()
++            && self.invocation == other.invocation
++            && self.name == other.name && self.namespace == other.namespace
++            && self.property == other.property
++            && self.suppress_animation_taint_sink == other.suppress_animation_taint_sink
++            && self.url_data == other.url_data
+     }
+ 
+     pub fn property_id(&self) -> Option<PropertyIdRef> {
+@@ -735,14 +753,14 @@
+ pub(crate) struct AttrResolution {
+     pub uses: Vec<AttrUse>,
+     active: Vec<usize>,
+-    pub prepared_only: bool,
++    pub prepared_owner: Option<usize>,
+ }
+ 
+ impl AttrResolution {
+     pub fn reset(&mut self) {
+         assert!(self.active.is_empty());
+         self.uses.clear();
+-        self.prepared_only = false;
++        self.prepared_owner = None;
+     }
+ 
+     pub fn request(&mut self, key: AttrUseKey, input: Option<Arc<VariableValue>>) -> usize {
+@@ -754,14 +772,33 @@
+         index
+     }
+ 
+-    pub fn key(
+-        &self, name: &Name, namespace: &Namespace, property: Option<PropertyIdRef>,
+-        suppress_animation_taint_sink: bool, url_data: &UrlExtraData,
++    fn invocation_key(
++        &self, owner: usize, occurrence: usize, name: &Name, namespace: &Namespace,
++        property: Option<PropertyIdRef>, suppress: bool, url_data: &UrlExtraData,
+     ) -> AttrUseKey {
+-        let identity = self.uses.iter().find(|request| {
+-            request.key.name == *name && request.key.namespace == *namespace
+-        }).map_or(self.uses.len(), |request| request.key.guard_identity);
+-        AttrUseKey::new(name, namespace, property, suppress_animation_taint_sink, url_data, identity)
++        let mut key = AttrUseKey::new(name, namespace, property, suppress, url_data, self.uses.len());
++        key.invocation = Some(AttrInvocation { owner, occurrence, ancestors: self.active.clone() });
++        key
++    }
++
++    pub fn admit(
++        &mut self, owner: usize, occurrence: usize, name: &Name, namespace: &Namespace,
++        property: Option<PropertyIdRef>, suppress: bool, url_data: &UrlExtraData,
++        input: Option<Arc<VariableValue>>,
++    ) -> usize {
++        let key = self.invocation_key(owner, occurrence, name, namespace, property, suppress, url_data);
++        if let Some(index) = self.uses.iter().position(|request| request.key.same_prepared_use(&key)) {
++            return index;
++        }
++        self.request(key, input)
++    }
++
++    fn prepared_request(
++        &self, owner: usize, occurrence: usize, name: &Name, namespace: &Namespace,
++        property: Option<PropertyIdRef>, suppress: bool, url_data: &UrlExtraData,
++    ) -> Option<usize> {
++        let key = self.invocation_key(owner, occurrence, name, namespace, property, suppress, url_data);
++        self.uses.iter().position(|request| request.key.same_prepared_use(&key))
+     }
+ 
+     pub fn suspend(&mut self, index: usize) {
+@@ -2422,17 +2459,18 @@
+ 
+ pub(crate) fn finish_prepared_attribute(
+     request: usize,
++    owner: usize,
+     stylist: &Stylist,
+     computed_context: &computed::Context,
+     attribute_tracker: &mut AttributeTracker,
+ ) {
+-    let previous = attribute_tracker.attr_resolution.prepared_only;
+-    attribute_tracker.attr_resolution.prepared_only = true;
++    let previous = attribute_tracker.attr_resolution.prepared_owner;
++    attribute_tracker.attr_resolution.prepared_owner = Some(owner);
+     let result = resolve_attribute_input(
+         request, &computed_context.builder.substitution_functions, stylist,
+         computed_context, attribute_tracker, &mut SubstitutionState::default(),
+     );
+-    attribute_tracker.attr_resolution.prepared_only = previous;
++    attribute_tracker.attr_resolution.prepared_owner = previous;
+     attribute_tracker.attr_resolution.leave(request, result);
+ }
+ 
+@@ -2451,17 +2489,22 @@
+ ) -> Option<Substitution<'static>> {
+     let mut parser = Parser::new(raw);
+     let input = Arc::new(VariableValue::parse(&mut parser, None, url_data).ok()?);
+-    let key = attribute_tracker.attr_resolution.key(
+-        &reference.name, namespace, property_id, suppress_animation_taint_sink, url_data,
+-    );
+-    if attribute_tracker.attr_resolution.prepared_only {
+-        assert!(attribute_tracker.attr_resolution.uses.iter().any(|request| request.key == key));
+-    }
+-    let request = attribute_tracker.attr_resolution.request(key, Some(Arc::clone(&input)));
++    let request = if let Some(owner) = attribute_tracker.attr_resolution.prepared_owner {
++        attribute_tracker.attr_resolution.prepared_request(
++            owner, reference as *const SubstitutionFunctionReference as usize,
++            &reference.name, namespace, property_id, suppress_animation_taint_sink, url_data,
++        ).expect("Final attribute occurrence must match dependency preparation")
++    } else {
++        let key = AttrUseKey::new(
++            &reference.name, namespace, property_id, suppress_animation_taint_sink,
++            url_data, attribute_tracker.attr_resolution.uses.len(),
++        );
++        attribute_tracker.attr_resolution.request(key, Some(Arc::clone(&input)))
++    };
+     attribute_tracker.attr_resolution.uses[request].custom_depth = seen.names.len();
+     let result = match attribute_tracker.attr_resolution.enter(request) {
+         AttrEntry::Evaluate => {
+-            assert!(!attribute_tracker.attr_resolution.prepared_only);
++            assert!(attribute_tracker.attr_resolution.prepared_owner.is_none());
+             let result = resolve_attribute_input(
+                 request, substitution_functions, stylist, computed_context, attribute_tracker, seen,
+             );
+@@ -2524,7 +2567,7 @@
+                 // may not have gotten to this variable yet).
+                 Some(v) => match v.as_universal() {
+                     Some(u) if u.has_references() => {
+-                        assert!(!attribute_tracker.attr_resolution.prepared_only,
++                        assert!(attribute_tracker.attr_resolution.prepared_owner.is_none(),
+                             "Prepared substitution selected an unresolved custom value");
+                         if let Some(index) =
+                             seen.names.iter().position(|name| name == &reference.name)
+@@ -2760,7 +2803,7 @@
+     attribute_tracker: &mut AttributeTracker,
+ ) -> Result<SubstitutionResult<'a>, ()> {
+     debug_assert!(variable_value.has_references());
+-    if !attribute_tracker.attr_resolution.prepared_only {
++    if attribute_tracker.attr_resolution.prepared_owner.is_none() {
+         attribute_tracker.attr_resolution.reset();
+     }
+     let mut attr_taint = AttrTaint::default();
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -2421,10 +2421,10 @@
+                 let input = context.cascade.capture_attr_input(
+                     &next.name, namespace, url_data, attribute_tracker,
+                 ).ok().and_then(|value| value.as_universal().cloned());
+-                let key = attribute_tracker.attr_resolution.key(
+-                    &next.name, namespace, property_id, suppress_animation_taint_sink, url_data,
++                let request = attribute_tracker.attr_resolution.admit(
++                    index, next as *const crate::custom_properties::SubstitutionFunctionReference as usize,
++                    &next.name, namespace, property_id, suppress_animation_taint_sink, url_data, input,
+                 );
+-                let request = attribute_tracker.attr_resolution.request(key, input);
+                 attr_request = Some(request);
+                 VarType::ContextualAttr(request)
+             } else {
+@@ -2696,12 +2696,12 @@
+         if let VarType::Custom(ref name) = var {
+             value_non_custom_refs = ReferenceFlags::empty();
+             if lowlink == index && !self_ref {
+-                let previous = attribute_tracker.attr_resolution.prepared_only;
+-                attribute_tracker.attr_resolution.prepared_only = true;
++                let previous = attribute_tracker.attr_resolution.prepared_owner;
++                attribute_tracker.attr_resolution.prepared_owner = Some(index);
+                 prepared_custom = prepare_custom_substitution(
+                     name, v, context.stylist, context.computed_context, attribute_tracker,
+                 ).ok();
+-                attribute_tracker.attr_resolution.prepared_only = previous;
++                attribute_tracker.attr_resolution.prepared_owner = previous;
+                 if let Some(prepared) = prepared_custom.as_ref() {
+                     let registration = context.stylist.get_custom_property_registration(name);
+                     if let Some(selected) = prepared.selected_value(name, registration) {
+@@ -2757,12 +2757,12 @@
+                 if lowlink != index || self_ref {
+                     break;
+                 }
+-                let previous = attribute_tracker.attr_resolution.prepared_only;
+-                attribute_tracker.attr_resolution.prepared_only = true;
++                let previous = attribute_tracker.attr_resolution.prepared_owner;
++                attribute_tracker.attr_resolution.prepared_owner = Some(index);
+                 let declaration = context.cascade.substitute_variables_if_needed(
+                     context.computed_context, context.cache, entry.decl, attribute_tracker,
+                 ).into_owned();
+-                attribute_tracker.attr_resolution.prepared_only = previous;
++                attribute_tracker.attr_resolution.prepared_owner = previous;
+                 let mut selected = Cow::Borrowed(&declaration);
+                 if context.cascade.ignore_colors {
+                     tweak_when_ignoring_colors(
+@@ -2845,7 +2845,7 @@
+             }
+         },
+         VarType::ContextualAttr(request) => {
+-            finish_prepared_attribute(request, context.stylist, context.computed_context, attribute_tracker);
++            finish_prepared_attribute(request, index, context.stylist, context.computed_context, attribute_tracker);
+         },
+         VarType::NonCustom(non_custom) => {
+             context.apply_prepared_priority(non_custom);
+@@ -2886,12 +2886,15 @@
+             context.reset();
+         }
+         first = false;
++        attr_tracker.attr_resolution.reset();
+         traverse(
+             var,
+             references_from_non_custom_properties,
+             &mut context,
+             attr_tracker,
+         );
++        assert!(context.cascade.resolution.stack.is_empty());
++        attr_tracker.attr_resolution.reset();
+     };
+     // Note that `seen` doesn't contain names inherited from our parent, but
+     // those can't have variable references (since we inherit the computed

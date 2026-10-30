@@ -1,0 +1,643 @@
+            Self::Log(a, b) => {
+                let (a, a_ty) = a.resolve_internal(leaf_to_output_fn)?;
+                if !a_ty.is_number() {
+                    return Err(());
+                }
+                let value = match b {
+                    Optional::Some(b) => {
+                        let (b, b_ty) = b.resolve_internal(leaf_to_output_fn)?;
+                        if !b_ty.is_number() {
+                            return Err(());
+                        }
+                        a.log(b)
+                    },
+                    Optional::None => a.ln(),
+                };
+                Ok((value, NumericType::number()))
+            },
+
+            Self::Log(ref mut a, ref mut b) => {
+                a.visit_depth_first_internal(f);
+                if let Optional::Some(b) = b {
+                    b.visit_depth_first_internal(f);
+                }
+            },
+            Self::Abs(ref mut value) | Self::Sign(ref mut value) => {
+                value.visit_depth_first_internal(f);
+            },
+            Self::Progress {
+                ref mut value,
+                ref mut start,
+                ref mut end,
+                ..
+            } => {
+                value.visit_depth_first_internal(f);
+                start.visit_depth_first_internal(f);
+                end.visit_depth_first_internal(f);
+            },
+            Self::Random(ref mut random) => {
+                random.key.visit_depth_first_internal(f);
+                random.min.visit_depth_first_internal(f);
+                random.max.visit_depth_first_internal(f);
+                if let Some(step) = random.step.as_mut() {
+                    step.visit_depth_first_internal(f);
+                }
+            },
+            Self::Leaf(..) | Self::Anchor(..) | Self::AnchorSize(..) => {},
+        }
+        f(self);
+    }
+
+    /// This function simplifies and sorts the calculation of the specified node. It simplifies
+    /// directly nested nodes while assuming that all nodes below it have already been simplified.
+    /// It is recommended to use this function in combination with `visit_depth_first()`.
+    ///
+    /// This function is necessary only if the node needs to be preserved after parsing,
+    /// specifically for `<length-percentage>` cases where the calculation contains percentages or
+    /// relative units. Otherwise, the node can be evaluated using `resolve()`, which will
+    /// automatically provide a simplified value.
+    ///
+    /// <https://drafts.csswg.org/css-values-4/#calc-simplification>
+    pub fn simplify_and_sort_direct_children(&mut self) -> SimplificationResult {
+        macro_rules! replace_self_with {
+            ($slot:expr) => {{
+                let result = mem::replace($slot, Self::dummy());
+                *self = result;
+            }};
+        }
+
+        macro_rules! value_or_stop {
+            ($op:expr) => {{
+                match $op {
+                    Ok(value) => value,
+                    Err(_) => return SimplificationResult::Unchanged,
+                }
+            }};
+        }
+
+        match *self {
+            Self::Clamp {
+                ref mut min,
+                ref mut center,
+                ref mut max,
+            } => {
+                let (Some(min_leaf), Some(center_leaf), Some(max_leaf)) =
+                    (min.as_leaf(), center.as_leaf(), max.as_leaf())
+                else {
+                    return SimplificationResult::Unchanged;
+                };
+                let leaves = [min_leaf, center_leaf, max_leaf];
+                let mut has_relative_infinity = false;
+                for leaf in leaves {
+                    let Some(value) = leaf.unitless_value() else {
+                        return SimplificationResult::Unchanged;
+                    };
+                    if leaf
+                        .as_percentage()
+                        .is_some_and(|(_, hint)| hint != Optional::Some(NumericBaseType::Percent))
+                    {
+                        return SimplificationResult::Unchanged;
+                    }
+                    has_relative_infinity |=
+                        value.is_infinite() && leaf.canonical_value().is_none();
+                }
+
+                let strict_op = |a: f32, b: f32, op: fn(f32, f32) -> f32| {
+                    if a.is_nan() {
+                        a
+                    } else if b.is_nan() {
+                        b
+                    } else {
+                        op(a, b)
+                    }
+                };
+                let result = center_leaf
+                    .try_op(max_leaf, |a, b| strict_op(a, b, crate::values::calc_min))
+                    .and_then(|inner| {
+                        min_leaf.try_op(&inner, |a, b| strict_op(a, b, crate::values::calc_max))
+                    });
+                if let Ok(result) = result {
+                    if has_relative_infinity && result.unitless_value().is_none_or(f32::is_finite) {
+                        return SimplificationResult::Unchanged;
+                    }
+                    *self = Self::Leaf(result);
+                    return SimplificationResult::Simplified;
+                }
+                if has_relative_infinity || leaves.iter().any(|leaf| leaf.is_nan() != Ok(false)) {
+                    return SimplificationResult::Unchanged;
+                }
+
+                // NOTE: clamp() is max(min, min(center, max))
+                let min_cmp_center = match min.compare(center) {
+                    Some(o) => o,
+                    None => return SimplificationResult::Unchanged,
+                };
+
+                // All operands are non-NaN, so a lower bound above the center wins.
+                if matches!(min_cmp_center, cmp::Ordering::Greater) {
+                    replace_self_with!(&mut **min);
+                    return SimplificationResult::Simplified;
+                }
+
+                // Otherwise try with max.
+                let max_cmp_center = match max.compare(center) {
+                    Some(o) => o,
+                    None => return SimplificationResult::Unchanged,
+                };
+
+                if matches!(max_cmp_center, cmp::Ordering::Less) {
+                    // max is less than center, so we need to return effectively
+                    // `max(min, max)`.
+                    let max_cmp_min = match max.compare(min) {
+                        Some(o) => o,
+                        None => return SimplificationResult::Unchanged,
+                    };
+
+                    if matches!(max_cmp_min, cmp::Ordering::Less) {
+                        replace_self_with!(&mut **min);
+                        return SimplificationResult::Simplified;
+                    }
+
+                    replace_self_with!(&mut **max);
+                    return SimplificationResult::Simplified;
+                }
+
+                // Otherwise we're the center node.
+                replace_self_with!(&mut **center);
+                SimplificationResult::Simplified
+            },
+            Self::Round {
+                strategy,
+                ref mut value,
+                ref mut step,
+            } => {
+                if value_or_stop!(step.is_zero_leaf()) {
+                    value_or_stop!(value.coerce_to_value(f32::NAN));
+                    replace_self_with!(&mut **value);
+                    return SimplificationResult::Simplified;
+                }
+
+                if value_or_stop!(value.is_infinite_leaf())
+                    && value_or_stop!(step.is_infinite_leaf())
+                {
+                    value_or_stop!(value.coerce_to_value(f32::NAN));
+                    replace_self_with!(&mut **value);
+                    return SimplificationResult::Simplified;
+                }
+
+                if value_or_stop!(value.is_infinite_leaf()) {
+                    replace_self_with!(&mut **value);
+                    return SimplificationResult::Simplified;
+                }
+
+                if value_or_stop!(step.is_infinite_leaf()) {
+                    if value.as_leaf().is_none() {
+                        return SimplificationResult::Unchanged;
+                    }
+                    match strategy {
+                        RoundingStrategy::Nearest | RoundingStrategy::ToZero => {
+                            let zero = if value_or_stop!(value.is_negative_leaf()) {
+                                -0.0
+                            } else {
+                                0.0
+                            };
+                            value_or_stop!(value.coerce_to_value(zero));
+                            replace_self_with!(&mut **value);
+                            return SimplificationResult::Simplified;
+                        },
+                        RoundingStrategy::Up => {
+                            if !value_or_stop!(value.is_negative_leaf())
+                                && !value_or_stop!(value.is_zero_leaf())
+                            {
+                                value_or_stop!(value.coerce_to_value(f32::INFINITY));
+                                replace_self_with!(&mut **value);
+                                return SimplificationResult::Simplified;
+                            } else if !value_or_stop!(value.is_negative_leaf())
+                                && value_or_stop!(value.is_zero_leaf())
+                            {
+                                replace_self_with!(&mut **value);
+                                return SimplificationResult::Simplified;
+                            } else {
+                                value_or_stop!(value.coerce_to_value(-0.0));
+                                replace_self_with!(&mut **value);
+                                return SimplificationResult::Simplified;
+                            }
+                        },
+                        RoundingStrategy::Down => {
+                            if value_or_stop!(value.is_negative_leaf())
+                                && !value_or_stop!(value.is_zero_leaf())
+                            {
+                                value_or_stop!(value.coerce_to_value(-f32::INFINITY));
+                                replace_self_with!(&mut **value);
+                                return SimplificationResult::Simplified;
+                            } else if value_or_stop!(value.is_negative_leaf())
+                                && value_or_stop!(value.is_zero_leaf())
+                            {
+                                replace_self_with!(&mut **value);
+                                return SimplificationResult::Simplified;
+                            } else {
+                                value_or_stop!(value.coerce_to_value(0.0));
+                                replace_self_with!(&mut **value);
+                                return SimplificationResult::Simplified;
+                            }
+                        },
+                    }
+                }
+
+                if value_or_stop!(step.is_negative_leaf()) {
+                    step.negate();
+                }
+
+                let remainder = value_or_stop!(value.try_op(step, Rem::rem));
+                if value_or_stop!(remainder.is_zero_leaf()) {
+                    replace_self_with!(&mut **value);
+                    return SimplificationResult::Simplified;
+                }
+
+                let (mut lower_bound, mut upper_bound) = if value_or_stop!(value.is_negative_leaf())
+                {
+                    // A zero upper bound is specifically negative zero.
+                    let upper_bound = value_or_stop!(value.try_op(&remainder, |a, b| {
+                        let result = a - b;
+                        if result == 0.0 { -0.0 } else { result }
+                    }));
+                    let lower_bound = value_or_stop!(upper_bound.try_op(step, Sub::sub));
+
+                    (lower_bound, upper_bound)
+                } else {
+                    let lower_bound = value_or_stop!(value.try_op(&remainder, Sub::sub));
+                    let upper_bound = value_or_stop!(lower_bound.try_op(step, Add::add));
+
+                    (lower_bound, upper_bound)
+                };
+
+                match strategy {
+                    RoundingStrategy::Nearest => {
+                        let lower_diff = value_or_stop!(value.try_op(&lower_bound, Sub::sub));
+                        let upper_diff = value_or_stop!(upper_bound.try_op(value, Sub::sub));
+                        // In case of a tie, use the upper bound
+                        if lower_diff.lt(&upper_diff) {
+                            replace_self_with!(&mut lower_bound);
+                        } else {
+                            replace_self_with!(&mut upper_bound);
+                        }
+                    },
+                    RoundingStrategy::Up => {
+                        replace_self_with!(&mut upper_bound);
+                    },
+                    RoundingStrategy::Down => {
+                        replace_self_with!(&mut lower_bound);
+                    },
+                    RoundingStrategy::ToZero => {
+                        let mut lower_diff = lower_bound.clone();
+                        let mut upper_diff = upper_bound.clone();
+
+                        if value_or_stop!(lower_diff.is_negative_leaf()) {
+                            lower_diff.negate();
+                        }
+
+                        if value_or_stop!(upper_diff.is_negative_leaf()) {
+                            upper_diff.negate();
+                        }
+
+                        // In case of a tie, use the upper bound
+                        if lower_diff.lt(&upper_diff) {
+                            replace_self_with!(&mut lower_bound);
+                        } else {
+                            replace_self_with!(&mut upper_bound);
+                        }
+                    },
+                };
+                SimplificationResult::Simplified
+            },
+            Self::ModRem {
+                ref dividend,
+                ref divisor,
+                op,
+            } => {
+                let mut result = value_or_stop!(dividend.try_op(divisor, |a, b| op.apply(a, b)));
+                replace_self_with!(&mut result);
+                SimplificationResult::Simplified
+            },
+            Self::MinMax(ref mut children, op) => {
+                let winning_order = match op {
+                    MinMaxOp::Min => cmp::Ordering::Less,
+                    MinMaxOp::Max => cmp::Ordering::Greater,
+                };
+
+                if value_or_stop!(children[0].is_nan_leaf()) {
+                    replace_self_with!(&mut children[0]);
+                    return SimplificationResult::Simplified;
+                }
+
+                let mut result = 0;
+                for i in 1..children.len() {
+                    if value_or_stop!(children[i].is_nan_leaf()) {
+                        replace_self_with!(&mut children[i]);
+                        return SimplificationResult::Simplified;
+                    }
+                    let o = match children[i].compare(&children[result]) {
+                        // We can't compare all the children, so we can't
+                        // know which one will actually win. Bail out and
+                        // keep ourselves as a min / max function.
+                        //
+                        // TODO: Maybe we could simplify compatible children,
+                        // see https://github.com/w3c/csswg-drafts/issues/4756
+                        None => return SimplificationResult::Unchanged,
+                        Some(o) => o,
+                    };
+
+                    if o == winning_order {
+                        result = i;
+                    }
+                }
+
+                replace_self_with!(&mut children[result]);
+                SimplificationResult::Simplified
+            },
+            Self::Sum(ref mut children_slot) => {
+                let mut sums_to_merge = SmallVec::<[_; 3]>::new();
+                let mut extra_kids = 0;
+                for (i, child) in children_slot.iter().enumerate() {
+                    if let Self::Sum(ref children) = *child {
+                        extra_kids += children.len();
+                        sums_to_merge.push(i);
+                    }
+                }
+
+                // If we only have one kid, we've already simplified it, and it
+                // doesn't really matter whether it's a sum already or not, so
+                // lift it up and continue.
+                if children_slot.len() == 1 {
+                    replace_self_with!(&mut children_slot[0]);
+                    return SimplificationResult::Simplified;
+                }
+
+                let mut children = mem::take(children_slot).into_vec();
+
+                if !sums_to_merge.is_empty() {
+                    children.reserve(extra_kids - sums_to_merge.len());
+                    // Merge all our nested sums, in reverse order so that the
+                    // list indices are not invalidated.
+                    for i in sums_to_merge.drain(..).rev() {
+                        let kid_children = match children.swap_remove(i) {
+                            Self::Sum(c) => c,
+                            _ => unreachable!(),
+                        };
+
+                        // This would be nicer with
+                        // https://github.com/rust-lang/rust/issues/59878 fixed.
+                        children.extend(kid_children.into_vec());
+                    }
+                }
+
+                let children_len = children.len();
+                debug_assert!(children_len >= 2, "Should still have multiple kids!");
+
+                // Sort by spec order.
+                children.sort_unstable_by_key(|c| c.sort_key());
+
+                // NOTE: if the function returns true, by the docs of dedup_by,
+                // a is removed.
+                children.dedup_by(|a, b| b.try_sum_in_place(a).is_ok());
+
+                let updated_children_len = children.len();
+                if updated_children_len == 1 {
+                    // If only one children remains, lift it up, and carry on.
+                    replace_self_with!(&mut children[0]);
+                } else {
+                    // Else put our simplified children back.
+                    *children_slot = children.into_boxed_slice().into();
+                }
+
+                if updated_children_len != children_len {
+                    SimplificationResult::Simplified
+                } else {
+                    SimplificationResult::Unchanged
+                }
+            },
+            Self::Product(ref mut children_slot) => {
+                let mut products_to_merge = SmallVec::<[_; 3]>::new();
+                let mut extra_kids = 0;
+                for (i, child) in children_slot.iter().enumerate() {
+                    if let Self::Product(ref children) = *child {
+                        extra_kids += children.len();
+                        products_to_merge.push(i);
+                    }
+                }
+
+                // If we only have one kid, we've already simplified it, and it
+                // doesn't really matter whether it's a product already or not,
+                // so lift it up and continue.
+                if children_slot.len() == 1 {
+                    replace_self_with!(&mut children_slot[0]);
+                    return SimplificationResult::Unchanged;
+                }
+
+                let mut children = mem::take(children_slot).into_vec();
+                if !products_to_merge.is_empty() {
+                    children.reserve(extra_kids - products_to_merge.len());
+                    // Merge all our nested sums, in reverse order so that the
+                    // list indices are not invalidated.
+                    for i in products_to_merge.drain(..).rev() {
+                        let kid_children = match children.swap_remove(i) {
+                            Self::Product(c) => c,
+                            _ => unreachable!(),
+                        };
+
+                        // This would be nicer with
+                        // https://github.com/rust-lang/rust/issues/59878 fixed.
+                        children.extend(kid_children.into_vec());
+                    }
+                }
+
+                debug_assert!(children.len() >= 2, "Should still have multiple kids!");
+
+                // Sort by spec order.
+                children.sort_unstable_by_key(|c| c.sort_key());
+
+                // NOTE: if the function returns true, by the docs of dedup_by,
+                // a is removed.
+                children.dedup_by(|right, left| left.try_product_in_place(right));
+
+                if children.len() == 1 {
+                    // If only one children remains, lift it up, and carry on.
+                    replace_self_with!(&mut children[0]);
+                    return SimplificationResult::Simplified;
+                }
+
+                if typed_arithmetic_enabled() {
+                    // "If root contains only numeric values and/or Invert nodes containing numeric values,
+                    // and multiplying the types of all the children (noting that the type of an Invert
+                    // node is the inverse of its child’s type) results in a type that matches any of the
+                    // types that a math function can resolve to, return the result of multiplying all the
+                    // values of the children (noting that the value of an Invert node is the reciprocal of
+                    // its child’s value), expressed in the result’s canonical unit."
+                    //
+                    // https://drafts.csswg.org/css-values-4/#simplify-a-calculation-tree
+                    let mut result = 1.0;
+                    let mut ty = Ok(NumericType::number());
+
+                    for child in children.iter() {
+                        let (leaf, is_inverted) = match child {
+                            Self::Leaf(leaf) => (leaf, false),
+                            Self::Invert(inner) if inner.as_leaf().is_some() => {
+                                (inner.as_leaf().unwrap(), true)
+                            },
+                            _ => {
+                                ty = Err(());
+                                break;
+                            },
+                        };
+
+                        // Only multiply values that are in that type's canonical unit.
+                        let Some(value) = leaf.canonical_value() else {
+                            ty = Err(());
+                            break;
+                        };
+                        let (multiplicand, child_ty) = if is_inverted {
+                            let mut ty = leaf.numeric_type();
+                            ty.invert();
+                            (1.0 / value, ty)
+                        } else {
+                            (value, leaf.numeric_type())
+                        };
+
+                        result *= multiplicand;
+                        ty = ty.and_then(|ty| NumericType::multiply_two_types(&ty, &child_ty));
+                    }
+
+                    if let Ok(leaf) = ty.and_then(|ty| L::new_from_typed_value(result, ty)) {
+                        let mut result = Self::Leaf(leaf);
+                        replace_self_with!(&mut result);
+                        return SimplificationResult::Simplified;
+                    }
+                }
+
+                // Else put our simplified children back.
+                *children_slot = children.into_boxed_slice().into();
+                SimplificationResult::Unchanged
+            },
+            Self::Sin(ref mut child) => {
+                if let CalcNode::Leaf(ref leaf) = **child
+                    && let Some(radians) = leaf.as_number_or_angle_radians()
+                {
+                    let mut result = Self::Leaf(L::new_number(radians.sin()));
+                    replace_self_with!(&mut result);
+                    return SimplificationResult::Simplified;
+                }
+                SimplificationResult::Unchanged
+            },
+            Self::Cos(ref mut child) => {
+                if let CalcNode::Leaf(ref leaf) = **child
+                    && let Some(radians) = leaf.as_number_or_angle_radians()
+                {
+                    let mut result = Self::Leaf(L::new_number(radians.cos()));
+                    replace_self_with!(&mut result);
+                    return SimplificationResult::Simplified;
+                }
+                SimplificationResult::Unchanged
+            },
+            Self::Tan(ref mut child) => {
+                if let CalcNode::Leaf(ref leaf) = **child
+                    && let Some(radians) = leaf.as_number_or_angle_radians()
+                {
+                    let mut result = Self::Leaf(L::new_number(radians.tan()));
+                    replace_self_with!(&mut result);
+                    return SimplificationResult::Simplified;
+                }
+                SimplificationResult::Unchanged
+            },
+            Self::Asin(ref mut child) => {
+                if let CalcNode::Leaf(ref leaf) = **child
+                    && let Some(value) = leaf.as_number()
+                {
+                    let mut result = Self::Leaf(L::new_angle_from_radians(value.asin()));
+                    replace_self_with!(&mut result);
+                    return SimplificationResult::Simplified;
+                }
+                SimplificationResult::Unchanged
+            },
+            Self::Acos(ref mut child) => {
+                if let CalcNode::Leaf(ref leaf) = **child
+                    && let Some(value) = leaf.as_number()
+                {
+                    let mut result = Self::Leaf(L::new_angle_from_radians(value.acos()));
+                    replace_self_with!(&mut result);
+                    return SimplificationResult::Simplified;
+                }
+                SimplificationResult::Unchanged
+            },
+            Self::Atan(ref mut child) => {
+                if let CalcNode::Leaf(ref leaf) = **child
+                    && let Some(value) = leaf.as_number()
+                {
+                    let mut result = Self::Leaf(L::new_angle_from_radians(value.atan()));
+                    replace_self_with!(&mut result);
+                    return SimplificationResult::Simplified;
+                }
+                SimplificationResult::Unchanged
+            },
+            Self::Atan2(ref mut a, ref mut b) => {
+                if let (CalcNode::Leaf(la), CalcNode::Leaf(lb)) = (&**a, &**b)
+                    && la.is_same_unit_as(lb)
+                    && let (Some(a_val), Some(b_val)) = (la.unitless_value(), lb.unitless_value())
+                {
+                    let mut result = Self::Leaf(L::new_angle_from_radians(a_val.atan2(b_val)));
+                    replace_self_with!(&mut result);
+                    return SimplificationResult::Simplified;
+                }
+                SimplificationResult::Unchanged
+            },
+            Self::Pow(ref mut a, ref mut b) => {
+                if let (CalcNode::Leaf(la), CalcNode::Leaf(lb)) = (&**a, &**b)
+                    && let (Some(a_val), Some(b_val)) = (la.as_number(), lb.as_number())
+                {
+                    let mut result = Self::Leaf(L::new_number(pow(a_val, b_val)));
+                    replace_self_with!(&mut result);
+                    return SimplificationResult::Simplified;
+                }
+                SimplificationResult::Unchanged
+            },
+            Self::Sqrt(ref mut child) => {
+                if let CalcNode::Leaf(ref leaf) = **child
+                    && let Some(value) = leaf.as_number()
+                {
+                    let mut result = Self::Leaf(L::new_number(value.sqrt()));
+                    replace_self_with!(&mut result);
+                    return SimplificationResult::Simplified;
+                }
+                SimplificationResult::Unchanged
+            },
+            Self::Hypot(ref children) => {
+                let mut result = value_or_stop!(children[0].try_op(&children[0], |a, _| a.abs()));
+
+                for child in children.iter().skip(1) {
+                    result = value_or_stop!(result.try_op(child, hypot));
+                }
+
+                replace_self_with!(&mut result);
+                SimplificationResult::Simplified
+            },
+            Self::Log(ref mut a, ref mut b) => {
+                if let CalcNode::Leaf(ref la) = **a
+                    && let Some(a_val) = la.as_number()
+                {
+                    let folded = match b {
+                        &mut Optional::Some(ref b) => {
+                            if let CalcNode::Leaf(ref lb) = **b {
+                                lb.as_number().map(|b_val| a_val.log(b_val))
+                            } else {
+                                None
+                            }
+                        },
+                        Optional::None => Some(a_val.ln()),
+                    };
+                    if let Some(number) = folded {
+                        let mut result = Self::Leaf(L::new_number(number));
+                        replace_self_with!(&mut result);
+                        return SimplificationResult::Simplified;
+                    }
+                }
+                SimplificationResult::Unchanged
+            },

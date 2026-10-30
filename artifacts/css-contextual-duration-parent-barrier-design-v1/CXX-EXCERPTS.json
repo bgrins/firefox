@@ -1,0 +1,91 @@
+{
+  "dom/animation/KeyframeEffect.cpp": {
+    "whole_file_sha256": "8ec54d488bde7ba5a681e0319f5c0687a35e79391f7e70368539b174e400f239",
+    "bytes": 82081,
+    "current_read_only": true,
+    "historical_build_pin": "8ec54d488bde7ba5a681e0319f5c0687a35e79391f7e70368539b174e400f239",
+    "historical_build_pin_equal": true,
+    "functions": [
+      {
+        "selector": "void KeyframeEffect::UpdateProperties(",
+        "text": "void KeyframeEffect::UpdateProperties(const ComputedStyle* aStyle,\n                                      const AnimationTimeline* aTimeline) {\n  MOZ_ASSERT(aStyle);\n\n  bool referencesAttributes = false;\n  nsTArray<AnimationProperty> properties = BuildProperties(\n      aStyle,\n      aTimeline ? aTimeline\n                : (mAnimation ? mAnimation->GetTimeline() : nullptr),\n      referencesAttributes);\n\n  bool propertiesChanged = mProperties != properties;\n  if (!propertiesChanged) {\n    auto attrTainted = [](const AnimationValue& aValue) {\n      return aValue.mServo && Servo_AnimationValue_IsAttrTainted(aValue.mServo);\n    };\n    for (size_t i = 0; i < properties.Length() && !propertiesChanged; ++i) {\n      if (!properties[i].mProperty.IsCustom()) {\n        continue;\n      }\n      const auto& oldSegments = mProperties[i].mSegments;\n      const auto& newSegments = properties[i].mSegments;\n      for (size_t j = 0; j < newSegments.Length(); ++j) {\n        const auto& oldSegment = oldSegments[j];\n        const auto& newSegment = newSegments[j];\n        if (attrTainted(oldSegment.mFromValue) !=\n                attrTainted(newSegment.mFromValue) ||\n            attrTainted(oldSegment.mToValue) !=\n                attrTainted(newSegment.mToValue)) {\n          propertiesChanged = true;\n          break;\n        }\n      }\n    }\n  }\n\n  // We need to update base styles even if any properties are not changed at all\n  // since base styles might have been changed due to parent style changes, etc.\n  bool baseStylesChanged = false;\n  EnsureBaseStyles(aStyle, properties, aTimeline,\n                   !propertiesChanged ? &baseStylesChanged : nullptr);\n\n  mReferencesAttributes = referencesAttributes;\n\n  if (!propertiesChanged) {\n    if (baseStylesChanged) {\n      RequestRestyle(EffectCompositor::RestyleType::Layer);\n    }\n    return;\n  }\n\n  // Preserve the state of the mIsRunningOnCompositor flag.\n  nsCSSPropertyIDSet runningOnCompositorProperties;\n\n  for (const AnimationProperty& property : mProperties) {\n    if (property.mIsRunningOnCompositor) {\n      runningOnCompositorProperties.AddProperty(property.mProperty.mId);\n    }\n  }\n\n  mProperties = std::move(properties);\n  UpdateEffectSet();\n\n  mCumulativeChanges = {};\n  for (AnimationProperty& property : mProperties) {\n    property.mIsRunningOnCompositor =\n        runningOnCompositorProperties.HasProperty(property.mProperty);\n    CalculateCumulativeChangesForProperty(property);\n  }\n\n  MarkCascadeNeedsUpdate();\n\n  if (mAnimation) {\n    mAnimation->NotifyEffectPropertiesUpdated();\n  }\n\n  RequestRestyle(EffectCompositor::RestyleType::Layer);\n}\n",
+        "sha256": "7c63042c5c3a948ad98511125519dd3c9a5e942055d8c76fad38f983e5ded556"
+      }
+    ]
+  },
+  "dom/animation/EffectCompositor.cpp": {
+    "whole_file_sha256": "6ec3a0ca45789b3089e8d2abcfb3ff37b881b0ee9084e09d0d396d73491249ed",
+    "bytes": 36553,
+    "current_read_only": true,
+    "historical_build_pin": "6ec3a0ca45789b3089e8d2abcfb3ff37b881b0ee9084e09d0d396d73491249ed",
+    "historical_build_pin_equal": true,
+    "functions": [
+      {
+        "selector": "static void ComposeSortedEffects(",
+        "text": "static void ComposeSortedEffects(\n    const nsTArray<KeyframeEffect*>& aSortedEffects,\n    const EffectSet* aEffectSet, EffectCompositor::CascadeLevel aCascadeLevel,\n    StyleAnimationValueMap* aAnimationValues,\n    dom::EndpointBehavior aEndpointBehavior =\n        dom::EndpointBehavior::Exclusive) {\n  const bool isTransition =\n      aCascadeLevel == EffectCompositor::CascadeLevel::Transitions;\n  // Transitions should be overridden by running animations of the same\n  // property per https://drafts.csswg.org/css-transitions/#application:\n  //\n  // > Implementations must add this value to the cascade if and only if that\n  // > property is not currently undergoing a CSS Animation on the same element.\n  //\n  InvertibleAnimatedPropertyIDSet propertiesToSkip;\n  AnimatedPropertyIDSet animatedProperties;\n\n  // FIXME(emilio, bug 1606176): This should assert that\n  // aEffectSet->PropertiesForAnimationsLevel() is up-to-date, and it may not\n  // follow the spec in those cases. There are various places where we get style\n  // without flushing that would trigger the below assertion.\n  //\n  // MOZ_ASSERT_IF(aEffectSet, !aEffectSet->CascadeNeedsUpdate());\n  if (aEffectSet) {\n    animatedProperties.AddProperties(\n        aEffectSet->PropertiesForAnimationsLevel());\n    // When CommitStyles is called and its endpoint-inclusive behavior is\n    // enabled, the animation that CommitStyles targets is already finished and\n    // so aEffectSet doesn't include it. But its properties still has to be\n    // included in propertiesToSkip. So its properties have to be added manually\n    // here.\n    if (aEndpointBehavior == dom::EndpointBehavior::Inclusive &&\n        aCascadeLevel == EffectCompositor::CascadeLevel::Animations) {\n      animatedProperties.AddProperties(\n          aSortedEffects.LastElement()->GetPropertySet());\n    }\n    // Note that we do invert the set on CascadeLevel::Animations because we\n    // don't want to skip those properties when composing the animation rule on\n    // CascadeLevel::Animations.\n    propertiesToSkip.Setup(&animatedProperties, !isTransition);\n  }\n\n  for (KeyframeEffect* effect : aSortedEffects) {\n    auto* animation = effect->GetAnimation();\n    MOZ_ASSERT(!isTransition || animation->CascadeLevel() == aCascadeLevel);\n    animation->ComposeStyle(*aAnimationValues, propertiesToSkip,\n                            aEndpointBehavior);\n  }\n}\n",
+        "sha256": "01fffb9d76de769506fa851ba2daf5f183c45d9d0830e50fa66f459da5d81aca"
+      },
+      {
+        "selector": "bool EffectCompositor::GetServoAnimationRule(",
+        "text": "bool EffectCompositor::GetServoAnimationRule(\n    const dom::Element* aElement, const PseudoStyleRequest& aPseudoRequest,\n    CascadeLevel aCascadeLevel, StyleAnimationValueMap* aAnimationValues) {\n  MOZ_ASSERT(aAnimationValues);\n  // Gecko_GetAnimationRule should have already checked this\n  MOZ_ASSERT(nsContentUtils::GetPresShellForContent(aElement),\n             \"Should not be trying to run animations on elements in documents\"\n             \" without a pres shell (e.g. XMLHttpRequest documents)\");\n\n  EffectSet* effectSet = EffectSet::Get(aElement, aPseudoRequest);\n  if (!effectSet) {\n    return false;\n  }\n\n  const bool isTransition = aCascadeLevel == CascadeLevel::Transitions;\n\n  // Get a list of effects sorted by composite order.\n  nsTArray<KeyframeEffect*> sortedEffectList(effectSet->Count());\n  for (KeyframeEffect* effect : *effectSet) {\n    if (isTransition &&\n        effect->GetAnimation()->CascadeLevel() != aCascadeLevel) {\n      // We may need to use transition rules for the animations level for the\n      // case of missing keyframes in animations, but we don't ever need to look\n      // at non-transition levels to build a transition rule. When the effect\n      // set information is out of date (see above), this avoids creating bogus\n      // transition rules, see bug 1605610.\n      continue;\n    }\n    sortedEffectList.AppendElement(effect);\n  }\n\n  if (sortedEffectList.IsEmpty()) {\n    return false;\n  }\n\n  sortedEffectList.Sort(EffectCompositeOrderComparator());\n\n  ComposeSortedEffects(sortedEffectList, effectSet, aCascadeLevel,\n                       aAnimationValues);\n\n  MOZ_ASSERT(effectSet == EffectSet::Get(aElement, aPseudoRequest),\n             \"EffectSet should not change while composing style\");\n\n  return true;\n}\n",
+        "sha256": "c69c0a277db78a3cfb8f0a52851d2f9a160fdb10c02c18bb7a669279d8726cd6"
+      }
+    ]
+  },
+  "dom/animation/Animation.cpp": {
+    "whole_file_sha256": "f227dba4007cea20d9ca4e70a3c3a41993a2b011a02b6d633d3b6dca1e9ae1cd",
+    "bytes": 92678,
+    "current_read_only": true,
+    "historical_build_pin": "f227dba4007cea20d9ca4e70a3c3a41993a2b011a02b6d633d3b6dca1e9ae1cd",
+    "historical_build_pin_equal": true,
+    "functions": [
+      {
+        "selector": "Nullable<TimeDuration> Animation::GetCurrentTimeForHoldTime(",
+        "text": "Nullable<TimeDuration> Animation::GetCurrentTimeForHoldTime(\n    const Nullable<TimeDuration>& aHoldTime) const {\n  Nullable<TimeDuration> result;\n  if (!aHoldTime.IsNull()) {\n    result = aHoldTime;\n    return result;\n  }\n\n  if (mTimeline && !mStartTime.IsNull()) {\n    Nullable<TimeDuration> timelineTime = mTimeline->GetCurrentTimeAsDuration();\n    if (!timelineTime.IsNull()) {\n      result = CurrentTimeFromTimelineTime(\n          timelineTime.Value(), mStartTime.Value(), PlaybackRateInternal());\n    }\n  }\n  return result;\n}\n",
+        "sha256": "7541348ddda36e92c7cf3c30bb49a290f256e07ed5b8475f9b987cedfe23cddd"
+      }
+    ]
+  },
+  "dom/animation/DocumentTimeline.cpp": {
+    "whole_file_sha256": "ca50ca4133bbe1e9b08c1f94722f897488765a3c00b64670065194c6827fe87c",
+    "bytes": 8087,
+    "current_read_only": true,
+    "historical_build_pin": null,
+    "historical_build_pin_equal": null,
+    "functions": [
+      {
+        "selector": "TimeStamp DocumentTimeline::GetCurrentTimeStamp(",
+        "text": "TimeStamp DocumentTimeline::GetCurrentTimeStamp() const {\n  nsRefreshDriver* refreshDriver = GetRefreshDriver();\n  TimeStamp result = refreshDriver ? refreshDriver->MostRecentRefresh()\n                                   : mLastRefreshDriverTime;\n\n  return EnsureValidTimestamp(result);\n}\n",
+        "sha256": "40f3db2fb7760cba97e7e81b2deed3ad80efa7d9cd1c3099066e2e8aa7b00683"
+      }
+    ]
+  },
+  "dom/animation/ScrollTimeline.cpp": {
+    "whole_file_sha256": "66fa2fd7d0a90d8ca56b3969c7b0f9273649cdcd778c26bc81426a852b2d10df",
+    "bytes": 20373,
+    "current_read_only": true,
+    "historical_build_pin": null,
+    "historical_build_pin_equal": null,
+    "functions": [
+      {
+        "selector": "ScrollTimeline::ComputeTimelineData() const",
+        "text": "ScrollTimeline::ComputeTimelineData() const {\n  return mCachedCurrentTime\n             ? Some(ComputedTimelineData{mCachedCurrentTime->mPosition, 0,\n                                         mCachedCurrentTime->mMaxScrollOffset})\n             : Nothing();\n}\n",
+        "sha256": "887179da3ee5236c6b713712ff62ef020c9661c9640ee2fe679dff2f13a1bb79"
+      }
+    ]
+  },
+  "dom/animation/Keyframe.h": {
+    "whole_file_sha256": "0902b8c4296df696a9f26440d90e080e5ee9fd582882c2f5f2a94dfbed1c344b",
+    "bytes": 4587,
+    "current_read_only": true,
+    "historical_build_pin": null,
+    "historical_build_pin_equal": null,
+    "functions": [
+      {
+        "selector": "struct PropertyValuePair",
+        "text": "struct PropertyValuePair {\n  explicit PropertyValuePair(const CSSPropertyId& aProperty)\n      : mProperty(aProperty) {}\n\n  PropertyValuePair(const CSSPropertyId& aProperty,\n                    RefPtr<StyleLockedDeclarationBlock>&& aValue)\n      : mProperty(aProperty), mServoDeclarationBlock(std::move(aValue)) {}\n\n  CSSPropertyId mProperty;\n\n  // The specified value when using the Servo backend.\n  // If it is nullptr, we use the base values, i.e. the value generated for that\n  // property by finding the computed value for that property in the absence of\n  // animations, when composing the animations and getkeyframes().\n  RefPtr<StyleLockedDeclarationBlock> mServoDeclarationBlock;\n\n#ifdef DEBUG\n  // Flag to indicate that when we call StyleAnimationValue::ComputeValues on\n  // this value we should behave as if that function had failed.\n  bool mSimulateComputeValuesFailure = false;\n#endif\n\n  bool operator==(const PropertyValuePair&) const;\n};\n",
+        "sha256": "19d2b732a6f6240451459c0ab6b4ea5cbf664415d669426be88537497edb874a"
+      }
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+    commit = git("rev-parse", "HEAD").decode().strip()
+    assert git("rev-parse", commit + "^").decode().strip() == policy["head"]
+    assert git("rev-parse", commit + "^{tree}").decode().strip() == tree
+    assert sorted(git("diff-tree", "--no-commit-id", "--name-only", "-r", commit).decode().splitlines()) == sorted(selected)
+    with (output / "signature.log").open("x") as stream:
+        subprocess.run(GIT + ["-c", "gpg.ssh.allowedSignersFile=" + str(ROOT / policy["allowed_signers"]), "verify-commit", commit], cwd=ROOT, env=ENV, stdout=stream, stderr=subprocess.STDOUT, check=True)
+    actual = state.h.index_state(ROOT, ENV)
+    assert not git("diff", "--cached", "--name-only")
+    assert actual["working_diff"] == before["index"]["working_diff"]
+    assert state.h.index_state(ROOT / "artifacts/css-spec-lean", ENV) == before["nested_index"]
+    now_flags = flags(ROOT)
+    assert all(now_flags[n] == value for n, value in old_flags.items())
+    assert set(now_flags) == set(old_flags) | set(selected)
+    assert all(now_flags[n] == "H" for n in set(now_flags) - set(old_flags))
+    assert flags(ROOT / "artifacts/css-spec-lean") == nested_flags
+    assert untracked_names() == untracked - set(selected)
+    updated = copy.deepcopy(epoch)
+    updated["semantic_index"] = state.h.semantic_index(actual)
+    updated["raw_index_observation"]["current"] = actual["raw_index"]
+    for mapping in ("pins", "staged_working"):
+        if roadmap["path"] in updated[mapping]:
+            assert updated[mapping][roadmap["path"]] == roadmap["before_sha256"]
+            updated[mapping][roadmap["path"]] = roadmap["after_sha256"]
+    updated["committed_research_working_payloads"].update(selected)
+    updated["counts"]["committed_research_payloads"] = len(updated["committed_research_working_payloads"])
+    post = state.a.verify_current(state.h, ROOT, ENV, updated)
+    for name, pin in selected.items():
+        assert digest(git("show", commit + ":" + name)) == pin
+    assert all((RUNTIME / n).read_bytes() == body for n, body in controls.items())
+    for claim in native_claims.values():
+        owned.claim(ROOT, claim["path"], claim["owned_sha256"], claim["identity"])
+    canonical_started = True
+    owned.write_owned(ROOT, control_claims["CURRENT-EPOCH.json"], owned.encoded(updated))
+    assert state.a.verify_current(state.h, ROOT, ENV, updated) == post
+    assert all((RUNTIME / n).read_bytes() == controls[n] for n in ("ROLE.json", "OWNED.json"))
+    save(output / "FINAL-CHECK.json", {"head": commit, "parent": policy["head"], "tree": tree, "signature_verified": True, "runtime_epoch_synchronized": True, "current_epoch_sha256": digest(owned.encoded(updated)), "accepted_fixes": 149, "tracked_fixes": 150, "accepted_fix_increment": 0, "canonical_coverage_increment": 0, "provider_candidate_accepted": False, "easing_native_acceptance": False, "minmax_native_acceptance": False, "completed_pair_result_sha256": completion["evidence"][completion["result"]], "signing_performed_build_or_browser_execution": False, "native_and_binary_payloads_preserved": True, "nested_index_and_flags_preserved": True, "unselected_untracked_names_preserved": True, "untracked_before": len(untracked), "untracked_after": len(untracked_names()), "selection_count": len(selected), "full_epoch_copies_saved": 0})
+    final_published = True
+    assert [lock.stat().st_dev, lock.stat().st_ino] == lock_identity
+    lock.rmdir()
+    print("Signed research checkpoint and synchronized canonical epoch", commit, flush=True)

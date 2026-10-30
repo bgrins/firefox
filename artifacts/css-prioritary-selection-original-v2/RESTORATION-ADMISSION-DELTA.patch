@@ -1,0 +1,52 @@
+--- executed-original45/admission.py
++++ original74-v2/admission.py
+@@ -17,12 +17,16 @@
+ 
+ 
+ def validate(root, policy):
++    assert policy['activation_pending'] == []
++    assert policy['baseline_binding'] is None and policy['baseline_capsule'] is None
++    assert policy['original_admission_policy_sha256'] is None
+     binding = policy['execution_handoff']
+     assert binding is not None and policy['restoration_binding'] is not None
+     current_pin = binding['current']
+-    assert current_pin['sha256'] == 'b85b78c2ad687aeefb68af4cd0e94e23c8dca2786459860b2933872fbc5a7ccd'
++    assert current_pin['sha256'] == '927bec1cba4d016b97a646a564c1e4366019f21b6f7e027a69e90ef71c1054fe'
+     assert sha(root / current_pin['path']) == current_pin['sha256']
+     directory = root / policy['restoration_binding']['directory']
++    assert policy['restoration_binding'] == {'directory':'artifacts/css-registered-color-image-common-only-candidate-runtime-2','manifest_sha256':'ec5d19f27a1b835a08adb444ed3532f6aace71fdd9614abc72f5bcf181fe5579'}
+     authenticate(directory, policy['restoration_binding']['manifest_sha256'])
+     completed = root / binding['completed_owner']['directory']
+     authenticate(completed,binding['completed_owner']['manifest_sha256'])
+@@ -36,10 +40,10 @@
+     result = read(directory / 'CANDIDATE-RESULT.json')
+     current = {'restoration_review':current_pin,'snapshot':review['snapshot'],'controls':dict(old['controls'],**{'CURRENT-EPOCH.json':refresh['new_epoch_sha256']}),'head':old['head'],'prepared_application_metadata':review['restored_application_metadata'],'prepared_flag_hashes':old['prepared_flag_hashes']}
+     assert current['restoration_review'] == {'path': str((directory / 'ROOT-REVIEW.json').relative_to(root)), 'sha256': sha(directory / 'ROOT-REVIEW.json')}
+-    assert terminal == {'session':27674,'launch_chunk':'0e3950','terminal_chunk':'a7c7fc','exit':0,'active_reviewer_manifest_sha256':binding['reviewer']['manifest_sha256']}
++    assert terminal == {'session':73478,'launch_chunk':'9b2420','terminal_chunk':'b89e84','exit':0,'report_sha256':current_pin['sha256'],'active_reviewer_manifest_sha256':binding['reviewer']['manifest_sha256']}
+     assert review['actual_terminal'] == review_policy['actual_terminal']
+     actual = review['actual_terminal']
+-    assert (actual['session'],actual['launch_chunk'],actual['terminal_chunk'],actual['exit']) == (86757,'2c6dfe','b6d89a',0)
++    assert (actual['session'],actual['launch_chunk'],actual['terminal_chunk'],actual['exit']) == (35032,'2d81cd','71b079',0)
+     owner_terminal = read(directory / 'ROOT-OWNER-TERMINAL.json')
+     assert owner_terminal == dict(actual,active_owner_manifest_sha256=binding['completed_owner']['manifest_sha256'])
+     assert actual['result_sha256'] == sha(directory / 'CANDIDATE-RESULT.json')
+@@ -58,7 +62,7 @@
+     assert refresh['raw_index_before'] == expected['index']['raw_index']
+     expected['index']['raw_index'] = refresh['raw_index_after']
+     assert expected == read(directory / 'POST.json') == review['snapshot'] == current['snapshot']
+-    assert refresh['independent_review_sha256'] == sha(directory / 'ROOT-REVIEW.json') and refresh['independent_review_terminal'] == '27674/a7c7fc/0'
++    assert refresh['independent_review_sha256'] == sha(directory / 'ROOT-REVIEW.json') and refresh['independent_review_terminal'] == '73478/b89e84/0'
+     assert refresh['other_controls_unchanged'] == {k:v for k,v in old['controls'].items() if k!='CURRENT-EPOCH.json'}
+     assert policy['controls'] == current['controls'] == dict(old['controls'],**{'CURRENT-EPOCH.json':refresh['new_epoch_sha256']})
+     assert policy['head'] == current['head'] == old['head'] == expected['index']['head']
+@@ -83,4 +87,9 @@
+     assert review['observation']['browser_executed'] and review['observation']['observation_complete']
+     assert sum(row['candidate']['status']=='PASS' for row in outcomes['rows']) == outcomes['callbacks_passed']
+     assert sum(row['candidate']['status']=='FAIL' for row in outcomes['rows']) == outcomes['callbacks_failed']
++    assert review['observation']['common_preservation']['full_original_signature_equality']
++    assert len(review['observation']['common_preservation']['callbacks']) == 45
++    assert len(review['observation']['common_preservation']['endings']) == 4
++    assert review['compiler_warnings']['human_log_review_required']
++    assert not review['compiler_warnings']['warning_suppression_added']
+     return current

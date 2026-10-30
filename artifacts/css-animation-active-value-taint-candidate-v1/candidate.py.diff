@@ -1,0 +1,38 @@
+--- artifacts/css-contextual-duration-masked-snapshot-candidate-v2/candidate.py
++++ artifacts/css-animation-active-value-taint-candidate-v1/candidate.py
+@@ -70,6 +70,7 @@
+         accepted[name] = claims[name] if name in claims else ownership.claim(ROOT, name, record['sha256'], record['identity'])
+         assert accepted[name]['owned_sha256'] == record['sha256'] and accepted[name]['identity'] == record['identity']
+     before = state.a.verify_current(state.h, ROOT, env, epoch)
++    unaffected_diff = hashlib.sha256(state.h.git(ROOT, env, 'diff', '--binary', '--', '.', *[':(exclude)' + name for name in roles])).hexdigest()
+     bundle = load('activation_bundle', policy['bundle_helper'])
+     builder = load('activation_builder', policy['phase_helper'])
+     process_control = load('activation_process_control', policy['process_helper'])
+@@ -101,7 +102,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'contextual-duration-masked-snapshot-candidate-v2'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'animation-active-value-taint-candidate-v1'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+@@ -117,7 +118,8 @@
+             if name not in roles:
+                 assert sha(ROOT / name) == pin
+         for record in accepted.values():
+-            ownership.claim(ROOT, record['path'], record['owned_sha256'], record['identity'])
++            if record['path'] not in roles:
++                ownership.claim(ROOT, record['path'], record['owned_sha256'], record['identity'])
+     def candidate_verify():
+         stable_controls()
+         local = copy.deepcopy(epoch)
+@@ -130,7 +132,7 @@
+         for name, pin in binaries.items():
+             assert sha(ROOT / name) == pin
+             local['pins'][name] = pin
+-        assert hashlib.sha256(state.h.git(ROOT, env, 'diff', '--binary', '--', '.', *[':(exclude)' + name for name in roles])).hexdigest() == epoch['semantic_index']['working_diff']
++        assert hashlib.sha256(state.h.git(ROOT, env, 'diff', '--binary', '--', '.', *[':(exclude)' + name for name in roles])).hexdigest() == unaffected_diff
+         index = state.h.index_state(ROOT, env)
+         assert all(index[key] == epoch['semantic_index'][key] for key in ('head', 'entries', 'cached_diff'))
+         local['semantic_index'] = state.h.semantic_index(index)

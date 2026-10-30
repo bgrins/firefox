@@ -1,0 +1,32 @@
+--- v1/run.py
++++ v2/run.py
+@@ -142,6 +142,7 @@
+                 (output / ('LOCAL-PRE-' + name)).write_bytes(body)
+             save(output / 'LOCAL-RECOVERY-REFERENCES.json', {name: digest(body) for name, body in controls.items()})
+             save(output / 'PRE.json', before)
++            save(output / 'INITIAL-CLAIMS.json', {'source':source_claim, 'controls':claims, 'parents':parents})
+             owner.write_owned(ROOT, source_claim, (ROOT / policy['files'][source]['capture']).read_bytes())
+             current = copy.deepcopy(epoch)
+             owned = json.loads(controls['OWNED.json'])
+@@ -151,9 +152,11 @@
+                 blocked = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
+                 try:
+                     created[name] = creation.create_owned(owner, ROOT, name, parents[name])
++                    save(output / ('CREATED-' + str(len(created)) + '.json'), created)
+                 finally:
+                     signal.pthread_sigmask(signal.SIG_SETMASK, blocked)
+                 owner.write_owned(ROOT, created[name], (ROOT / policy['files'][name]['capture']).read_bytes())
++                save(output / ('WRITTEN-' + str(len(created)) + '.json'), created)
+                 if name in current['pins']:
+                     assert current['pins'].pop(name) is None
+                 current = creation.updated_epoch(current, name, created[name], policy['files'][name]['sha256'])
+@@ -254,7 +257,8 @@
+                 safe = True
+             finally:
+                 if output.exists():
+-                    save(output / 'INSTALL-FAILURE.json', {'error':repr(error), 'rollback_verified':safe, 'manual_recovery_required':not safe})
++                    save(output / 'INSTALL-FAILURE.json', {'error':repr(error), 'rollback_verified':safe, 'manual_recovery_required':not safe,
++                         'source_claim':source_claim, 'control_claims':claims, 'created_claims':created})
+         raise
+     finally:
+         if safe:

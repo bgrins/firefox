@@ -1,0 +1,72 @@
+[
+  {
+    "path": "artifacts/css-prioritary-selected-declaration-proposal-v4/base/servo/components/style/custom_properties.rs",
+    "source_sha256": "8a4adc903e7d88e218ee087cbe44cc3548df70fac9353dd923d5c32de2c458f9",
+    "start": 1484,
+    "end": 1497,
+    "text": "                        + missing_closing_characters.len()\n                        - usize::from(*removed_backslash);\n                    reference.fallback = fallback;\n                    references.flags |= match substitution_kind {\n                        SubstitutionFunctionKind::Var => ReferenceFlags::VAR,\n                        SubstitutionFunctionKind::Env => ReferenceFlags::ENV,\n                        SubstitutionFunctionKind::Attr => ReferenceFlags::ATTR,\n                    };\n                    // Bubble up flags from our fallback, so we know what we might reference from the outer scope.\n                    if let Some(ref fb) = reference.fallback {\n                        references.flags |= fb.references.flags;\n                    }\n                } else {\n                    nested!(\")\");"
+  },
+  {
+    "path": "artifacts/css-prioritary-selected-declaration-proposal-v4/base/servo/components/style/properties/cascade.rs",
+    "source_sha256": "2cc7b3d4047b9759277f41809ad7ba7baef99431c26b608bcf459b2d83764656",
+    "start": 720,
+    "end": 742,
+    "text": "fn find_non_custom_references(\n    registration: &PropertyDescriptors,\n    value: &VariableValue,\n    is_root_element: bool,\n) -> ReferenceFlags {\n    use crate::properties_and_values::syntax::data_type::DependentDataTypes;\n\n    let mut result = ReferenceFlags::empty();\n    let Some(syntax) = registration.syntax.as_ref() else {\n        return result;\n    };\n    let dependent_types = syntax.dependent_types();\n    let may_reference_length = dependent_types.intersects(DependentDataTypes::LENGTH);\n    if may_reference_length {\n        result |= value.references.non_custom_references(is_root_element);\n    }\n    if dependent_types.intersects(DependentDataTypes::COLOR) {\n        // The value depends on the used color-scheme (e.g. a `<color>` property referencing\n        // `light-dark()` or a system color).\n        result |= ReferenceFlags::COLOR_SCHEME;\n    }\n    result\n}"
+  },
+  {
+    "path": "artifacts/css-prioritary-selected-declaration-proposal-v4/base/servo/components/style/properties/cascade.rs",
+    "source_sha256": "2cc7b3d4047b9759277f41809ad7ba7baef99431c26b608bcf459b2d83764656",
+    "start": 2336,
+    "end": 2345,
+    "text": "        non_custom_references: &mut ReferenceFlags,\n    ) {\n        // FIXME: Maybe avoid visiting the same var twice if not needed?\n        let mut refs_stack = SmallVec::<[&References; 5]>::new();\n        refs_stack.push(root);\n        while let Some(refs) = refs_stack.pop() {\n            *non_custom_references |= refs.flags;\n            for next in &refs.refs {\n                if next.substitution_kind == SubstitutionFunctionKind::Env {\n                    // env() doesn't reference custom properties, so it never participates in"
+  },
+  {
+    "path": "artifacts/css-prioritary-selected-declaration-proposal-v4/base/servo/components/style/properties/cascade.rs",
+    "source_sha256": "2cc7b3d4047b9759277f41809ad7ba7baef99431c26b608bcf459b2d83764656",
+    "start": 2610,
+    "end": 2647,
+    "text": "                VarType::Custom(name) | VarType::Attr(name, _) => Some(PropertyIdRef::from(name)),\n                VarType::NonCustom(_) => unreachable!(),\n            };\n            // Visit the references in this value...\n            visit_value_references(\n                &v.references,\n                &v.url_data,\n                property_id,\n                index,\n                references_from_non_custom_properties,\n                context,\n                &mut lowlink,\n                &mut self_ref,\n                attribute_tracker,\n                &mut value_non_custom_refs,\n            );\n\n            // ... Then the non-custom properties this value depends on (font-size, line-height,\n            // color-scheme), as computed by `find_non_custom_references` above.\n            let is_root = context.computed_context.is_root_element();\n            if registered && !value_non_custom_refs.is_empty() {\n                value_non_custom_refs.for_each_non_custom(is_root, |r| {\n                    visit_link(\n                        VarType::NonCustom(r),\n                        index,\n                        references_from_non_custom_properties,\n                        context,\n                        &mut lowlink,\n                        &mut self_ref,\n                        attribute_tracker,\n                    );\n                });\n            }\n        } else if let VarType::NonCustom(non_custom) = var {\n            // line-height's resolution depends on font-size's, so its node has a graph edge to the\n            // font-size node. This is needed for cycle detection (not just application order, which\n            // `prioritary_property_dependencies(LineHeight)` handles): it puts the line-height node\n            // in the same strongly-connected component as a font-size<->custom cycle, so the node"
+  },
+  {
+    "path": "artifacts/css-prioritary-selected-declaration-proposal-v4/candidate/servo/components/style/custom_properties.rs",
+    "source_sha256": "bb13b61a82f6736c7c4488fc6b58c4ed99cc9a6a4d2d427d3e60530010fe6ccd",
+    "start": 1485,
+    "end": 1498,
+    "text": "                        + missing_closing_characters.len()\n                        - usize::from(*removed_backslash);\n                    reference.fallback = fallback;\n                    references.flags |= match substitution_kind {\n                        SubstitutionFunctionKind::Var => ReferenceFlags::VAR,\n                        SubstitutionFunctionKind::Env => ReferenceFlags::ENV,\n                        SubstitutionFunctionKind::Attr => ReferenceFlags::ATTR,\n                    };\n                    // Bubble up flags from our fallback, so we know what we might reference from the outer scope.\n                    if let Some(ref fb) = reference.fallback {\n                        references.flags |= fb.references.flags;\n                    }\n                } else {\n                    nested!(\")\");"
+  },
+  {
+    "path": "artifacts/css-prioritary-selected-declaration-proposal-v4/candidate/servo/components/style/properties/cascade.rs",
+    "source_sha256": "4fb6003bcbca7666ca560dd4491c77c19eea0ec1ea33b2a13a54c44efa21b423",
+    "start": 752,
+    "end": 774,
+    "text": "fn find_non_custom_references(\n    registration: &PropertyDescriptors,\n    value: &VariableValue,\n    is_root_element: bool,\n) -> ReferenceFlags {\n    use crate::properties_and_values::syntax::data_type::DependentDataTypes;\n\n    let mut result = ReferenceFlags::empty();\n    let Some(syntax) = registration.syntax.as_ref() else {\n        return result;\n    };\n    let dependent_types = syntax.dependent_types();\n    let may_reference_length = dependent_types.intersects(DependentDataTypes::LENGTH);\n    if may_reference_length {\n        result |= value.references.non_custom_references(is_root_element);\n    }\n    if dependent_types.intersects(DependentDataTypes::COLOR) {\n        // The value depends on the used color-scheme (e.g. a `<color>` property referencing\n        // `light-dark()` or a system color).\n        result |= ReferenceFlags::COLOR_SCHEME;\n    }\n    result\n}"
+  },
+  {
+    "path": "artifacts/css-prioritary-selected-declaration-proposal-v4/candidate/servo/components/style/properties/cascade.rs",
+    "source_sha256": "4fb6003bcbca7666ca560dd4491c77c19eea0ec1ea33b2a13a54c44efa21b423",
+    "start": 2431,
+    "end": 2440,
+    "text": "        non_custom_references: &mut ReferenceFlags,\n    ) {\n        // FIXME: Maybe avoid visiting the same var twice if not needed?\n        let mut refs_stack = SmallVec::<[&References; 5]>::new();\n        refs_stack.push(root);\n        while let Some(refs) = refs_stack.pop() {\n            *non_custom_references |= refs.flags;\n            for next in &refs.refs {\n                if next.substitution_kind == SubstitutionFunctionKind::Env {\n                    // env() doesn't reference custom properties, so it never participates in"
+  },
+  {
+    "path": "artifacts/css-prioritary-selected-declaration-proposal-v4/candidate/servo/components/style/properties/cascade.rs",
+    "source_sha256": "4fb6003bcbca7666ca560dd4491c77c19eea0ec1ea33b2a13a54c44efa21b423",
+    "start": 2738,
+    "end": 2782,
+    "text": "            );\n\n            if let VarType::Custom(ref name) = var\n                && color_eligible\n            {\n                let may_compute_color =\n                    value_non_custom_refs.intersects(ReferenceFlags::COLOR_SCHEME);\n                value_non_custom_refs.remove(ReferenceFlags::COLOR_SCHEME);\n                if registered\n                    && may_compute_color\n                    && lowlink == index\n                    && !self_ref\n                    && context.stack.last() == Some(&index)\n                {\n                    let prepared = prepare_custom_value(\n                        name,\n                        v,\n                        context.stylist,\n                        context.computed_context,\n                        attribute_tracker,\n                    );\n                    if prepared.depends_on_color_scheme() {\n                        value_non_custom_refs |= ReferenceFlags::COLOR_SCHEME;\n                    }\n                    prepared_custom = Some(prepared);\n                }\n            }\n\n            // ... Then the non-custom properties this value depends on (font-size, line-height,\n            // color-scheme), as computed by `find_non_custom_references` above.\n            let is_root = context.computed_context.is_root_element();\n            if registered && !value_non_custom_refs.is_empty() {\n                value_non_custom_refs.for_each_non_custom(is_root, |r| {\n                    visit_link(\n                        VarType::NonCustom(r.to_prioritary_id().to_longhand()),\n                        index,\n                        references_from_non_custom_properties,\n                        context,\n                        &mut lowlink,\n                        &mut self_ref,\n                        attribute_tracker,\n                    );\n                });\n            }\n        } else if let VarType::NonCustom(longhand) = var {"
+  },
+  {
+    "path": "artifacts/css-prioritary-selected-declaration-proposal-v4/candidate/servo/components/style/custom_properties.rs",
+    "source_sha256": "bb13b61a82f6736c7c4488fc6b58c4ed99cc9a6a4d2d427d3e60530010fe6ccd",
+    "start": 542,
+    "end": 585,
+    "text": "        const ROOT_DEPENDENCIES = Self::ROOT_FONT_UNITS.0 | Self::ROOT_LH_UNITS.0;\n        /// All non-custom dependencies\n        const NON_CUSTOM = Self::NON_ROOT_DEPENDENCIES.0 | Self::ROOT_DEPENDENCIES.0;\n        /// At least one attr() reference.\n        const ATTR = 1 << 5;\n        /// At least one env() reference.\n        const ENV = 1 << 6;\n        /// At least one var() reference.\n        const VAR = 1 << 7;\n    }\n}\n\nimpl ReferenceFlags {\n    /// Iterate for each non custom\n    pub fn for_each_non_custom<F>(mut self, is_root_element: bool, mut f: F)\n    where\n        F: FnMut(SingleNonCustomReference),\n    {\n        // On the root element, rem etc refer to the root's own dependencies.\n        if is_root_element {\n            if self.intersects(Self::ROOT_FONT_UNITS) {\n                self.remove(Self::ROOT_FONT_UNITS);\n                self |= Self::FONT_UNITS;\n            }\n            if self.intersects(Self::ROOT_LH_UNITS) {\n                self.remove(Self::ROOT_FONT_UNITS);\n                self |= Self::LH_UNITS;\n            }\n        }\n\n        for (_, r) in self.iter_names() {\n            let single = match r {\n                Self::FONT_UNITS => SingleNonCustomReference::FontUnits,\n                Self::LH_UNITS => SingleNonCustomReference::LhUnits,\n                Self::COLOR_SCHEME => SingleNonCustomReference::ColorScheme,\n                Self::ROOT_FONT_UNITS\n                | Self::ROOT_LH_UNITS\n                | Self::VAR\n                | Self::ENV\n                | Self::ATTR => continue,\n                _ => unreachable!(\"Unexpected single bit value\"),\n            };\n            f(single);\n        }"
+  },
+  {
+    "path": "artifacts/css-prioritary-selected-declaration-proposal-v4/candidate/servo/components/style/custom_properties.rs",
+    "source_sha256": "bb13b61a82f6736c7c4488fc6b58c4ed99cc9a6a4d2d427d3e60530010fe6ccd",
+    "start": 588,
+    "end": 603,
+    "text": "    fn from_unit(value: &CowRcStr) -> Self {\n        // For registered properties, any reference to font-relative dimensions\n        // make it dependent on font-related properties.\n        // TODO(dshin): When we unit algebra gets implemented and handled -\n        // Is it valid to say that `calc(1em / 2em * 3px)` triggers this?\n        if value.eq_ignore_ascii_case(NoCalcLength::LH) {\n            return Self::FONT_UNITS | Self::LH_UNITS;\n        }\n        if value.eq_ignore_ascii_case(NoCalcLength::EM)\n            || value.eq_ignore_ascii_case(NoCalcLength::EX)\n            || value.eq_ignore_ascii_case(NoCalcLength::CAP)\n            || value.eq_ignore_ascii_case(NoCalcLength::CH)\n            || value.eq_ignore_ascii_case(NoCalcLength::IC)\n        {\n            return Self::FONT_UNITS;\n        }"
+  }
+]

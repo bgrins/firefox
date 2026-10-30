@@ -1,0 +1,130 @@
+--- artifacts/css-contextual-duration-feedback-consistency-candidate-v1/check.py
++++ artifacts/css-contextual-duration-restyle-tristate-browser-v1/check.py
+@@ -5,6 +5,7 @@
+ import os
+ from pathlib import Path
+ import tempfile
++from types import SimpleNamespace
+ 
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+@@ -17,8 +18,57 @@
+     return module
+ 
+ 
++def validate_policy(policy):
++    assert policy['execution_enabled'] == policy['candidate_execution_enabled']
++    if policy['execution_enabled']:
++        assert policy['activation_pending'] == [] and policy['proposal_independent_review']['status'] == 'clear'
++    else:
++        assert policy['activation_pending']
++    roles = json.loads((HERE/'SOURCE-ROLES.json').read_bytes())
++    expected = {'dom/animation/EffectCompositor.cpp','dom/animation/EffectCompositor.h','servo/components/style/matching.rs'}
++    assert set(roles) == set(policy['source_paths']) == expected
++    assert policy['runtime_output'] == 'artifacts/css-contextual-duration-restyle-tristate-browser-runtime-1'
++    proposal = ROOT/policy['proposal']['directory']
++    assert hashlib.sha256((proposal/'FILES.json').read_bytes()).hexdigest() == policy['proposal']['manifest_sha256']
++    for name,pin in json.loads((proposal/'FILES.json').read_bytes()).items():
++        assert hashlib.sha256((proposal/name).read_bytes()).hexdigest() == (pin['sha256'] if isinstance(pin,dict) else pin)
++    for name,record in roles.items():
++        for kind in ('base','candidate'):
++            assert hashlib.sha256((ROOT/record[kind+'_capture']).read_bytes()).hexdigest() == record[kind+'_sha256']
++        if name.startswith('dom/'):
++            assert b'DURATION_RESTYLE_TRACE' not in (ROOT/record['candidate_capture']).read_bytes()
++    equivalence = policy['source_equivalence']
++    assert equivalence['paths'] == sorted(expected)
++    assert equivalence['required_base_pins'] == {name:record['base_sha256'] for name,record in roles.items()}
++    assert equivalence['build_revision'] == policy['wpt']['phase_revisions']['original']
++    assert equivalence['current_revision'] == policy['head']
++    assert equivalence['historical_build_epoch'] == policy['original_build']['epoch']
++    assert equivalence['require_both_git_blobs_at_admission'] and equivalence['require_absent_from_historical_modified_paths']
++    epoch = json.loads((ROOT/equivalence['historical_build_epoch']).read_bytes())
++    for name,pin in equivalence['required_base_pins'].items():
++        assert epoch['pins'][name] == pin and name not in epoch['modified_native_paths']
++    predecessor = json.loads((ROOT/'artifacts/css-contextual-duration-feedback-consistency-candidate-v1/POLICY.json').read_bytes())
++    for key in ('accepted_current_payloads','accepted_epoch_records','source_context_pins','resource_policy','rebuilt_binaries','original_build','prepared_flag_hashes','wpt','phases','feedback_transport','record_schema_helper','record_kinds','baseline_capsule','baseline_binding'):
++        assert policy[key] == predecessor[key],key
++    terminal = json.loads((ROOT/policy['prepared_state_evidence']['restoration']).read_bytes())
++    refresh = json.loads((ROOT/policy['prepared_state_evidence']['refresh']).read_bytes())
++    assert terminal['state_and_application_restoration_independently_verified'] and terminal['raw_replay_verified']
++    assert terminal['backup_removed_bytes'] == 1008605176
++    assert refresh['full_restored_state_verified'] and refresh['accepted_fix_increment'] == 0
++    assert refresh['only_changed_field'] == 'raw_index_observation.current'
++    assert policy['controls']['CURRENT-EPOCH.json'] == refresh['after_epoch']
++    assert refresh['observation'] == terminal['raw_index_observation']
++    for key in ('OWNED.json','ROLE.json'):
++        assert policy['controls'][key] == predecessor['controls'][key]
++    app = policy['prepared_application_metadata']
++    assert app['entry_identity'] == terminal['restored_application_entry']['identity']
++    assert app['identity'] == terminal['restored_application_target']['identity']
++    assert app['sha256'] == terminal['restored_application_target']['sha256']
++
++
+ def check():
+     policy = json.loads((HERE/'POLICY.json').read_bytes())
++    validate_policy(policy)
+     assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
+     assert policy['activation_pending']
+     assert policy['checkpoint_mode'] == 'current_native_checkpoint'
+@@ -73,9 +123,9 @@
+     reject('crash',lambda s:s.append({'action':'crash'}))
+     reject('wrong exit',lambda s:None,1)
+     annotations = {'build_revision','harness_revision','source_role'}
+-    synthetic_policy = dict(policy,head='a'*40,prepared_application_metadata={k:v for k,v in app.items() if k not in annotations},wpt=settings)
++    synthetic_policy = dict(policy,head='a'*40,prepared_application_metadata={k:v for k,v in app.items() if k not in annotations},historical_baseline_metadata=app,wpt=settings)
+     assert comparison.original_metadata(synthetic_policy) == app
+-    for key,value in [('revision','0'*40),('source_role','candidate')]:
++    for key,value in [('revision','0'*40),('source_role','candidate'),('sha256','0'*64)]:
+         malformed = copy.deepcopy(synthetic_policy)
+         malformed['prepared_application_metadata'][key] = value
+         try:
+@@ -84,6 +134,15 @@
+             rejected.append('metadata '+key)
+         else:
+             raise AssertionError(key)
++    historical = {'index':{'raw_index':'old','entries':'same'},'nested_index':{'raw_index':'same'}}
++    current = copy.deepcopy(historical);current['index']['raw_index']='new'
++    comparison.admit_snapshot(historical,current)
++    for label,wrong in [('index entries',copy.deepcopy(current)),('nested index',copy.deepcopy(current))]:
++        if label=='index entries':wrong['index']['entries']='wrong'
++        else:wrong['nested_index']['raw_index']='wrong'
++        try:comparison.admit_snapshot(historical,wrong)
++        except AssertionError:rejected.append(label)
++        else:raise AssertionError(label)
+     baseline = load('feedback_checkpoint',HERE/'baseline.py')
+     native = json.loads((ROOT/policy['native_checkpoint']['path']).read_bytes())
+     baseline.checkpoint_chain(policy,native)
+@@ -166,6 +225,24 @@
+         assert phases.feedback_records(ROOT,output,policy)['numeric_or_convergence_oracle'] is False
+         (output/'feedback-wpt/ASSESSMENT.json').write_text(json.dumps({'complete':True,'rows':[{'status':'FAIL'},{'status':'PASS'}]}))
+         assert phases.feedback_records(ROOT,output,policy)['calibrated_acquisition'] is False
++    with tempfile.TemporaryDirectory(prefix='duration-tristate-failure-') as temporary:
++        output = Path(temporary)
++        failure = AssertionError('synthetic saved candidate comparison failure')
++        def save(path,value):
++            with path.open('x') as stream:json.dump(value,stream)
++        def fail(*args):raise failure
++        fake_wpt = SimpleNamespace(save=save,run=fail)
++        fake_comparison = SimpleNamespace(original_directory=lambda *args:output/'synthetic-original')
++        saved_load,saved_records = phases.load,phases.feedback_records
++        phases.load = lambda name,path:fake_wpt if path.name=='wpt.py' else fake_comparison
++        phases.feedback_records = lambda *args:{'calibrated_acquisition':False,'records':{},'numeric_or_convergence_oracle':False}
++        try:phases.run(ROOT,HERE,output,policy,{},lambda:{'synthetic':True},{},lambda:False)
++        except AssertionError as error:assert error is failure
++        else:raise AssertionError('failure converted to success')
++        finally:phases.load,phases.feedback_records=saved_load,saved_records
++        assert json.loads((output/'FEEDBACK-RECORDS.json').read_bytes())['calibrated_acquisition'] is False
++        assert json.loads((output/'DIAGNOSTICS.json').read_bytes())['phase_error']==repr(failure)
++        assert not (output/'PHASES-POST.json').exists()
+     actual_replayed = False
+     if policy['baseline_binding'] is not None:
+         binding = policy['baseline_binding']
+@@ -184,7 +261,7 @@
+     return {'positive_comparisons':1,'positive_metadata_joins':1,'positive_checkpoint_chains':1,'positive_record_sets':2,'failed_calibration_retained_as_false':True,
+             'negative_controls':rejected,'artifact_references_authenticated':authenticated,
+             'deferred_nonartifact_references':deferred,'fresh_original_replayed':actual_replayed,
+-            'browser_build_or_live_guard_executed':False,'scratch_removed':True}
++            'browser_build_or_live_guard_executed':False,'scratch_removed':True,'failure_diagnostic_retention_simulated':True,'positive_raw_only_state_join':True}
+ 
+ 
+ if __name__ == '__main__':

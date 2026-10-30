@@ -1,0 +1,40 @@
+--- executed-same-element/run.py
++++ finite-depth/run.py
+@@ -63,7 +63,7 @@
+         info = Path(owner['temporary_directory']).lstat()
+         assert [info.st_dev, info.st_ino] == owner['identity'] and stat.S_ISDIR(info.st_mode)
+         assert info.st_uid == os.getuid()
+-    assert len(policy['resources']) == 6 and len(policy['record_kinds']) == 2
++    assert len(policy['resources']) == 6 and len(policy['record_kinds']) == 4
+ 
+ 
+ def prepare(policy, output, temporary):
+@@ -117,6 +117,7 @@
+     assessor = load('chrome_assessor', HERE / 'assess.py')
+     collector = load('chrome_records', HERE / 'records.py')
+     process, error, code, cleanup, assessment, collection = None, None, None, None, None, None
++    calibration = None
+     stopped = [False]
+     def stop(_signal, _frame):
+         stopped[0] = True
+@@ -168,9 +169,11 @@
+     try:
+         assessment = assessor.assess(assessor.read(output / 'raw.jsonl'), policy, code)
+         save(output / 'ASSESSMENT.json', assessment)
+-        if len(assessment['rows']) == 2 and {row.get('subtest') for row in assessment['rows']} == set(policy['expected_names']):
++        if len(assessment['rows']) == 4 and {row.get('subtest') for row in assessment['rows']} == set(policy['expected_names']):
+             collection = collector.collect(ROOT, directory, binding, policy, assessment)
+             save(output / 'PROGRESS-RECORDS.json', collection)
++            calibration = load('depth_calibration', HERE / 'calibration.py').report(directory, collection, policy)
++            save(output / 'CALIBRATION.json', calibration)
+             assert not collection['errors'], 'Invalid or missing PASS observation record'
+         capability_records = [json.loads(line) for line in (output / 'CAPABILITIES.jsonl').read_text().splitlines() if line.strip()]
+         assert capability_records, 'No effective Chrome capability receipt'
+@@ -190,6 +193,7 @@
+     save(output / 'RESULT.json', {'execution_complete': complete, 'browser_exit': code, 'error': error,
+         'assessment_complete': bool(assessment and assessment['complete']),
+         'records_complete': bool(collection and collection['complete']),
++        'literal_initial_calibration_passed': bool(calibration and calibration['all_calibrated']),
+         'all_callbacks_pass': bool(assessment and assessment['all_callbacks_pass']),
+         'ordinary_failures_preserved': True, 'publisher_signature_verified': False,
+         'no_native_acceptance_or_normative_policy_claim': True})

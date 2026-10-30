@@ -1,0 +1,74 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Relative lengths preserve nonfinite calc intermediates</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#sign-funcs">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#em">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-infinity">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .subject { display: block; font-size: 16px; }
+  .subject.zero { font-size: 0; }
+  .calibration { display: block; width: 1em; height: 1px; border: 0; padding: 0; margin: 0; }
+</style>
+<div id="fixtures"></div>
+<script>
+const cases = [
+  {name: "mixed-unit relative NaN remains infectious inside sign", expression: "calc(0.5 + 0.5 * sign(NaN * 1em + 1px))", expected: [0, 0, 0]},
+  {name: "mixed-unit relative positive infinity resolves before sign", expression: "calc(0.5 + 0.5 * sign(infinity * 1em + 1px))", expected: [1, 0, 1]},
+  {name: "mixed-unit relative negative infinity resolves before sign", expression: "calc(0.5 + 0.5 * sign(-infinity * 1em + 1px))", expected: [0, 0, 0]},
+  {name: "length calc preserves mixed-unit relative NaN propagation", property: "width", expression: "calc(10px + 10px * sign(NaN * 1em + 1px))", expected: [0, 0, 0]},
+  {name: "length calc resolves mixed-unit relative positive infinity", property: "width", expression: "calc(10px + 10px * sign(infinity * 1em + 1px))", expected: [20, 0, 20]},
+  {name: "length calc resolves mixed-unit relative negative infinity", property: "width", expression: "calc(10px + 10px * sign(-infinity * 1em + 1px))", expected: [0, 0, 0]},
+  {name: "finite mixed-unit opacity remains context dependent", expression: "calc(0.5 + 0.5 * sign(1em - 1px))", expected: [1, 0, 1]},
+  {name: "finite mixed-unit length remains context dependent", property: "width", expression: "calc(10px + 10px * sign(1em - 1px))", expected: [20, 0, 20]},
+];
+
+for (const entry of cases) {
+  test(t => {
+    const subject = document.createElement("div");
+    subject.className = "subject";
+    const calibration = document.createElement("div");
+    calibration.className = "calibration";
+    subject.append(calibration);
+    document.getElementById("fixtures").append(subject);
+    t.add_cleanup(() => subject.remove());
+    const property = entry.property || "opacity";
+    assert_true(CSS.supports(property, entry.expression), "expression supported");
+    subject.style[property] = entry.expression;
+    assert_not_equals(subject.style[property], "", "expression accepted");
+    const rows = [];
+    for (const font of [16, 0, 16]) {
+      subject.classList.toggle("zero", font === 0);
+      const firstText = getComputedStyle(subject)[property];
+      const repeatText = getComputedStyle(subject)[property];
+      const first = property === "width" ? parseFloat(firstText) : Number(firstText);
+      const repeat = property === "width" ? parseFloat(repeatText) : Number(repeatText);
+      rows.push({
+        first, repeat, firstText, repeatText,
+        font: getComputedStyle(subject).fontSize,
+        inheritedFont: getComputedStyle(calibration).fontSize,
+        width: getComputedStyle(calibration).width,
+        rectWidth: calibration.getBoundingClientRect().width,
+      });
+    }
+    for (let i = 0; i < rows.length; ++i) {
+      const row = rows[i];
+      const font = [16, 0, 16][i];
+      assert_equals(row.font, `${font}px`, `stage ${i} subject font`);
+      assert_equals(row.inheritedFont, `${font}px`, `stage ${i} inherited font`);
+      assert_equals(row.width, `${font}px`, `stage ${i} computed em width`);
+      assert_equals(row.rectWidth, font, `stage ${i} geometric em width`);
+      if (property === "width") {
+        assert_true(/^-?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)px$/.test(row.firstText), `stage ${i} pixel serialization`);
+      }
+      assert_equals(row.repeatText, row.firstText, `stage ${i} serialized repeat stable`);
+      assert_true(Number.isFinite(row.first), `stage ${i} finite result`);
+      assert_equals(row.repeat, row.first, `stage ${i} repeat stable`);
+    }
+    assert_equals(rows[0].first, entry.expected[0], "positive-font initial control");
+    assert_equals(rows[2].first, entry.expected[2], "positive-font reset control");
+    assert_equals(rows[1].first, entry.expected[1], "zero-font resolved sign result");
+  }, entry.name);
+}
+</script>

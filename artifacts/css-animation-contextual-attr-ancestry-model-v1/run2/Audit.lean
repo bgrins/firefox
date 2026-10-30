@@ -1,0 +1,7 @@
+import Ancestry
+#print axioms Ancestry.distinct_reference_invocations
+#print axioms Ancestry.checked_before_cache_still_poisoned
+#print axioms Ancestry.immediate_parent_is_not_full_ancestry
+#print axioms Ancestry.finite_fixed_input_ancestry_cache
+#print axioms Ancestry.ancestry_does_not_replace_input_session
+#print axioms Ancestry.ancestry_determined_identity_suffices_for_reference

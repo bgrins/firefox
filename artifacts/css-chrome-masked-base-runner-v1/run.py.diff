@@ -1,0 +1,42 @@
+--- artifacts/css-chrome-same-element-runner-v1/run.py
++++ artifacts/css-chrome-masked-base-runner-v1/run.py
+@@ -38,6 +38,7 @@
+ 
+ def authenticate(policy, binaries=False):
+     assert policy['root'] == str(ROOT)
++    assert all(policy.get(name) is not None for name in ('admission', 'binaries', 'version')), 'Fresh portable admission is pending'
+     pins = [policy['manifest'], policy['process_helper'], *policy['resources'].values(),
+             *policy['admission'].values(), *policy['harness_files'].values()]
+     for pin in pins:
+@@ -63,7 +64,7 @@
+         info = Path(owner['temporary_directory']).lstat()
+         assert [info.st_dev, info.st_ino] == owner['identity'] and stat.S_ISDIR(info.st_mode)
+         assert info.st_uid == os.getuid()
+-    assert len(policy['resources']) == 6 and len(policy['record_kinds']) == 2
++    assert len(policy['resources']) == 6 and len(policy['record_kinds']) == 1
+ 
+ 
+ def prepare(policy, output, temporary):
+@@ -102,11 +103,12 @@
+     parser.add_argument('--run', action='store_true')
+     args = parser.parse_args()
+     policy = json.loads((HERE / 'POLICY.json').read_text())
++    if args.run:
++        assert policy['execution_enabled'] is True, 'Root activation required'
+     authenticate(policy, binaries=args.run)
+     if not args.run:
+         print('Saved admission and fixture/harness pins authenticate; browser not executed.')
+         return 0
+-    assert policy['execution_enabled'] is True, 'Root activation required'
+     output = ROOT / policy['output']
+     output.mkdir(mode=0o700)
+     temporary = Path(tempfile.mkdtemp(prefix='css-chrome-wpt-', dir='/private/tmp'))
+@@ -168,7 +170,7 @@
+     try:
+         assessment = assessor.assess(assessor.read(output / 'raw.jsonl'), policy, code)
+         save(output / 'ASSESSMENT.json', assessment)
+-        if len(assessment['rows']) == 2 and {row.get('subtest') for row in assessment['rows']} == set(policy['expected_names']):
++        if len(assessment['rows']) == 1 and {row.get('subtest') for row in assessment['rows']} == set(policy['expected_names']):
+             collection = collector.collect(ROOT, directory, binding, policy, assessment)
+             save(output / 'PROGRESS-RECORDS.json', collection)
+             assert not collection['errors'], 'Invalid or missing PASS observation record'

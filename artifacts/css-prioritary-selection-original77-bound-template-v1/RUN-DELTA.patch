@@ -1,0 +1,32 @@
+--- artifacts/css-prioritary-selection-original-v2/run.py
++++ artifacts/css-prioritary-selection-original-v3/run.py
+@@ -39,6 +39,11 @@
+     baseline.require_ready(policy)
+     state, env, controls, original, flags, original_verify = baseline.guard(policy, ownership, roles)
+     original_before = original_verify()
++    intermediate = load('owner_intermediate', str((HERE / 'intermediate.py').relative_to(ROOT)))
++    input_binding = load('owner_input_binding', str((HERE / 'inputs.py').relative_to(ROOT)))
++    closure = load('owner_consumed_closure', str((HERE / 'closure.py').relative_to(ROOT)))
++    closure.require_epoch_coverage(original, policy)
++    consumed_inputs = input_binding.bind_inputs(str(HERE.relative_to(ROOT)), (HERE / 'FILES.json').read_bytes(), sys.argv[2], policy['intermediate_consumed_inputs'])
+     assert original_before == read(ROOT / policy["restoration_binding"]["directory"] / "ROOT-REVIEW.json")["snapshot"]
+     output = ROOT / policy['runtime_output']
+     assert output.parent == ROOT / 'artifacts' and not output.exists() and not output.is_symlink()
+@@ -92,7 +97,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'prioritary-selection-original74-v1'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'prioritary-selection-original77-v3'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+@@ -129,7 +134,7 @@
+         assert all(index[key] == epoch['semantic_index'][key] for key in ('head', 'entries', 'cached_diff'))
+         local['semantic_index'] = state.h.semantic_index(index)
+         local['raw_index_observation']['current'] = index['raw_index']
+-        verified = state.a.verify_current(state.h, ROOT, env, local)
++        verified = intermediate.verify_intermediate(state.h, ROOT, env, local, consumed_inputs)
+         assert verified['nested_index'] == before['nested_index']
+         for name, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]:
+             assert state.h.git(path, env, 'ls-files', '-v', '-z') == flags[name]

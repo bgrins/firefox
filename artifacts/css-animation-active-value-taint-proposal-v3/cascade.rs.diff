@@ -1,0 +1,13 @@
+--- artifacts/css-animation-active-value-taint-proposal-v2/candidate/servo/components/style/properties/cascade.rs
++++ artifacts/css-animation-active-value-taint-proposal-v3/candidate/servo/components/style/properties/cascade.rs
+@@ -1775,8 +1775,8 @@
+ 
+         let registration = self.stylist.get_custom_property_registration(name);
+         let initial_values = self.stylist.get_custom_property_initial_values();
+-        let animation_tainted = std::ptr::eq(registration, PropertyDescriptors::unregistered())
+-            && priority.cascade_level().origin() == CascadeOrigin::Animations;
++        let animation_tainted =
++            priority.cascade_level().origin() == CascadeOrigin::Animations;
+         let mark_animation_taint = |context: &mut computed::Context| {
+             if animation_tainted {
+                 let value = context

@@ -1,0 +1,110 @@
+--- executed-reduced-original/run.py
++++ disabled-progress-original/run.py
+@@ -4,6 +4,7 @@
+ import os
+ from pathlib import Path
+ import signal
++import secrets
+ import sys
+ 
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+@@ -31,7 +32,7 @@
+     assert policy["candidate_execution_enabled"] is False
+     for name, expected in policy["references"].items():
+         assert sha(ROOT / name) == expected, name
+-    load("reduced_binding", str(HERE / "check.py")).check_binding(policy)
++    load("progress_binding", str(HERE / "check.py")).check_binding(policy)
+     if sys.argv[1] == "--run":
+         assert policy["execution_enabled"] is True
+         assert policy["activation_pending"] == []
+@@ -52,14 +53,14 @@
+     assert len(sys.argv) == 3 and sys.argv[1] in ("--check", "--run")
+     policy = authenticate(sys.argv[2])
+     if sys.argv[1] == "--check":
+-        load("reduced_queue_static_check", str(HERE / "check.py")).check(policy)
+-        print("Static reduced queue baseline checks passed; no browser or full state verification performed")
++        load("progress_static_check", str(HERE / "check.py")).check(policy)
++        print("Static progress baseline checks passed; no browser or full state verification performed")
+         return
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1",
+                MOZCONFIG=str(ROOT / "mozconfig"), MOZ_OBJDIR=str(ROOT / "objdir-full.noindex"),
+                MOZ_HEADLESS="1", MOZ_SKIP_PATH_PERFORMANCE_CHECK="1")
+     assert not any(os.environ.get(k) for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"))
+-    state = load("reduced_queue_state", policy["state_helper"])
++    state = load("progress_state", policy["state_helper"])
+     epoch = read(RUNTIME / "CURRENT-EPOCH.json")
+     assert epoch["semantic_index"]["head"] == policy["head"] and epoch["staged_working"] == {}
+     assert epoch["accepted_pow_special_value"]["fix"] == 150
+@@ -70,6 +71,10 @@
+     bound = [name for name in built["pins"]
+              if name.startswith(("servo/", "layout/", "dom/")) or name in policy["rebuilt_binaries"]]
+     assert bound and all(epoch["pins"][name] == built["pins"][name] for name in bound)
++
++    assert len(policy["accepted_current_payloads"]) == 29
++    for name, claim in policy["accepted_current_payloads"].items():
++        assert epoch["pins"][name] == claim["sha256"] and epoch["installed_identities"][name] == claim["identity"]
+ 
+     def verify():
+         authenticate(sys.argv[2])
+@@ -87,7 +92,7 @@
+                     assert hashlib.sha256(body).hexdigest() == pin, (name, revision)
+         return state.a.verify_current(state.h, ROOT, env, epoch)
+ 
+-    metadata = load("reduced_queue_metadata", policy["wpt"]["metadata_helper"])
++    metadata = load("progress_metadata", policy["wpt"]["metadata_helper"])
+     prepared = metadata.application_metadata(ROOT / policy["wpt"]["application_ini"], policy["wpt"]["phase_revisions"]["original"])
+     prepared.update(build_revision=prepared["revision"], harness_revision=policy["wpt"]["harness_revision"], source_role="original")
+     assert prepared == policy["prepared_application_metadata"]
+@@ -98,27 +103,48 @@
+     stopped = [False]
+     for sig in (signal.SIGINT, signal.SIGTERM):
+         signal.signal(sig, lambda signum, frame: stopped.__setitem__(0, True))
+-    runner = load("reduced_queue_wpt", policy["wpt_helper"])
++    runner = load("progress_wpt", policy["wpt_helper"])
+     owned = {}
++    initial = verify()
++    runner.save(output / "PRE.json", initial)
++    records = output / "progress-records"
++    records.mkdir(mode=0o700)
++    binding = {"directory": str(records), "identity": [records.stat().st_dev, records.stat().st_ino], "run_id": secrets.token_hex(24)}
++    runner.save(output / "PROGRESS-BINDING.json", binding)
++    env.update(DURATION_PROGRESS_RECORD_DIR=str(records), DURATION_PROGRESS_RUN_ID=binding["run_id"])
+     phase = runner.run(ROOT, HERE, output / "original-wpt", "original", policy,
+                        env, verify, owned, lambda: stopped[0])
+     assert not owned
+     assessment = read(output / "original-wpt/ASSESSMENT.json")
+-    assert assessment["complete"] and assessment["observed_subtest_count"] == 2
++    assert assessment["complete"] and assessment["observed_subtest_count"] == 9
+     observed = {page: [row["subtest"] for row in assessment["rows"] if row["test"] == page]
+                 for page in policy["wpt"]["expected_subtests"]}
+     runner.save(output / "OBSERVED-ROSTER.json", {
+-        "expected_subtests": observed, "observed_subtest_count": 2,
++        "expected_subtests": observed, "observed_subtest_count": 9,
+         "phase": phase, "owner_sha256": sys.argv[2],
+         "source_roster_sha256": policy["references"][policy["source_roster"]],
+         "candidate_authorized": False,
+     })
++    collection = load("progress_record_collection", str(HERE / "records.py")).collect(ROOT, records, binding, policy, assessment)
++    runner.save(output / "PROGRESS-RECORDS.json", collection)
++    after = verify()
++    assert initial == after and not owned
++    assert read(output / "original-wpt/PRE.json") == read(output / "original-wpt/POST.json") == initial
++    assert read(output / "original-wpt/APPLICATION-METADATA.json") == read(output / "original-wpt/APPLICATION-METADATA-POST.json") == policy["prepared_application_metadata"]
++    runner.save(output / "POST.json", after)
+     runner.save(output / "RESULT.json", {
+         "phase": phase, "build_native_and_binary_pin_count": len(bound),
++        "lifecycle_complete": True, "observation_complete": collection["complete"],
++        "callbacks_passed": sum(row["status"] == "PASS" for row in assessment["rows"]),
++        "callbacks_failed": sum(row["status"] == "FAIL" for row in assessment["rows"]),
++        "all_callbacks_passed": all(row["status"] == "PASS" for row in assessment["rows"]),
++        "records_complete": collection["complete"], "record_errors": collection["errors"],
++        "numeric_or_convergence_oracle": False,
+         "preservation_verified": True, "native_fix_accepted": False,
+         "source_or_canonical_mutation": False,
+     })
+-    print("Completed original reduced queue observation; outcomes recorded without acceptance", flush=True)
++    assert not collection["errors"], collection["errors"]
++    print("Completed original progress observation; outcomes recorded without acceptance", flush=True)
+ 
+ 
+ if __name__ == "__main__":

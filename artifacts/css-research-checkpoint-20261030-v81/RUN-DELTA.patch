@@ -1,0 +1,102 @@
+--- artifacts/css-research-checkpoint-20261030-v80/commit.py
++++ artifacts/css-research-checkpoint-20261030-v81/commit.py
+@@ -15,7 +15,7 @@
+ BINDINGS = json.loads((HERE / 'BINDINGS.json').read_bytes())
+ HEAD = BINDINGS['head']
+ EPOCH = BINDINGS['epoch_sha256']
+-EXECUTION_ENABLED = True
++EXECUTION_ENABLED = False
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+@@ -42,8 +42,8 @@
+     assert terminal['owner_sha256'] == matching['owner_manifest_sha256']
+     assert terminal['result_sha256'] == matching['result_sha256'] == sha((runtime / 'CANDIDATE-RESULT.json').read_bytes())
+     assert terminal['exit'] in (0, 1) and terminal['build_success']
+-    assert terminal['callbacks_passed'] + terminal['callbacks_failed'] == 4 and terminal['ending'] == 'OK'
+-    assert terminal['complete_records'] == 4 and terminal['private_records_independently_validated']
++    assert terminal['callbacks_passed'] + terminal['callbacks_failed'] == 7 and terminal['ending'] == 'OK' and terminal['page_endings_ok'] == 3
++    assert terminal['complete_records'] == 7 and terminal['private_records_independently_validated']
+     assert terminal['raw_replay_verified'] and terminal['state_and_application_restoration_independently_verified']
+     assert terminal['native_acceptance'] is False
+     assert result['restoration_verified'] and result['runtime_controls_unchanged'] and result['empty_staging_preserved']
+@@ -54,8 +54,8 @@
+     replay = json.loads((runtime / 'ROOT-REPLAY.json').read_bytes())
+     assert assessment['complete'] and assessment['errors'] == []
+     assert replay['candidate_rows'] == assessment['rows'] and replay['candidate_endings'] == assessment['ends']
+-    assert len(assessment['rows']) == 4 and all(row['status'] in ('PASS', 'FAIL') for row in assessment['rows'])
+-    assert len(assessment['ends']) == 1 and assessment['ends'][0]['status'] == 'OK'
++    assert len(assessment['rows']) == 7 and all(row['status'] in ('PASS', 'FAIL') for row in assessment['rows'])
++    assert len(assessment['ends']) == 3 and all(row['status'] == 'OK' for row in assessment['ends'])
+     assert terminal['callbacks_passed'] == sum(row['status'] == 'PASS' for row in assessment['rows'])
+     assert terminal['callbacks_failed'] == sum(row['status'] == 'FAIL' for row in assessment['rows'])
+     hashes = {key: sha((phase / name).read_bytes()) for key, name in [('assessment_sha256', 'ASSESSMENT.json'), ('raw_sha256', 'raw.jsonl'), ('result_sha256', 'RESULT.json')]}
+@@ -79,11 +79,11 @@
+         assert removed['removed'] and removed['verified_original_restoration'] and removed['inventory_verified_before_removal']
+         assert removed['owner_failure_receipt_preserved'] and removed['owned_backup_bytes'] == backup['owned_backup_bytes']
+     collection = json.loads((runtime / 'PROGRESS-RECORDS.json').read_bytes())
+-    assert collection['complete'] and len(collection['records']) == 4 and not collection['missing'] and not collection['errors']
++    assert collection['complete'] and len(collection['records']) == 7 and not collection['missing'] and not collection['errors']
+     assert replay['record_comparison_sha256'] == sha((runtime / 'RECORD-COMPARISON.json').read_bytes())
+     restoration = json.loads((runtime / 'RESTORATION.json').read_bytes())
+     assert restoration['errors'] == [] and restoration['owned_processes'] == {}
+-    assert set(restoration['sources']) == {'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'dom/animation/EffectCompositor.h'}
++    assert set(restoration['sources']) == {'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'dom/animation/EffectCompositor.h', 'layout/style/nsAnimationManager.cpp'}
+     refresh = json.loads((ROOT / matching['root_refresh']).read_bytes())
+     assert refresh['after_epoch'] == EPOCH and refresh['full_restored_state_verified']
+     assert refresh['only_changed_field'] == 'raw_index_observation.current' and refresh['accepted_fix_increment'] == 0
+@@ -108,11 +108,15 @@
+     original = ROOT / original_binding['runtime']
+     assert sha((original / 'FILES.json').read_bytes()) == original_binding['runtime_manifest_sha256']
+     original_terminal = json.loads((original / 'ROOT-TERMINAL.json').read_bytes())
+-    assert (original_terminal['session_id'], original_terminal['terminal_chunk'], original_terminal['exit']) == (81249, '88aff8', 0)
+-    assert original_terminal['callbacks_passed'] == 0 and original_terminal['callbacks_failed'] == 4 and original_terminal['page_endings_ok'] == 1
++    assert (original_terminal['session_id'], original_terminal['terminal_chunk'], original_terminal['exit']) == (61482, '249ad8', 0)
++    assert original_terminal['callbacks_passed'] == 1 and original_terminal['callbacks_failed'] == 6 and original_terminal['page_endings_ok'] == 3
+     assert original_terminal['raw_replay_verified'] and original_terminal['pre_post_equality_verified'] and original_terminal['current_source_binary_control_pins_verified']
+     assert original_terminal['private_records_independently_validated'] and original_terminal['literal_and_initial_calibrations_verified']
+-    assert original_terminal['complete_records'] == 4 and original_terminal['native_acceptance'] is False
++    assert original_terminal['complete_records'] == 7 and original_terminal['native_acceptance'] is False
++    original_result = json.loads((original / 'RESULT.json').read_bytes())
++    assert original_result['literal_initial_calibration_passed']
++    assert json.loads((original / 'CALIBRATION.json').read_bytes())['all_calibrated']
++    assert original_terminal['result_sha256'] == sha((original / 'RESULT.json').read_bytes())
+     original_assessment = json.loads((original / 'original-wpt/ASSESSMENT.json').read_bytes())
+     assert replay['original_rows'] == original_assessment['rows']
+     previous = BINDINGS['previous_attempt']
+@@ -122,7 +126,7 @@
+     assert sha((prior / 'result.json').read_bytes()) == previous['result_sha256'] == failed_terminal['result_sha256']
+     assert sha((ROOT / previous['root_terminal_path']).read_bytes()) == previous['root_terminal_sha256']
+     assert failed == {'committed': False, 'exit': 128, 'real_index_and_canonical_state_unchanged': True}
+-    assert (failed_terminal['session_id'], failed_terminal['terminal_chunk'], failed_terminal['owner_exit']) == (98813, '41c786', 1)
++    assert (failed_terminal['session_id'], failed_terminal['terminal_chunk'], failed_terminal['owner_exit']) == (78873, 'f67bbe', 1)
+     assert failed_terminal['head'] == HEAD and failed_terminal['full_current_state_independently_verified']
+     assert failed_terminal['owned_temporary_index_removed'] and failed_terminal['source_transition_lock_absent']
+     assert sha((prior / 'signing.log').read_bytes()) == failed_terminal['signing_log_sha256']
+@@ -172,7 +176,7 @@
+     selected = json.loads((HERE / 'SELECTION.json').read_bytes())
+     assert sha((HERE / 'BASE-SELECTION.json').read_bytes()) == BINDINGS['base_selection_sha256']
+     base_selected = json.loads((HERE / 'BASE-SELECTION.json').read_bytes())
+-    assert len(base_selected) == 4456 and all(selected.get(path) == row for path, row in base_selected.items())
++    assert len(base_selected) == 5058 and all(selected.get(path) == row for path, row in base_selected.items())
+     assert len(selected) == BINDINGS['selected_paths_before_self']
+     for manifest_path, digest in BINDINGS['completed_packages'].items():
+         manifest = ROOT / manifest_path
+@@ -219,7 +223,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v80-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v81-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)
+@@ -233,7 +237,7 @@
+             tree = git('write-tree', env=index_env).decode().strip()
+             assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+             message = directory / 'message'
+-            message.write_text('No bug - Record CSS duration dependency experiments and publication preparation. r?#firefox-style-system-reviewers\n')
++            message.write_text('No bug - Record CSS timing input experiments and cross-engine observations. r?#firefox-style-system-reviewers\n')
+             with (HERE / 'signing.log').open('x') as stream:
+                 result = subprocess.run(GIT + ['commit', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
+             if result.returncode:

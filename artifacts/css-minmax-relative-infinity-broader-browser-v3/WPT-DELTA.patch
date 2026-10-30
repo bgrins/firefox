@@ -1,0 +1,19 @@
+--- executed/wpt.py
++++ enabled-broader/wpt.py
+@@ -29,6 +29,7 @@
+ 
+ 
+ def run(root, here, output, role, policy, env, verify, owned, cancelled, original=None):
++    assert role == 'original' and original is None, 'Discovery owner cannot run candidate'
+     settings = policy['wpt']
+     metadata_helper = load('activation_metadata', root / settings['metadata_helper'])
+     checks = load('activation_checks', root / settings['checks_helper'])
+@@ -40,7 +41,7 @@
+     assert all(set(names) <= set(expected[test]) for test, names in targets.items())
+     phase_policy = dict(settings, tests={test: 'testharness' for test in expected}, held_subtests={})
+     phase_policy['regression_subtests'] = {test: [name for name in names if name not in targets.get(test, [])] for test, names in expected.items()}
+-    phase_policy['cardinality_description'] = 'Exact sealed target and control names; existing control failures retain full signatures.'
++    phase_policy['cardinality_description'] = 'Five exact authored rosters and seven original-browser-discovered rosters; aggregate cardinality not predeclared.'
+     output.mkdir()
+     before = verify()
+     app_before = metadata_helper.application_metadata(root / settings['application_ini'], settings['phase_revisions'][role])

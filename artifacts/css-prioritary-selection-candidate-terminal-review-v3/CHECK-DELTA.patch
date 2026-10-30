@@ -1,0 +1,118 @@
+--- artifacts/css-prioritary-selection-candidate-terminal-review-v2/check.py
++++ artifacts/css-prioritary-selection-candidate-terminal-review-v3/check.py
+@@ -18,14 +18,34 @@
+ r=load('review_module',HERE/'review.py');observation=load('observation_module',HERE/'observations.py')
+ config,owner=r.authenticate()
+ assert not config['execution_enabled'] and config['actual_terminal'] is None
+-assert config['expected_session']==72027 and config['expected_launch']=='67e6f7'
++assert config['expected_session'] is None and config['expected_launch'] is None and config['owner_manifest_sha256'] is None
+ policy=r.read(owner/'POLICY.json')
++roles=r.read(owner/'SOURCE-ROLES.json')
++consumed=r.consumed_map(owner,policy,roles,config['prepared_owner_manifest_sha256'])
++assert all(policy[name] is not None for name in ['head','baseline_binding','baseline_capsule','controls','prepared_application_metadata','execution_handoff','restoration_binding'])
++assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
++assert len(policy['intermediate_consumed_inputs'])==685
++actual_comparison=load('actual_original77_replay',owner/'comparison.py')
++actual_originals=actual_comparison.replay_all(ROOT,policy)
++actual_rows=[row for lane in actual_originals.values() for row in lane['rows']]
++assert observation.counts(actual_rows)=={'PASS':49,'FAIL':28}
++assert sum(len(lane['ends']) for lane in actual_originals.values())==12
++actual_targets=[row for lane,original in actual_originals.items() for row in original['rows'] if row['subtest'] in policy['wpt_lanes'][lane]['target_subtests'].get(row['test'],[])]
++assert len(actual_targets)==24 and observation.counts(actual_targets)=={'PASS':4,'FAIL':20}
++policy['head']='e'*40
++for settings in [policy['wpt'],*policy['wpt_lanes'].values()]:
++    settings['harness_revision']=policy['head'];settings['phase_revisions']={'original':policy['head'],'candidate':policy['head']}
+ wpt=load('actual_staging',owner/'wpt.py')
+ synthetic=load('saved_synthetic',ROOT/'artifacts/css-prioritary-selection-original-v1/check.py')
+ assessor=load('original_assessor',owner/'assess.py')
+ checks=load('saved_stream_checks',ROOT/policy['wpt']['checks_helper'])
+ results=[]
+-with tempfile.TemporaryDirectory(prefix='css-candidate74-review-',dir='/private/tmp') as scratch:
++bad_policy=copy.deepcopy(policy)
++bad_policy['intermediate_consumed_inputs'].pop(next(iter(bad_policy['intermediate_consumed_inputs'])))
++try:r.consumed_map(owner,bad_policy,roles,config['prepared_owner_manifest_sha256'])
++except AssertionError:results.append('omitted consumed input rejected by independent reconstruction')
++else:raise AssertionError('omitted consumed input accepted')
++with tempfile.TemporaryDirectory(prefix='css-candidate77-review-',dir='/private/tmp') as scratch:
+     scratch_path=Path(scratch);root=scratch_path/'root';root.mkdir();pair=scratch_path/'runtime';pair.mkdir()
+     (root/'testing/web-platform/tests/tools').mkdir(parents=True)
+     for relative in [policy['owner_directory']+'/assess.py',policy['owner_directory']+'/comparison.py','artifacts/css-minmax-relative-infinity-broader-browser-v5/assess.py',policy['wpt']['checks_helper']]:
+@@ -41,6 +61,9 @@
+     for name in ['capture.py','candidate.html','record.js','receive.py']:
+         target=root/capture_dir/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((ROOT/capture_dir/name).read_bytes())
+     snapshot={'index':{'head':policy['head'],'entries':'e','cached_diff':hashlib.sha256(b'').hexdigest(),'working_diff':hashlib.sha256(b'').hexdigest()},'nested_index':{'same':True},'working_sources_binaries_research_preserved':True,'current_raw_stable_during_check':True}
++    full_snapshot=copy.deepcopy(snapshot)
++    snapshot.pop('working_sources_binaries_research_preserved')
++    snapshot.update(working_sources_binaries_preserved=True,archival_research_not_rechecked=True,verification_scope='intermediate-consumed-inputs-v1',consumed_inputs_sha256=hashlib.sha256(json.dumps(consumed,sort_keys=True,separators=(',',':')).encode()).hexdigest())
+     binaries={name:'built' for name in policy['rebuilt_binaries']}
+     sources={name:role['candidate_sha256'] for name,role in r.read(owner/'SOURCE-ROLES.json').items()}
+     built={'command_success':True,'preservation_verified':True,'error':None,'native_sources':sources,'binaries':binaries,'snapshot':snapshot,'browser_build_performed':True}
+@@ -59,7 +82,10 @@
+         config_path,capture=wpt.prepare_inputs(root,phase,settings,'candidate')
+         events,code,_,app=synthetic.synthetic(policy,lane,'FAIL',policy['head'])
+         app['source_role']='candidate'
+-        before=assessor.assess(events,code,observation.phase_policy(settings),checks,run_binding=app)
++        original_events=copy.deepcopy(events)
++        for event in original_events:
++            if event.get('action')=='test_status':event['message']='different original assertion'
++        before=assessor.assess(original_events,code,observation.phase_policy(settings),checks,run_binding=app)
+         originals[lane]=before
+         assessment=assessor.assess(events,code,observation.phase_policy(settings),checks,original=before,run_binding=app);assert assessment['complete']
+         behavior=comparison.behavior(before,assessment,settings,assessor.signature);behaviors[lane]=behavior
+@@ -84,32 +110,46 @@
+             for relative in ['ZOOM-BINDING.json','tests/__research__/zoom/CONFIG.json','tests/__research__/zoom/REQUEST.json']:
+                 path=original_phase/relative;body=r.read(path);body['role']='original';path.write_text(json.dumps(body))
+             original_binding=r.read(original_phase/'ZOOM-BINDING.json');original_binding['resources']['CONFIG.json']=r.sha(original_phase/'tests/__research__/zoom/CONFIG.json');(original_phase/'ZOOM-BINDING.json').write_text(json.dumps(original_binding))
+-            (original_phase/'ZOOM-OBSERVATION.json').unlink();original_zoom=capture.review(original_phase,events)
++            (original_phase/'raw.jsonl').write_text(''.join(json.dumps(event)+'\n' for event in original_events))
++            (original_phase/'ZOOM-OBSERVATION.json').unlink();original_zoom=capture.review(original_phase,original_events)
+             wpt.save(phase/'ZOOM-COMPARISON.json',capture.compare(original_zoom,r.read(phase/'ZOOM-OBSERVATION.json')));zoom_comparison=r.sha(phase/'ZOOM-COMPARISON.json')
+         phase_result={'success':True,'exit':code,'execution_error':None,'preservation_verified':True,'comparison_gate_passed':assessment['comparison_gate_passed'],'repair_observation_gate':behavior['repair_observation_gate'],'all_signatures_equal':behavior['all_signatures_equal'],'required_zoom_capture_complete':capture is not None}
+         wpt.save(phase/'RESULT.json',phase_result)
+         phase_receipts[lane]={'lane':lane,'behavior_sha256':r.sha(phase/'BEHAVIOR-COMPARISON.json'),'zoom_comparison_sha256':zoom_comparison,'zoom_observation_sha256':zoom,'assessment_sha256':r.sha(phase/'ASSESSMENT.json'),'raw_sha256':r.sha(phase/'raw.jsonl'),'result_sha256':r.sha(phase/'RESULT.json')}
+-    outcomes={'rows':all_rows,'endings':all_ends,'callbacks_passed':0,'callbacks_failed':74,'provider_source_role':'clean-provider-cascade-candidate','native_acceptance':False,'zoom_target_correctness':None,'lanes':phase_receipts}
++    outcomes={'rows':all_rows,'endings':all_ends,'callbacks_passed':0,'callbacks_failed':77,'provider_source_role':'provider-cascade-value-candidate','native_acceptance':False,'zoom_target_correctness':None,'lanes':phase_receipts}
+     wpt.save(pair/'OUTCOMES.json',outcomes)
+-    wpt.save(pair/'COMPARISON.json',{'lanes':behaviors,'repair_observation_gate':False,'all85_signatures_equal':True,'zoom_comparison_sha256':phase_receipts['ordinary']['zoom_comparison_sha256'],'native_acceptance':False})
+-    result={'success':True,'candidate_phase':phase_receipts,'error':None};pre={'snapshot':snapshot};build={'exit':0,'error':None,'stop_reason':None}
++    wpt.save(pair/'COMPARISON.json',{'lanes':behaviors,'repair_observation_gate':False,'all89_signatures_equal':False,'zoom_comparison_sha256':phase_receipts['ordinary']['zoom_comparison_sha256'],'native_acceptance':False})
++    result={'success':True,'candidate_phase':phase_receipts,'error':None};pre={'snapshot':full_snapshot};build={'exit':0,'error':None,'stop_reason':None}
+     inputs={}
+     def record(name):inputs[name]=r.sha(pair/name);return r.read(pair/name)
+     ownership=SimpleNamespace(group_absent=lambda pgid:None)
+-    def run(result):return observation.review(root,HERE,pair,policy,pre,result,build,record,inputs,ownership,r.validate_build_phase)
+-    value=run(result);assert value['observation_complete'] and value['raw_counts']=={'FAIL':74} and value['repair_observation_gate'] is False and value['all85_signatures_equal'] is True;results.append('complete all74FAIL/11OK and genuine metadata/Zoom replay')
++    def run(result):return observation.review(root,HERE,pair,policy,pre,result,build,record,inputs,ownership,lambda *args:r.validate_build_phase(*args,consumed_inputs=consumed))
++    value=run(result);assert value['observation_complete'] and value['raw_counts']=={'FAIL':77} and value['repair_observation_gate'] is False and value['all89_signatures_equal'] is False;results.append('complete all77FAIL/12OK with nonempty differences and genuine metadata/Zoom replay')
++    assert value['target_callbacks']==24 and value['original_endings']==12 and sum(len(b['candidate_signatures']) for b in value['behaviors'].values())==89
++    assert all(b['differences'] for b in value['behaviors'].values())
++    original_digest=consumed[next(iter(consumed))];consumed[next(iter(consumed))]='wrong-pin'
++    value=run(result);assert not value['observation_complete'] and value['raw_counts']=={'FAIL':77};results.append('wrong consumed digest retains raw but rejects completeness')
++    consumed[next(iter(consumed))]=original_digest
++    scope=load('review_scope_check',HERE/'review_scope.py');scope.require_full(full_snapshot);scope.require_intermediate(snapshot,consumed)
++    for wrong,scope_check in [(snapshot,scope.require_full),(full_snapshot,lambda value:scope.require_intermediate(value,consumed))]:
++        try:scope_check(wrong)
++        except AssertionError:pass
++        else:raise AssertionError('wrong scope accepted')
++    results.append('full and limited scope substitutions rejected')
+     ordinary=pair/'candidate-wpt-ordinary'
+     behavior_path=ordinary/'BEHAVIOR-COMPARISON.json';saved_behavior=behavior_path.read_bytes()
++    altered=r.read(behavior_path);altered['differences'][0]['identity'][2]+=' changed';behavior_path.write_text(json.dumps(altered))
++    value=run(result);assert not value['observation_complete'] and value['raw_counts']=={'FAIL':77};results.append('changed nonempty difference identity rejected retaining rows');behavior_path.write_bytes(saved_behavior)
+     altered=r.read(behavior_path);altered['repair_observation_gate']=True;behavior_path.write_text(json.dumps(altered))
+-    value=run(result);assert not value['observation_complete'] and value['raw_counts']=={'FAIL':74};results.append('invented repair gate rejected with all rows retained');behavior_path.write_bytes(saved_behavior)
++    value=run(result);assert not value['observation_complete'] and value['raw_counts']=={'FAIL':77};results.append('invented repair gate rejected with all rows retained');behavior_path.write_bytes(saved_behavior)
+     raw_request=ordinary/'tests/__research__/zoom/REQUEST.json';saved_bytes=raw_request.read_bytes()
+     altered=r.read(raw_request);altered['role']='original';raw_request.write_text(json.dumps(altered))
+-    value=run(result);assert not value['observation_complete'] and value['raw_counts']=={'FAIL':74};results.append('candidate Zoom role substitution rejected');raw_request.write_bytes(saved_bytes)
++    value=run(result);assert not value['observation_complete'] and value['raw_counts']=={'FAIL':77};results.append('candidate Zoom role substitution rejected');raw_request.write_bytes(saved_bytes)
+     raw_request.unlink()
+-    value=run(result);assert not value['observation_complete'] and value['raw_counts']=={'FAIL':74};results.append('missing Zoom preserves raw but rejects completeness');raw_request.write_bytes(saved_bytes)
++    value=run(result);assert not value['observation_complete'] and value['raw_counts']=={'FAIL':77};results.append('missing Zoom preserves raw but rejects completeness');raw_request.write_bytes(saved_bytes)
+     phase_result=ordinary/'RESULT.json';saved_result=phase_result.read_bytes();phase_result.unlink()
+     failed={'success':False,'candidate_phase':None,'error':'AssertionError()'};wpt.save(pair/'FAILURE-TRACEBACK.json',{'error':'AssertionError()'})
+-    value=run(failed);assert not value['observation_complete'] and value['lanes']['ordinary']['browser_exit'] is None and len(value['raw_rows'])==74;results.append('partial lane RESULT absent retains74rows with exitnull');phase_result.write_bytes(saved_result)
++    value=run(failed);assert not value['observation_complete'] and value['lanes']['ordinary']['browser_exit'] is None and len(value['raw_rows'])==77;results.append('partial lane RESULT absent retains77rows with exitnull');phase_result.write_bytes(saved_result)
+     metadata=ordinary/'metadata/forced-colors-mode/forced-colors-mode-51.html.ini';saved_meta=metadata.read_bytes();metadata.write_text('rewritten')
+     value=run(failed);assert not value['observation_complete'] and not value['lanes']['ordinary']['resources_and_metadata_verified'];results.append('rewritten expectedFAIL metadata rejected');metadata.write_bytes(saved_meta)
+     config_file=ordinary/'wptrunner.ini';saved_config=config_file.read_bytes()

@@ -1,0 +1,11 @@
+# Four cross-operator probes
+
+The expected sequences are min(-1px, 1 / log(1, 0.5) * 1em), in both operand orders, yielding [0px, -1px, 0px]; and max(1px, -1 / log(1, 0.5) * 1em), in both orders, yielding [0px, 1px, 0px]. Each callback calibrates the computed font size and a one-em child width at 0px → 16px → 0px, repeats the observation, and cleans up its own element.
+
+CSS Values 4 specifies positive zero for log with argument one. Therefore the reciprocal here is positive infinity, negated for max. At zero em basis multiplication produces NaN; min/max propagate it and the top-level length becomes zero. At a positive basis, min or max selects the finite -1px or +1px. This follows the [logarithm argument rules](https://drafts.csswg.org/css-values-4/#exponent-funcs) and [special-value rules](https://drafts.csswg.org/css-values-4/#calc-ieee), reread for this review. It does not use the disputed logarithm argument-zero/infinity rules or base-zero oracle.
+
+Searchfox's specified calc Leaf::compare first compares coefficient signs across otherwise matching leaf kinds; same-sign lengths instead use their length comparison. With only the log repair, opposite-sign finite and relative-infinity operands enable the old premature finite selection, losing zero-basis NaN. With only the MinMax repair, log(1,0.5) still yields the wrong negative zero in the old scalar path; its reciprocal has the wrong infinity sign at 16px. The pair of fixes is predicted to satisfy all three stages. These individual-patch outcomes are source-based predictions, not observed browser results or a formal proof.
+
+Root's initial +1px/min and -1px/max suggestion was corrected before any browser run: those were same-sign cases already represented among passing MinMax controls and would not require the new guard. Only the opposite-sign corrected cases are registered. Searchfox query 954691/0 and get-file inspection confirmed Leaf::compare; the local CLI does not support --permalink (initial request4e68aa/2), so no fabricated revision permalink is supplied.
+
+The fixture is integration evidence owned by this baseline package, not yet part of either planned standalone native commit. Existing three authored fixture bodies remain unchanged. The prior sealed fifteen-page integration plan remains historical input and is not rewritten to claim these four additional cases.

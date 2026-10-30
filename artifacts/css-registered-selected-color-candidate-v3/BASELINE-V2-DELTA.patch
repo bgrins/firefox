@@ -1,0 +1,25 @@
+--- artifacts/css-registered-selected-color-candidate-v1/baseline.py
++++ artifacts/css-registered-selected-color-candidate-v2/baseline.py
+@@ -25,6 +25,13 @@
+ def expected_wpt(policy):
+     comparison = load('minmax_roster_binding', str((HERE / 'comparison.py').relative_to(ROOT)))
+     return comparison.expected_wpt(ROOT, policy)
++
++
++def owner_terminal(directory, binding, capsule):
++    terminal = read(directory / binding['terminal_path'])
++    assert terminal.pop('active_owner_manifest_sha256') == capsule['sha256']
++    assert terminal == binding['terminal'] and terminal['exit'] == 0
++    return terminal
+ 
+ 
+ def prepare(manifest):
+@@ -49,7 +56,7 @@
+         ownership.authenticate(ROOT / capsule['directory'], capsule['sha256'])
+         directory = ROOT / binding['directory']
+         ownership.authenticate(directory, binding['manifest_sha256'])
+-        assert read(directory / binding['terminal_path']) == binding['terminal'] and binding['terminal']['exit'] == 0
++        owner_terminal(directory, binding, capsule)
+         assert sha(directory / 'RESULT.json') == binding['result_sha256']
+     comparison = load('broader_complete_replay', str((HERE / 'comparison.py').relative_to(ROOT)))
+     comparison.replay_all(ROOT, policy)

@@ -1,0 +1,693 @@
+diff --git a/dom/animation/EffectCompositor.cpp b/dom/animation/EffectCompositor.cpp
+--- a/dom/animation/EffectCompositor.cpp
++++ b/dom/animation/EffectCompositor.cpp
+@@ -213,17 +213,22 @@
+   auto& elementsToRestyle = mElementsToRestyle[aCascadeLevel];
+   PseudoElementHashEntry::KeyType key = {aElement, aPseudoRequest};
+ 
+-  bool& restyleEntry = elementsToRestyle.LookupOrInsert(key, false);
++  RestyleState previousState;
++  {
++    auto& entry = elementsToRestyle.LookupOrInsert(key, RestyleState::Throttled);
++    previousState = entry;
++    if (aRestyleType != RestyleType::Throttled &&
++        entry == RestyleState::Throttled) {
++      entry = RestyleState::Pending;
++    }
++  }
+   if (aRestyleType == RestyleType::Throttled) {
+     mPresContext->PresShell()->SetNeedThrottledAnimationFlush();
+-  } else {
+-    // Update hashtable first in case PostRestyleForAnimation mutates it
+-    // and invalidates the restyleEntry reference.
+-    // (It shouldn't, but just to be sure.)
+-    bool skipRestyle = std::exchange(restyleEntry, true);
+-    if (!skipRestyle) {
+-      PostRestyleForAnimation(aElement, aPseudoRequest, aCascadeLevel);
+-    }
++  } else if (previousState != RestyleState::DispatchAttempted &&
++             (previousState == RestyleState::Throttled ||
++              (!ServoStyleSet::IsInServoTraversal() && !mIsInPreTraverse &&
++               !mPresContext->RestyleManager()->IsInStyleRefresh()))) {
++    PostRestyleForAnimation(aElement, aPseudoRequest, aCascadeLevel);
+   }
+ 
+   if (aRestyleType == RestyleType::Layer) {
+@@ -274,8 +279,14 @@
+     return;
+   }
+ 
+-  MOZ_ASSERT(!mPresContext->RestyleManager()->IsInStyleRefresh());
+-
++  if (mPresContext->RestyleManager()->IsInStyleRefresh()) {
++    return;
++  }
++
++  PseudoElementHashEntry::KeyType key = {aElement, aPseudoRequest};
++  if (auto entry = mElementsToRestyle[aCascadeLevel].Lookup(key)) {
++    entry.Data() = RestyleState::DispatchAttempted;
++  }
+   mPresContext->PresShell()->RestyleForAnimation(element, hint);
+ }
+ 
+@@ -285,14 +296,13 @@
+     auto& elementSet = mElementsToRestyle[cascadeLevel];
+ 
+     for (auto iter = elementSet.Iter(); !iter.Done(); iter.Next()) {
+-      bool& postedRestyle = iter.Data();
+-      if (postedRestyle) {
++      if (iter.Data() != RestyleState::Throttled) {
+         continue;
+       }
+ 
++      iter.Data() = RestyleState::Pending;
+       PostRestyleForAnimation(iter.Key().mElement, iter.Key().mPseudoRequest,
+                               cascadeLevel);
+-      postedRestyle = true;
+     }
+   }
+ }
+@@ -826,15 +836,13 @@
+       (aFlags & ServoTraversalFlags::FlushThrottledAnimations);
+ 
+   using ElementsToRestyleIterType =
+-      nsTHashMap<PseudoElementHashEntry, bool>::ConstIterator;
++      nsTHashMap<PseudoElementHashEntry, RestyleState>::ConstIterator;
+   auto getNeededRestyleTarget =
+       [&](const ElementsToRestyleIterType& aIter) -> NonOwningAnimationTarget {
+     NonOwningAnimationTarget returnTarget;
+ 
+-    // If aIter.Data() is false, the element only requested a throttled
+-    // (skippable) restyle, so we can skip it if flushThrottledRestyles is not
+-    // true.
+-    if (!flushThrottledRestyles && !aIter.Data()) {
++    // Throttled restyles can be skipped unless explicitly flushed.
++    if (!flushThrottledRestyles && aIter.Data() == RestyleState::Throttled) {
+       return returnTarget;
+     }
+ 
+diff --git a/dom/animation/EffectCompositor.h b/dom/animation/EffectCompositor.h
+--- a/dom/animation/EffectCompositor.h
++++ b/dom/animation/EffectCompositor.h
+@@ -236,12 +236,11 @@
+ 
+   nsPresContext* mPresContext;
+ 
+-  // Elements with a pending animation restyle. The associated bool value is
+-  // true if a pending animation restyle has also been dispatched. For
+-  // animations that can be throttled, we will add an entry to the hashtable to
+-  // indicate that the style rule on the element is out of date but without
+-  // posting a restyle to update it.
+-  EnumeratedArray<CascadeLevel, nsTHashMap<PseudoElementHashEntry, bool>,
++  enum class RestyleState : uint8_t { Throttled, Pending, DispatchAttempted };
++
++  // Pending and DispatchAttempted both require non-throttled traversal.
++  // DispatchAttempted records a PresShell call, not completed composition.
++  EnumeratedArray<CascadeLevel, nsTHashMap<PseudoElementHashEntry, RestyleState>,
+                   kCascadeLevelCount>
+       mElementsToRestyle;
+ 
+diff --git a/servo/components/style/matching.rs b/servo/components/style/matching.rs
+--- a/servo/components/style/matching.rs
++++ b/servo/components/style/matching.rs
+@@ -447,8 +447,23 @@
+         use crate::context::UpdateAnimationsTasks;
+ 
+         let old_values = &old_styles.primary;
+-        if context.shared.traversal_flags.for_animation_only() && old_values.is_some() {
+-            return;
++        if context.shared.traversal_flags.for_animation_only() {
++            if let Some(old_values) = old_values.as_deref() {
++                let new_ui_style = new_styles.primary_style().get_ui();
++                if (new_ui_style.specifies_animations()
++                    || self.has_css_animations(context.shared, None))
++                    && !old_values.get_ui().animations_equals(new_ui_style)
++                {
++                    let task = crate::context::SequentialTask::update_animations(
++                        *self,
++                        None,
++                        UpdateAnimationsTasks::CSS_ANIMATIONS
++                            | UpdateAnimationsTasks::EFFECT_PROPERTIES,
++                    );
++                    context.thread_local.tasks.push(task);
++                }
++                return;
++            }
+         }
+ 
+         // Bug 868975: These steps should examine and update the visited styles
+diff --git a/testing/web-platform/tests/css/css-animations/animation-duration-animated-inherited-font.tentative.html b/testing/web-platform/tests/css/css-animations/animation-duration-animated-inherited-font.tentative.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-animations/animation-duration-animated-inherited-font.tentative.html
+@@ -0,0 +1,145 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Contextual animation duration follows an animated inherited font</title>
++<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++"use strict";
++
++const settle = () => new Promise(resolve => {
++  requestAnimationFrame(() => requestAnimationFrame(resolve));
++});
++
++async function probe(t, animatedInput, scriptOverride) {
++  const host = document.createElement("div");
++  document.body.append(host);
++  t.add_cleanup(() => host.remove());
++  const root = host.attachShadow({mode: "open"});
++  root.innerHTML = `
++    <style>
++      .parent { font-size: 16px; }
++      .target {
++        animation: contextual linear both paused;
++        animation-duration: calc(1em / 16px * 1s);
++      }
++      @keyframes contextual {
++        from { opacity: 0; }
++        to { opacity: 1; }
++      }
++    </style>
++    <div class="parent"><div class="target"></div></div>
++    <div class="references"><div></div><div></div><div></div></div>`;
++  const parent = root.querySelector(".parent");
++  const target = root.querySelector(".target");
++  const sheet = root.querySelector("style").sheet;
++  const rule = sheet.cssRules[2];
++  const declaration = sheet.cssRules[1].style.animationDuration;
++  assert_not_equals(declaration, "", "Contextual duration parsed");
++  assert_true(CSS.supports("animation-duration", "calc(1em / 16px * 1s)"),
++              "Contextual duration support");
++  let driver;
++  if (animatedInput) {
++    driver = parent.animate([{fontSize: "16px"}, {fontSize: "24px"}],
++                            {duration: 1000, fill: "both"});
++    t.add_cleanup(() => driver.cancel());
++    driver.pause();
++    await driver.ready;
++    driver.currentTime = 0;
++  }
++  const animations = target.getAnimations();
++  assert_equals(animations.length, 1, "One CSS animation created");
++  const animation = animations[0];
++  assert_true(animation instanceof CSSAnimation);
++  await animation.ready;
++  animation.currentTime = 750;
++  const effect = animation.effect;
++  if (scriptOverride) {
++    effect.updateTiming({duration: 1250});
++  }
++  const initialFrames = JSON.stringify(effect.getKeyframes());
++  const referenceElements = [...root.querySelector(".references").children];
++  const references = referenceElements.map((element, i) => {
++    const reference = element.animate(
++      [{opacity: 0}, {opacity: 1}],
++      {duration: [1000, 1500, 1250][i], fill: "both"});
++    t.add_cleanup(() => reference.cancel());
++    reference.pause();
++    return reference;
++  });
++  await Promise.all(references.map(reference => reference.ready));
++  references.forEach(reference => { reference.currentTime = 750; });
++  await settle();
++
++  function snapshot() {
++    const current = target.getAnimations();
++    const style = getComputedStyle(target);
++    return {
++      font: style.fontSize,
++      cssDuration: style.animationDuration,
++      effectDuration: effect.getTiming().duration,
++      progress: effect.getComputedTiming().progress,
++      opacity: Number(style.opacity),
++      repeatOpacity: Number(getComputedStyle(target).opacity),
++      references: referenceElements.map(element => Number(getComputedStyle(element).opacity)),
++      sameAnimation: current.length === 1 && current[0] === animation,
++      sameEffect: animation.effect === effect && effect.target === target,
++      sameRule: sheet.cssRules[2] === rule &&
++                sheet.cssRules[1].style.animationDuration === declaration,
++      sameRoot: target.getRootNode() === root && target.parentElement === parent,
++      time: animation.currentTime,
++      state: animation.playState,
++      pending: animation.pending,
++      frames: JSON.stringify(effect.getKeyframes()),
++    };
++  }
++  const snapshots = [];
++  for (const time of [0, 1000, 0, 1000]) {
++    if (animatedInput) {
++      driver.currentTime = time;
++    } else {
++      parent.style.fontSize = time === 0 ? "16px" : "24px";
++    }
++    await settle();
++    snapshots.push(snapshot());
++  }
++  target.style.outlineColor = "rgb(1, 2, 3)";
++  await settle();
++  const afterNormalRestyle = snapshot();
++  const diagnostic = JSON.stringify({snapshots, afterNormalRestyle});
++  for (const [i, sample] of [...snapshots, afterNormalRestyle].entries()) {
++    const font = i === 0 || i === 2 ? "16px" : "24px";
++    const expectedDuration = scriptOverride ? 1250 : font === "16px" ? 1000 : 1500;
++    const expected = scriptOverride ? 0.6 : font === "16px" ? 0.75 : 0.5;
++    const label = `sample ${i}: ${diagnostic}`;
++    assert_equals(sample.font, font, `Inherited input ${label}`);
++    assert_equals(sample.cssDuration, font === "16px" ? "1s" : "1.5s",
++                  `Computed CSS duration ${label}`);
++    assert_equals(sample.effectDuration, expectedDuration, `Effect duration ${label}`);
++    assert_approx_equals(sample.progress, expected, 0.00001, `Effect progress ${label}`);
++    assert_true(sample.sameAnimation && sample.sameEffect && sample.sameRule && sample.sameRoot,
++                `Stable identities ${label}`);
++    assert_equals(sample.time, 750, `Paused sample time ${label}`);
++    assert_equals(sample.state, "paused", `Paused state ${label}`);
++    assert_false(sample.pending, `No pending task ${label}`);
++    for (const [j, value] of [0.75, 0.5, 0.6].entries()) {
++      assert_approx_equals(sample.references[j], value, 0.00001, `Literal reference ${j} ${label}`);
++    }
++    assert_equals(sample.frames, initialFrames, `Unchanged opacity keyframes ${label}`);
++    const referenceIndex = scriptOverride ? 2 : font === "16px" ? 0 : 1;
++    assert_approx_equals(sample.opacity, sample.references[referenceIndex], 0.00001,
++                         `Selected literal branch ${label}`);
++    assert_approx_equals(sample.opacity, expected, 0.00001, `Contextual output ${label}`);
++    assert_equals(sample.repeatOpacity, sample.opacity, `Repeat read ${label}`);
++  }
++}
++
++promise_test(t => probe(t, false, false),
++             "Normal inherited font mutation refreshes contextual animation duration");
++promise_test(t => probe(t, true, false),
++             "Animated inherited font refreshes contextual animation duration without replacing its effect");
++promise_test(t => probe(t, true, true),
++             "Animated inherited font preserves successful updateTiming duration override");
++</script>
+diff --git a/testing/web-platform/tests/css/css-animations/animation-duration-animated-input-regressions.tentative.html b/testing/web-platform/tests/css/css-animations/animation-duration-animated-input-regressions.tentative.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-animations/animation-duration-animated-input-regressions.tentative.html
+@@ -0,0 +1,116 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Animation-only duration refresh preserves unrelated effects and pseudo elements</title>
++<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++"use strict";
++
++const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
++async function settle() { await frame(); await frame(); }
++
++async function probe(t, mode) {
++  const host = document.createElement("div");
++  document.body.append(host);
++  t.add_cleanup(() => host.remove());
++  const root = host.attachShadow({mode: "open"});
++  const pseudo = mode.startsWith("::") ? mode : null;
++  root.innerHTML = `<style>
++    .parent { font-size: 16px; }
++    .target${pseudo || ""} {
++      content: "x";
++      animation: fade linear both paused;
++      animation-duration: calc(1em / 16px * 1s);
++    }
++    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
++  </style><div class="parent"><div class="target"></div></div>`;
++  const parent = root.querySelector(".parent");
++  const target = root.querySelector(".target");
++  if (mode === "literal") target.style.animationDuration = "1s";
++  if (mode === "no CSS animation") target.style.animationName = "none";
++  const driver = parent.animate([{fontSize: "16px"}, {fontSize: "24px"}],
++                                {duration: 1000, fill: "both"});
++  t.add_cleanup(() => driver.cancel());
++  driver.pause();
++  await driver.ready;
++  driver.currentTime = 0;
++  const animations = target.getAnimations({subtree: true});
++  const css = animations.find(animation => animation instanceof CSSAnimation &&
++                              animation.effect.pseudoElement === pseudo);
++  assert_equals(animations.length, mode === "no CSS animation" ? 0 : 1,
++                "Initial CSS animation count");
++  let effect;
++  if (css) {
++    await css.ready;
++    css.currentTime = 750;
++    effect = css.effect;
++  }
++  const script = target.animate([{transform: "translateX(0px)"},
++                                 {transform: "translateX(100px)"}],
++                                {duration: 1000, fill: "both"});
++  t.add_cleanup(() => script.cancel());
++  script.pause();
++  await script.ready;
++  script.currentTime = 250;
++  const scriptEffect = script.effect;
++  const scriptFrames = JSON.stringify(scriptEffect.getKeyframes());
++  const samples = [];
++  for (const time of [0, 1000, 0, 1000]) {
++    driver.currentTime = time;
++    await settle();
++    const style = getComputedStyle(target, pseudo);
++    const current = target.getAnimations({subtree: true});
++    samples.push({
++      font: style.fontSize,
++      cssDuration: style.animationDuration,
++      opacity: Number(style.opacity),
++      duration: effect ? effect.getTiming().duration : null,
++      cssIdentity: !css || (current.includes(css) && css.effect === effect),
++      cssTime: css ? css.currentTime : null,
++      cssState: css ? css.playState : null,
++      count: current.length,
++      scriptIdentity: current.includes(script) && script.effect === scriptEffect,
++      scriptTime: script.currentTime,
++      scriptState: script.playState,
++      scriptDuration: scriptEffect.getTiming().duration,
++      scriptFrames: JSON.stringify(scriptEffect.getKeyframes()),
++      translation: new DOMMatrixReadOnly(getComputedStyle(target).transform).m41,
++    });
++  }
++  const diagnostic = JSON.stringify(samples);
++  for (const [i, sample] of samples.entries()) {
++    const font = i % 2 ? "24px" : "16px";
++    const duration = mode === "literal" ? 1000 : i % 2 ? 1500 : 1000;
++    assert_equals(sample.font, font, `Font calibration ${diagnostic}`);
++    assert_equals(sample.cssDuration, `${duration / 1000}s`, `CSS duration ${diagnostic}`);
++    assert_true(sample.scriptIdentity, `Script effect identity ${diagnostic}`);
++    assert_equals(sample.scriptTime, 250, `Script time ${diagnostic}`);
++    assert_equals(sample.scriptState, "paused", `Script state ${diagnostic}`);
++    assert_equals(sample.scriptDuration, 1000, `Script duration ${diagnostic}`);
++    assert_equals(sample.scriptFrames, scriptFrames, `Script keyframes ${diagnostic}`);
++    assert_approx_equals(sample.translation, 25, 0.00001, `Script output ${diagnostic}`);
++    assert_equals(sample.count, css ? 2 : 1, `No extra animation ${diagnostic}`);
++    if (css) {
++      assert_true(sample.cssIdentity, `CSS effect identity ${diagnostic}`);
++      assert_equals(sample.cssTime, 750, `CSS time ${diagnostic}`);
++      assert_equals(sample.cssState, "paused", `CSS state ${diagnostic}`);
++      assert_equals(sample.duration, duration, `Effect duration ${diagnostic}`);
++      assert_approx_equals(sample.opacity, 750 / duration, 0.00001,
++                           `CSS output ${diagnostic}`);
++    }
++  }
++}
++
++promise_test(t => probe(t, "literal"),
++             "Animated font preserves unchanged literal CSS timing and unrelated script effect");
++promise_test(t => probe(t, "contextual"),
++             "Contextual CSS duration refresh preserves an unrelated script effect on the same element");
++promise_test(t => probe(t, "no CSS animation"),
++             "Changing computed duration without a CSS animation preserves the script effect");
++promise_test(t => probe(t, "::before"),
++             "Animated inherited font refreshes before pseudo-element duration");
++promise_test(t => probe(t, "::after"),
++             "Animated inherited font refreshes after pseudo-element duration");
++</script>
+diff --git a/testing/web-platform/tests/css/css-animations/animation-duration-animated-input-reactivation.tentative.html b/testing/web-platform/tests/css/css-animations/animation-duration-animated-input-reactivation.tentative.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-animations/animation-duration-animated-input-reactivation.tentative.html
+@@ -0,0 +1,122 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Animated inherited font reactivates a specified inactive CSS animation</title>
++<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
++<link rel="help" href="https://drafts.csswg.org/web-animations-1/#relevant-animations">
++<link rel="help" href="https://drafts.csswg.org/css-animations-1/#animation-fill-mode">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++"use strict";
++
++const settle = () => new Promise(resolve => {
++  requestAnimationFrame(() => requestAnimationFrame(resolve));
++});
++
++promise_test(async t => {
++  const host = document.createElement("div");
++  document.body.append(host);
++  t.add_cleanup(() => host.remove());
++  const root = host.attachShadow({mode: "open"});
++  root.innerHTML = `<style>
++    .parent { font-size: 16px; }
++    .target {
++      opacity: 0.2;
++      animation: retained linear none paused;
++      animation-duration: calc(1em / 32px * 1s);
++    }
++    .reference { opacity: 0.2; }
++    @keyframes retained { from { opacity: 0; } to { opacity: 1; } }
++  </style>
++  <div class="parent"><div class="target"></div></div>
++  <div class="reference"></div><div class="reference"></div>`;
++  const parent = root.querySelector(".parent");
++  const target = root.querySelector(".target");
++  const sheet = root.querySelector("style").sheet;
++  const keyframesRule = sheet.cssRules[3];
++  const declaration = sheet.cssRules[1].style.animationDuration;
++  assert_not_equals(declaration, "", "Contextual duration parsed");
++  assert_true(CSS.supports("animation-duration", "calc(1em / 32px * 1s)"),
++              "Contextual time calculation supported");
++  const driver = parent.animate([{fontSize: "16px"}, {fontSize: "48px"}],
++                                {duration: 1000, fill: "both"});
++  t.add_cleanup(() => driver.cancel());
++  driver.pause();
++  await driver.ready;
++  driver.currentTime = 0;
++  const initial = target.getAnimations();
++  assert_equals(initial.length, 1, "Acquire CSS animation before leaving its active interval");
++  const animation = initial[0];
++  t.add_cleanup(() => animation.cancel());
++  assert_true(animation instanceof CSSAnimation, "CSS ownership");
++  const effect = animation.effect;
++  await animation.ready;
++  animation.currentTime = 750;
++  const frames = JSON.stringify(effect.getKeyframes());
++  const referenceElements = [...root.querySelectorAll(".reference")];
++  const references = referenceElements.map((element, i) => {
++    const reference = element.animate([{opacity: 0}, {opacity: 1}],
++                                     {duration: [500, 1500][i], fill: "none"});
++    t.add_cleanup(() => reference.cancel());
++    reference.pause();
++    return reference;
++  });
++  await Promise.all(references.map(reference => reference.ready));
++  references.forEach(reference => { reference.currentTime = 750; });
++  const samples = [];
++  for (const time of [0, 1000, 0, 1000]) {
++    driver.currentTime = time;
++    await settle();
++    const style = getComputedStyle(target);
++    const relevant = target.getAnimations();
++    samples.push({
++      font: style.fontSize,
++      cssDuration: style.animationDuration,
++      cssName: style.animationName,
++      fill: style.animationFillMode,
++      opacity: Number(style.opacity),
++      duration: effect.getTiming().duration,
++      progress: effect.getComputedTiming().progress,
++      localTime: effect.getComputedTiming().localTime,
++      time: animation.currentTime,
++      state: animation.playState,
++      pending: animation.pending,
++      startTime: animation.startTime,
++      relevantCount: relevant.length,
++      relevantIsRetained: relevant.length === 1 && relevant[0] === animation,
++      sameEffect: animation.effect === effect && effect.target === target,
++      sameRule: sheet.cssRules[3] === keyframesRule &&
++                sheet.cssRules[1].style.animationDuration === declaration,
++      sameRoot: target.getRootNode() === root && target.parentElement === parent,
++      frames: JSON.stringify(effect.getKeyframes()),
++      references: referenceElements.map(element => Number(getComputedStyle(element).opacity)),
++    });
++  }
++  const diagnostic = JSON.stringify(samples);
++  for (const [i, sample] of samples.entries()) {
++    const active = i % 2 === 1;
++    const label = `sample ${i}: ${diagnostic}`;
++    assert_equals(sample.font, active ? "48px" : "16px", `Inherited input ${label}`);
++    assert_equals(sample.cssDuration, active ? "1.5s" : "0.5s", `Computed duration ${label}`);
++    assert_equals(sample.cssName, "retained", `CSS animation remains specified ${label}`);
++    assert_equals(sample.fill, "none", `No fill ${label}`);
++    assert_equals(sample.duration, active ? 1500 : 500, `Applied duration ${label}`);
++    assert_equals(sample.progress, active ? 0.5 : null, `Phase progress ${label}`);
++    assert_equals(sample.localTime, 750, `Retained local time ${label}`);
++    assert_equals(sample.time, 750, `Retained paused time ${label}`);
++    assert_equals(sample.state, "paused", `Retained paused state ${label}`);
++    assert_false(sample.pending, `No pending task ${label}`);
++    assert_equals(sample.startTime, null, `Paused start time ${label}`);
++    assert_equals(sample.relevantCount, active ? 1 : 0, `Relevant membership ${label}`);
++    if (active) assert_true(sample.relevantIsRetained, `Reactivated original identity ${label}`);
++    assert_true(sample.sameEffect && sample.sameRule && sample.sameRoot,
++                `Unchanged effect and association ${label}`);
++    assert_equals(sample.frames, frames, `Unchanged opacity keyframes ${label}`);
++    assert_approx_equals(sample.references[0], 0.2, 0.00001, `Inactive literal reference ${label}`);
++    assert_approx_equals(sample.references[1], 0.5, 0.00001, `Active literal reference ${label}`);
++    assert_approx_equals(sample.opacity, sample.references[active ? 1 : 0], 0.00001,
++                         `Selected literal output ${label}`);
++  }
++}, "Animated inherited font reactivates an inactive but specified CSS animation with its original effect");
++</script>
+diff --git a/testing/web-platform/tests/css/css-animations/animation-duration-updatetiming-after-contextual-feedback.tentative.html b/testing/web-platform/tests/css/css-animations/animation-duration-updatetiming-after-contextual-feedback.tentative.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-animations/animation-duration-updatetiming-after-contextual-feedback.tentative.html
+@@ -0,0 +1,152 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Script timing updates recompose animations after contextual duration changes</title>
++<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++"use strict";
++
++const roles = ["override", "literal"];
++const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
++
++function styleOf(target) {
++  const style = getComputedStyle(target);
++  return {font: style.fontSize, cssDuration: style.animationDuration,
++          opacity: style.opacity, outlineWidth: style.outlineWidth};
++}
++
++function effectsOf(animations) {
++  return animations.map(animation => ({name: animation.animationName,
++    time: animation.currentTime, duration: animation.effect.getTiming().duration,
++    progress: animation.effect.getComputedTiming().progress, state: animation.playState}));
++}
++
++function read(entry, order) {
++  let style, effects;
++  if (order === "style-first") {
++    style = styleOf(entry.target);
++    effects = effectsOf(entry.animations);
++  } else {
++    effects = effectsOf(entry.animations);
++    style = styleOf(entry.target);
++  }
++  const repeatEffects = effectsOf(entry.animations);
++  const repeatStyle = styleOf(entry.target);
++  const current = entry.target.getAnimations();
++  return {order, style, effects, repeatEffects, repeatStyle,
++          sameAnimations: entry.animations.map(animation => current.includes(animation)),
++          sameEffects: entry.animations.map((animation, index) => animation.effect === entry.effects[index]),
++          currentEffects: effectsOf(current), afterMembershipStyle: styleOf(entry.target)};
++}
++
++function create(t, role, zero) {
++  const host = document.createElement("div");
++  document.body.append(host);
++  t.add_cleanup(() => host.remove());
++  const root = host.attachShadow({mode: "open"});
++  root.innerHTML = `<style>
++    .target {
++      font-size: 16px;
++      outline: 0px solid transparent;
++      animation-name: ${zero ? "fontCycle" : "fontCycle, fade"};
++      animation-duration: ${role === "literal" ? "2s" : "calc(1em / 16px * 1s)"};
++      animation-timing-function: linear;
++      animation-fill-mode: both;
++      animation-play-state: paused;
++    }
++    @keyframes fontCycle { from { font-size: ${zero ? 0 : 16}px; } to { font-size: 32px; } }
++    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
++  </style><div class="target"></div>`;
++  const target = root.querySelector(".target");
++  const animations = target.getAnimations();
++  assert_equals(animations.length, zero ? 1 : 2, `${role}: animation acquisition`);
++  return {role, host, target, animations, effects: animations.map(animation => animation.effect)};
++}
++
++function assertFixedTiming({role, phases}, zero) {
++  for (const [index, phase] of phases.entries()) {
++    for (const sample of phase.reads) {
++      const label = `${zero ? "zero-start" : "coupled"} ${role} ${phase.name} ${sample.order}`;
++      for (const effect of sample.effects) {
++        assert_equals(effect.time, phase.time, `Assigned time: ${label}`);
++        assert_equals(effect.state, "paused", `Paused: ${label}`);
++      }
++      if (role === "override" && index === 0) continue;
++      const progress = phase.time / 2000;
++      for (const effects of [sample.effects, sample.repeatEffects, sample.currentEffects]) {
++        assert_equals(effects.length, zero ? 1 : 2, `Current effects: ${label}`);
++        for (const effect of effects) {
++          assert_equals(effect.duration, 2000, `Script or literal duration: ${label}`);
++          assert_approx_equals(effect.progress, progress, 0.000001, `Progress: ${label}`);
++        }
++      }
++      for (const style of [sample.style, sample.repeatStyle, sample.afterMembershipStyle]) {
++        const font = zero ? 32 * progress : 16 + 16 * progress;
++        assert_approx_equals(parseFloat(style.font), font, 0.02, `Composed font: ${label}`);
++        assert_approx_equals(parseFloat(style.opacity), zero ? 1 : progress, 0.000001,
++                             `Composed opacity: ${label}`);
++      }
++      assert_true(sample.sameAnimations.every(Boolean), `Animation identity: ${label}`);
++      assert_true(sample.sameEffects.every(Boolean), `Effect identity: ${label}`);
++    }
++  }
++}
++
++async function testTimingUpdates(t, zero) {
++  assert_true(CSS.supports("animation-duration", "calc(1em / 16px * 1s)"));
++  const trajectories = [];
++  for (const role of roles) {
++    const entry = create(t, role, zero);
++    try {
++      read(entry, "timing-first");
++      await Promise.all(entry.animations.map(animation => animation.ready));
++      read(entry, "timing-first");
++      entry.animations.forEach(animation => { animation.currentTime = 750; });
++      const phases = [];
++      async function collect(name, time) {
++        await frame();
++        const orders = phases.length % 2 ? ["timing-first", "style-first"] : ["style-first", "timing-first"];
++        phases.push({name, time, reads: orders.map(order => read(entry, order))});
++      }
++      await collect("initial-750", 750);
++      if (role === "override") {
++        entry.animations.forEach(animation => animation.effect.updateTiming({duration: 2000}));
++      }
++      await collect("fixed-2000", 750);
++      await collect("repeat-fixed-2000", 750);
++      await collect("next-frame-fixed-2000", 750);
++      if (role === "override") {
++        for (const [duration, time] of [[1800, 700], [2500, 900], [2000, 1000]]) {
++          for (const animation of entry.animations) {
++            animation.effect.updateTiming({duration});
++            animation.currentTime = time;
++          }
++        }
++      } else {
++        entry.animations.forEach(animation => { animation.currentTime = 1000; });
++      }
++      await collect("batched-final-2000", 1000);
++      if (role === "override") {
++        for (let i = 0; i < 3; ++i) {
++          for (const animation of entry.animations) {
++            animation.effect.updateTiming({duration: 2000});
++            animation.currentTime = 1000;
++          }
++        }
++      }
++      await collect("unchanged-batch", 1000);
++      trajectories.push({role, phases});
++    } finally {
++      entry.host.remove();
++    }
++  }
++  for (const trajectory of [...trajectories].reverse()) assertFixedTiming(trajectory, zero);
++}
++
++promise_test(t => testTimingUpdates(t, false),
++             "Script duration and batched seeks recompose coupled contextual animations");
++promise_test(t => testTimingUpdates(t, true),
++             "Script duration and batched seeks recompose zero-start contextual font animation");
++</script>

@@ -1,0 +1,28 @@
+--- shared/verify_current
++++ owner-local/verify_intermediate
+@@ -1,11 +1,13 @@
+-def verify_current(h, root, env, epoch):
++def verify_intermediate(h, root, env, epoch, consumed_inputs):
++    assert consumed_inputs and isinstance(consumed_inputs, dict)
+     before = h.index_state(root, env)
+     assert before['raw_index'] == epoch['raw_index_observation']['current']
+     assert h.semantic_index(before) == epoch['semantic_index']
+     nested_before = h.index_state(root / 'artifacts/css-spec-lean', env)
+     assert h.semantic_index(nested_before) == epoch['nested_semantic_index']
+-    for name in ('pins', 'staged_working', 'committed_research_working_payloads'):
++    for name in ('pins', 'staged_working'):
+         assert {p: h.fingerprint(root, p) for p in epoch[name]} == epoch[name], name
++    assert {p: h.fingerprint(root, p) for p in consumed_inputs} == consumed_inputs, 'consumed_inputs'
+     for path, identity in epoch['installed_identities'].items():
+         info = (root / path).lstat()
+         assert stat.S_ISREG(info.st_mode) and [info.st_dev, info.st_ino] == identity
+@@ -21,4 +23,8 @@
+     assert h.index_state(root / 'artifacts/css-spec-lean', env) == nested_before
+     return {'index': after, 'nested_index': nested_before,
+             'current_raw_stable_during_check': True,
+-            'working_sources_binaries_research_preserved': True}
++            'working_sources_binaries_preserved': True,
++            'archival_research_not_rechecked': True,
++            'verification_scope': 'intermediate-consumed-inputs-v1',
++            'consumed_inputs_sha256': hashlib.sha256(json.dumps(
++                consumed_inputs, sort_keys=True, separators=(',', ':')).encode()).hexdigest()}

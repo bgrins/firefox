@@ -1,0 +1,14 @@
+--- prepared-original77/closure.py
++++ artifacts/css-prioritary-selection-original-terminal-review-v2/closure.py
+@@ -27,8 +27,9 @@
+         assert path not in result or result[path] == digest, path
+         result[path] = digest
+ 
+-    for key in ('predecessor', 'suite_binding', 'capture_binding', 'intermediate_guard_binding'):
+-        binding = policy[key]
++    bindings = [policy[key] for key in ('predecessor', 'suite_binding', 'capture_binding', 'intermediate_guard_binding', 'disabled_preimage', 'restoration_binding')]
++    bindings.extend(policy['execution_handoff'][key] for key in ('completed_owner', 'reviewer'))
++    for binding in bindings:
+         manifest = root / binding['directory'] / 'FILES.json'
+         body = manifest.read_bytes()
+         assert hashlib.sha256(body).hexdigest() == binding['manifest_sha256']

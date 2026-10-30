@@ -1,0 +1,66 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1676,30 +1676,44 @@
+     }
+ 
+     let url_data = &value.url_data;
+-    let substitution = substitute_internal(
+-        value,
+-        Some(PropertyIdRef::from(name)),
+-        &context.builder.substitution_functions,
++    apply_substituted_value(
++        name,
++        namespace,
++        url_data,
++        SubstitutionInput::Unresolved(value, attribute_tracker),
+         stylist,
+         context,
+-        attribute_tracker,
+-        &mut SmallVec::new(),
+-        None,
+     );
+-
+-    apply_substituted_value(name, namespace, url_data, substitution, stylist, context);
++}
++
++enum SubstitutionInput<'a> {
++    Unresolved(&'a VariableValue, &'a mut AttributeTracker),
++    Prepared(Result<Substitution<'static>, ()>),
+ }
+ 
+ fn apply_substituted_value(
+     name: &Name,
+     namespace: Option<&Namespace>,
+     url_data: &UrlExtraData,
+-    substitution: Result<Substitution, ()>,
++    input: SubstitutionInput,
+     stylist: &Stylist,
+     context: &mut computed::Context,
+ ) {
+     let is_var = namespace.is_none();
+     let registration = stylist.get_custom_property_registration(name);
++    let substitution = match input {
++        SubstitutionInput::Unresolved(value, attribute_tracker) => substitute_internal(
++            value,
++            Some(PropertyIdRef::from(name)),
++            &context.builder.substitution_functions,
++            stylist,
++            context,
++            attribute_tracker,
++            &mut SmallVec::new(),
++            None,
++        ),
++        SubstitutionInput::Prepared(substitution) => substitution,
++    };
+     let Ok(substitution) = substitution else {
+         if is_var {
+             handle_invalid_at_computed_value_time(name, registration, context);
+@@ -1858,7 +1872,7 @@
+                 name,
+                 None,
+                 &self.url_data,
+-                self.substitution,
++                SubstitutionInput::Prepared(self.substitution),
+                 stylist,
+                 context,
+             ),

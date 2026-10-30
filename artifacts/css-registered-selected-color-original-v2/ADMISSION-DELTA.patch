@@ -1,0 +1,47 @@
+--- artifacts/css-registered-selected-color-original-v1/admission.py
++++ artifacts/css-registered-selected-color-original-v2/admission.py
+@@ -20,9 +20,8 @@
+     binding = policy['execution_handoff']
+     assert binding is not None and policy['restoration_binding'] is not None
+     current_pin = binding['current']
+-    assert current_pin['sha256'] == '5c5340680427683b4620ebb51fdcad8e6058a6da3f295bfd02695cd5da0ab27d'
++    assert current_pin['sha256'] == 'b85b78c2ad687aeefb68af4cd0e94e23c8dca2786459860b2933872fbc5a7ccd'
+     assert sha(root / current_pin['path']) == current_pin['sha256']
+-    current = read(root / current_pin['path'])
+     directory = root / policy['restoration_binding']['directory']
+     authenticate(directory, policy['restoration_binding']['manifest_sha256'])
+     completed = root / binding['completed_owner']['directory']
+@@ -32,14 +31,17 @@
+     authenticate(reviewer,binding['reviewer']['manifest_sha256'])
+     review_policy = read(reviewer / 'POLICY.json')
+     review = read(directory / 'ROOT-REVIEW.json')
+-    terminal = read(directory / 'ROOT-TERMINAL.json')
++    terminal = read(directory / 'ROOT-REVIEWER-TERMINAL.json')
+     refresh = read(directory / 'ROOT-EPOCH-REFRESH.json')
+     result = read(directory / 'CANDIDATE-RESULT.json')
++    current = {'restoration_review':current_pin,'snapshot':review['snapshot'],'controls':dict(old['controls'],**{'CURRENT-EPOCH.json':refresh['new_epoch_sha256']}),'head':old['head'],'prepared_application_metadata':review['restored_application_metadata'],'prepared_flag_hashes':old['prepared_flag_hashes']}
+     assert current['restoration_review'] == {'path': str((directory / 'ROOT-REVIEW.json').relative_to(root)), 'sha256': sha(directory / 'ROOT-REVIEW.json')}
+-    assert terminal == {'session':27191,'launch_chunk':'b5b1ec','terminal_chunk':'a55877','exit':0,'active_reviewer_manifest_sha256':binding['reviewer']['manifest_sha256']}
++    assert terminal == {'session':27674,'launch_chunk':'0e3950','terminal_chunk':'a7c7fc','exit':0,'active_reviewer_manifest_sha256':binding['reviewer']['manifest_sha256']}
+     assert review['actual_terminal'] == review_policy['actual_terminal']
+     actual = review['actual_terminal']
+-    assert (actual['session'],actual['launch_chunk'],actual['terminal_chunk'],actual['exit']) == (97217,'0b392d','4b7236',0)
++    assert (actual['session'],actual['launch_chunk'],actual['terminal_chunk'],actual['exit']) == (86757,'2c6dfe','b6d89a',0)
++    owner_terminal = read(directory / 'ROOT-OWNER-TERMINAL.json')
++    assert owner_terminal == dict(actual,active_owner_manifest_sha256=binding['completed_owner']['manifest_sha256'])
+     assert actual['result_sha256'] == sha(directory / 'CANDIDATE-RESULT.json')
+     assert review['owner_manifest_sha256'] == binding['completed_owner']['manifest_sha256'] == review_policy['owner_manifest_sha256']
+     assert review_policy['execution_enabled'] and review_policy['owner_directory'] == binding['completed_owner']['directory']
+@@ -56,11 +58,10 @@
+     assert refresh['raw_index_before'] == expected['index']['raw_index']
+     expected['index']['raw_index'] = refresh['raw_index_after']
+     assert expected == read(directory / 'POST.json') == review['snapshot'] == current['snapshot']
+-    assert refresh['independent_review_sha256'] == sha(directory / 'ROOT-REVIEW.json') and refresh['independent_review_terminal'] == '27191/a55877/0'
++    assert refresh['independent_review_sha256'] == sha(directory / 'ROOT-REVIEW.json') and refresh['independent_review_terminal'] == '27674/a7c7fc/0'
+     assert refresh['other_controls_unchanged'] == {k:v for k,v in old['controls'].items() if k!='CURRENT-EPOCH.json'}
+     assert policy['controls'] == current['controls'] == dict(old['controls'],**{'CURRENT-EPOCH.json':refresh['new_epoch_sha256']})
+     assert policy['head'] == current['head'] == old['head'] == expected['index']['head']
+-    assert current['native_mutation'] is False
+     backup = read(directory / 'BACKUP-CLEANUP.json')
+     assert backup == review['backup'] and backup['removed'] and backup['verified_original_restoration'] and not backup['retained_after_failure']
+     assert backup['owned_backup_bytes'] == pre['owned_backup_bytes'] == read(directory / 'BACKUPS.json')['bytes']

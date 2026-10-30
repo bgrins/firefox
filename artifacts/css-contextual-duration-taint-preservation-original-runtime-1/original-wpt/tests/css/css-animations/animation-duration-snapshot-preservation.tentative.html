@@ -1,0 +1,165 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Duration input snapshots preserve root metrics and collection lifecycle</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animation-duration">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+async function context(t, markup) {
+  const iframe = document.createElement("iframe");
+  t.add_cleanup(() => iframe.remove());
+  const loaded = new Promise(resolve => iframe.onload = resolve);
+  iframe.srcdoc = `<!doctype html>${markup}`;
+  document.body.append(iframe);
+  await loaded;
+  return {win: iframe.contentWindow, doc: iframe.contentDocument};
+}
+
+async function hold(animations) {
+  for (const animation of animations) {
+    animation.pause();
+    await animation.ready;
+    animation.currentTime = 750;
+  }
+}
+
+promise_test(async t => {
+  for (const animated of [true, false]) {
+    const {win, doc} = await context(t, `<style>
+      @keyframes fixed-font { from { font-size: 32px; } to { font-size: 32px; } }
+      html { font-size: ${animated ? "16px" : "32px"}; outline: 0 solid transparent;
+        ${animated ? "animation: fixed-font 2s linear both paused;" : ""} }
+      html.outlined { outline: 3px solid black; }
+      html.changed { font-size: ${animated ? "24px" : "32px"}; }
+      #probe { width: 1rem; height: 1px; }
+      #probe.two { width: 2rem; }
+      #probe.three { width: 3rem; }
+    </style><div id="probe"></div>`);
+    const root = doc.documentElement;
+    const probe = doc.getElementById("probe");
+    const animations = root.getAnimations();
+    assert_equals(animations.length, animated ? 1 : 0, "Root animation calibration");
+    await hold(animations);
+    assert_equals(win.getComputedStyle(root).fontSize, "32px", "Composed root font");
+    assert_equals(win.getComputedStyle(probe).width, "32px", "Initial rem width");
+    root.classList.add("outlined");
+    assert_equals(win.getComputedStyle(root).outlineWidth, "3px", "Normal root mutation flushed");
+    probe.className = "two";
+    assert_equals(win.getComputedStyle(probe).width, "64px", "Fresh 2rem after root verification");
+    root.classList.add("changed");
+    assert_equals(win.getComputedStyle(root).fontSize, "32px", "Root remains composed at 32px");
+    probe.className = "three";
+    assert_equals(win.getComputedStyle(probe).width, "96px", "Fresh 3rem after changed root base");
+    if (animated) {
+      assert_equals(root.getAnimations()[0], animations[0], "Root animation preserved");
+      assert_equals(animations[0].currentTime, 750, "Root time preserved");
+    }
+  }
+}, "Root base verification preserves freshly recomputed descendant rem widths");
+
+promise_test(async t => {
+  const {win, doc} = await context(t, `<style>
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+    #target { animation: fade 1s linear both paused; outline: 0 solid transparent; }
+    #target.two { animation-duration: 2s; }
+    #target.none { animation-name: none; }
+    #target.outlined { outline: 3px solid black; }
+  </style><div id="target"></div>`);
+  const target = doc.getElementById("target");
+  const old = target.getAnimations();
+  assert_equals(old.length, 1, "Initial collection");
+  await hold(old);
+  old[0].effect.updateTiming({duration: 1250});
+  assert_approx_equals(Number(win.getComputedStyle(target).opacity), 0.6, 0.0001,
+                       "Initial script override");
+  target.className = "none two";
+  assert_equals(target.getAnimations().length, 0, "Empty animation list cancels the collection");
+  assert_equals(old[0].playState, "idle", "Removed CSS animation canceled");
+  target.className = "two";
+  const recreated = target.getAnimations();
+  assert_equals(recreated.length, 1, "Collection recreated");
+  assert_not_equals(recreated[0], old[0], "New CSS animation identity");
+  assert_not_equals(recreated[0].effect, old[0].effect, "New effect identity");
+  await hold(recreated);
+  assert_approx_equals(Number(win.getComputedStyle(target).opacity), 0.375, 0.0001,
+                       "New collection uses CSS 2s, not old script duration");
+  assert_equals(recreated[0].effect.getTiming().duration, 2000, "New CSS timing");
+  target.classList.add("outlined");
+  assert_approx_equals(Number(win.getComputedStyle(target).opacity), 0.375, 0.0001,
+                       "Unchanged input after recreation preserves output");
+  assert_equals(target.getAnimations()[0], recreated[0], "Outline preserves new animation");
+  target.className = "none";
+  assert_equals(target.getAnimations().length, 0, "Second collection destruction");
+  target.className = "";
+  const final = target.getAnimations();
+  assert_equals(final.length, 1, "Second recreation");
+  assert_not_equals(final[0], recreated[0], "Second new identity");
+  await hold(final);
+  assert_approx_equals(Number(win.getComputedStyle(target).opacity), 0.75, 0.0001,
+                       "Second recreation returns to CSS 1s");
+  assert_equals(final[0].effect.getTiming().duration, 1000, "Old 2s snapshot cannot leak");
+}, "Destroying and recreating a CSS animation collection discards old timing ownership");
+
+promise_test(async t => {
+  assert_true(CSS.supports("animation-duration", "auto"), "Auto duration is supported");
+  const {win, doc} = await context(t, `<style>
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes stretch { from { width: 0px; } to { width: 100px; } }
+    .target { animation-name: fade, stretch; animation-duration: 1s;
+      animation-timing-function: linear; animation-fill-mode: both;
+      animation-play-state: paused; outline: 0 solid transparent; }
+    .target.expanded { animation-duration: 1s, 2s; }
+    .target.reordered { animation-duration: 2s, 1s; }
+    .target.automatic { animation-duration: auto, 2s; }
+    .target.zero { animation-duration: 0s, 2s; }
+    .target.outlined { outline: 3px solid black; }
+  </style><div class="target" id="owned"></div><div class="target" id="css"></div>`);
+  const targets = [doc.getElementById("owned"), doc.getElementById("css")];
+  const acquired = targets.map(target => {
+    const members = target.getAnimations();
+    assert_equals(members.length, 2, "Two animations acquired");
+    return ["fade", "stretch"].map(name => members.find(animation => animation.animationName === name));
+  });
+  assert_true(acquired.flat().every(Boolean), "Named animations acquired");
+  await hold(acquired.flat());
+  const sample = (index, opacity, width, durations, label) => {
+    const target = targets[index];
+    const firstOpacity = Number(win.getComputedStyle(target).opacity);
+    const firstWidth = Number.parseFloat(win.getComputedStyle(target).width);
+    assert_approx_equals(firstOpacity, opacity, 0.0001, `${label}: opacity`);
+    assert_approx_equals(firstWidth, width, 0.0001, `${label}: width`);
+    assert_array_equals(acquired[index].map(a => a.effect.getTiming().duration), durations,
+                        `${label}: applied duration list`);
+    const members = target.getAnimations();
+    assert_equals(members.length, 2, `${label}: membership count`);
+    assert_true(acquired[index].every(a => members.includes(a) && a.currentTime === 750 &&
+      a.playState === "paused"), `${label}: identities and held times`);
+  };
+  for (let i = 0; i < 2; i++) {
+    sample(i, 0.75, 75, [1000, 1000], "Repeated single duration");
+    targets[i].className = "target expanded";
+    sample(i, 0.75, 37.5, [1000, 2000], "Expanded duration list");
+    targets[i].className = "target reordered";
+    sample(i, 0.375, 75, [2000, 1000], "Reordered duration values");
+  }
+  acquired[0][0].effect.updateTiming({duration: 1250});
+  for (const target of targets) {
+    target.className = "target automatic";
+  }
+  sample(0, 0.6, 37.5, [1250, 2000], "Auto CSS does not replace script-owned duration");
+  sample(1, 1, 37.5, ["auto", 2000], "Auto CSS on a time timeline has zero active duration");
+  for (const target of targets) {
+    target.className = "target zero";
+  }
+  sample(0, 0.6, 37.5, [1250, 2000], "Explicit zero preserves script ownership");
+  sample(1, 1, 37.5, [0, 2000], "Explicit zero remains distinct from typed auto");
+  for (const target of targets) {
+    target.classList.add("outlined");
+  }
+  sample(0, 0.6, 37.5, [1250, 2000], "Equal-input verification preserves script ownership");
+  sample(1, 1, 37.5, [0, 2000], "Equal-input verification preserves zero duration");
+}, "Duration list shape, order and auto changes preserve CSS and script timing ownership");
+</script>

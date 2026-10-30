@@ -1,0 +1,18 @@
+--- executed-implementation/wpt.py
++++ disabled-broader-v4/wpt.py
+@@ -130,12 +130,9 @@
+     save(output / 'APPLICATION-METADATA-POST.json', app_after)
+     events = [json.loads(line) for line in (output / 'raw.jsonl').read_text().splitlines()]
+     if original is not None:
+-        old_events = [json.loads(line) for line in (original / 'raw.jsonl').read_text().splitlines()]
+-        old_result = json.loads((original / 'RESULT.json').read_bytes())
+-        old_meta = json.loads((original / 'APPLICATION-METADATA.json').read_bytes())
+-        replay = assessor.assess(old_events, old_result['exit'], phase_policy, checks, run_binding=old_meta)
+-        assert json.loads(json.dumps(replay)) == json.loads((original / 'ASSESSMENT.json').read_bytes())
+-        assert old_result['success'] and old_result['preservation_verified']
++        assert original == root / policy['baseline_binding']['directory'] / 'original-wpt'
++        comparison = load('strict_original_comparison', here / 'comparison.py')
++        replay = comparison.replay_original(root, policy, assessor, checks)
+     else:
+         replay = None
+     assessment = assessor.assess(events, code, phase_policy, checks, original=replay, run_binding=app_before)

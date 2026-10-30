@@ -1,0 +1,10 @@
+--- candidate-v1/baseline.py
++++ candidate-v2/baseline.py
+@@ -25,6 +25,7 @@
+ def owner_terminal(directory, binding, capsule):
+     terminal = read(directory / binding['terminal_path'])
+     assert sha(ROOT / capsule['directory'] / 'FILES.json') == capsule['sha256']
++    assert terminal.pop('active_owner_manifest_sha256') == capsule['sha256']
+     assert terminal == binding['terminal'] and terminal['exit'] == 0
+     return terminal
+ 

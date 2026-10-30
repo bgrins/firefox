@@ -1,0 +1,24 @@
+--- executed-log/comparison.py
++++ combined/comparison.py
+@@ -10,9 +10,9 @@
+     expected = copy.deepcopy(read(root / policy['baseline_capsule']['directory'] / 'POLICY.json')['wpt'])
+     assert set(expected['phase_revisions']) == {'original'}
+     expected['phase_revisions']['candidate'] = policy['head']
+-    assert sum(map(len, expected['expected_subtests'].values())) == 102
+-    assert sum(map(len, expected['target_subtests'].values())) == 15
+-    assert sum(len(expected['expected_subtests'][page]) for page in expected['candidate_required_pass_pages']) == 24
++    assert sum(map(len, expected['expected_subtests'].values())) == 578
++    assert sum(map(len, expected['target_subtests'].values())) == 33
++    assert sum(len(expected['expected_subtests'][page]) for page in expected['candidate_required_pass_pages']) == 60
+     return expected
+ 
+ 
+@@ -52,7 +52,7 @@
+     roster = read(directory / 'OBSERVED-ROSTER.json')
+     assert roster['phase'] == outer['phase'] and roster['owner_sha256'] == policy['baseline_capsule']['sha256']
+     assert roster['source_roster_sha256'] == original_policy['references'][original_policy['source_roster']]
+-    assert roster['observed_subtest_count'] == 102 and observed['observed_subtest_count'] == 102
++    assert roster['observed_subtest_count'] == 578 and observed['observed_subtest_count'] == 578
+     for page,names in roster['expected_subtests'].items():
+         assert names == [row['subtest'] for row in observed['rows'] if row['test'] == page]
+         assert set(names) == set(policy['wpt']['expected_subtests'][page])

@@ -1,0 +1,34 @@
+--- artifacts/css-contextual-duration-masked-snapshot-candidate-v2/baseline.py
++++ artifacts/css-animation-active-value-taint-candidate-v1/baseline.py
+@@ -38,7 +38,7 @@
+     checks = load('tristate_saved_checks', str((HERE / 'check.py').relative_to(ROOT)))
+     checks.validate_policy(policy)
+     roles = read(HERE / 'SOURCE-ROLES.json')
+-    assert set(roles) == set(policy['source_paths']) == {'layout/style/nsAnimationManager.cpp', 'layout/style/AnimationCollection.h', 'layout/style/ServoTypes.h', 'servo/components/style/context.rs', 'layout/style/GeckoBindings.cpp', 'layout/style/GeckoBindings.h', 'servo/components/style/matching.rs', 'layout/style/nsAnimationManager.h'}
++    assert set(roles) == set(policy['source_paths']) == {'servo/components/style/custom_properties_map.rs', 'servo/components/style/properties/cascade.rs', 'servo/components/style/properties_and_values/value.rs', 'servo/components/style/custom_properties.rs'}
+     for record in roles.values():
+         for kind in ('base', 'candidate'):
+             path = Path(record[kind + '_capture'])
+@@ -139,16 +139,19 @@
+         policy['wpt']['phase_revisions']['original']) == policy['prepared_application_metadata']
+     for name in policy['rebuilt_binaries']:
+         assert sha(ROOT / name) == epoch['pins'][name] == build_epoch['pins'][name]
++    source_admission = read(ROOT / policy['source_equivalence']['path'])
++    assert source_admission['head'] == policy['head']
+     for name, record in roles.items():
++        ownership.claim(ROOT, name, record['base_sha256'], source_admission['sources'][name]['identity'])
+         assert sha(ROOT / name) == record['base_sha256']
+-        assert hashlib.sha256(state.h.git(ROOT, env, 'show', policy['head'] + ':' + name)).hexdigest() == record['base_sha256']
++        assert hashlib.sha256(state.h.git(ROOT, env, 'show', policy['head'] + ':' + name)).hexdigest() == policy['committed_source_preimages'][name]
+         if name in build_epoch['pins']:
+             assert build_epoch['pins'][name] == epoch['pins'][name] == record['base_sha256']
+         else:
+             assert name in policy['build_unpinned_sources']
+             assert epoch['pins'].get(name, record['base_sha256']) == record['base_sha256']
+-        assert name not in build_epoch['modified_native_paths']
+-        assert hashlib.sha256(state.h.git(ROOT, env, 'show', build_epoch['semantic_index']['head'] + ':' + name)).hexdigest() == record['base_sha256']
++        assert (name in build_epoch['modified_native_paths']) == (name == 'servo/components/style/custom_properties.rs')
++        assert hashlib.sha256(state.h.git(ROOT, env, 'show', build_epoch['semantic_index']['head'] + ':' + name)).hexdigest() == policy['committed_source_preimages'][name]
+     for name in ('servo/components/style/values/generics/calc.rs', 'servo/components/style/custom_properties.rs'):
+         assert sha(ROOT / name) == epoch['pins'][name] == build_epoch['pins'][name]
+     for name, pin in policy['source_context_pins'].items():

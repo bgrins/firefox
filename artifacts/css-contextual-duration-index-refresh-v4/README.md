@@ -1,0 +1,11 @@
+Disabled single-field raw-index refresh for the successful feedback-only duration experiment. The intended completed runtime is css-contextual-duration-feedback-candidate-runtime-2. Actual owner 57530 / da3880 / exit 0 and root independent replay 7399 / d39f08 / exit 0 are now bound. Runtime seal 513be87e1cf04b4b201349aeeb19330a2c406172d15ed78f0bcd0e90b22b347f, exact terminal and raw-index observation are authenticated. Root verified source/app restoration and removal of 1,008,605,176 owned backup bytes. Preparation reads frozen saved evidence only, not live app or current canonical state.
+
+Reuses success-only refresh V2 and preserves the executed claim/write/full adjusted-state verification/rollback protocol also used in V3. The only canonical change is raw_index_observation.current, with exact inverse projection and before/after full state equality to the restored POST. Admission remains HEAD ecfe313d582a335c04d80bfd360fd3a591defdb7 and epoch e29a6b368f2b5cc98aa8488e62cd40f316988a989ae9b41bb4fca03545f2bfe4. This preserves accepted 149/150 history, 149 accepted fixes, held provider, all 29 claims, native sources, application, semantic index, OWNED and ROLE. No new native acceptance.
+
+Feedback-specific admission requires actual successful outer restoration, removed verified owned backup, build exit zero and absent groups, one complete successful feedback phase with three PASS callbacks and one OK ending, exact published phase hashes, equal phase state/app snapshots, and all three private eight-sample records authenticated by the executed helper. This is acquisition/comparison completion, not convergence or a numeric correctness oracle. No earlier normative, reftest or restyle phase is required in this separate run.
+
+All required frozen evidence hashes and actual terminal/index bindings are now filled. Saved-evidence admission checks pass; root must review activation and reseal before execution. The gate rejects before canonical or runtime reads while disabled. Do not reconcile if raw bytes did not change or restoration is unproven. Proposed root-only command after final review:
+
+    python3 -I -S -B artifacts/css-contextual-duration-index-refresh-v4/run.py <final FILES.json SHA256>
+
+No live guard, signer, browser, build, native/index/canonical mutation or refresh execution occurred during preparation. V2 and V3 remain unchanged.

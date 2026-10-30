@@ -1,0 +1,12 @@
+--- css-contextual-duration-broader-candidate-v4/restyles.py
++++ css-contextual-duration-restyle-tristate-broader-v1/restyles.py
+@@ -118,7 +118,8 @@
+         events=[json.loads(line) for line in (output/'raw.jsonl').read_text().splitlines()]
+         actual=assess(events,code,checks)
+         save('ASSESSMENT.json',actual)
+-        assert actual==expected,'Mochitest assertion or ending signature differs'
++        projector=load('reviewed_restyle_projection',root/policy['restyle_projection']['path'])
++        assert projector.compare(expected,actual),'Mochitest assertion or ending signature differs after reviewed timestamp projection'
+     except BaseException as caught:
+         comparison_error=repr(caught)
+     save('RESULT.json',{'exit':code,'execution_error':error,'preservation_verified':True,'owned_group_absent':True,'comparison_error':comparison_error,'comparison_passed':error is None and comparison_error is None,'native_acceptance':False})

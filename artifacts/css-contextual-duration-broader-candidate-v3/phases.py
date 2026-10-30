@@ -1,0 +1,73 @@
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import secrets
+import stat
+
+read = lambda path: json.loads(path.read_bytes())
+sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    result = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(result)
+    return result
+
+
+def feedback_records(output):
+    binding = read(output / 'FEEDBACK-BINDING.json')
+    records = output / 'feedback-records'
+    assert str(records) == binding['directory'] and not records.is_symlink()
+    assert [records.stat().st_dev,records.stat().st_ino] == binding['identity']
+    assert stat.S_IMODE(records.stat().st_mode)==0o700 and records.stat().st_uid==os.getuid()
+    expected = {'self.json':'self font','coupled.json':'coupled font and opacity','zero-start.json':'zero-start self font'}
+    assert {p.name for p in records.iterdir()} == set(expected)
+    pins = {}
+    for filename,kind in expected.items():
+        path = records / filename
+        assert path.is_file() and not path.is_symlink()
+        info = path.stat()
+        assert stat.S_IMODE(info.st_mode)==0o600 and info.st_uid==os.getuid() and info.st_nlink==1
+        record = read(path)
+        assert set(record)=={'run_id','kind','samples'} and record['run_id']==binding['run_id'] and record['kind']==kind
+        assert len(record['samples'])==8
+        for sample in record['samples']:
+            assert set(sample)=={'font','cssDuration','opacity','effects','repeatFont','repeatDuration'}
+            assert len(sample['effects'])==(2 if kind=='coupled font and opacity' else 1)
+            assert all(set(effect)=={'name','time','duration','progress','state'} for effect in sample['effects'])
+        pins[filename]={'sha256':sha(path),'identity':[info.st_dev,info.st_ino],'mode':stat.S_IMODE(info.st_mode)}
+    return {'run_id':binding['run_id'],'records':pins,'numeric_or_convergence_oracle':False}
+
+
+def run(root, here, output, policy, env, verify, owned, cancelled):
+    wpt = load('duration_three_phase_wpt', here / 'wpt.py')
+    initial = verify()
+    wpt.save(output / 'PHASES-PRE.json', initial)
+    results, app = {}, None
+    for kind in ('normative','reftest','feedback','inactive'):
+        current = dict(policy, wpt=policy['phases'][kind], phase_kind=kind)
+        phase_env = dict(env)
+        if kind=='feedback':
+            records=output/'feedback-records'
+            records.mkdir(mode=0o700)
+            run_id=secrets.token_hex(24)
+            wpt.save(output/'FEEDBACK-BINDING.json',{'directory':str(records),'identity':[records.stat().st_dev,records.stat().st_ino],'run_id':run_id})
+            phase_env.update(DURATION_FEEDBACK_RECORD_DIR=str(records),DURATION_FEEDBACK_RUN_ID=run_id)
+        comparison = load('phase_original_directory', here / 'comparison.py')
+        original = comparison.original_directory(root, current)
+        phase=output/(kind+'-wpt')
+        results[kind]=wpt.run(root,here,phase,'candidate',current,phase_env,verify,owned,cancelled,original)
+        assert not owned and read(phase/'PRE.json')==read(phase/'POST.json')==initial
+        metadata=read(phase/'APPLICATION-METADATA.json')
+        assert metadata==read(phase/'APPLICATION-METADATA-POST.json')
+        if app is None: app=metadata
+        assert app==metadata
+        if kind=='feedback':wpt.save(output/'FEEDBACK-RECORDS.json',feedback_records(output))
+    restyles=load('candidate_restyle_phase',here/'restyles.py')
+    results['restyles']=restyles.run(root,output/'restyles',policy,env,verify,owned,cancelled,app)
+    assert not owned and verify()==initial
+    wpt.save(output/'PHASES-POST.json',initial)
+    return results

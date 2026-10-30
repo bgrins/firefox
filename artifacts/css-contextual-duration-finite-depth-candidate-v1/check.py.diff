@@ -1,0 +1,121 @@
+--- same-element-candidate-v2/check.py
++++ finite-depth-candidate-v1/check.py
+@@ -28,7 +28,7 @@
+     assert policy['prepared_application_metadata'] == {key: value for key, value in source['prepared_application_metadata'].items() if key not in ('build_revision', 'harness_revision', 'source_role')}
+     assert policy['accepted_current_payloads'] == source['accepted_current_payloads'] and len(policy['accepted_current_payloads']) == 29
+     assert policy['source_context_pins'] == source['source_role_pins']
+-    assert policy['record_kinds'] == source['record_kinds'] and len(policy['record_kinds']) == 2
++    assert policy['record_kinds'] == source['record_kinds'] and len(policy['record_kinds']) == 4
+     roles = read(HERE / 'SOURCE-ROLES.json')
+     assert set(roles) == set(policy['source_paths']) == {'dom/animation/EffectCompositor.cpp', 'dom/animation/EffectCompositor.h', 'servo/components/style/matching.rs'}
+     landing = ROOT / policy['landing_package']['directory']
+@@ -41,7 +41,7 @@
+         assert role['candidate_sha256'] == sha(ROOT / role['candidate_capture']) == sha(landing / payloads[name]['payload']) == payloads[name]['candidate_sha256']
+     comparison = load('progress_comparison_check', HERE / 'comparison.py')
+     assert policy['wpt'] == comparison.expected_wpt(ROOT, policy)
+-    assert len(policy['wpt']['expected_subtests']) == 1 and sum(map(len, policy['wpt']['expected_subtests'].values())) == 2
++    assert len(policy['wpt']['expected_subtests']) == 1 and sum(map(len, policy['wpt']['expected_subtests'].values())) == 4
+     assert policy['admission_binding'] == source['admission_binding']
+     trace_policy = read(ROOT / source['restored_owner'] / 'POLICY.json')
+     assert policy['prepared_flag_hashes'] == trace_policy['prepared_flag_hashes']
+@@ -62,11 +62,11 @@
+         assert sha(ROOT / name) == digest, name
+     source = read(ROOT / policy['baseline_capsule']['directory'] / 'POLICY.json')
+     comparison = load('progress_static_comparison', HERE / 'comparison.py')
+-    complete = {'complete': True, 'errors': [], 'missing': [], 'records': {'a': {}, 'b': {}}}
+-    comparison.require_complete_collection(complete, {'complete_records': 2})
++    complete = {'complete': True, 'errors': [], 'missing': [], 'records': {str(n): {} for n in range(4)}}
++    comparison.require_complete_collection(complete, {'complete_records': 4})
+     missing = dict(complete, complete=False, records={'a': {}}, missing=[{'status': 'FAIL'}])
+     try:
+-        comparison.require_complete_collection(missing, {'complete_records': 2})
++        comparison.require_complete_collection(missing, {'complete_records': 4})
+     except AssertionError:
+         pass
+     else:
+@@ -90,10 +90,10 @@
+     for row in rows[:1]:
+         row.update(status='FAIL', expected='PASS', message='synthetic ordinary or animated failure')
+     settings['target_subtests'] = {page: [row['subtest'] for row in rows if row['test'] == page and row['status'] == 'FAIL'] for page in settings['expected_subtests']}
+-    settings.update(expected_target_count=1, expected_control_count=1, expected_regression_signature_count=2)
++    settings.update(expected_target_count=1, expected_control_count=3, expected_regression_signature_count=4)
+     configuration = comparison.phase_policy(settings)
+     saved = assessor.assess(original, 1, configuration, checks, run_binding=app)
+-    assert saved['complete'] and len(saved['regression_signature']) == 2
++    assert saved['complete'] and len(saved['regression_signature']) == 4
+     candidate = copy.deepcopy(events)
+     candidate[0]['run_info']['browser_build_id'] = 'candidate-build'
+ 
+@@ -123,9 +123,10 @@
+     reject('wrong build', lambda value: value[0]['run_info'].update(browser_build_id='wrong'))
+     reject('crash', lambda value: value.append({'action': 'crash'}))
+     reject('wrong exit', lambda value: None, 1)
++    check_calibration(policy)
+     check_failure_retention(policy)
+     check_record_projection(policy)
+-    print(json.dumps({'synthetic_acyclic_failure_repaired': True, 'ordinary_or_animated_failure_names_treated_equally': True, 'negative_checks': rejected, 'references_authenticated': len(policy['references']), 'baseline_actual_binding_pending': policy['baseline_binding'] is None, 'browser_or_live_guard_executed': False}))
++    print(json.dumps({'synthetic_contextual_failure_repaired': True, 'ordinary_or_animated_failure_names_treated_equally': True, 'negative_checks': rejected, 'references_authenticated': len(policy['references']), 'baseline_actual_binding_pending': policy['baseline_binding'] is None, 'browser_or_live_guard_executed': False}))
+ 
+ 
+ def check_failure_retention(policy):
+@@ -154,9 +155,45 @@
+         else:
+             raise AssertionError('failed comparison was relabeled successful')
+         receipt = read(output / 'PROGRESS-RECORDS.json')
+-        assert len(receipt['missing']) == 2 and not receipt['errors'] and not receipt['complete']
++        assert len(receipt['missing']) == 4 and not receipt['errors'] and not receipt['complete']
+         assert (output / 'candidate-wpt/raw.jsonl').read_text() == 'retained synthetic raw evidence'
+     assert not output.exists()
++
++
++def synthetic_record(kind):
++    comparison = load('calibration_record_source', HERE / 'comparison.py')
++    depth = int(kind.removeprefix('depth-'))
++    initial, final = comparison.expected_snapshot(depth, False), comparison.expected_snapshot(depth, True)
++    observations = {mode: {'depth': depth, 'mode': mode, 'literalInitial': copy.deepcopy(initial), 'initial': copy.deepcopy(initial),
++        'samples': [{'phase': phase, 'opacity': final['opacity']} for phase in ('first-leaf-read', 'passive-frame-1', 'passive-frame-2', 'passive-frame-3')],
++        'beforeMembership': copy.deepcopy(final), 'afterMembership': copy.deepcopy(final),
++        'membership': [{'animation': True, 'effect': True} for _ in range(depth + 1)]} for mode in ('literal', 'contextual')}
++    return {'kind': kind, 'run_id': 'synthetic_record_projection', 'observations': observations}
++
++
++def check_calibration(policy):
++    comparison = load('calibration_check', HERE / 'comparison.py')
++    for rule in policy['record_kinds'].values():
++        value = synthetic_record(rule['kind'])['observations']
++        comparison.require_original_calibration(value)
++        value['contextual']['samples'][0]['opacity'] = 7
++        comparison.require_original_calibration(value)
++    rejected = []
++    for label, mutation in [
++        ('literal first stale', lambda v: v['literal']['samples'][0].update(opacity=7)),
++        ('literal later stale', lambda v: v['literal']['afterMembership'].update(opacity=7)),
++        ('literal identity', lambda v: v['literal']['membership'][0].update(animation=False)),
++        ('contextual initial stale', lambda v: v['contextual']['initial'].update(rootFont=32)),
++        ('literal setup stale', lambda v: v['literal']['literalInitial'].update(rootFont=32)),
++    ]:
++        value = synthetic_record('depth-2')['observations']; mutation(value)
++        try:
++            comparison.require_original_calibration(value)
++        except AssertionError:
++            rejected.append(label)
++        else:
++            raise AssertionError(label)
++    print(json.dumps({'literal_and_setup_calibration_checks': 4, 'contextual_stale_first_retained_as_target': True, 'calibration_negatives': rejected}))
+ 
+ 
+ def check_record_projection(policy):
+@@ -170,11 +207,11 @@
+         candidate.mkdir(parents=True)
+         collection = {'records': {}, 'errors': [], 'missing': []}
+         for filename in policy['record_kinds']:
+-            body = read(ROOT / policy['historical_compact_original']['directory'] / 'records' / filename)
++            body = synthetic_record(policy['record_kinds'][filename]['kind'])
+             (original / filename).write_text(json.dumps(body))
+             changed = copy.deepcopy(body)
+             changed['run_id'] = 'distinct_candidate_run'
+-            changed['observations']['contextual']['samples'][0]['value'] = None
++            changed['observations']['contextual']['samples'][0]['opacity'] = None
+             (candidate / filename).write_text(json.dumps(changed))
+             collection['records'][filename] = {'schema_valid': True}
+         current = dict(policy, baseline_binding={'directory': 'original'})

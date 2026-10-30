@@ -1,0 +1,101 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Animation taint and registered custom property scope</title>
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#animation-tainted">
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#replace-a-var-function">
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#registered-custom-properties">
+<meta name="assert" content="Tentative comparison of active animation taint across unregistered and registered custom properties.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<pre id="observations" hidden></pre>
+<script>
+window.registeredTaintObservations = {};
+
+for (const mode of ["unregistered", "universal", "typed", "literal"]) {
+  promise_test(async t => {
+    const record = { mode, registration: null, calibration: null, phases: [] };
+    window.registeredTaintObservations[mode] = record;
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    frame.srcdoc = "<!doctype html><html><head></head><body></body></html>";
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    const registered = mode === "universal" || mode === "typed";
+    if (registered) {
+      assert_equals(typeof win.CSS.registerProperty, "function", "Registration API is available");
+      const definition = {
+        name: "--scope-v", syntax: mode === "typed" ? "<custom-ident>" : "*",
+        inherits: false, initialValue: "horizontal-tb"
+      };
+      win.CSS.registerProperty(definition);
+      record.registration = { ...definition, returnedSuccessfully: true };
+    }
+    const style = doc.createElement("style");
+    style.textContent = `
+      @keyframes hold { from, to { --scope-v: vertical-rl; } }
+      body { writing-mode: horizontal-tb; }
+      #calibration { --scope-v: vertical-lr; }
+      #subject {
+        --scope-v: horizontal-tb;
+        writing-mode: ${mode === "literal" ? "vertical-lr" : "var(--scope-v, vertical-lr)"};
+        animation: hold 2s linear paused both;
+      }
+      #subject.changed { --scope-v: vertical-lr; }
+    `;
+    doc.head.append(style);
+    doc.body.innerHTML = '<div id="calibration"><div id="child"></div></div><div id="subject"></div>';
+    const child = doc.getElementById("child");
+    const initial = win.getComputedStyle(child).getPropertyValue("--scope-v").trim();
+    child.style.setProperty("--scope-v", "one two");
+    const multiIdent = win.getComputedStyle(child).getPropertyValue("--scope-v").trim();
+    record.calibration = { initial, multiIdent };
+    doc.getElementById("calibration").remove();
+    const subject = doc.getElementById("subject");
+    const animations = subject.getAnimations();
+    assert_equals(animations.length, 1, "One fixed CSS animation");
+    const animation = animations[0];
+    const effect = animation.effect;
+    await animation.ready;
+    animation.currentTime = 750;
+    const sample = async label => {
+      const readings = [win.getComputedStyle(subject).writingMode];
+      for (let i = 0; i < 3; ++i) {
+        await new Promise(resolve => win.requestAnimationFrame(resolve));
+        readings.push(win.getComputedStyle(subject).writingMode);
+      }
+      const computed = win.getComputedStyle(subject);
+      const members = subject.getAnimations();
+      record.phases.push({
+        label, readings, variable: computed.getPropertyValue("--scope-v").trim(),
+        cssDuration: computed.animationDuration, currentTime: animation.currentTime,
+        playState: animation.playState, duration: effect.getTiming().duration,
+        progress: effect.getComputedTiming().progress,
+        sameAnimation: members.length === 1 && members[0] === animation,
+        sameEffect: animation.effect === effect
+      });
+    };
+    await sample("initial");
+    subject.classList.add("changed");
+    await sample("ordinary-mutation");
+    document.getElementById("observations").textContent = JSON.stringify(window.registeredTaintObservations, null, 2);
+    const detail = JSON.stringify(record);
+    assert_equals(initial, registered ? "horizontal-tb" : "vertical-lr", "Initial/inheritance calibration: " + detail);
+    assert_equals(multiIdent, mode === "typed" ? "horizontal-tb" : "one two", "Syntax calibration: " + detail);
+    for (const phase of record.phases) {
+      assert_equals(phase.variable, "vertical-rl", "Active source: " + detail);
+      assert_equals(phase.cssDuration, "2s", "Fixed CSS duration: " + detail);
+      assert_equals(phase.duration, 2000, "Fixed effect duration: " + detail);
+      assert_equals(phase.currentTime, 750, "Held time: " + detail);
+      assert_equals(phase.playState, "paused", "Paused: " + detail);
+      assert_approx_equals(phase.progress, 0.375, 0.00001, "Progress: " + detail);
+      assert_true(phase.sameAnimation && phase.sameEffect, "Retained identities: " + detail);
+      for (const value of phase.readings) {
+        assert_equals(value, "vertical-lr", "Tentative non-animatable sink fallback: " + detail);
+      }
+    }
+  }, `Animation taint registered scope: ${mode}`);
+}
+</script>

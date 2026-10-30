@@ -1,0 +1,40 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -2801,6 +2801,7 @@
+ 
+     // This is the root of a strong-connected component.
+     let mut in_loop = self_ref;
++    let mut invalid_priorities = Vec::new();
+     loop {
+         let var_index = context.cascade.resolution
+             .stack
+@@ -2819,6 +2820,9 @@
+         }
+         if in_loop {
+             context.handle_loop(&var_name, attribute_tracker);
++            if let VarType::NonCustom(longhand) = var_name {
++                invalid_priorities.push(longhand);
++            }
+         }
+         if var_index == index {
+             debug_assert_eq!(var_name, var);
+@@ -2829,6 +2833,19 @@
+     if in_loop {
+         if let VarType::ContextualAttr(request) = var {
+             attribute_tracker.attr_resolution.suspend(request);
++        }
++        for longhand in &invalid_priorities {
++            context.cascade.resolution.prepared_priorities.remove(longhand);
++        }
++        for longhand in invalid_priorities {
++            let id = PrioritaryPropertyId::from_longhand(longhand).unwrap();
++            for dependency in id.dependencies().iter() {
++                debug_assert!(context.cascade.ensured_prioritary.contains(dependency)
++                    || context.computed_context.builder.invalid_non_custom_properties.contains(dependency.to_longhand()));
++            }
++            context.cascade.ensure_prioritary_property(
++                context.computed_context, context.decls, context.cache, attribute_tracker, id,
++            );
+         }
+         return None;
+     }

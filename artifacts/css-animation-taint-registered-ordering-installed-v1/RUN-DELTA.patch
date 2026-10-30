@@ -1,0 +1,53 @@
+--- registered-defaulting-installed-v1/run.py
++++ registered-ordering-installed-v1/run.py
+@@ -82,19 +82,19 @@
+     assert isinstance(payload, dict) and set(payload) == {'run_id', 'report'} and payload['run_id'] == run_id
+     report = payload['report']
+     assert set(report) == {'schema', 'status', 'userAgent', 'policyVerdict', 'observations', 'harness'}
+-    assert report['schema'] == 'registered-defaulting-observation-v1' and report['policyVerdict'] is None
++    assert report['schema'] == 'registered-ordering-observation-v1' and report['policyVerdict'] is None
+     assert report['status'] in ('complete', 'incomplete')
+     pattern = r'Firefox/158\.0(?:\s|$)' if browser == 'firefox' else r'(?:Headless)?Chrome/156\.0\.\d+\.\d+(?:\s|$)'
+     assert isinstance(report['userAgent'], str) and re.search(pattern, report['userAgent'])
+     assert set(report['harness']) == {'status', 'message'} and type(report['harness']['status']) is int
+     assert report['harness']['message'] is None or isinstance(report['harness']['message'], str)
+-    assert isinstance(report['observations'], list) and len(report['observations']) == 3
++    assert isinstance(report['observations'], list) and len(report['observations']) == 9
+     complete = True
+-    for row, mode in zip(report['observations'], ['invalid', 'valid', 'literal']):
++    for row, mode in zip(report['observations'], ['flush0-equal0-opacity0', 'flush0-equal0-opacity1', 'flush0-equal1-opacity0', 'flush0-equal1-opacity1', 'flush1-equal0-opacity0', 'flush1-equal0-opacity1', 'flush1-equal1-opacity0', 'flush1-equal1-opacity1', 'literal']):
+         assert set(row) == {'mode', 'record', 'wpt', 'referenceChecks', 'activeExpectation', 'policyVerdict'}
+         assert row['mode'] == mode and row['policyVerdict'] is None
+         assert set(row['wpt']) == {'name', 'status', 'message'}
+-        assert row['wpt']['name'] == 'Registered keyframe defaulting observation: ' + mode
++        assert row['wpt']['name'] == 'Registered keyframe ordering observation: ' + mode
+         assert row['wpt']['status'] is None or type(row['wpt']['status']) is int
+         assert row['wpt']['message'] is None or isinstance(row['wpt']['message'], str)
+         record = row['record']
+@@ -120,7 +120,7 @@
+                     value = phase[key]
+                     assert value is None or type(value) in [int, float] or value == 'auto' or (isinstance(value, dict) and set(value) == {'nonfinite'} and value['nonfinite'] in ['NaN', 'Infinity', '-Infinity'])
+                 assert type(phase['sameAnimation']) is bool and type(phase['sameEffect']) is bool
+-            captured = len(record['phases']) == 2 and calibration is not None and registration is not None and record['before'] is not None
++            captured = len(record['phases']) == 2 and calibration is not None and registration is not None and ((not mode.startswith('flush1') and mode != 'literal') or record['before'] is not None)
+         complete &= captured and row['wpt']['status'] is not None
+         checks = row['referenceChecks']
+         assert isinstance(checks, list) and checks
+@@ -128,7 +128,7 @@
+         expectation = row['activeExpectation']
+         assert set(expectation) == {'expectedSink', 'kind', 'matches'}
+         assert expectation['expectedSink'] == 'vertical-lr' and type(expectation['matches']) is bool
+-        assert expectation['kind'] == ('control' if mode == 'literal' else 'registered-defaulting-observation')
++        assert expectation['kind'] == ('control' if mode == 'literal' else 'registered-ordering-observation')
+     assert (report['status'] == 'complete') == complete
+     return report
+ 
+@@ -273,7 +273,7 @@
+     selected = policy['browsers'][args.browser]
+     output = ROOT / selected['output']
+     output.mkdir(mode=0o700)
+-    temporary = Path(tempfile.mkdtemp(prefix='css-registered-defaulting-', dir='/private/tmp'))
++    temporary = Path(tempfile.mkdtemp(prefix='css-registered-ordering-', dir='/private/tmp'))
+     info = temporary.lstat()
+     identity = [info.st_dev, info.st_ino]
+     profile = temporary / 'profile'

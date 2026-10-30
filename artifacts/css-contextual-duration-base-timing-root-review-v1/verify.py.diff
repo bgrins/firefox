@@ -1,0 +1,42 @@
+--- artifacts/css-contextual-duration-finite-depth-root-review-v1/verify.py
++++ artifacts/css-contextual-duration-base-timing-root-review-v1/verify.py
+@@ -37,8 +37,8 @@
+ 
+ def outcome_join(result, phase, assessment, terminal_exit, phase_hashes):
+     assert assessment['complete'] and assessment['errors'] == []
+-    assert len(assessment['rows']) == 4 and all(r['status'] in ('PASS', 'FAIL') for r in assessment['rows'])
+-    assert len(assessment['ends']) == 1 and assessment['ends'][0]['status'] == 'OK'
++    assert len(assessment['rows']) == 7 and all(r['status'] in ('PASS', 'FAIL') for r in assessment['rows'])
++    assert len(assessment['ends']) == 3 and all(row['status'] == 'OK' for row in assessment['ends'])
+     assert phase['execution_error'] is None and phase['preservation_verified']
+     assert phase['native_fix_acceptance'] is False
+     passed = assessment['comparison_gate_passed']
+@@ -76,7 +76,7 @@
+     baseline = load('matching_root_baseline', str((HERE / 'baseline.py').relative_to(ROOT)))
+     prepared, owner, roles = baseline.prepare(OWNER_SHA)
+     assert prepared == policy and policy['execution_enabled'] and policy['candidate_execution_enabled']
+-    assert set(roles) == {'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'dom/animation/EffectCompositor.h'}
++    assert set(roles) == {'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'dom/animation/EffectCompositor.h', 'layout/style/nsAnimationManager.cpp'}
+     assert policy['runtime_output'] == str(PAIR.relative_to(ROOT))
+     state = load('matching_root_state', policy['state_helper'])
+     bundle = load('matching_root_bundle', policy['bundle_helper'])
+@@ -124,7 +124,9 @@
+     collector = load('same_element_root_records', str((HERE / 'records.py').relative_to(ROOT)))
+     collection = collector.collect(ROOT, PAIR / 'progress-records', read(PAIR / 'PROGRESS-BINDING.json'), policy, assessment)
+     assert collection == read(PAIR / 'PROGRESS-RECORDS.json')
+-    assert collection['complete'] and not collection['missing'] and not collection['errors'] and len(collection['records']) == 4
++    calibration = load('root_literal_calibration', str((HERE / 'calibration.py').relative_to(ROOT))).report(PAIR / 'progress-records', collection, policy)
++    assert calibration == read(PAIR / 'CALIBRATION.json')
++    assert collection['complete'] and not collection['missing'] and not collection['errors'] and len(collection['records']) == 7
+     phases = load('same_element_root_record_comparison', str((HERE / 'phases.py').relative_to(ROOT)))
+     assert phases.record_comparison(ROOT, PAIR, policy, collection) == read(PAIR / 'RECORD-COMPARISON.json')
+ 
+@@ -179,7 +181,7 @@
+     summary = {'original_rows': original['rows'], 'candidate_rows': assessment['rows'], 'candidate_endings': assessment['ends'], 'comparison_errors': assessment['comparison_errors'], 'comparison_gate_passed': passed, 'phase': phase_hashes, 'record_comparison_sha256': sha(PAIR / 'RECORD-COMPARISON.json'), 'numeric_feedback_endpoint_oracle': False, 'native_acceptance': False}
+     save(PAIR / 'ROOT-REPLAY.json', summary)
+     terminal = {'session_id': args.session, 'terminal_chunk': args.terminal, 'exit': args.exit_code, 'owner_sha256': OWNER_SHA, 'result_sha256': result_sha, 'build_success': True, 'callbacks_passed': sum(r['status'] == 'PASS' for r in assessment['rows']), 'callbacks_failed': sum(r['status'] == 'FAIL' for r in assessment['rows']), 'ending': 'OK', 'comparison_gate_passed': passed, 'raw_replay_verified': True, 'state_and_application_restoration_independently_verified': True, 'raw_index_observation': observation, 'restored_application_entry': bundle.entry(app_entry), 'restored_application_target': bundle.entry(app_entry.resolve()), 'backup_removed_bytes': backup['owned_backup_bytes'], 'native_acceptance': False}
+-    terminal.update(complete_records=4, private_records_independently_validated=True, numeric_feedback_endpoint_oracle=False)
++    terminal.update(complete_records=7, page_endings_ok=3, private_records_independently_validated=True, numeric_feedback_endpoint_oracle=False)
+     save(PAIR / 'ROOT-TERMINAL.json', terminal)
+     symlinks, manifest = {}, {}
+     for directory, dirs, files in os.walk(PAIR, followlinks=False):

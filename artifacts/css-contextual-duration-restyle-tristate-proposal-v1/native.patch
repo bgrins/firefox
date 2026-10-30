@@ -1,0 +1,107 @@
+--- a/dom/animation/EffectCompositor.cpp
++++ b/dom/animation/EffectCompositor.cpp
+@@ -213,17 +213,22 @@
+   auto& elementsToRestyle = mElementsToRestyle[aCascadeLevel];
+   PseudoElementHashEntry::KeyType key = {aElement, aPseudoRequest};
+ 
+-  bool& restyleEntry = elementsToRestyle.LookupOrInsert(key, false);
++  RestyleState previousState;
++  {
++    auto& entry = elementsToRestyle.LookupOrInsert(key, RestyleState::Throttled);
++    previousState = entry;
++    if (aRestyleType != RestyleType::Throttled &&
++        entry == RestyleState::Throttled) {
++      entry = RestyleState::Pending;
++    }
++  }
+   if (aRestyleType == RestyleType::Throttled) {
+     mPresContext->PresShell()->SetNeedThrottledAnimationFlush();
+-  } else {
+-    // Update hashtable first in case PostRestyleForAnimation mutates it
+-    // and invalidates the restyleEntry reference.
+-    // (It shouldn't, but just to be sure.)
+-    bool skipRestyle = std::exchange(restyleEntry, true);
+-    if (!skipRestyle) {
+-      PostRestyleForAnimation(aElement, aPseudoRequest, aCascadeLevel);
+-    }
++  } else if (previousState != RestyleState::DispatchAttempted &&
++             (previousState == RestyleState::Throttled ||
++              (!ServoStyleSet::IsInServoTraversal() && !mIsInPreTraverse &&
++               !mPresContext->RestyleManager()->IsInStyleRefresh()))) {
++    PostRestyleForAnimation(aElement, aPseudoRequest, aCascadeLevel);
+   }
+ 
+   if (aRestyleType == RestyleType::Layer) {
+@@ -274,8 +279,14 @@
+     return;
+   }
+ 
+-  MOZ_ASSERT(!mPresContext->RestyleManager()->IsInStyleRefresh());
+-
++  if (mPresContext->RestyleManager()->IsInStyleRefresh()) {
++    return;
++  }
++
++  PseudoElementHashEntry::KeyType key = {aElement, aPseudoRequest};
++  if (auto entry = mElementsToRestyle[aCascadeLevel].Lookup(key)) {
++    entry.Data() = RestyleState::DispatchAttempted;
++  }
+   mPresContext->PresShell()->RestyleForAnimation(element, hint);
+ }
+ 
+@@ -285,14 +296,13 @@
+     auto& elementSet = mElementsToRestyle[cascadeLevel];
+ 
+     for (auto iter = elementSet.Iter(); !iter.Done(); iter.Next()) {
+-      bool& postedRestyle = iter.Data();
+-      if (postedRestyle) {
++      if (iter.Data() != RestyleState::Throttled) {
+         continue;
+       }
+ 
++      iter.Data() = RestyleState::Pending;
+       PostRestyleForAnimation(iter.Key().mElement, iter.Key().mPseudoRequest,
+                               cascadeLevel);
+-      postedRestyle = true;
+     }
+   }
+ }
+@@ -826,15 +836,13 @@
+       (aFlags & ServoTraversalFlags::FlushThrottledAnimations);
+ 
+   using ElementsToRestyleIterType =
+-      nsTHashMap<PseudoElementHashEntry, bool>::ConstIterator;
++      nsTHashMap<PseudoElementHashEntry, RestyleState>::ConstIterator;
+   auto getNeededRestyleTarget =
+       [&](const ElementsToRestyleIterType& aIter) -> NonOwningAnimationTarget {
+     NonOwningAnimationTarget returnTarget;
+ 
+-    // If aIter.Data() is false, the element only requested a throttled
+-    // (skippable) restyle, so we can skip it if flushThrottledRestyles is not
+-    // true.
+-    if (!flushThrottledRestyles && !aIter.Data()) {
++    // Throttled restyles can be skipped unless explicitly flushed.
++    if (!flushThrottledRestyles && aIter.Data() == RestyleState::Throttled) {
+       return returnTarget;
+     }
+ 
+--- a/dom/animation/EffectCompositor.h
++++ b/dom/animation/EffectCompositor.h
+@@ -236,12 +236,11 @@
+ 
+   nsPresContext* mPresContext;
+ 
+-  // Elements with a pending animation restyle. The associated bool value is
+-  // true if a pending animation restyle has also been dispatched. For
+-  // animations that can be throttled, we will add an entry to the hashtable to
+-  // indicate that the style rule on the element is out of date but without
+-  // posting a restyle to update it.
+-  EnumeratedArray<CascadeLevel, nsTHashMap<PseudoElementHashEntry, bool>,
++  enum class RestyleState : uint8_t { Throttled, Pending, DispatchAttempted };
++
++  // Pending and DispatchAttempted both require non-throttled traversal.
++  // DispatchAttempted records a PresShell call, not completed composition.
++  EnumeratedArray<CascadeLevel, nsTHashMap<PseudoElementHashEntry, RestyleState>,
+                   kCascadeLevelCount>
+       mElementsToRestyle;
+ 

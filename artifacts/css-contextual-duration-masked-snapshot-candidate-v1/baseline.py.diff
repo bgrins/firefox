@@ -1,0 +1,24 @@
+--- artifacts/css-contextual-duration-masked-controls-candidate-v1/baseline.py
++++ artifacts/css-contextual-duration-masked-snapshot-candidate-v1/baseline.py
+@@ -38,7 +38,7 @@
+     checks = load('tristate_saved_checks', str((HERE / 'check.py').relative_to(ROOT)))
+     checks.validate_policy(policy)
+     roles = read(HERE / 'SOURCE-ROLES.json')
+-    assert set(roles) == set(policy['source_paths']) == {'servo/components/style/matching.rs'}
++    assert set(roles) == set(policy['source_paths']) == {'layout/style/nsAnimationManager.cpp', 'layout/style/AnimationCollection.h', 'layout/style/ServoTypes.h', 'servo/components/style/context.rs', 'layout/style/GeckoBindings.cpp', 'servo/components/style/matching.rs', 'layout/style/nsAnimationManager.h'}
+     for record in roles.values():
+         for kind in ('base', 'candidate'):
+             path = Path(record[kind + '_capture'])
+@@ -142,7 +142,11 @@
+     for name, record in roles.items():
+         assert sha(ROOT / name) == record['base_sha256']
+         assert hashlib.sha256(state.h.git(ROOT, env, 'show', policy['head'] + ':' + name)).hexdigest() == record['base_sha256']
+-        assert build_epoch['pins'][name] == epoch['pins'][name] == record['base_sha256']
++        if name in build_epoch['pins']:
++            assert build_epoch['pins'][name] == epoch['pins'][name] == record['base_sha256']
++        else:
++            assert name in policy['build_unpinned_sources']
++            assert epoch['pins'].get(name, record['base_sha256']) == record['base_sha256']
+         assert name not in build_epoch['modified_native_paths']
+         assert hashlib.sha256(state.h.git(ROOT, env, 'show', build_epoch['semantic_index']['head'] + ':' + name)).hexdigest() == record['base_sha256']
+     for name in ('servo/components/style/values/generics/calc.rs', 'servo/components/style/custom_properties.rs'):

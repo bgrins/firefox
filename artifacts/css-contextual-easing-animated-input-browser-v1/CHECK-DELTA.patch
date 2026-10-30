@@ -1,0 +1,45 @@
+--- artifacts/css-log-clear-browser-v1/check.py
++++ artifacts/css-contextual-easing-animated-input-browser-v1/check.py
+@@ -16,22 +16,28 @@
+ 
+ def check(policy):
+     settings = policy["wpt"]
++    roles = json.loads((ROOT / "artifacts/css-contextual-easing-activation-prototype-v2/SOURCE-ROLES.json").read_bytes())
++    assert len(roles) == 8 and "servo/components/style/values/generics/calc.rs" not in roles
++    assert policy["source_role_pins"] == dict(
++        {name: row["base_sha256"] for name, row in roles.items()},
++        **{"servo/components/style/custom_properties.rs": "2675b33b30ac43db5b758d5a80f42fa4530856c32d5a0923882a15f8a8bc5774"})
++    assert policy["build_unpinned_sources"] == ["servo/components/style/stylesheets/keyframes_rule.rs"]
+     assert policy["original_only"] and set(settings["phase_revisions"]) == {"original"}
+     roster = json.loads((ROOT / policy["source_roster"]).read_bytes())
+     assert settings["expected_subtests"] == {page: [r["name"] for r in rows] for page, rows in roster["pages"].items()}
+     assert settings["target_subtests"] == {page: [r["name"] for r in rows if r["classification"] == "clear_target"] for page, rows in roster["pages"].items()}
+-    assert sum(r["classification"] == "unresolved_boundary_control" for rows in roster["pages"].values() for r in rows) == 4
+     manifest = json.loads((ROOT / settings["manifest"]["path"]).read_bytes())
+-    assert set(manifest["items"]["testharness"]["css"]["css-values"]) == {Path(page).name for page in settings["expected_subtests"]}
+-    metadata = load("static_metadata", ROOT / settings["metadata_helper"])
+-    app = metadata.application_metadata(ROOT / settings["application_ini"], settings["phase_revisions"]["original"])
+-    app.update(build_revision=app["revision"], harness_revision=settings["harness_revision"], source_role="original")
+-    assert app == policy["prepared_application_metadata"]
++    assert set(manifest["items"]["testharness"]["css"]["css-animations"]) == {Path(page).name for page in settings["expected_subtests"]}
++    settings = dict(settings, harness_revision="a" * 40, phase_revisions={"original": "b" * 40})
++    app = {"browser_build_id": "static-build-id", "revision": "b" * 40,
++           "build_revision": "b" * 40, "harness_revision": "a" * 40,
++           "source_role": "original", "sha256": "c" * 64, "path": "synthetic/application.ini",
++           "resolved": "synthetic/application.ini"}
+     configuration = dict(settings, tests={page: "testharness" for page in settings["expected_subtests"]}, held_subtests={}, cardinality_description="synthetic static verification only")
+     targets = {(page, name) for page, names in settings["target_subtests"].items() for name in names}
+     configuration["regression_subtests"] = {page: [name for name in names if (page, name) not in targets] for page, names in settings["expected_subtests"].items()}
+-    assessor = load("log_assessor_check", HERE / "assess.py")
+-    checks = load("log_stream_check", ROOT / settings["checks_helper"])
++    assessor = load("easing_assessor_check", HERE / "assess.py")
++    checks = load("easing_stream_check", ROOT / settings["checks_helper"])
+     events = [{"action": "suite_start", "run_info": {"os": "mac", "debug": False, "browser_build_id": app["browser_build_id"], "revision": settings["harness_revision"]}}]
+     for page, names in settings["expected_subtests"].items():
+         events.append({"action": "test_start", "test": page})
+@@ -80,4 +86,4 @@
+     reject("fixture setup exception", lambda s: next(e for e in s if e.get("action") == "test_status" and e["test"] in settings["fixture_target_pages"]).update(status="FAIL", expected="PASS", message="ReferenceError: missing helper"), 1)
+     print(json.dumps({"synthetic_positive_checks": 4, "negative_checks": rejected,
+                       "original_statuses_measured_without_required_failure_count": True,
+-                      "fresh_application_metadata_matches": True, "browser_executed": False}))
++                      "fresh_application_metadata_required_at_activation": True, "browser_executed": False}))

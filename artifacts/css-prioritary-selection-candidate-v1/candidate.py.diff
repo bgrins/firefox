@@ -1,0 +1,29 @@
+--- a/candidate.py
++++ b/candidate.py
+@@ -56,7 +56,8 @@
+     comparison = load('broader_original_replay', str((HERE / 'comparison.py').relative_to(ROOT)))
+     comparison.replay_all(ROOT, policy)
+     comparison.admit_snapshot(read(original_directory / 'POST.json'), original_before)
+-    ownership.group_absent(read(original_directory / 'original-wpt/PROCESS.json')['pgid'])
++    for lane in policy['lane_order']:
++        ownership.group_absent(read(original_directory / ('original-wpt-' + lane) / 'PROCESS.json')['pgid'])
+     assert output.parent == ROOT / 'artifacts' and not output.exists() and not output.is_symlink()
+     output.mkdir()
+     epoch = copy.deepcopy(original)
+@@ -108,7 +109,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'registered-color-image-common-only-candidate-v2'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'prioritary-selection-candidate-v1'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+@@ -117,6 +118,7 @@
+     failure, phase_result, binaries = None, None, None
+     touched = []
+     def stable_controls():
++        baseline.metadata_guard(policy)
+         for name in policy['preserved_absent_metadata'] + policy['preserved_absent_resources']:
+             assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()
+         assert all((RUNTIME / name).read_bytes() == body for name, body in controls.items())

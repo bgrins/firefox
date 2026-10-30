@@ -1,0 +1,141 @@
+--- artifacts/css-research-checkpoint-20261029-v77/commit.py
++++ artifacts/css-research-checkpoint-20261029-v78/commit.py
+@@ -15,8 +15,9 @@
+ BINDINGS = json.loads((HERE / 'BINDINGS.json').read_bytes())
+ HEAD = BINDINGS['head']
+ EPOCH = BINDINGS['epoch_sha256']
+-EXECUTION_ENABLED = True
+-INVENTORY = ROOT / 'artifacts/css-continuation-completed-inventory-20261029-v77'
++EXECUTION_ENABLED = False
++BASE_INVENTORY = ROOT / 'artifacts/css-continuation-completed-inventory-20261029-v77'
++INVENTORY = ROOT / 'artifacts/css-continuation-completed-inventory-20261029-v78'
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+@@ -37,29 +38,34 @@
+     assert sys.argv[1:] in [['--check'], ['--run']]
+     if sys.argv[1:] == ['--run']:
+         assert EXECUTION_ENABLED, 'Draft signing execution is disabled'
+-    required = ('head', 'epoch_sha256', 'selection_sha256', 'inventory_manifest_sha256', 'matching_only_binding', 'reviewer_binding', 'final_state_audit', 'final_roadmap', 'prepared_application_metadata')
++    required = ('head', 'epoch_sha256', 'selection_sha256', 'inventory_manifest_sha256', 'restoration_binding', 'reviewer_binding', 'final_state_audit', 'final_roadmap', 'prepared_application_metadata', 'completed_untracked_audit', 'application_capture')
+     assert all(BINDINGS.get(name) is not None for name in required), 'Final restoration, selection and reviewer bindings are pending'
+     assert not (HERE / 'result.json').exists(), 'A completed attempt must not be retried'
+     for name, digest in BINDINGS['references'].items():
+         assert name.startswith('artifacts/') and '..' not in Path(name).parts
+         path = ROOT / name
+         assert path.is_file() and not path.is_symlink() and sha(path.read_bytes()) == digest, name
+-    for name in ('reviewer_binding', 'final_state_audit', 'final_roadmap'):
++    for name in ('reviewer_binding', 'final_state_audit', 'final_roadmap', 'completed_untracked_audit', 'application_capture'):
+         binding = BINDINGS[name]
+         assert BINDINGS['references'][binding['path']] == binding['sha256']
+-    matching = BINDINGS['matching_only_binding']
++    matching = BINDINGS['restoration_binding']
+     runtime = ROOT / matching['runtime']
+     terminal = json.loads((runtime / 'ROOT-TERMINAL.json').read_bytes())
+     result = json.loads((runtime / 'CANDIDATE-RESULT.json').read_bytes())
+     assert sha((runtime / 'FILES.json').read_bytes()) == matching['runtime_manifest_sha256']
+-    assert (terminal['session_id'], terminal['terminal_chunk'], terminal['exit']) == (matching['session_id'], matching['terminal_chunk'], matching['exit']) == (46219, 'd97e6b', 1)
++    assert (terminal['session_id'], terminal['terminal_chunk'], terminal['exit']) == (matching['session_id'], matching['terminal_chunk'], matching['exit']) == (8127, 'bef82f', 0)
+     assert terminal['result_sha256'] == sha((runtime / 'CANDIDATE-RESULT.json').read_bytes())
+-    assert terminal['callbacks_failed'] == 2 and terminal['callbacks_passed'] == 0 and terminal['ending'] == 'OK'
+-    assert terminal['comparison_gate_passed'] is False and terminal['native_acceptance'] is False
++    assert terminal['callbacks_failed'] == 0 and terminal['callbacks_passed'] == 9 and terminal['page_endings_ok'] == 3
++    assert terminal['comparison_gate_passed'] is True and terminal['native_acceptance'] is False
+     assert terminal['raw_replay_verified'] and terminal['state_and_application_restoration_independently_verified']
+-    assert result['success'] is False and result['restoration_verified'] and not result['publication_errors']
+-    cleanup = json.loads((runtime / 'ROOT-BACKUP-CLEANUP.json').read_bytes())
+-    assert cleanup['removed'] and cleanup['inventory_verified_before_removal'] and cleanup['verified_original_restoration'] and cleanup['owner_failure_receipt_preserved']
++    assert result['success'] is True and result['restoration_verified'] and not result['publication_errors']
++    analysis_path = runtime / 'RECORD-ANALYSIS.json'
++    assert terminal['record_analysis_sha256'] == sha(analysis_path.read_bytes())
++    analysis = json.loads(analysis_path.read_bytes())
++    assert analysis['collection_complete'] and len(analysis['records']) == 9
++    assert {name for name, item in analysis['records'].items() if not item['observation']['first_sample_matches_fixed_oracle']} == {'two-hop-ordinary', 'two-hop-animated', 'lh-chain-ordinary', 'lh-chain-animated'}
++    cleanup = json.loads((runtime / 'BACKUP-CLEANUP.json').read_bytes())
++    assert cleanup['removed'] and cleanup['verified_original_restoration'] and cleanup['retained_after_failure'] is False
+     assert cleanup['owned_backup_bytes'] == terminal['backup_removed_bytes'] == 1008605176
+     refresh = json.loads((ROOT / matching['root_refresh']).read_bytes())
+     assert refresh['after_epoch'] == EPOCH and refresh['full_restored_state_verified']
+@@ -71,23 +77,49 @@
+     assert reviewer['exit'] == 0 and reviewer['commit_reviewer'] == 'r?#firefox-style-system-reviewers'
+     assert sha((ROOT / reviewer['log_path']).read_bytes()) == reviewer['log_sha256']
+     audit = json.loads((ROOT / BINDINGS['final_state_audit']['path']).read_bytes())
+-    assert audit['head'] == HEAD and audit['epoch_sha256'] == EPOCH and audit['raw_index'] == refresh['observation']['after']
+-    assert audit['untracked_count'] == 563 and audit['unrelated_count'] == 495 and audit['project_native_and_support'] + audit['project_wpt'] == 68
+-    assert audit['project_hashes_match_committed_recovery'] and audit['unrelated_metadata_verified'] and audit['stable_on_repeat']
+-    assert not audit['staged_paths'] and not audit['missing_paths'] and not audit['unexpected_paths']
+-    assert (HERE / 'WORK-TABLE.md').read_bytes() == (ROOT / Path(BINDINGS['final_roadmap']['path']).parent / 'WORK-TABLE.md').read_bytes()
++    assert audit['epoch_sha256'] == EPOCH and audit['snapshot']['index']['head'] == HEAD
++    assert audit['snapshot']['index']['raw_index'] == refresh['observation']['after']
++    assert audit['snapshot'] == json.loads((runtime / 'POST.json').read_bytes())
++    assert json.loads((ROOT / BINDINGS['application_capture']['path']).read_bytes()) == BINDINGS['prepared_application_metadata']
++    user_audit = json.loads((ROOT / BINDINGS['completed_untracked_audit']['path']).read_bytes())
++    assert user_audit['head'] == HEAD and user_audit['untracked_count'] == 563
++    assert not user_audit['unexpected_paths'] and not user_audit['missing_paths'] and not user_audit['staged_paths']
++    assert user_audit['project_hashes_match_committed_recovery'] and len(user_audit['project_files']) == 68
++    assert all(row['matches'] and row['sha256'] == row['committed_sha256'] for row in user_audit['project_files'])
++    assert user_audit['unrelated_count'] == 495 and not user_audit['unrelated_metadata_mismatches']
++    assert user_audit['status_stable_on_repeat'] and user_audit['tracked_modified_paths'] == ['servo/components/style/custom_properties.rs']
++    assert (HERE / 'WORK-TABLE.md').read_bytes() == (ROOT / Path(BINDINGS['final_roadmap']['path']).parent / 'WORK-TABLE.md').read_bytes() + BINDINGS['work_table_addendum'].encode()
+     assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES'))
+     assert git('rev-parse', 'HEAD').decode().strip() == HEAD
+     assert git('symbolic-ref', '--short', 'HEAD').decode().strip() == 'stylo-bloom-verification-2'
+     assert git('config', '--get', 'commit.gpgsign').strip() == b'true'
+-    assert sha((INVENTORY / 'SELECTION.json').read_bytes()) == BINDINGS['selection_sha256']
+-    selected = json.loads((INVENTORY / 'SELECTION.json').read_bytes())
++    assert sha((BASE_INVENTORY / 'SELECTION.json').read_bytes()) == BINDINGS['selection_sha256']
++    selected = json.loads((BASE_INVENTORY / 'SELECTION.json').read_bytes())
++    assert sha((BASE_INVENTORY / 'FILES.json').read_bytes()) == BINDINGS['base_inventory_manifest_sha256']
++    assert sha((INVENTORY / 'DELTA-SELECTION.json').read_bytes()) == BINDINGS['delta_selection_sha256']
++    delta = json.loads((INVENTORY / 'DELTA-SELECTION.json').read_bytes())
++    assert len(selected) == 3676 and len(delta) == 250 and not set(selected).intersection(delta)
++    selected.update(delta)
++    audit_path = ROOT / BINDINGS['completed_untracked_audit']['path']
++    selected[str(audit_path.relative_to(ROOT))] = {'sha256': sha(audit_path.read_bytes()), 'bytes': audit_path.stat().st_size}
+     assert sha((INVENTORY / 'FILES.json').read_bytes()) == BINDINGS['inventory_manifest_sha256']
+     inventory_files = json.loads((INVENTORY / 'FILES.json').read_bytes())
+     for name, record in inventory_files.items():
+         assert sha((INVENTORY / name).read_bytes()) == record['sha256']
+         assert (INVENTORY / name).stat().st_size == record['bytes']
+     extras = [INVENTORY / name for name in [*inventory_files, 'FILES.json']]
++    extras += [ROOT / BINDINGS[name]['path'] for name in ('final_state_audit', 'application_capture')]
++    for manifest_path, digest in BINDINGS['completed_packages'].items():
++        assert manifest_path.startswith('artifacts/') and '..' not in Path(manifest_path).parts
++        manifest = ROOT / manifest_path
++        assert sha(manifest.read_bytes()) == digest
++        extras.append(manifest)
++        for name, record in json.loads(manifest.read_bytes()).items():
++            assert not Path(name).is_absolute() and '..' not in Path(name).parts
++            path = manifest.parent / name
++            expected = record['sha256'] if isinstance(record, dict) else record
++            assert path.is_file() and not path.is_symlink() and sha(path.read_bytes()) == expected
++            extras.append(path)
+     extras += [HERE / name for name in ['commit.py', 'README.md', 'WORK-TABLE.md', 'RUN-DELTA.patch', 'BINDINGS.json', 'CHECK.json', 'FILES.json']]
+     for path in extras:
+         selected[str(path.relative_to(ROOT))] = {'sha256': sha(path.read_bytes()), 'bytes': path.stat().st_size}
+@@ -109,6 +141,7 @@
+     state = load('state', 'artifacts/css-registered-number-native-runtime-v1/state.py')
+     owned = load('owned', 'artifacts/css-registered-number-source-transition-v4/transition.py')
+     before = state.a.verify_current(state.h, ROOT, ENV, epoch)
++    assert before == audit['snapshot']
+     untracked = git('ls-files', '--others', '--exclude-standard', '-z')
+     print(json.dumps({'selected_paths': len(selected), 'identical_committed_paths_skipped': len(skipped), 'full_current_state_verified': True}), flush=True)
+     if sys.argv[1] == '--check':
+@@ -122,7 +155,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v77-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v78-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)
+@@ -136,7 +169,7 @@
+             tree = git('write-tree', env=index_env).decode().strip()
+             assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+             message = directory / 'message'
+-            message.write_text('No bug - Record CSS duration scheduling and completed research. r?#firefox-style-system-reviewers\n')
++            message.write_text('No bug - Record CSS duration progress and first-read research. r?#firefox-style-system-reviewers\n')
+             with (HERE / 'signing.log').open('x') as stream:
+                 result = subprocess.run(GIT + ['commit', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
+             if result.returncode:

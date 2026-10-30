@@ -1,0 +1,156 @@
+<h3 class="heading settled" data-level="6.13" id="model-liveness"><span class="secno">6.13. </span><span class="content">Model liveness</span><a class="self-link" href="#model-liveness"></a></h3>
+   <p>Changes made to any part of the model
+  cause the entire timing model to be updated
+  and any dependent style.</p>
+   <p>Unless otherwise stated,
+  invoking the methods or constructors,
+  or getting or setting the members
+  of interfaces defined in the <a data-link-type="dfn" href="#web-animations-api" id="ref-for-web-animations-api①⓪">Web Animations API</a>
+  does <em>not</em> produce a <a data-link-type="dfn" href="https://drafts.csswg.org/css-transitions-1/#style-change-event" id="ref-for-style-change-event③">style change event</a>.</p>
+   <p class="note" role="note"><span class="marker">Note:</span> Other specifications that extend this specification
+  are expected to refine the requirements on <a data-link-type="dfn" href="https://drafts.csswg.org/css-transitions-1/#style-change-event" id="ref-for-style-change-event④">style change events</a>
+  by introducing circumstances where such events <em>are</em> triggered.
+  For example,
+  when the interfaces in this specification represent
+  animations defined by CSS markup,
+  many of their methods will need to trigger <span id="ref-for-style-change-event⑤">style change events</span>
+  in order to reflect changes to the specified style.</p>
+   <div class="informative-bg">
+    
+<em>This section is non-normative</em>
+
+
+    <p>Based on the above requirement
+  and normative requirements elsewhere in this specification,
+  the following invariants can be observed:</p>
+    <dl>
+     <dt data-md>Changes made to the <a data-link-type="dfn" href="#web-animations-model" id="ref-for-web-animations-model①①">Web Animations model</a> take effect immediately
+     <dd data-md>
+      <p>For example, if the <code class="idl"><a data-link-type="idl" href="#keyframeeffect" id="ref-for-keyframeeffect①⑥">KeyframeEffect</a></code> associated with an <code class="idl"><a data-link-type="idl" href="#animation" id="ref-for-animation①⑥">Animation</a></code>
+  is <a data-link-type="dfn" href="#seek" id="ref-for-seek⑤">seeked</a> (see <a href="#setting-the-current-time-of-an-animation">§ 4.5.4 Setting the current time of an animation</a>)
+  via the <a data-link-type="dfn" href="#web-animations-api" id="ref-for-web-animations-api①①">Web Animations API</a>,
+  the value returned when querying the animation’s <code>startTime</code>
+  will reflect updated state of the model immediately.</p>
+      <div class="example" id="example-f6015dd0">
+       <a class="self-link" href="#example-f6015dd0"></a>
+    
+<pre class="highlight"><c- c1>// Initially animation.effect.getComputedTiming().localTime is 3000</c->
+animation<c- p>.</c->currentTime <c- o>+=</c-> <c- mf>2000</c-><c- p>;</c->
+alert<c- p>(</c->animation<c- p>.</c->effect<c- p>.</c->getComputedTiming<c- p>().</c->localTime<c- p>);</c-> <c- c1>// Displays "5000"</c->
+</pre>
+      </div>
+     <dt data-md>Querying the computed style of a property affected by animation
+  returns the fully up-to-date state of the animation
+     <dd data-md>
+      <p>For example, if the used style of an element is queried
+  immediately after applying a new <code class="idl"><a data-link-type="idl" href="#animation" id="ref-for-animation①⑦">Animation</a></code> to that element,
+  the result of the new animation will be incorporated
+  in the value returned.</p>
+      <div class="example" id="example-ac9a1207">
+       <a class="self-link" href="#example-ac9a1207"></a>
+    
+<pre class="highlight"><c- c1>// Set opacity to 0 immediately</c->
+elem<c- p>.</c->animate<c- p>({</c-> opacity<c- o>:</c-> <c- mf>0</c-> <c- p>},</c-> <c- p>{</c-> fill<c- o>:</c-> <c- t>'forwards'</c-> <c- p>});</c->
+alert<c- p>(</c->window<c- p>.</c->getComputedStyle<c- p>(</c->elem<c- p>).</c->opacity<c- p>);</c-> <c- c1>// Displays "0"</c->
+</pre>
+      </div>
+     <dt data-md>Changes made within the same task are synchronized
+  such that the whole set of changes is rendered together
+     <dd data-md>
+      <p>As a result of changes to the model taking effect immediately
+  combined with ECMAScript’s run-to-completion semantics,
+  there should never be a situation where, for example,
+  <em>only</em> the changes to specified style are rendered
+  without applying animation.</p>
+      <div class="example" id="example-4f302d5c">
+       <a class="self-link" href="#example-4f302d5c"></a>
+    
+<pre class="highlight"><c- c1>// Fade the opacity with fallback for browsers that don't</c->
+<c- c1>// support Element.animate</c->
+elem<c- p>.</c->style<c- p>.</c->opacity <c- o>=</c-> <c- t>'0'</c-><c- p>;</c->
+elem<c- p>.</c->animate<c- p>([</c-> <c- p>{</c-> opacity<c- o>:</c-> <c- mf>1</c-> <c- p>},</c-> <c- p>{</c-> opacity<c- o>:</c-> <c- mf>0</c-> <c- p>}</c-> <c- p>],</c-> <c- mf>500</c-><c- p>);</c->
+</pre>
+      </div>
+      <p class="note" role="note"><span class="marker">Note,</span> however, that in the example above,
+  a user agent may render a frame
+  with <em>none</em> of the above changes applied.
+  This might happen, for example,
+  if rendering occurs in a separate process
+  that is scheduled to run shortly after the above task completes
+  but before the changes can be communicated to the process.</p>
+     <dt data-md>The value returned by
+  the <code>currentTime</code> attribute of a <a data-link-type="dfn" href="#document-timeline" id="ref-for-document-timeline⑥">document timeline</a>
+  will not change within a task
+     <dd data-md>
+      <p>Due to the requirement on <a data-link-type="dfn" href="#timeline" id="ref-for-timeline⑥①">timelines</a>
+  to update their <a data-link-type="dfn" href="#timeline-current-time" id="ref-for-timeline-current-time①④">current time</a>
+  each time the <a data-link-type="dfn" href="#update-animations-and-send-events" id="ref-for-update-animations-and-send-events④">update animations and send events</a> procedure is run,
+  querying the <code>currentTime</code> twice
+  within a long block of code that is executed in the same script block
+  will return the same value as shown in the following example.</p>
+      <div class="example" id="example-16dafcc0">
+       <a class="self-link" href="#example-16dafcc0"></a>
+    
+<pre class="highlight"><c- a>var</c-> a <c- o>=</c-> document<c- p>.</c->timeline<c- p>.</c->currentTime<c- p>;</c->
+<c- c1>// ... many lines of code ...</c->
+<c- a>var</c-> b <c- o>=</c-> document<c- p>.</c->timeline<c- p>.</c->currentTime<c- p>;</c->
+alert<c- p>(</c->b <c- o>-</c-> a<c- p>);</c-> <c- c1>// Displays 0</c->
+</pre>
+      </div>
+     <dt data-md>The time passed to a <code>requestAnimationFrame</code> callback
+  will be equal to <code>document.timeline.currentTime</code>
+     <dd data-md>
+      <p>Since HTML’s <a data-link-type="dfn" href="https://html.spec.whatwg.org/multipage/webappapis.html#event-loop-processing-model" id="ref-for-event-loop-processing-model">event loop processing model</a> defines
+  that the procedure to <a data-link-type="dfn" href="#update-animations-and-send-events" id="ref-for-update-animations-and-send-events⑤">update animations and send events</a>
+  is performed prior to
+  <a data-link-type="dfn" href="https://html.spec.whatwg.org/multipage/imagebitmap-and-animations.html.html#run-the-animation-frame-callbacks" id="ref-for-run-the-animation-frame-callbacks">running animation frame callbacks</a>,
+  and since the time passed to such callbacks
+  is the same <var>now</var> timestamp is passed to both procedures,
+  the <a data-link-type="dfn" href="#timeline-current-time" id="ref-for-timeline-current-time①⑤">current time</a> of a the <a data-link-type="dfn" href="#document-default-document-timeline" id="ref-for-document-default-document-timeline①⓪">default document timeline</a>
+  should match the time passed to <code>requestAnimationFrame</code>.</p>
+      <div class="example" id="example-a0637e5c">
+       <a class="self-link" href="#example-a0637e5c"></a>
+    
+<pre class="highlight">window<c- p>.</c->requestAnimationFrame<c- p>(</c-><c- a>function</c-><c- p>(</c->now<c- p>)</c-> <c- p>{</c->
+  <c- c1>// Displays 0</c->
+  alert<c- p>(</c->now <c- o>-</c-> document<c- p>.</c->timeline<c- p>.</c->currentTime<c- p>);</c->
+<c- p>});</c->
+</pre>
+      </div>
+     <dt data-md>Calling methods from this programming interface
+  will generally <em>not</em> cause transitions to be triggered
+     <dd data-md>
+      <p>Consider the following example:</p>
+      <div class="example" id="example-a8ba32df">
+       <a class="self-link" href="#example-a8ba32df"></a>
+    
+<pre class="highlight"><c- c1>// Setup transition start point</c->
+div<c- p>.</c->style<c- p>.</c->opacity <c- o>=</c-> <c- t>'1'</c-><c- p>;</c->
+getComputedStyle<c- p>(</c->div<c- p>).</c->opacity<c- p>;</c->
+
+<c- c1>// Setup transition end point</c->
+div<c- p>.</c->style<c- p>.</c->transition <c- o>=</c-> <c- t>'opacity 1s'</c-><c- p>;</c->
+div<c- p>.</c->style<c- p>.</c->opacity <c- o>=</c-> <c- t>'0'</c-><c- p>;</c->
+
+<c- c1>// Fire an animation</c->
+div<c- p>.</c->animate<c- p>({</c-> opacity<c- o>:</c-> <c- p>[</c-><c- mf>0.5</c-><c- p>,</c-> <c- mf>1</c-><c- p>]</c-> <c- p>},</c-> <c- mf>500</c-><c- p>);</c->
+
+<c- c1>// Wait for the transition to end -- the following will never be called!</c->
+div<c- p>.</c->addEventListener<c- p>(</c-><c- t>'transitionend'</c-><c- p>,</c-> <c- p>()</c-> <c- p>=></c-> <c- p>{</c->
+  console<c- p>.</c->log<c- p>(</c-><c- t>'transitionend'</c-><c- p>);</c->
+<c- p>});</c->
+</pre>
+      </div>
+      <p>In this case, calling <code class="idl"><a data-link-type="idl" href="#dom-animatable-animate" id="ref-for-dom-animatable-animate③">animate()</a></code>
+  will <em>not</em> trigger a <a data-link-type="dfn" href="https://drafts.csswg.org/css-transitions-1/#style-change-event" id="ref-for-style-change-event⑥">style change event</a>.
+  As a result, the pending style change
+  will be processed at the same time as
+  the style change resulting from the new animation.
+  Since the animation style will override
+  the <a data-link-type="dfn" href="https://drafts.csswg.org/css-transitions-1/#before-change-style" id="ref-for-before-change-style">before-change style</a> and the <a data-link-type="dfn" href="https://drafts.csswg.org/css-transitions-1/#after-change-style" id="ref-for-after-change-style">after-change style</a>,
+  no transition will be generated
+  and the event handler for the <a data-link-type="dfn" href="https://drafts.csswg.org/css-transitions/#transitionend" id="ref-for-transitionend">transitionend</a> event
+  will never be called.</p>
+    </dl>
+   </div>
+   

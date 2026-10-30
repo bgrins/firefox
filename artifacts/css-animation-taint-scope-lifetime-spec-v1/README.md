@@ -1,0 +1,26 @@
+# Animation-taint scope and lifetime
+
+Checked 30 October 2026. Current text defines a property-use restriction, not merely a winning animated-value restriction. It does not provide a sufficiently explicit ownership/lifetime model to turn every unused-rule, cancellation or ordinary-winner scenario into a conformance oracle. This broader question is separate from the sealed matched-active-rule trace.
+
+1. [Variables §2](https://drafts.csswg.org/css-variables-1/#animation-tainted) assigns taint to a custom property used in keyframes. [Replace var(), steps 1–4](https://drafts.csswg.org/css-variables-1/#replace-a-var-function) identifies the consuming element, obtains its computed custom value, then separately tests the **named property** and the sink's animation category. Fallback follows rejection. Element-specific value lookup does not itself define ownership of the taint classification.
+2. [Animations 2 §3.2, step 2.1](https://drafts.csswg.org/css-animations-2/#keyframe-processing) selects matching keyframes for a target's animation-name. No match or `none` aborts effect generation and cancels an existing matching animation. This determines effect generation; it does not explicitly make Variables' taint definition conditional on that match.
+3. [Cancel an animation, steps 2–3](https://drafts.csswg.org/web-animations-1/#cancel-an-animation) make hold/start time unresolved. Step 2 says, “Make animation’s hold time unresolved.” These assignments do not specify removing a taint classification from a property, element or stylesheet. API cancellation, CSS animation-name removal and keyframes-rule deletion are different interventions.
+4. [Cascade origin/importance order](https://drafts.csswg.org/css-cascade-5/#cascade-sort) puts important author declarations above animation declarations. This proves which ordinary custom value wins. It does not prove the winning value is untainted under Variables' separate named-property test.
+5. [Registered custom properties](https://drafts.css-houdini.org/css-properties-values-api-1/#behavior-of-custom-properties) follow unregistered rules except for specified differences. Registration changes syntax/computation, inheritance, initial values and animation behavior; the deciding clauses do not provide an explicit animation-taint exemption. This bounded reading is not an exhaustive absence proof.
+
+| Scenario | Established | Missing binding |
+|---|---|---|
+| Unmatched keyframes containing `--v` | No matching CSS effect need be generated | Whether mentioning that name affects other elements, a stylesheet, a tree scope or only a matching target |
+| Canceled or CSS-removed animation, rule retained | Timing/effect participation changes | Whether taint disappears, persists while the rule exists, or is recomputed per element |
+| Active animation plus ordinary `--v: … !important` | The important value wins | Whether ordinary winning provenance clears the named property's restriction |
+| Registration | Typed/default/inheritance behavior changes | A blanket exemption or exact transfer through every default |
+
+Property-name wording does not automatically mean a document-global permanent bit; active-value provenance is not an explicit normative replacement either. A complete model needs the taint subject, the establishing condition, affected elements/tree scopes and removal condition. This broader trace stops at those unresolved bindings.
+
+[CSSWG issue 13933](https://github.com/w3c/csswg-drafts/issues/13933) remains open in the captured API response. Its editor description distinguishes current property wording from active-value provenance. The sole captured implementation comment describes Blink's value-level behavior and important-winner consequence, while also discussing a possible per-element temporary classification. These are design alternatives, not adopted normative algorithms or permission to copy Blink as a WPT oracle. This one issue is not claimed to exhaust CSSWG discussion.
+
+`PROBES.json` proposes four diagnostic families with distinct ordinary, animated and fallback keywords. Establish source/registration/driver/identity controls separately; keep disputed sink outcomes observational. Use fresh documents, first sink plus three bounded samples before timing/membership diagnostics, and preserve acquisition failures. The strongest next pair is never-matched/sibling scope and an active important winner. Cancellation should follow separately so API cancellation, CSS removal and rule deletion are not conflated.
+
+Six indexed queries/anchor checks and two bounded step traces are retained. Both traces find zero routes to the prose definition; this is not a non-reachability proof. The manual chain above reads the actual deciding sections. Current Variables/Animations/Web Animations hashes match the sealed primary captures; current Cascade was independently fetched. Indexed Properties content is older than the editor draft, so the previous sealed current primary body supplies registration wording.
+
+**Verdict: INCONCLUSIVE** for a complete ownership/lifetime rule across these scenarios. An explicit scope/clearing rule would resolve the gap. No browser execution, native conformance claim, accepted fix or predecessor change is made here.

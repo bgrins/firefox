@@ -1,0 +1,31 @@
+--- v1/check.py
++++ v2/check.py
+@@ -76,3 +76,28 @@
+                   "synthetic_equal_candidate_passes": True,
+                   "synthetic_regression_is_complete_but_comparison_fails": True,
+                   "negative_checks": negative, "live_guard_or_browser_executed": False}, indent=2))
++
++
++baseline = load("reduced_bound_baseline", HERE / "baseline.py")
++ownership = baseline.load("reduced_bound_ownership", policy["ownership_helper"])
++baseline.restoration_binding(policy, ownership)
++mutations = [
++    ("current epoch", lambda p: p["controls"].update({"CURRENT-EPOCH.json": "0" * 64})),
++    ("OWNED control", lambda p: p["controls"].update({"OWNED.json": "0" * 64})),
++    ("restored app identity", lambda p: p["prepared_application_metadata"].update(identity=[0, 0])),
++    ("restored entry identity", lambda p: p["prepared_application_metadata"].update(entry_identity=[0, 0])),
++    ("restored app body", lambda p: p["prepared_application_metadata"].update(sha256="0" * 64)),
++    ("prior flags", lambda p: p["prepared_flag_hashes"].update(root="0" * 64)),
++    ("HEAD", lambda p: p.update(head="0" * 40)),
++    ("missing closed process", lambda p: p["closed_process_receipts"].pop()),
++]
++for label, mutate in mutations:
++    wrong = copy.deepcopy(policy)
++    mutate(wrong)
++    try:
++        baseline.restoration_binding(wrong, ownership)
++    except AssertionError:
++        continue
++    raise AssertionError(label)
++print(json.dumps({"saved_restoration_join": True, "binding_negatives": [label for label, _ in mutations],
++                  "live_guard_executed": False}, indent=2))

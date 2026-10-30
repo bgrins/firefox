@@ -1,0 +1,11 @@
+import DefaultSelection
+#print axioms DefaultSelection.inherited_has_no_recomputation_edge
+#print axioms DefaultSelection.initial_system_keeps_edge
+#print axioms DefaultSelection.initial_absolute_has_no_scheme_edge
+#print axioms DefaultSelection.successful_parse_ignores_default
+#print axioms DefaultSelection.initial_and_computed_are_distinct
+#print axioms DefaultSelection.computed_copy_is_stable
+#print axioms DefaultSelection.invalid_parse_counterexample
+#print axioms DefaultSelection.retained_default_repairs_counterexample
+#print axioms DefaultSelection.chosen_scheduler_matches_evaluation
+#print axioms DefaultSelection.absent_stays_absent

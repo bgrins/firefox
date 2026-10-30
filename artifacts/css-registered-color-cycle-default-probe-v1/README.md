@@ -1,0 +1,13 @@
+# Cyclic registered-default preservation
+
+Fourteen fresh-iframe callbacks distinguish self-reference, a registered/unregistered cycle, two registered members, a cycle introduced through font-size and a scheme-backedge endpoint control. The first four forms each exercise System, light-dark and independent identifier initials; the last form has two color initials. This page is separate from the sealed five-case reproducer and 23-case preservation page. Their exact union is 42 callbacks, three pages, 45 callback/end signatures and five resources including the shared harness.
+
+Every registration must succeed. Each case records dark/light phases, changing the absent fallback name or 1em/2em declaration so the relevant value changes. The custom-property getter is first, before peer/scheme/font/literal-reference reads. Both phases are exported to `window.colorCycleDefaultObservations` and included in diagnostics before assertions. Setup failure can prevent a row; PASS callbacks do not privately transport observations.
+
+System and light-dark initial cases are conditional preservation research for the reachable clean invalid-handler recomputation route. They compare with ordinary literal color and a valid registered-expression control; no platform palette is hard-coded. They do not settle normative acceptance or timing of every context-dependent registered initial. The inherited-font check uses an explicit 16px parent. Mixed cycles separately assert that the unregistered peer remains invalid/empty, rather than assuming it behaves like a registered member with an initial.
+
+Identifier initials are valid independent `light` values in a color union. Their parent scheme is explicitly normal, so spurious cycle invalidation cannot pass by inheriting light. A blanket retained color-union edge on every cycle/default is therefore distinguishable from using the actual default value's dependency.
+
+The two scheme-backedge cases are endpoint preservation controls. Their fixed light parent can yield the same output without the hypothesized internal SCC enlargement; a passing endpoint does not prove that route was executed. The source/finite-graph review must independently justify the post-edge hook. This page asserts no native queue order, graph partition, or complete contextual attr repair.
+
+Actual static check `1d1b5a`, exit 0, registers all fourteen callbacks inertly, generates a genuine manifest, and reports zero path/content lint errors. It authenticates the shared harness and runs no browser, native build or Git operation. Original/candidate outcomes are pending; these tentative research assertions must not be relabeled expected PASS based on the proposed patch.

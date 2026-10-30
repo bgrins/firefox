@@ -1,0 +1,11 @@
+--- artifacts/css-contextual-duration-masked-input-snapshot-proposal-v1/generate.py
++++ artifacts/css-contextual-duration-masked-input-snapshot-proposal-v2/generate.py
+@@ -19,6 +19,8 @@
+         source = bodies.get(name, (HERE / "base" / name).read_text())
+         bodies[name] = replace_once(source, old, new)
+ 
++    edit("layout/style/GeckoBindings.h", "enum class UpdateAnimationsTasks : uint8_t;",
++         "enum class UpdateAnimationsTasks : uint16_t;")
+     edit("layout/style/ServoTypes.h", "enum class UpdateAnimationsTasks : uint8_t {",
+          "enum class UpdateAnimationsTasks : uint16_t {")
+     edit("layout/style/ServoTypes.h", "  TimelineScopes = 1 << 7,\n",

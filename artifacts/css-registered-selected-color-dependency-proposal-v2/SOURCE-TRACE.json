@@ -1,0 +1,92 @@
+[
+  {
+    "name": "registered_parse",
+    "path": "artifacts/css-registered-selected-color-dependency-proposal-v2/base/servo/components/style/properties_and_values/value.rs",
+    "sha256": "81f8cbca926e32c88098edba59a8b877b1ed4172f5613c73553a6d87d423960b",
+    "first_line": 344,
+    "last_line": 388,
+    "text": "    pub fn parse(\n        input: &mut CSSParser,\n        syntax: &Descriptor,\n        url_data: &UrlExtraData,\n        namespaces: Option<&FxHashMap<Prefix, Namespace>>,\n        allow_computationally_dependent: AllowComputationallyDependent,\n        attr_taint: AttrTaint,\n        property_id: Option<PropertyIdRef>,\n    ) -> Result<Self, StyleParseError> {\n        if syntax.is_universal() {\n            let parsed = ComputedPropertyValue::parse(input, namespaces, url_data)?;\n            return Ok(Self::new(\n                ValueInner::Universal(Arc::new(parsed)),\n                url_data.clone(),\n            ));\n        }\n\n        let mut values = SmallComponentVec::new();\n        let mut multiplier = None;\n        {\n            let mut parser = Parser::new(syntax, &mut values, &mut multiplier);\n            parser.parse(\n                input,\n                url_data,\n                allow_computationally_dependent,\n                attr_taint,\n                property_id,\n            )?;\n        }\n        let v = if let Some(multiplier) = multiplier {\n            ValueInner::List(ComponentList {\n                multiplier,\n                components: values.to_vec().into(),\n            })\n        } else {\n            ValueInner::Component(values[0].clone())\n        };\n        Ok(Self::new(v, url_data.clone()))\n    }\n}\n\nimpl ComputedValue {\n    /// Uncomputes the value so that it can go back into the cascade.\n    pub fn to_declared_value(&self) -> properties::CustomDeclarationValue {\n        if let ValueInner::Universal(ref var) = self.v {\n",
+    "excerpt_sha256": "712b775c9dadf082da58dd633f82e59fc584fdccae9b0f3cf467d18b107a320a"
+  },
+  {
+    "name": "ordered_alternatives",
+    "path": "artifacts/css-registered-selected-color-dependency-proposal-v2/base/servo/components/style/properties_and_values/value.rs",
+    "sha256": "81f8cbca926e32c88098edba59a8b877b1ed4172f5613c73553a6d87d423960b",
+    "first_line": 475,
+    "last_line": 501,
+    "text": "        let mut parse_components = |context: &ParserContext| {\n            for component in self.syntax.components.iter() {\n                let result = context\n                    .property_declaration_context\n                    .with_random_index_rollback(|| {\n                        input.try_parse(|input| {\n                            input.parse_entirely(|input| {\n                                Self::parse_value(context, input, &component.unpremultiplied())\n                            })\n                        })\n                    });\n                let Ok(values) = result else { continue };\n                self.output.extend(values);\n                *self.output_multiplier = component.multiplier();\n                break;\n            }\n        };\n        match property_id {\n            Some(id) => context.with_property_declaration(id, parse_components),\n            None => parse_components(&context),\n        }\n        if self.output.is_empty() {\n            return Err(StyleParseError::from_basic_kind(\n                BasicParseErrorKind::EndOfInput,\n            ));\n        }\n        Ok(())\n",
+    "excerpt_sha256": "16ab351dd814d584f6992a2eca0d4db4b66a5954ba5441ca18a2da23d9a21eea"
+  },
+  {
+    "name": "typed_attr_no_computation",
+    "path": "artifacts/css-registered-selected-color-dependency-proposal-v2/base/servo/components/style/custom_properties.rs",
+    "sha256": "8a4adc903e7d88e218ee087cbe44cc3548df70fac9353dd923d5c32de2c458f9",
+    "first_line": 2146,
+    "last_line": 2157,
+    "text": "                            AttributeType::Type(_) => {\n                                let value = reference\n                                    .attribute_data\n                                    .parse_typed_value(&mut parser, url_data, property_id)\n                                    .ok()?;\n                                let value = value.to_variable_value();\n                                Some(Substitution::from_value(\n                                    value, /* attr_tainted */ true,\n                                ))\n                            },\n                            AttributeType::RawString | AttributeType::None => {\n                                simple_attr_subst(&attr)\n",
+    "excerpt_sha256": "158ff3940ca54d93b61fd984bb0792b6a76923e7b1c89a39fa0ea68bb69a96b6"
+  },
+  {
+    "name": "original_invalid_handler",
+    "path": "artifacts/css-registered-selected-color-dependency-proposal-v2/base/servo/components/style/custom_properties.rs",
+    "sha256": "8a4adc903e7d88e218ee087cbe44cc3548df70fac9353dd923d5c32de2c458f9",
+    "first_line": 1615,
+    "last_line": 1654,
+    "text": "pub fn handle_invalid_at_computed_value_time(\n    name: &Name,\n    registration: &PropertyDescriptors,\n    context: &mut computed::Context,\n) {\n    if !registration.is_universal() {\n        // For the root element, inherited maps are empty. We should just\n        // use the initial value if any, rather than removing the name.\n        if registration.inherits() && !context.builder.is_root_element {\n            let inherited = context.builder.inherited_style.custom_properties();\n            if let Some(value) = inherited.get(registration, name) {\n                context.builder.substitution_functions.insert_var(\n                    registration,\n                    name,\n                    value.clone(),\n                );\n                return;\n            }\n        } else if let Some(ref initial_value) = registration.initial_value\n            && let Ok(initial_value) = compute_value(\n                &initial_value.css,\n                &initial_value.url_data,\n                registration,\n                context,\n                AttrTaint::default(),\n                Some(PropertyIdRef::from(name)),\n            )\n        {\n            context\n                .builder\n                .substitution_functions\n                .insert_var(registration, name, initial_value);\n            return;\n        }\n    }\n    context\n        .builder\n        .substitution_functions\n        .remove_var(registration, name);\n}\n",
+    "excerpt_sha256": "7ab31d0754ee8834ec2c8df2ac4c0da608d7ddb5df4618307b153fa115bc5193"
+  },
+  {
+    "name": "original_loop_handler",
+    "path": "artifacts/css-registered-selected-color-dependency-proposal-v2/base/servo/components/style/properties/cascade.rs",
+    "sha256": "2cc7b3d4047b9759277f41809ad7ba7baef99431c26b608bcf459b2d83764656",
+    "first_line": 2271,
+    "last_line": 2293,
+    "text": "        fn handle_loop(&mut self, name: &VarType) {\n            match name {\n                VarType::Attr(name, namespace) => {\n                    self.computed_context\n                        .builder\n                        .substitution_functions\n                        .remove_attr(name, namespace);\n                },\n                VarType::Custom(name) => {\n                    // This variable is in a loop. Resolve to invalid.\n                    handle_invalid_at_computed_value_time(\n                        name,\n                        self.stylist.get_custom_property_registration(name),\n                        self.computed_context,\n                    );\n                },\n                VarType::NonCustom(non_custom) => {\n                    self.computed_context\n                        .builder\n                        .invalid_non_custom_properties\n                        .insert(non_custom.to_prioritary_id().to_longhand());\n                },\n            }\n",
+    "excerpt_sha256": "525cfec874ee604abdb77a548c351e60fcd80fdd8d7340458a248e5912c8377e"
+  },
+  {
+    "name": "retained_parse",
+    "path": "artifacts/css-registered-selected-color-dependency-proposal-v2/candidate/servo/components/style/custom_properties.rs",
+    "sha256": "1167641d3aa44576f065535886f5aadf1cac08ede7293d96356806da12cfb8ed",
+    "first_line": 1854,
+    "last_line": 1901,
+    "text": "pub(crate) fn prepare_custom_value(\n    name: &Name,\n    value: &VariableValue,\n    stylist: &Stylist,\n    context: &computed::Context,\n    attribute_tracker: &mut AttributeTracker,\n) -> PreparedCustomValue {\n    let url_data = value.url_data.clone();\n    let substitution = substitute_internal(\n        value, Some(PropertyIdRef::from(name)), &context.builder.substitution_functions,\n        stylist, context, attribute_tracker, &mut SmallVec::new(), None,\n    ).map(|value| Substitution {\n        css: Cow::Owned(value.css.into_owned()),\n        first_token_type: value.first_token_type,\n        last_token_type: value.last_token_type,\n        attr_tainted: value.attr_tainted,\n    });\n    let registration = stylist.get_custom_property_registration(name);\n    let mut kind = match substitution.as_ref() {\n        Err(()) => PreparedCustomKind::Invalid,\n        Ok(value) => {\n            let mut parser = Parser::new(&value.css);\n            if parser.try_parse(CSSWideKeyword::parse).is_ok() || registration.is_universal() {\n                PreparedCustomKind::Existing\n            } else if let Some(syntax) = registration.syntax.as_ref() {\n                let taint = if value.attr_tainted {\n                    AttrTaint::new_fully_tainted(value.css.len())\n                } else {\n                    AttrTaint::default()\n                };\n                let mut parser = Parser::new(&value.css);\n                match SpecifiedRegisteredValue::parse(\n                    &mut parser, syntax, &url_data, None,\n                    AllowComputationallyDependent::Yes, taint, Some(PropertyIdRef::from(name)),\n                ) {\n                    Ok(parsed) => PreparedCustomKind::Typed(parsed),\n                    Err(_) => PreparedCustomKind::Invalid,\n                }\n            } else {\n                PreparedCustomKind::Invalid\n            }\n        },\n    };\n    if matches!(kind, PreparedCustomKind::Invalid) {\n        kind = prepare_invalid_custom_kind(name, registration, context);\n    }\n    PreparedCustomValue { substitution, url_data: value.url_data.clone(), kind }\n}\n",
+    "excerpt_sha256": "ee8612ff3029fa2dc6acf7646d6e2b1259ce9010dcf7213268ac018e84406762"
+  },
+  {
+    "name": "retained_initial_apply",
+    "path": "artifacts/css-registered-selected-color-dependency-proposal-v2/candidate/servo/components/style/custom_properties.rs",
+    "sha256": "1167641d3aa44576f065535886f5aadf1cac08ede7293d96356806da12cfb8ed",
+    "first_line": 1842,
+    "last_line": 1846,
+    "text": "            PreparedCustomKind::Initial(specified) => {\n                let value = specified.to_computed_value(context);\n                context.builder.substitution_functions.insert_var(registration, name, value);\n            },\n            PreparedCustomKind::Invalid => handle_invalid_at_computed_value_time(name, registration, context),\n",
+    "excerpt_sha256": "a3d5df87a93a684c60120183226a33cc550ed11be2004d3841a6e6235c361faa"
+  },
+  {
+    "name": "selected_graph_edge",
+    "path": "artifacts/css-registered-selected-color-dependency-proposal-v2/candidate/servo/components/style/properties/cascade.rs",
+    "sha256": "4e01a5d1fa0a3a17cf1418b36754db993a4fca8a6e75f0074844910ed2ae60a7",
+    "first_line": 2632,
+    "last_line": 2651,
+    "text": "                let may_compute_color = value_non_custom_refs.intersects(ReferenceFlags::COLOR_SCHEME);\n                value_non_custom_refs.remove(ReferenceFlags::COLOR_SCHEME);\n                if registered && may_compute_color && lowlink == index && !self_ref\n                    && context.stack.last() == Some(&index)\n                {\n                    let prepared = prepare_custom_value(\n                        name, v, context.stylist, context.computed_context, attribute_tracker,\n                    );\n                    if prepared.depends_on_color_scheme() {\n                        value_non_custom_refs |= ReferenceFlags::COLOR_SCHEME;\n                    }\n                    prepared_custom = Some(prepared);\n                }\n            }\n\n            // ... Then the non-custom properties this value depends on (font-size, line-height,\n            // color-scheme), as computed by `find_non_custom_references` above.\n            let is_root = context.computed_context.is_root_element();\n            if registered && !value_non_custom_refs.is_empty() {\n                value_non_custom_refs.for_each_non_custom(is_root, |r| {\n",
+    "excerpt_sha256": "d54ece01507e68bee49112decb98e532cb37a62024987e6c1be4e21f055a62de"
+  },
+  {
+    "name": "invalid_initial_selector",
+    "path": "artifacts/css-registered-selected-color-dependency-proposal-v2/candidate/servo/components/style/custom_properties.rs",
+    "sha256": "1167641d3aa44576f065535886f5aadf1cac08ede7293d96356806da12cfb8ed",
+    "first_line": 1903,
+    "last_line": 1937,
+    "text": "fn prepare_invalid_custom_kind(\n    name: &Name,\n    registration: &PropertyDescriptors,\n    context: &computed::Context,\n) -> PreparedCustomKind {\n    if !registration.is_universal()\n        && (!registration.inherits() || context.builder.is_root_element)\n        && let (Some(initial), Some(syntax)) = (&registration.initial_value, &registration.syntax)\n    {\n        let mut parser = Parser::new(&initial.css);\n        if let Ok(parsed) = SpecifiedRegisteredValue::parse(\n            &mut parser, syntax, &initial.url_data, None,\n            AllowComputationallyDependent::Yes, AttrTaint::default(), Some(PropertyIdRef::from(name)),\n        ) {\n            return PreparedCustomKind::Initial(parsed);\n        }\n    }\n    PreparedCustomKind::Invalid\n}\n\npub(crate) fn invalid_custom_value_depends_on_color_scheme(\n    name: &Name,\n    stylist: &Stylist,\n    context: &computed::Context,\n) -> bool {\n    match prepare_invalid_custom_kind(name, stylist.get_custom_property_registration(name), context) {\n        PreparedCustomKind::Initial(value) => value.depends_on_color_scheme(),\n        _ => false,\n    }\n}\n\n#[derive(Default, Debug)]\nstruct Substitution<'a> {\n    css: Cow<'a, str>,\n    first_token_type: TokenSerializationType,\n",
+    "excerpt_sha256": "81ef0312973ea1705ae32173e9d6ce70384a151e5ce2cbc7272d5fe51df05b4e"
+  },
+  {
+    "name": "late_cycle_edge",
+    "path": "artifacts/css-registered-selected-color-dependency-proposal-v2/candidate/servo/components/style/properties/cascade.rs",
+    "sha256": "4e01a5d1fa0a3a17cf1418b36754db993a4fca8a6e75f0074844910ed2ae60a7",
+    "first_line": 2712,
+    "last_line": 2728,
+    "text": "            let cyclic = self_ref || lowlink < index || context.stack.last() != Some(&index);\n            if registered && cyclic\n                && !value_non_custom_refs.intersects(ReferenceFlags::COLOR_SCHEME)\n                && invalid_custom_value_depends_on_color_scheme(\n                    name, context.stylist, context.computed_context,\n                )\n            {\n                visit_link(\n                    VarType::NonCustom(SingleNonCustomReference::ColorScheme), index,\n                    references_from_non_custom_properties, context, &mut lowlink,\n                    &mut self_ref, attribute_tracker,\n                );\n            }\n        }\n\n        context.var_info[index].lowlink = lowlink;\n        if lowlink != index {\n",
+    "excerpt_sha256": "14b26fb1603cb84d9f80b323e20df90c037dd8a19f33d221bed7c097dbaae1b1"
+  }
+]

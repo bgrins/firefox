@@ -1,0 +1,115 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1813,6 +1813,7 @@
+ enum PreparedCustomKind {
+     Existing,
+     Typed(SpecifiedRegisteredValue),
++    Initial(SpecifiedRegisteredValue),
+     Invalid,
+ }
+ 
+@@ -1825,7 +1826,7 @@
+ impl PreparedCustomValue {
+     pub fn depends_on_color_scheme(&self) -> bool {
+         match &self.kind {
+-            PreparedCustomKind::Typed(value) => value.depends_on_color_scheme(),
++            PreparedCustomKind::Typed(value) | PreparedCustomKind::Initial(value) => value.depends_on_color_scheme(),
+             PreparedCustomKind::Existing | PreparedCustomKind::Invalid => false,
+         }
+     }
+@@ -1836,6 +1837,10 @@
+             PreparedCustomKind::Typed(specified) => {
+                 let mut value = specified.to_computed_value(context);
+                 value.attr_tainted |= self.substitution.unwrap().attr_tainted;
++                context.builder.substitution_functions.insert_var(registration, name, value);
++            },
++            PreparedCustomKind::Initial(specified) => {
++                let value = specified.to_computed_value(context);
+                 context.builder.substitution_functions.insert_var(registration, name, value);
+             },
+             PreparedCustomKind::Invalid => handle_invalid_at_computed_value_time(name, registration, context),
+@@ -1864,7 +1869,7 @@
+         attr_tainted: value.attr_tainted,
+     });
+     let registration = stylist.get_custom_property_registration(name);
+-    let kind = match substitution.as_ref() {
++    let mut kind = match substitution.as_ref() {
+         Err(()) => PreparedCustomKind::Invalid,
+         Ok(value) => {
+             let mut parser = Parser::new(&value.css);
+@@ -1889,7 +1894,41 @@
+             }
+         },
+     };
++    if matches!(kind, PreparedCustomKind::Invalid) {
++        kind = prepare_invalid_custom_kind(name, registration, context);
++    }
+     PreparedCustomValue { substitution, url_data: value.url_data.clone(), kind }
++}
++
++fn prepare_invalid_custom_kind(
++    name: &Name,
++    registration: &PropertyDescriptors,
++    context: &computed::Context,
++) -> PreparedCustomKind {
++    if !registration.is_universal()
++        && (!registration.inherits() || context.builder.is_root_element)
++        && let (Some(initial), Some(syntax)) = (&registration.initial_value, &registration.syntax)
++    {
++        let mut parser = Parser::new(&initial.css);
++        if let Ok(parsed) = SpecifiedRegisteredValue::parse(
++            &mut parser, syntax, &initial.url_data, None,
++            AllowComputationallyDependent::Yes, AttrTaint::default(), Some(PropertyIdRef::from(name)),
++        ) {
++            return PreparedCustomKind::Initial(parsed);
++        }
++    }
++    PreparedCustomKind::Invalid
++}
++
++pub(crate) fn invalid_custom_value_depends_on_color_scheme(
++    name: &Name,
++    stylist: &Stylist,
++    context: &computed::Context,
++) -> bool {
++    match prepare_invalid_custom_kind(name, stylist.get_custom_property_registration(name), context) {
++        PreparedCustomKind::Initial(value) => value.depends_on_color_scheme(),
++        _ => false,
++    }
+ }
+ 
+ #[derive(Default, Debug)]
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -13,7 +13,7 @@
+     ComputedCustomProperties, ComputedSubstitutionFunctions, Name, NonCustomReferenceMap,
+     ReferenceFlags, References, SingleNonCustomReference, SubstitutionFunctionKind, VariableValue,
+     get_attr_value_for_cycle_resolution, handle_invalid_at_computed_value_time,
+-    prepare_custom_value, remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
++    invalid_custom_value_depends_on_color_scheme, prepare_custom_value, remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
+ };
+ use crate::dom::{AttributeTracker, DummyElementContext, ElementContext, TElement};
+ #[cfg(feature = "gecko")]
+@@ -2708,6 +2708,22 @@
+             }
+         }
+ 
++        if let VarType::Custom(ref name) = var {
++            let cyclic = self_ref || lowlink < index || context.stack.last() != Some(&index);
++            if registered && cyclic
++                && !value_non_custom_refs.intersects(ReferenceFlags::COLOR_SCHEME)
++                && invalid_custom_value_depends_on_color_scheme(
++                    name, context.stylist, context.computed_context,
++                )
++            {
++                visit_link(
++                    VarType::NonCustom(SingleNonCustomReference::ColorScheme), index,
++                    references_from_non_custom_properties, context, &mut lowlink,
++                    &mut self_ref, attribute_tracker,
++                );
++            }
++        }
++
+         context.var_info[index].lowlink = lowlink;
+         if lowlink != index {
+             // This variable is in a loop, but it is not the root of this strong connected

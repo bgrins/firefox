@@ -1,0 +1,114 @@
+[
+  {
+    "path": "artifacts/css-animation-active-value-taint-proposal-v2/candidate/servo/components/style/custom_properties.rs",
+    "source_sha256": "37fd4cb00f4c6bbbb2eb5f732f5f46ab34c8a4044acaa8f3dd35cbb11ebababa",
+    "first_line": 679,
+    "last_line": 685,
+    "text": "pub struct ComputedSubstitutionFunctions {\n    /// The applicable custom properties (includes inherited and non-inherited).\n    pub custom_properties: ComputedCustomProperties,\n    /// The applicable DOM attributes.\n    pub attributes: PrecomputedHashMap<Namespace, OwnMap>,\n}\n\n",
+    "text_sha256": "fab4e7c05856acd4720a9c4ea8adf78ba6ac5c7bf951a5fc6448e8de828285c5"
+  },
+  {
+    "path": "artifacts/css-animation-active-value-taint-proposal-v2/candidate/servo/components/style/custom_properties.rs",
+    "source_sha256": "37fd4cb00f4c6bbbb2eb5f732f5f46ab34c8a4044acaa8f3dd35cbb11ebababa",
+    "first_line": 710,
+    "last_line": 723,
+    "text": "    /// Store a computed attribute value by its expanded name.\n    #[inline(always)]\n    pub fn insert_attr(\n        &mut self,\n        name: &Name,\n        namespace: &Namespace,\n        value: ComputedRegisteredValue,\n    ) {\n        self.attributes\n            .entry(namespace.clone())\n            .or_default()\n            .insert(name.clone(), Some(value));\n    }\n\n",
+    "text_sha256": "57c22fdf1de89b86a319804f6694f3298329d4e5cbcbba218f9a5cf1bd8e8375"
+  },
+  {
+    "path": "artifacts/css-animation-active-value-taint-proposal-v2/candidate/servo/components/style/custom_properties.rs",
+    "source_sha256": "37fd4cb00f4c6bbbb2eb5f732f5f46ab34c8a4044acaa8f3dd35cbb11ebababa",
+    "first_line": 747,
+    "last_line": 765,
+    "text": "    pub(crate) fn contains_attr(&self, name: &Name, namespace: &Namespace) -> bool {\n        self.attributes\n            .get(namespace)\n            .is_some_and(|attributes| attributes.contains_key(name))\n    }\n\n    #[inline(always)]\n    pub(crate) fn get_attr(\n        &self,\n        name: &Name,\n        namespace: &Namespace,\n    ) -> Option<&ComputedRegisteredValue> {\n        self.attributes\n            .get(namespace)?\n            .get(name)\n            .and_then(|p| p.as_ref())\n    }\n}\n\n",
+    "text_sha256": "b1f84f4fcc25e5f2f85193c3597ff9c55c1332ade39875c369ec63c7733494e6"
+  },
+  {
+    "path": "artifacts/css-animation-active-value-taint-proposal-v2/candidate/servo/components/style/custom_properties.rs",
+    "source_sha256": "37fd4cb00f4c6bbbb2eb5f732f5f46ab34c8a4044acaa8f3dd35cbb11ebababa",
+    "first_line": 1600,
+    "last_line": 1620,
+    "text": "/// See step 6: https://drafts.csswg.org/css-values-5/#attr-substitution\npub fn get_attr_value_for_cycle_resolution(\n    name: &Name,\n    attribute_data: &AttributeData,\n    url_data: &UrlExtraData,\n    attribute_tracker: &mut AttributeTracker,\n) -> Result<ComputedRegisteredValue, ()> {\n    let namespace = match attribute_data.namespace {\n        ParsedNamespace::Known(ref ns) => ns,\n        ParsedNamespace::Unknown => return Err(()),\n    };\n    let attr = LocalName::with_name(name, |local_name| {\n        attribute_tracker.query(local_name, namespace).ok_or(())\n    })?;\n    let mut parser = Parser::new(&attr);\n    // TODO(Bug 2021110): Support namespaced attributes in chained references.\n    let value = VariableValue::parse(&mut parser, None, url_data).map_err(|_| ())?;\n    Ok(ComputedRegisteredValue::universal(Arc::new(value)))\n}\n\n/// See https://drafts.csswg.org/css-variables-2/#invalid-at-computed-value-time\n",
+    "text_sha256": "cb631a3a6983f44e75738f2d2789d1139cced64db09ffd796e2a504c13a93c0d"
+  },
+  {
+    "path": "artifacts/css-animation-active-value-taint-proposal-v2/candidate/servo/components/style/custom_properties.rs",
+    "source_sha256": "37fd4cb00f4c6bbbb2eb5f732f5f46ab34c8a4044acaa8f3dd35cbb11ebababa",
+    "first_line": 1723,
+    "last_line": 1760,
+    "text": "/// Replace `var()`, `env()`, and `attr()` functions in a pre-existing variable value.\npub fn substitute_references_if_needed_and_apply(\n    name: &Name,\n    namespace: Option<&Namespace>,\n    value: &Arc<VariableValue>,\n    stylist: &Stylist,\n    context: &mut computed::Context,\n    attribute_tracker: &mut AttributeTracker,\n) {\n    let is_var = namespace.is_none();\n    let registration = stylist.get_custom_property_registration(name);\n    if is_var && !value.has_references() && registration.is_universal() {\n        // Trivial path: no references and no need to compute the value, just apply it directly.\n        let computed_value = ComputedRegisteredValue::universal(Arc::clone(value));\n        context\n            .builder\n            .substitution_functions\n            .insert_var(registration, name, computed_value);\n        return;\n    }\n\n    let url_data = &value.url_data;\n    let mut state = SubstitutionState::default();\n    if is_var {\n        state.names.push(name);\n    }\n    let substitution = substitute_internal(\n        value,\n        Some(PropertyIdRef::from(name)),\n        &context.builder.substitution_functions,\n        stylist,\n        context,\n        attribute_tracker,\n        &mut state,\n        None,\n        false,\n    );\n    let substitution = if is_var && state.cyclic_names.contains(&name) {\n",
+    "text_sha256": "1f1045841f3d4582ddfb5c8e2098d548fcfa2059ea8012adeff8e34d3bd2d737"
+  },
+  {
+    "path": "artifacts/css-animation-active-value-taint-proposal-v2/candidate/servo/components/style/custom_properties.rs",
+    "source_sha256": "37fd4cb00f4c6bbbb2eb5f732f5f46ab34c8a4044acaa8f3dd35cbb11ebababa",
+    "first_line": 1839,
+    "last_line": 1860,
+    "text": "        Some(namespace) => {\n            let mut value =\n                ComputedRegisteredValue::universal(Arc::new(VariableValue::new_resolved(\n                    substitution.css.into_owned(),\n                    url_data,\n                    substitution.first_token_type,\n                    substitution.last_token_type,\n                )));\n            value.attr_tainted |= substitution.attr_tainted;\n            context\n                .builder\n                .substitution_functions\n                .insert_attr(name, namespace, value);\n        },\n    }\n}\n\n#[derive(Default)]\nstruct SubstitutionState<'a> {\n    names: SmallVec<[&'a Name; 8]>,\n    cyclic_names: SmallVec<[&'a Name; 8]>,\n}\n",
+    "text_sha256": "ac537959a3325f58324ec2c7ac42039d642177987bd82d880fb7ec304ba61bb9"
+  },
+  {
+    "path": "artifacts/css-animation-active-value-taint-proposal-v2/candidate/servo/components/style/custom_properties.rs",
+    "source_sha256": "37fd4cb00f4c6bbbb2eb5f732f5f46ab34c8a4044acaa8f3dd35cbb11ebababa",
+    "first_line": 2170,
+    "last_line": 2202,
+    "text": "                // recursively, guarding against cycles (which the resolver will also remove, but it\n                // may not have gotten to this variable yet).\n                Some(v) => match v.as_universal() {\n                    Some(u) if u.has_references() => {\n                        if let Some(index) =\n                            seen.names.iter().position(|name| *name == &reference.name)\n                        {\n                            for name in &seen.names[index..] {\n                                if !seen.cyclic_names.contains(name) {\n                                    seen.cyclic_names.push(*name);\n                                }\n                            }\n                            // Cycle: the primary is guaranteed-invalid, so fall through to the\n                            // fallback (if any), like any other invalid primary.\n                            None\n                        } else {\n                            seen.names.push(&reference.name);\n                            let result = substitute_internal(\n                                u,\n                                property_id,\n                                substitution_functions,\n                                stylist,\n                                computed_context,\n                                attribute_tracker,\n                                seen,\n                                /* attr_taint */ None,\n                                true,\n                            );\n                            seen.names.pop();\n                            if seen.cyclic_names.contains(&&reference.name) {\n                                invalid_at_computed_value_time_value(\n                                    &reference.name,\n                                    registration,\n",
+    "text_sha256": "a1dab0b2fbc42cdbafd5a7b79ba3c2e2e32a7200e8681f2a08f778c332db5d47"
+  },
+  {
+    "path": "artifacts/css-animation-active-value-taint-proposal-v2/candidate/servo/components/style/custom_properties.rs",
+    "source_sha256": "37fd4cb00f4c6bbbb2eb5f732f5f46ab34c8a4044acaa8f3dd35cbb11ebababa",
+    "first_line": 2292,
+    "last_line": 2343,
+    "text": "                            None\n                        }\n                    },\n                    |attr| {\n                        let attr = if let AttributeType::Type(_) = &reference.attribute_data.kind {\n                            // If we're evaluating a container query, we haven't run the cascade\n                            // and populated substitution_functions.attributes, so we can't do the\n                            // get_attr() lookup here.\n                            // TODO: This means chained attr() references will not work reliably in\n                            // container style queries:\n                            // https://bugzilla.mozilla.org/show_bug.cgi?id=2028861\n                            if computed_context.in_container_query {\n                                attr\n                            } else {\n                                substitution_functions\n                                    .get_attr(&reference.name, namespace?)\n                                    .map(|v| v.to_variable_value())?\n                                    .css\n                            }\n                        } else {\n                            attr\n                        };\n                        let mut parser = Parser::new(&attr);\n                        match &reference.attribute_data.kind {\n                            AttributeType::Unit(unit) => {\n                                let css = {\n                                    let mut s = String::from(parse_attr_number(&mut parser).ok()?);\n                                    s.push_str(unit.as_ref());\n                                    s\n                                };\n                                let serialization = match unit {\n                                    AttrUnit::Number => TokenSerializationType::Number,\n                                    AttrUnit::Percentage => TokenSerializationType::Percentage,\n                                    _ => TokenSerializationType::Dimension,\n                                };\n                                let value =\n                                    ComputedValue::new(css, url_data, serialization, serialization);\n                                Some(Substitution::from_value(\n                                    value, /* attr_tainted */ true,\n                                ))\n                            },\n                            AttributeType::Type(_) => {\n                                let value = reference\n                                    .attribute_data\n                                    .parse_typed_value(&mut parser, url_data, property_id)\n                                    .ok()?;\n                                let value = value.to_variable_value();\n                                Some(Substitution::from_value(\n                                    value, /* attr_tainted */ true,\n                                ))\n                            },\n                            AttributeType::RawString | AttributeType::None => {\n",
+    "text_sha256": "832c814cca1ed4be1d1ee6b2a4bb6dfc65b5f8f07eb8cd7908be266a5f38d400"
+  },
+  {
+    "path": "artifacts/css-animation-active-value-taint-proposal-v2/candidate/servo/components/style/custom_properties.rs",
+    "source_sha256": "37fd4cb00f4c6bbbb2eb5f732f5f46ab34c8a4044acaa8f3dd35cbb11ebababa",
+    "first_line": 2353,
+    "last_line": 2384,
+    "text": "    let substitution = substitution.filter(|value| {\n        !(reference.substitution_kind == SubstitutionFunctionKind::Var\n            && value.animation_tainted\n            && !suppress_animation_taint_sink\n            && matches!(property_id, Some(PropertyIdRef::NonCustom(id)) if !id.is_animatable()))\n    });\n    if let Some(s) = substitution {\n        return Ok(s);\n    }\n\n    let Some(ref fallback) = reference.fallback else {\n        return Err(());\n    };\n\n    do_substitute_chunk(\n        css,\n        fallback.start.get(),\n        reference.end - 1, // Skip the closing parenthesis of the reference value.\n        fallback.first_token_type,\n        fallback.last_token_type,\n        url_data,\n        property_id,\n        substitution_functions,\n        stylist,\n        computed_context,\n        &fallback.references.refs,\n        attribute_tracker,\n        seen,\n        /* attr_taint */ None,\n        suppress_animation_taint_sink,\n    )\n}\n",
+    "text_sha256": "028d7ee102193cc3c7577e73b511082a43167d93ffdb8ad00b14b9f5656190e8"
+  },
+  {
+    "path": "artifacts/css-animation-active-value-taint-proposal-v2/candidate/servo/components/style/properties/cascade.rs",
+    "source_sha256": "8fdcee027044456aef740f41c13081b0a36f8012a39000b47375c91bba026314",
+    "first_line": 2391,
+    "last_line": 2420,
+    "text": "                let next_var = if next.substitution_kind == SubstitutionFunctionKind::Attr {\n                    if !next.is_attr_with_type() {\n                        if let Some(ref fallback) = next.fallback\n                            && !next\n                                .attribute_data\n                                .non_type_primary_is_valid(&next.name, attribute_tracker)\n                        {\n                            refs_stack.push(&fallback.references);\n                        }\n                        continue;\n                    }\n                    let Some(namespace) = next.attribute_data.namespace() else {\n                        if let Some(ref fallback) = next.fallback {\n                            refs_stack.push(&fallback.references);\n                        }\n                        continue;\n                    };\n                    if !context.map().contains_attr(&next.name, namespace)\n                        && let Ok(val) = get_attr_value_for_cycle_resolution(\n                            &next.name,\n                            &next.attribute_data,\n                            url_data,\n                            attribute_tracker,\n                        )\n                    {\n                        context.map_mut().insert_attr(&next.name, namespace, val);\n                    }\n                    VarType::Attr(next.name.clone(), namespace.clone())\n                } else {\n                    VarType::Custom(next.name.clone())\n",
+    "text_sha256": "245e8ac61189d0daf59f954a5f5057478c61022254b9ea0299f89166c1f86d3e"
+  },
+  {
+    "path": "artifacts/css-animation-active-value-taint-proposal-v2/candidate/servo/components/style/properties/cascade.rs",
+    "source_sha256": "8fdcee027044456aef740f41c13081b0a36f8012a39000b47375c91bba026314",
+    "first_line": 2636,
+    "last_line": 2660,
+    "text": "            debug_assert!(\n                matches!(var, VarType::Custom(_) | VarType::Attr(..)),\n                \"Non-custom property has references?\"\n            );\n\n            let property_id = match &var {\n                VarType::Custom(name) | VarType::Attr(name, _) => Some(PropertyIdRef::from(name)),\n                VarType::NonCustom(_) => unreachable!(),\n            };\n            // Visit the references in this value...\n            visit_value_references(\n                &v.references,\n                &v.url_data,\n                property_id,\n                index,\n                references_from_non_custom_properties,\n                context,\n                &mut lowlink,\n                &mut self_ref,\n                attribute_tracker,\n                &mut value_non_custom_refs,\n            );\n\n            // ... Then the non-custom properties this value depends on (font-size, line-height,\n            // color-scheme), as computed by `find_non_custom_references` above.\n",
+    "text_sha256": "ceb68bc886d0203efd81639e7d61b60376f22e78734fb8df2a303985cf8a655e"
+  },
+  {
+    "path": "artifacts/css-animation-active-value-taint-proposal-v2/candidate/servo/components/style/properties/cascade.rs",
+    "source_sha256": "8fdcee027044456aef740f41c13081b0a36f8012a39000b47375c91bba026314",
+    "first_line": 2760,
+    "last_line": 2782,
+    "text": "        if in_loop {\n            return None;\n        }\n\n        // Not in a loop, apply the value.\n        match var {\n            VarType::Custom(ref name) | VarType::Attr(ref name, _) => {\n                if let Some(ref v) = value {\n                    // We know we're not in a loop now, perform substitution.\n                    // TODO(emilio): Merge with the cycle detection loop instead?\n                    substitute_references_if_needed_and_apply(\n                        name,\n                        var.namespace(),\n                        v,\n                        context.stylist,\n                        context.computed_context,\n                        attribute_tracker,\n                    );\n                }\n            },\n            VarType::NonCustom(non_custom) => {\n                context.apply_prioritary_property(non_custom.to_prioritary_id(), attribute_tracker);\n            },\n",
+    "text_sha256": "cf5445d4707f2eb36a7cf8d573001eeca03f212d6e1e8478ba45617c08b2bef7"
+  },
+  {
+    "path": "artifacts/css-animation-active-value-taint-proposal-v2/candidate/servo/components/style/properties/cascade.rs",
+    "source_sha256": "8fdcee027044456aef740f41c13081b0a36f8012a39000b47375c91bba026314",
+    "first_line": 2347,
+    "last_line": 2356,
+    "text": "\n    /// Traverse the references in `root` (the value of a custom property or of a non-custom\n    /// property feeding a `NonCustom` node), creating graph edges to the referenced substitution\n    /// functions and updating `lowlink`/`self_ref` accordingly.\n    ///\n    /// We follow var()/attr()/env() fallbacks only when the primary substitution function is\n    /// guaranteed-invalid (i.e. when the fallback is actually used). This matches the substitution\n    /// order and the resolution of https://github.com/w3c/csswg-drafts/issues/11500: cycles (or\n    /// dependencies) that only exist through an unused fallback don't count.\n    ///\n",
+    "text_sha256": "ac3f12e9c15cbef3af34c14ee8f40958bf2d0721420d3c9b19e9d6798441ab4f"
+  },
+  {
+    "path": "artifacts/css-animation-active-value-taint-proposal-v2/candidate/servo/components/style/properties/cascade.rs",
+    "source_sha256": "8fdcee027044456aef740f41c13081b0a36f8012a39000b47375c91bba026314",
+    "first_line": 2433,
+    "last_line": 2475,
+    "text": "                // Now that the primary reference has been resolved, classify it to\n                // decide whether its fallback is used.\n                let kind = next.substitution_kind;\n                let resolved = match kind {\n                    SubstitutionFunctionKind::Var => {\n                        let registration =\n                            context.stylist.get_custom_property_registration(&next.name);\n                        context.map().get_var(registration, &next.name)\n                    },\n                    SubstitutionFunctionKind::Attr => next\n                        .attribute_data\n                        .namespace()\n                        .and_then(|namespace| context.map().get_attr(&next.name, namespace)),\n                    SubstitutionFunctionKind::Env => unreachable!(\"Handled above\"),\n                };\n                // The primary is guaranteed-invalid if it's absent from the map, or still\n                // present but unresolved (i.e. part of a cycle currently being resolved).\n                let mut primary_valid = false;\n                if let Some(resolved) = resolved {\n                    if let Some(v) = resolved.as_universal() {\n                        primary_valid = !v.has_references();\n                        *non_custom_references |= v.references.flags;\n                    } else {\n                        // Resolved and computed value, no other custom references left.\n                        primary_valid = true;\n                    }\n                    if primary_valid && next.is_attr_with_type() {\n                        let value = resolved.to_variable_value();\n                        primary_valid = next\n                            .attribute_data\n                            .parse_typed_value(\n                                &mut cssparser::Parser::new(&value.css),\n                                url_data,\n                                property_id,\n                            )\n                            .is_ok();\n                    }\n                }\n\n                if !primary_valid && let Some(ref fallback) = next.fallback {\n                    refs_stack.push(&fallback.references);\n                }\n            }\n",
+    "text_sha256": "634a0bf768318eacd171444b4be65b8031cd2d9eedb3bb836751bbdd96a84e5c"
+  }
+]

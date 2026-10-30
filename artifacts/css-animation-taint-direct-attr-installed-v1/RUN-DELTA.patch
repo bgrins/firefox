@@ -1,0 +1,65 @@
+--- artifacts/css-animation-taint-waapi-installed-v1/run.py
++++ artifacts/css-animation-taint-direct-attr-installed-v1/run.py
+@@ -82,11 +82,11 @@
+     assert isinstance(payload, dict) and set(payload) == {'run_id', 'report'} and payload['run_id'] == run_id
+     report = payload['report']
+     assert set(report) == {'schema', 'status', 'userAgent', 'policyVerdict', 'observations'}
+-    assert report['schema'] == 'waapi-taint-observation-v1' and report['policyVerdict'] is None
++    assert report['schema'] == 'direct-attr-observation-v1' and report['policyVerdict'] is None
+     assert report['status'] in ('complete', 'incomplete')
+     pattern = r'Firefox/158\.0(?:\s|$)' if browser == 'firefox' else r'(?:Headless)?Chrome/156\.0\.\d+\.\d+(?:\s|$)'
+     assert isinstance(report['userAgent'], str) and re.search(pattern, report['userAgent'])
+-    assert isinstance(report['observations'], list) and len(report['observations']) == 3
++    assert isinstance(report['observations'], list) and len(report['observations']) == 4
+ 
+     def number(value):
+         return value is None or type(value) in (int, float) or (isinstance(value, dict) and set(value) == {'nonfinite'} and value['nonfinite'] in ['NaN', 'Infinity', '-Infinity'])
+@@ -103,8 +103,8 @@
+             assert number(timing['progress']) and number(timing['time']) and isinstance(timing['state'], str)
+             assert type(value['effectSame']) is bool
+ 
+-    for row, mode in zip(report['observations'], ['waapi', 'css', 'literal']):
+-        assert set(row) == {'mode', 'stage', 'error', 'before', 'activeSamples', 'active', 'activeMembership', 'cancelSamples', 'cancelled', 'cancelMembership', 'referenceChecks', 'policyVerdict'}
++    for row, mode in zip(report['observations'], ['tainted-attr', 'untainted-attr', 'literal-attr', 'direct-var']):
++        assert set(row) == {'mode', 'stage', 'error', 'before', 'activeSamples', 'active', 'activeMembership', 'cancelSamples', 'cancelled', 'cancelMembership', 'referenceChecks', 'activeExpectation', 'policyVerdict'}
+         assert row['mode'] == mode and row['policyVerdict'] is None
+         assert row['stage'] in ['setup', 'create', 'active samples', 'cancel', 'complete']
+         for key in ['activeSamples', 'cancelSamples']:
+@@ -121,6 +121,13 @@
+                 assert set(value) == {'count', 'sameAnimation', 'sameEffect'}
+                 assert type(value['count']) is int and value['count'] >= 0
+                 assert type(value['sameAnimation']) is bool and type(value['sameEffect']) is bool
++        expectation = row['activeExpectation']
++        if row['active'] is None:
++            assert expectation is None
++        else:
++            assert set(expectation) == {'expectedSink', 'kind', 'matches'}
++            assert isinstance(expectation['expectedSink'], str) and type(expectation['matches']) is bool
++            assert expectation['kind'] in ['control', 'direct-substitution-interpretation']
+         checks = row['referenceChecks']
+         assert isinstance(checks, list) and checks
+         assert all(set(v) == {'name', 'passed'} and isinstance(v['name'], str) and type(v['passed']) is bool for v in checks)
+@@ -275,7 +282,7 @@
+     selected = policy['browsers'][args.browser]
+     output = ROOT / selected['output']
+     output.mkdir(mode=0o700)
+-    temporary = Path(tempfile.mkdtemp(prefix='css-waapi-taint-', dir='/private/tmp'))
++    temporary = Path(tempfile.mkdtemp(prefix='css-direct-attr-', dir='/private/tmp'))
+     info = temporary.lstat()
+     identity = [info.st_dev, info.st_ino]
+     profile = temporary / 'profile'
+@@ -348,9 +355,13 @@
+     save(output / 'SERVER-ERRORS.json', receiver.errors)
+     observation_complete = receiver.report is not None and receiver.report['status'] == 'complete'
+     reference_checks_pass = receiver.report is not None and all(check['passed'] for item in receiver.report['observations'] for check in item['referenceChecks'])
++    active_controls_pass = receiver.report is not None and all(
++        row['activeExpectation'] is not None and row['activeExpectation']['matches']
++        for row in receiver.report['observations'] if row['mode'] in ['untainted-attr', 'literal-attr'])
+     complete = error is None and not receiver.errors and receiver.report is not None and cleanup.get('temporary_removed', False)
+     save(output / 'RESULT.json', {'execution_complete': complete, 'observation_complete': observation_complete,
+-        'reference_checks_pass': reference_checks_pass, 'animation_taint_policy_verdict': None, 'error': error,
++        'reference_checks_pass': reference_checks_pass, 'active_control_expectations_pass': active_controls_pass,
++        'animation_taint_policy_verdict': None, 'error': error,
+         'report_received': receiver.report is not None, 'cleanup_complete': cleanup.get('temporary_removed', False),
+         'native_acceptance': False, 'launcher_returncode_after_cleanup': process.returncode if process else None})
+     return 0 if complete else 1

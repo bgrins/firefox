@@ -1,0 +1,98 @@
+236:     fn needs_animations_update(
+237:         &self,
+238:         context: &mut StyleContext<Self>,
+239:         old_style: Option<&ComputedValues>,
+240:         new_style: &ComputedValues,
+241:         pseudo_element: Option<PseudoElement>,
+242:     ) -> bool {
+243:         let new_ui_style = new_style.get_ui();
+244:         let new_style_specifies_animations = new_ui_style.specifies_animations();
+245: 
+246:         let has_animations = self.has_css_animations(context.shared, pseudo_element);
+247:         if !new_style_specifies_animations && !has_animations {
+248:             return false;
+249:         }
+250: 
+251:         let old_style = match old_style {
+252:             Some(old) => old,
+253:             // If we have no old style but have animations, we may be a
+254:             // pseudo-element which was re-created without style changes.
+255:             //
+256:             // This can happen when we reframe the pseudo-element without
+257:             // restyling it (due to content insertion on a flex container or
+258:             // such, for example). See bug 1564366.
+259:             //
+260:             // FIXME(emilio): The really right fix for this is keeping the
+261:             // pseudo-element itself around on reframes, but that's a bit
+262:             // harder. If we do that we can probably remove quite a lot of the
+263:             // EffectSet complexity though, since right now it's stored on the
+264:             // parent element for pseudo-elements given we need to keep it
+265:             // around...
+266:             None => {
+267:                 return new_style_specifies_animations || new_style.is_pseudo_style();
+268:             },
+269:         };
+270: 
+271:         let old_ui_style = old_style.get_ui();
+272: 
+273:         let keyframes_could_have_changed = context
+274:             .shared
+275:             .traversal_flags
+276:             .contains(TraversalFlags::ForCSSRuleChanges);
+277: 
+278:         // If the traversal is triggered due to changes in CSS rules changes, we
+279:         // need to try to update all CSS animations on the element if the
+280:         // element has or will have CSS animation style regardless of whether
+281:         // the animation is running or not.
+282:         //
+283:         // TODO: We should check which @keyframes were added/changed/deleted and
+284:         // update only animations corresponding to those @keyframes.
+285:         if keyframes_could_have_changed {
+286:             return true;
+287:         }
+288: 
+289:         // If the animations changed, well...
+290:         if !old_ui_style.animations_equals(new_ui_style) {
+291:             return true;
+292:         }
+293: 
+294:         let old_display = *old_style.get_display();
+295:         let new_display = *new_style.get_display();
+296: 
+297:         // If we were display: none, we may need to trigger animations.
+298:         if old_display == Display::None && new_display != Display::None {
+299:             return new_style_specifies_animations;
+300:         }
+301: 
+302:         // If we are becoming display: none, we may need to stop animations.
+303:         if old_display != Display::None && new_display == Display::None {
+304:             return has_animations;
+305:         }
+306: 
+307:         // We might need to update animations if writing-mode or direction
+308:         // changed, and any of the animations contained logical properties.
+309:         //
+310:         // We may want to be more granular, but it's probably not worth it.
+311:         if new_style.writing_mode != old_style.writing_mode {
+312:             return has_animations;
+313:         }
+314: 
+315:         if Self::requires_animation_update_for_scroll_self(old_style, new_style) {
+316:             return has_animations;
+317:         }
+318: 
+319:         false
+439:     #[cfg(feature = "gecko")]
+440:     fn process_animations(
+441:         &self,
+442:         context: &mut StyleContext<Self>,
+443:         old_styles: &mut ElementStyles,
+444:         new_styles: &mut ResolvedElementStyles,
+445:         important_rules_changed: bool,
+446:     ) {
+447:         use crate::context::UpdateAnimationsTasks;
+448: 
+449:         let old_values = &old_styles.primary;
+450:         if context.shared.traversal_flags.for_animation_only() && old_values.is_some() {
+451:             return;
+452:         }

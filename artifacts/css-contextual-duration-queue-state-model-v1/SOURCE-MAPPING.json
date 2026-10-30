@@ -1,0 +1,78 @@
+{
+  "proposal_manifest_sha256": "86cdc605811d82bb52f1c46614a0466900c31b79a76162a0941187336ed58e9b",
+  "candidate_cpp_sha256": "99f035baa14b23ac7581c049707a0fd2a719649331ecb3fb0f067f4335856d34",
+  "mapping": [
+    {
+      "operation": "request admission",
+      "exact_source_fragment": "if (!mPresContext)",
+      "interpretation": "admitted requires both presContext and contentShell; the separate GetPresShellForContent early return is also included."
+    },
+    {
+      "operation": "request insertion",
+      "exact_source_fragment": "LookupOrInsert(key, RestyleState::Throttled)",
+      "interpretation": "insert absent as Throttled; otherwise preserve state."
+    },
+    {
+      "operation": "nonthrottled marking",
+      "exact_source_fragment": "entry == RestyleState::Throttled",
+      "interpretation": "Only non-throttled requests upgrade Throttled to Pending."
+    },
+    {
+      "operation": "retry selection",
+      "exact_source_fragment": "previousState != RestyleState::DispatchAttempted",
+      "interpretation": "Original Throttled invokes post even when blocked; prior Pending invokes it only outside all three blockers; prior Attempted coalesces."
+    },
+    {
+      "operation": "post target",
+      "exact_source_fragment": "if (!element)",
+      "interpretation": "Context/target failure leaves the entry unchanged and emits no attempt."
+    },
+    {
+      "operation": "post style-refresh guard",
+      "exact_source_fragment": "if (mPresContext->RestyleManager()->IsInStyleRefresh())",
+      "interpretation": "Together with Servo/preTraverse guards, outside defines the dispatch boundary."
+    },
+    {
+      "operation": "post lookup",
+      "exact_source_fragment": "entry.Data() = RestyleState::DispatchAttempted;",
+      "interpretation": "Mark existing entry immediately before PresShell call; absence does not insert."
+    },
+    {
+      "operation": "forced admission",
+      "exact_source_fragment": "if (iter.Data() != RestyleState::Throttled)",
+      "interpretation": "Only Throttled passes; Pending/Attempted skipped."
+    },
+    {
+      "operation": "forced upgrade",
+      "exact_source_fragment": "iter.Data() = RestyleState::Pending;",
+      "interpretation": "Upgrade before post, even when posting later defers."
+    },
+    {
+      "operation": "traversal eligibility",
+      "exact_source_fragment": "if (!flushThrottledRestyles && aIter.Data() == RestyleState::Throttled)",
+      "interpretation": "Both non-throttled enum values project to old true; table absence is not eligible."
+    },
+    {
+      "operation": "layer side effect",
+      "exact_source_fragment": "if (aRestyleType == RestyleType::Layer)",
+      "interpretation": "Count one IncrementAnimationGeneration invocation for each admitted Layer request, even if dispatch coalesces; model does not assert effectSet exists."
+    }
+  ],
+  "boundary": "Entry state at pre-PresShell-call boundary; after-call effects are external. No C++ extraction, compiler validation, concurrent execution or lifetime refinement is claimed.",
+  "exhaustive_domain": {
+    "entry_states": 4,
+    "request_kinds": 3,
+    "boolean_context_fields": 6,
+    "request_projection_cases": 768,
+    "forced_projection_cases": 256,
+    "eligibility_cases": 8
+  },
+  "scope_exclusions": [
+    "Two cascade maps/key identities/iteration ordering and reentrant mutation",
+    "Target lookup side effects and context changes between checks",
+    "Hint submission, actual queue delivery and composition",
+    "Subtree/flush eligibility conditions other than supplied flush boolean",
+    "Removal/cancellation timing; consume represents an externally authorized removal/clear",
+    "Always-throttled frame scheduling and autonomous wakeup"
+  ]
+}

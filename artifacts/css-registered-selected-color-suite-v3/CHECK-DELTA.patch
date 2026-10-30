@@ -1,0 +1,53 @@
+--- artifacts/css-registered-selected-color-suite-v2/check.py
++++ artifacts/css-registered-selected-color-suite-v3/check.py
+@@ -34,6 +34,12 @@
+         assert entry[1:] == ([[None, {}]] if name in tests else [[]])
+ 
+ 
++def cardinality(roster):
++    assert len(roster) == 4 and sum(map(len, roster.values())) == 45
++    assert sum(map(len, roster.values())) + len(roster) == 49
++    assert len({(page, name) for page, names in roster.items() for name in names}) == 45
++
++
+ def main():
+     for name, digest in read(HERE / 'REFERENCES.json').items():
+         assert sha((ROOT / name).read_bytes()) == digest
+@@ -66,10 +72,25 @@
+             else:
+                 merged_resources[name] = pin
+     assert inputs['roster'] == read(HERE / 'ROSTER.json') == merged_roster
++    cardinality(merged_roster)
++    new_page = next(page for page in merged_roster if page not in old['roster'])
++    negatives = []
++    omitted = {page:list(names) for page,names in merged_roster.items() if page != new_page}
++    negatives.append(omitted)
++    duplicate = {page:list(names) for page,names in merged_roster.items()}
++    duplicate[new_page][1] = duplicate[new_page][0]
++    negatives.append(duplicate)
++    extra = {page:list(names) for page,names in merged_roster.items()}
++    extra[new_page].append('Invented extra callback')
++    negatives.append(extra)
++    for bad in negatives:
++        try: cardinality(bad)
++        except AssertionError: pass
++        else: raise AssertionError('Malformed suite cardinality accepted')
+     assert inputs['resources'] == merged_resources
+-    assert (sum(map(len, merged_roster.values())), len(merged_roster), len(merged_resources)) == (42,3,5)
+-    assert (inputs['callbacks'],inputs['page_endings'],inputs['signatures']) == (42,3,45)
+-    assert [len(read(ROOT / b['directory'] / 'ROSTER.json')[next(iter(read(ROOT / b['directory'] / 'ROSTER.json')))]) for b in inputs['fixtures']] == [5,23,14]
++    assert (sum(map(len, merged_roster.values())), len(merged_roster), len(merged_resources)) == (45,4,6)
++    assert (inputs['callbacks'],inputs['page_endings'],inputs['signatures']) == (45,4,49)
++    assert [len(read(ROOT / b['directory'] / 'ROSTER.json')[next(iter(read(ROOT / b['directory'] / 'ROSTER.json')))]) for b in inputs['fixtures']] == [5,23,14,3]
+     manifest = read(HERE / 'MANIFEST.json')
+     manifest_check(manifest, merged_roster, merged_resources)
+     for source in manifests:
+@@ -87,7 +108,7 @@
+             old = read(ROOT / 'artifacts/css-animation-taint-clean-original-v4/POLICY.json')
+             assert old['wpt']['metadata'][name] == pin
+     assert inputs['expected_statuses'] is inputs['execution'] is inputs['current_state_binding'] is None
+-    print(json.dumps({'callbacks':42,'pages':3,'signatures':45,'resources':5,'exact_previous28_preserved':True,'genuine_manifest_entries':True,'live_reads':False}))
++    print(json.dumps({'callbacks':45,'pages':4,'signatures':49,'resources':6,'exact_previous42_preserved':True,'genuine_manifest_entries':True,'cardinality_negatives':3,'live_reads':False}))
+ 
+ 
+ if __name__ == '__main__':

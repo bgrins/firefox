@@ -1,0 +1,47 @@
+--- artifacts/css-contextual-duration-feedback-trace-original-v1/run.py
++++ artifacts/css-contextual-duration-feedback-trace-candidate-v1/run.py
+@@ -32,12 +32,15 @@
+     policy, ownership, roles = baseline.prepare(sys.argv[2])
+     assert policy['wpt'] is not None
+     if sys.argv[1] == '--check':
+-        print('Authenticated instrumented-original recipe; no live guard')
++        print('Authenticated instrumented-candidate recipe; no live guard')
+         return
+     assert policy['execution_enabled'] and policy['trace_execution_enabled']
+     assert policy['activation_pending'] == []
+     state, env, controls, original, flags, original_verify = baseline.guard(policy, ownership, roles)
+     original_before = original_verify()
++    comparison = load('trace_original_comparison', str((HERE / 'comparison.py').relative_to(ROOT)))
++    comparison.replay_all(ROOT, policy)
++    comparison.admit_restored_snapshot(ROOT, policy, original_before)
+     output = ROOT / policy['runtime_output']
+     assert output.parent == ROOT / 'artifacts' and not output.exists() and not output.is_symlink()
+     output.mkdir()
+@@ -90,7 +93,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'contextual-duration-feedback-trace-original-v1'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'contextual-duration-feedback-trace-candidate-v1'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+@@ -103,7 +106,8 @@
+             assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()
+         assert all((RUNTIME / name).read_bytes() == body for name, body in controls.items())
+         for name, pin in policy['source_context_pins'].items():
+-            assert sha(ROOT / name) == pin
++            if name not in roles:
++                assert sha(ROOT / name) == pin
+         for record in accepted.values():
+             ownership.claim(ROOT, record['path'], record['owned_sha256'], record['identity'])
+     def instrumented_verify():
+@@ -202,7 +206,7 @@
+     lock.unlink()
+     state.save(output / 'RESULT.json', {'success': success, 'error': failure, 'publication_errors': errors, 'phases': phase_result, 'trace_source_role': policy['trace_source_role'], 'restoration_verified': True, 'runtime_controls_unchanged': True, 'empty_staging_preserved': True, 'native_fix_acceptance': False, 'full_epoch_copies_saved': 0})
+     assert success, failure
+-    print('Instrumented original observation complete; original source and application restored', flush=True)
++    print('Instrumented candidate comparison complete; original source and application restored', flush=True)
+ 
+ 
+ if __name__ == '__main__':

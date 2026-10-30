@@ -1,0 +1,82 @@
+--- artifacts/css-animation-taint-registered-defaulting-probe-v1/tests/css/css-variables/animation-taint-registered-defaulting.tentative.html
++++ artifacts/css-animation-taint-registered-invalid-wpt-v1/tests/css/css-variables/animation-taint-registered-invalid-fallback.tentative.html
+@@ -1,16 +1,16 @@
+ <!doctype html>
+ <meta charset="utf-8">
+-<title>Registered invalid keyframes and underlying custom property observations</title>
+-<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#registered-custom-properties">
++<title>Registered invalid keyframes retain the animation-tainted property restriction</title>
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#parsing-custom-properties">
+ <link rel="help" href="https://drafts.csswg.org/css-variables-1/#animation-tainted">
+-<meta name="assert" content="Independent driver and registration controls distinguish invalid keyframe observations from sink taint predictions.">
++<meta name="assert" content="A registered property used in matched active keyframes is rejected by var() in writing-mode even when its keyframe value fails registered syntax.">
+ <script src="/resources/testharness.js"></script>
+ <script src="/resources/testharnessreport.js"></script>
+ <body>
+ <pre id="observations" hidden></pre>
+ <script>
+ "use strict";
+-window.registeredDefaultingObservations = {};
++window.registeredInvalidObservations = {};
+ 
+ function referenceChecks(record) {
+   const checks = [];
+@@ -23,7 +23,7 @@
+     add(`${phase.label}: fixed independent driver`, phase.cssDuration === "2s" &&
+       phase.duration === 2000 && phase.currentTime === 750 && phase.playState === "paused" &&
+       Math.abs(phase.progress - .375) <= .00001 && phase.opacity === "1" &&
+-      phase.sameAnimation && phase.sameEffect);
++      phase.sameAnimation && phase.sameEffect && phase.animationName === "hold");
+     if (record.mode !== "invalid") {
+       add(`${phase.label}: valid animated source`, phase.variable === "vertical-rl");
+     }
+@@ -35,10 +35,10 @@
+   return checks;
+ }
+ 
+-for (const mode of ["invalid", "valid", "literal"]) {
++for (const mode of ["invalid", "literal"]) {
+   promise_test(async t => {
+     const record = {mode, registration: null, calibration: null, before: null, phases: []};
+-    window.registeredDefaultingObservations[mode] = record;
++    window.registeredInvalidObservations[mode] = record;
+     const frame = document.createElement("iframe");
+     let animation;
+     t.add_cleanup(() => { animation?.cancel(); frame.remove(); });
+@@ -61,7 +61,7 @@
+       #subject { --v: vertical-rl; opacity: .25;
+         writing-mode: ${mode === "literal" ? "vertical-lr" : "var(--v, vertical-lr)"}; }
+       #subject.active { animation: hold 2s linear paused both; }
+-      #subject.changed { --v: vertical-lr; }
++      #subject.changed { --v: horizontal-tb; }
+     `;
+     doc.head.append(style);
+     doc.body.innerHTML = '<div id="calibration"><div id="child"></div></div><div id="subject"></div>';
+@@ -95,16 +95,25 @@
+         playState: animation.playState, duration: effect.getTiming().duration,
+         progress: effect.getComputedTiming().progress,
+         sameAnimation: members.length === 1 && members[0] === animation,
++        animationName: animation.animationName,
+         sameEffect: animation.effect === effect});
+     };
+     await sample("initial");
+     subject.classList.add("changed");
+     await sample("ordinary-mutation");
+-    document.getElementById("observations").textContent = JSON.stringify(window.registeredDefaultingObservations, null, 2);
++    document.getElementById("observations").textContent = JSON.stringify(window.registeredInvalidObservations, null, 2);
+     const detail = JSON.stringify(record);
+     for (const check of referenceChecks(record)) {
+       assert_true(check.passed, `${check.name}: ${detail}`);
+     }
+-  }, `Registered keyframe defaulting observation: ${mode}`);
++    if (mode === "invalid") {
++      for (const phase of record.phases) {
++        for (let i = 0; i < phase.readings.length; ++i) {
++          assert_equals(phase.readings[i], "vertical-lr",
++            `${phase.label}: tainted registered property uses fallback at reading ${i}: ${detail}`);
++        }
++      }
++    }
++  }, `Registered invalid keyframe taint fallback: ${mode}`);
+ }
+ </script>

@@ -1,0 +1,57 @@
+--- artifacts/css-contextual-duration-animated-input-candidate-v1/candidate.py
++++ artifacts/css-contextual-duration-broader-candidate-v2/candidate.py
+@@ -39,23 +39,19 @@
+     original_before = original_verify()
+     output = ROOT / policy['runtime_output']
+     binding = policy['baseline_binding']
+-    assert binding and binding['directory'] == policy['runtime_output']
++    assert binding is not None
++    original_directory = ROOT / binding['directory']
+     ownership.authenticate(ROOT / policy['baseline_capsule']['directory'], policy['baseline_capsule']['sha256'])
+-    assert policy['wpt'] == baseline.expected_wpt(policy)
+-    ownership.authenticate(output, binding['manifest_sha256'])
+-    terminal = read(output / binding['terminal_path'])
+-    assert terminal == binding['terminal'] and terminal['exit'] == 0
+-    completed = read(output / 'RESULT.json')
+-    assert sha(output / 'RESULT.json') == binding['result_sha256']
+-    assert completed['preservation_verified'] and completed['source_or_canonical_mutation'] is False
+-    assert read(output / 'original-wpt/RESULT.json')['success']
+-    assert read(output / 'original-wpt/PRE.json') == read(output / 'original-wpt/POST.json') == original_before
+-    for name, pin in completed['phase'].items():
+-        filename = {'assessment_sha256': 'ASSESSMENT.json', 'raw_sha256': 'raw.jsonl', 'result_sha256': 'RESULT.json'}[name]
+-        assert sha(output / 'original-wpt' / filename) == pin
+-    assert read(output / 'original-wpt/CLEANUP.json')['owned_group_absent']
+-    ownership.group_absent(read(output / 'original-wpt/PROCESS.json')['pgid'])
+-    assert not (output / 'CANDIDATE-PRE.json').exists()
++    ownership.authenticate(original_directory, binding['manifest_sha256'])
++    assert read(original_directory / binding['terminal_path']) == binding['terminal'] and binding['terminal']['exit'] == 0
++    assert sha(original_directory / 'RESULT.json') == binding['result_sha256']
++    assert read(original_directory / 'PRE.json') == read(original_directory / 'POST.json') == original_before
++    comparison = load('broader_original_replay', str((HERE / 'comparison.py').relative_to(ROOT)))
++    comparison.replay_all(ROOT, policy)
++    for kind in ('normative','reftest','feedback'):
++        ownership.group_absent(read(original_directory / (kind + '-wpt') / 'PROCESS.json')['pgid'])
++    assert output.parent == ROOT / 'artifacts' and not output.exists() and not output.is_symlink()
++    output.mkdir()
+     epoch = copy.deepcopy(original)
+     bases, candidates, claims = {}, {}, {}
+     for name, record in roles.items():
+@@ -104,7 +100,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'contextual-duration-animated-input-candidate'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'contextual-duration-broader-candidate-v2'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+@@ -158,7 +154,8 @@
+         binaries = {name: sha(ROOT / name) for name in policy['rebuilt_binaries']}
+         verified = candidate_verify()
+         state.save(build / 'RESULT.json', {'command_success': True, 'preservation_verified': True, 'snapshot': verified, 'binaries': binaries, 'native_sources': {name: record['candidate_sha256'] for name, record in roles.items()}, 'browser_build_performed': True, 'error': None})
+-        phase_result = wpt.run(ROOT, HERE, output / 'candidate-wpt', 'candidate', policy, env, candidate_verify, owned, lambda: stopped[0], output / 'original-wpt')
++        phases = load('broader_candidate_phases', str((HERE / 'phases.py').relative_to(ROOT)))
++        phase_result = phases.run(ROOT, HERE, output, policy, env, candidate_verify, owned, lambda: stopped[0])
+     except BaseException as exc:
+         failure = repr(exc)
+         state.save(output / 'FAILURE-TRACEBACK.json', {'error': failure, 'traceback': traceback.format_exc()})

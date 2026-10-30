@@ -1,0 +1,46 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -2509,6 +2509,7 @@
+         // of the match so we can create the corresponding nodes once we've pushed this variable.
+         let mut value_non_custom_refs = ReferenceFlags::empty();
+         let mut registered = false;
++        let mut selected_dependency_eligible = false;
+         let value = match var {
+             VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
+                 let map = &context.computed_context.builder.substitution_functions;
+@@ -2531,6 +2532,16 @@
+                 let is_root = context.computed_context.is_root_element();
+                 value_non_custom_refs = find_non_custom_references(registration, value, is_root);
+                 registered = !registration.is_universal();
++                selected_dependency_eligible = registration.syntax.as_ref().is_some_and(|syntax| {
++                    syntax.dependent_types().intersects(
++                        crate::properties_and_values::syntax::data_type::DependentDataTypes::COLOR,
++                    ) || syntax.components.iter().any(|component| {
++                        use crate::properties_and_values::syntax::{
++                            ComponentName, data_type::DataType,
++                        };
++                        matches!(component.name(), ComponentName::DataType(DataType::Image))
++                    })
++                });
+                 let has_dependency = value
+                     .references
+                     .flags
+@@ -2629,7 +2640,9 @@
+                 &mut value_non_custom_refs,
+             );
+ 
+-            if let VarType::Custom(ref name) = var {
++            if let VarType::Custom(ref name) = var
++                && selected_dependency_eligible
++            {
+                 let may_compute_color =
+                     value_non_custom_refs.intersects(ReferenceFlags::COLOR_SCHEME);
+                 value_non_custom_refs.remove(ReferenceFlags::COLOR_SCHEME);
+@@ -2720,6 +2733,7 @@
+         if let VarType::Custom(ref name) = var {
+             let cyclic = self_ref || lowlink < index || context.stack.last() != Some(&index);
+             if registered
++                && selected_dependency_eligible
+                 && cyclic
+                 && !value_non_custom_refs.intersects(ReferenceFlags::COLOR_SCHEME)
+                 && invalid_custom_value_depends_on_color_scheme(

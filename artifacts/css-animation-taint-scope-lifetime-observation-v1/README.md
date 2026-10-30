@@ -1,0 +1,15 @@
+# Rule scope and important-winner diagnostic
+
+This unexecuted page has six calibration callbacks: unused-rule/sibling scope, active important winner, and literal control, each in fresh unregistered and registered documents. It is separate from the frozen 125-case suite and supplies no execution owner or current-state binding.
+
+The ordinary subject source is `horizontal-tb`, the animated source is `vertical-rl`, and the sink fallback is `vertical-lr`. Registration uses `<custom-ident>`, inherits false, initial horizontal-tb; initial/inheritance and multi-ident syntax controls complete before the subject is inserted. Unregistered controls instead verify ordinary inheritance and preservation of the multi-ident tokens.
+
+Scope cases capture the subject with no keyframes rule, after insertion of an unused rule mentioning `--v`, and after a nonancestor sibling starts that rule. The subject never has an animation and has its own explicit custom declaration, so sibling inheritance is not the intervention. Important-winner cases capture no rule, a matched animation on the subject, then an ordinary `!important` declaration that changes the computed custom source from vertical-rl to horizontal-tb while the opacity animation remains active. Literal cases follow the important-winner sequence with a literal vertical-lr sink.
+
+Every phase captures first sink plus three frame-delayed readings before custom-property, animation and membership diagnostics. Acquisition awaits the driver's ready promise before seeking to 750 ms of its literal 2000 ms duration. Driver identity, effect identity, paused time, progress, CSS duration, opacity and matched animation name are calibrated. Complete records are stored before assertions. These sequential diagnostics do not reconstruct internal first-getter state.
+
+All variable-sink outputs, including the no-keyframes phase, are observational. There is no ordinary-winner preservation or fallback oracle for them. The six WPT PASS statuses would mean source/registration/driver/literal calibration passed, not that a taint policy was correct. The sealed scope trace leaves property-name ownership and lifetime unresolved; these cases distinguish predictions without making any browser authoritative. Cancellation is intentionally a separate future family.
+
+Records are exposed as `window.taintScopeObservations` and a hidden diagnostic element. Failures include full records after collection; setup/acquisition errors can prevent complete capture, and ordinary WPT PASS logs may omit the in-page records. No private report transport is added. Each callback cancels its owned animation and removes its iframe on cleanup.
+
+The checker inertly registers the six callback names, authenticates saved inputs/shared harness, runs WPT path/content lint and generates a genuine manifest using explicit paths. It does not invoke Git ignore discovery or execute browser callbacks. A future installed observer can capture the existing global records without adding style reads. No native implementation, live browser outcome or accepted fix is claimed.

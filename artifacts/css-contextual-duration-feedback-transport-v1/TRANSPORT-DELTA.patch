@@ -1,0 +1,21 @@
+--- v2/animation-duration-self-feedback-observation.tentative.html
++++ transport/animation-duration-self-feedback-observation.tentative.html
+@@ -52,6 +52,18 @@
+   records.push({kind: from === 0 ? "zero-start self font" :
+                        coupled ? "coupled font and opacity" : "self font", samples});
+   output.textContent = JSON.stringify(records);
++  const record = records[records.length - 1];
++  const response = await fetch("duration-feedback-record.py", {
++    method: "POST",
++    headers: {"Content-Type": "application/json"},
++    body: JSON.stringify(record),
++  });
++  assert_true(response.ok, "Feedback record acknowledged");
++  const acknowledgement = await response.json();
++  assert_equals(acknowledgement.kind, record.kind, "Acknowledged feedback kind");
++  assert_equals(acknowledgement.sampleCount, 8, "Acknowledged eight samples");
++  assert_true(typeof acknowledgement.run_id === "string" && acknowledgement.run_id.length > 0,
++              "Owner-bound acknowledgement");
+   assert_equals(samples.length, 8, "Eight bounded observations completed; no fixed-point oracle");
+ }
+ 

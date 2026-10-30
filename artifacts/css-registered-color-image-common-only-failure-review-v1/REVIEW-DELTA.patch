@@ -1,0 +1,33 @@
+--- common-review-v1/review.py
++++ failure-review-v1/review.py
+@@ -102,6 +102,8 @@
+     result = record("CANDIDATE-RESULT.json")
+     assert inputs["CANDIDATE-RESULT.json"] == terminal["result_sha256"]
+     assert result["success"] == (terminal["exit"] == 0)
++    assert terminal["exit"] == 1 and result["success"] is False
++    assert not (pair / "candidate-wpt").exists() and not (pair / "candidate-wpt").is_symlink()
+     assert result["restoration_verified"] and result["runtime_controls_unchanged"] and result["empty_staging_preserved"]
+     assert result["native_fix_acceptance"] is False and result["publication_errors"] == []
+     assert (result["error"] is None) == result["success"]
+@@ -222,8 +224,19 @@
+                        "common_preservation": preservation(original, replay, assessor.signature)}
+     else:
+         assert not (pair / "candidate-wpt").exists(), "Partial browser observation requires separate recovery review"
+-        assert build["exit"] != 0 and result["success"] is False and result["candidate_phase"] is None
+-        assert record("FAILURE-TRACEBACK.json")["error"] == result["error"]
++        assert build["exit"] == 0 and build["error"] is None and build["stop_reason"] is None
++        assert result["success"] is False and result["candidate_phase"] is None
++        failure = record("FAILURE-TRACEBACK.json")
++        root_terminal = record("ROOT-TERMINAL.json")
++        assert failure["error"] == result["error"] == "AssertionError()"
++        assert root_terminal == config["failure_terminal_record"]
++        assert terminal == {"session": root_terminal["session_id"], "launch_chunk": root_terminal["launch_chunk"],
++                            "terminal_chunk": root_terminal["terminal_chunk"], "exit": root_terminal["exit_code"],
++                            "result_sha256": root_terminal["observed_result_sha256"]}
++        for name in ("candidate-build/RESULT.json", "OUTCOMES.json", "PHASES-PRE.json", "PHASES-POST.json"):
++            assert not (pair / name).exists() and not (pair / name).is_symlink()
++        observation["failure_stage"] = "post-build native modified-path admission; browser not started"
++        observation["failure_trace_sha256"] = inputs["FAILURE-TRACEBACK.json"]
+     assert {name: sha(CONTROL / name) for name in policy["controls"]} == policy["controls"]
+     for name in policy["preserved_absent_metadata"] + policy["preserved_absent_resources"]:
+         assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()

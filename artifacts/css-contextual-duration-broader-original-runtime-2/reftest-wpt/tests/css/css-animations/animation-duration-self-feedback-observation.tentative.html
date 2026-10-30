@@ -1,0 +1,76 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Bounded observations of self-dependent animation duration</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script type="application/json" id="duration-observations">[]</script>
+<script>
+"use strict";
+
+async function observe(t, coupled, from = 16) {
+  const host = document.createElement("div");
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const root = host.attachShadow({mode: "open"});
+  root.innerHTML = `<style>
+    .target {
+      font-size: 16px;
+      animation-name: ${coupled ? "fontCycle, fade" : "fontCycle"};
+      animation-duration: calc(1em / 16px * 1s);
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-play-state: paused;
+    }
+    @keyframes fontCycle { from { font-size: ${from}px; } to { font-size: 32px; } }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  </style><div class="target"></div>`;
+  const target = root.querySelector(".target");
+  const animations = target.getAnimations();
+  assert_equals(animations.length, coupled ? 2 : 1, "Animation acquisition");
+  await Promise.all(animations.map(animation => animation.ready));
+  animations.forEach(animation => { animation.currentTime = 750; });
+  const samples = [];
+  for (let index = 0; index < 8; ++index) {
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    const first = getComputedStyle(target);
+    const sample = {font: first.fontSize, cssDuration: first.animationDuration,
+                    opacity: first.opacity,
+                    effects: animations.map(animation => ({
+                      name: animation.animationName, time: animation.currentTime,
+                      duration: animation.effect.getTiming().duration,
+                      progress: animation.effect.getComputedTiming().progress,
+                      state: animation.playState,
+                    }))};
+    sample.repeatFont = getComputedStyle(target).fontSize;
+    sample.repeatDuration = getComputedStyle(target).animationDuration;
+    samples.push(sample);
+  }
+  const output = document.getElementById("duration-observations");
+  const records = JSON.parse(output.textContent);
+  records.push({kind: from === 0 ? "zero-start self font" :
+                       coupled ? "coupled font and opacity" : "self font", samples});
+  output.textContent = JSON.stringify(records);
+  const record = records[records.length - 1];
+  const response = await fetch("duration-feedback-record.py", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(record),
+  });
+  assert_true(response.ok, "Feedback record acknowledged");
+  const acknowledgement = await response.json();
+  assert_equals(acknowledgement.kind, record.kind, "Acknowledged feedback kind");
+  assert_equals(acknowledgement.sampleCount, 8, "Acknowledged eight samples");
+  assert_true(typeof acknowledgement.run_id === "string" && acknowledgement.run_id.length > 0,
+              "Owner-bound acknowledgement");
+  assert_equals(samples.length, 8, "Eight bounded observations completed; no fixed-point oracle");
+}
+
+promise_test(t => observe(t, false),
+             "Observation only: self-dependent font duration completes eight samples");
+promise_test(t => observe(t, true),
+             "Observation only: coupled font and opacity duration completes eight samples");
+promise_test(t => observe(t, false, 0),
+             "Observation only: zero-start self-dependent font duration completes eight samples");
+</script>

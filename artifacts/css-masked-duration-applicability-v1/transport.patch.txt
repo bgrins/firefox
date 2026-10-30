@@ -1,0 +1,443 @@
+commit bdc5accc983e5f2d7ea6cc3893c828bc59d697fb
+Author:     Sajid Anwar <sajidanwar94@gmail.com>
+AuthorDate: Sun May 10 15:33:44 2026 +0000
+Commit:     ealvarez@mozilla.com <ealvarez@mozilla.com>
+CommitDate: Sun May 10 15:36:22 2026 +0000
+
+    Bug 2035572 - Support <time> calc() expressions that can't be resolved at parse time. r=firefox-style-system-reviewers,emilio
+    
+    Differential Revision: https://phabricator.services.mozilla.com/D298028
+---
+ servo/components/style/values/specified/calc.rs |  71 ++++++----
+ servo/components/style/values/specified/time.rs | 170 +++++++++++++-----------
+ 2 files changed, 143 insertions(+), 98 deletions(-)
+
+diff --git a/servo/components/style/values/specified/calc.rs b/servo/components/style/values/specified/calc.rs
+index a7711148dd8e..3d5be3b3fb05 100644
+--- a/servo/components/style/values/specified/calc.rs
++++ b/servo/components/style/values/specified/calc.rs
+@@ -20,7 +20,9 @@ use crate::values::generics::position::{
+ };
+ use crate::values::specified::length::{AbsoluteLength, FontRelativeLength, NoCalcLength};
+ use crate::values::specified::length::{ContainerRelativeLength, ViewportPercentageLength};
+-use crate::values::specified::{self, Angle, NoCalcNumber, NoCalcPercentage, Resolution, Time};
++use crate::values::specified::{
++    self, Angle, NoCalcNumber, NoCalcPercentage, NoCalcTime, Resolution,
++};
+ use crate::values::{CSSFloat, DashedIdent};
+ use cssparser::{match_ignore_ascii_case, CowRcStr, Parser, Token};
+ use debug_unreachable::debug_unreachable;
+@@ -89,7 +91,7 @@ pub enum Leaf {
+     /// `<angle>`
+     Angle(Angle),
+     /// `<time>`
+-    Time(Time),
++    Time(NoCalcTime),
+     /// `<resolution>`
+     Resolution(Resolution),
+     /// A component of a color.
+@@ -128,11 +130,12 @@ impl ToCss for Leaf {
+ 
+ impl ToTyped for Leaf {
+     fn to_typed(&self, dest: &mut ThinVec<TypedValue>) -> Result<(), ()> {
+-        // XXX Only supporting Length, Number and Percentage for now
++        // XXX Only supporting Length, Number,  Percentage and Time for now
+         match *self {
+             Self::Length(ref l) => l.to_typed(dest),
+             Self::Number(n) => n.to_typed(dest),
+             Self::Percentage(p) => p.to_typed(dest),
++            Self::Time(t) => t.to_typed(dest),
+             _ => Err(()),
+         }
+     }
+@@ -200,6 +203,14 @@ impl CalcNumeric {
+             _ => None,
+         }
+     }
++
++    /// Gets this calc expression as a time
++    pub fn as_time(&self) -> Option<NoCalcTime> {
++        match self.node.resolve() {
++            Ok(Leaf::Time(t)) => Some(t),
++            _ => None,
++        }
++    }
+ }
+ 
+ impl SpecifiedValueInfo for CalcNumeric {}
+@@ -402,8 +413,12 @@ impl generic::CalcNodeLeaf for Leaf {
+     }
+ 
+     fn simplify(&mut self) {
+-        if let Self::Length(NoCalcLength::Absolute(ref mut abs)) = *self {
+-            *abs = AbsoluteLength::Px(abs.to_px());
++        match self {
++            Leaf::Length(NoCalcLength::Absolute(ref mut abs)) => {
++                *abs = AbsoluteLength::Px(abs.to_px())
++            },
++            Leaf::Time(ref mut t) => *t = NoCalcTime::from_seconds(t.seconds()),
++            _ => (),
+         }
+     }
+ 
+@@ -429,7 +444,7 @@ impl generic::CalcNodeLeaf for Leaf {
+                 *one = specified::Angle::from_calc(one.degrees() + other.degrees());
+             },
+             (&mut Time(ref mut one), &Time(ref other)) => {
+-                *one = specified::Time::from_seconds(one.seconds() + other.seconds());
++                *one = NoCalcTime::from_seconds(one.seconds() + other.seconds());
+             },
+             (&mut Resolution(ref mut one), &Resolution(ref other)) => {
+                 *one = specified::Resolution::from_dppx(one.dppx() + other.dppx());
+@@ -519,7 +534,7 @@ impl generic::CalcNodeLeaf for Leaf {
+                 ))));
+             },
+             (&Time(ref one), &Time(ref other)) => {
+-                return Ok(Leaf::Time(specified::Time::from_seconds(op(
++                return Ok(Leaf::Time(NoCalcTime::from_seconds(op(
+                     one.seconds(),
+                     other.seconds(),
+                 ))));
+@@ -546,7 +561,7 @@ impl generic::CalcNodeLeaf for Leaf {
+         Ok(match self {
+             Leaf::Length(one) => *one = one.map(op),
+             Leaf::Angle(one) => *one = specified::Angle::from_calc(op(one.degrees())),
+-            Leaf::Time(one) => *one = specified::Time::from_seconds(op(one.seconds())),
++            Leaf::Time(one) => *one = NoCalcTime::from_seconds(op(one.seconds())),
+             Leaf::Resolution(one) => *one = specified::Resolution::from_dppx(op(one.dppx())),
+             Leaf::Percentage(one) => *one = NoCalcPercentage::new(op(one.get())),
+             Leaf::Number(one) => *one = NoCalcNumber::new(op(one.value())),
+@@ -698,7 +713,7 @@ impl CalcNode {
+                     }
+                 }
+                 if allowed.includes(CalcUnits::TIME) {
+-                    if let Ok(t) = Time::parse_dimension(value, unit) {
++                    if let Ok(t) = NoCalcTime::parse_dimension(value, unit) {
+                         return Ok(CalcNode::Leaf(Leaf::Time(t)));
+                     }
+                 }
+@@ -943,8 +958,8 @@ impl CalcNode {
+                             return Ok(a.get().atan2(b.get()));
+                         }
+ 
+-                        if let Ok(a) = a.to_time(None) {
+-                            let b = b.to_time(None)?;
++                        if let Ok(a) = a.to_time() {
++                            let b = b.to_time()?;
+                             return Ok(a.seconds().atan2(b.seconds()));
+                         }
+ 
+@@ -1232,18 +1247,28 @@ impl CalcNode {
+         }
+     }
+ 
+-    /// Tries to simplify this expression into a `<time>` value.
+-    fn to_time(&self, clamping_mode: Option<AllowedNumericType>) -> Result<Time, ()> {
+-        let seconds = if let Leaf::Time(time) = self.resolve()? {
+-            time.seconds()
++    /// Tries to simplify this expression into a `NoCalcTime` value.
++    fn to_time(&self) -> Result<NoCalcTime, ()> {
++        if let Leaf::Time(time) = self.resolve()? {
++            Ok(time)
+         } else {
+-            return Err(());
+-        };
++            Err(())
++        }
++    }
+ 
+-        Ok(Time::from_seconds_with_calc_clamping_mode(
+-            seconds,
+-            clamping_mode,
+-        ))
++    /// Tries to simplify this expression into a `<time>` value.
++    fn into_time(mut self, clamping_mode: AllowedNumericType) -> Result<CalcNumeric, ()> {
++        self.simplify_and_sort();
++
++        let unit: CalcUnits = self.unit()?;
++        if !CalcUnits::TIME.intersects(unit) {
++            Err(())
++        } else {
++            Ok(CalcNumeric {
++                clamping_mode,
++                node: self,
++            })
++        }
+     }
+ 
+     /// Tries to simplify the expression into a `<resolution>` value.
+@@ -1433,9 +1458,9 @@ impl CalcNode {
+         input: &mut Parser<'i, 't>,
+         clamping_mode: AllowedNumericType,
+         function: MathFunction,
+-    ) -> Result<Time, ParseError<'i>> {
++    ) -> Result<CalcNumeric, ParseError<'i>> {
+         Self::parse(context, input, function, AllowParse::new(CalcUnits::TIME))?
+-            .to_time(Some(clamping_mode))
++            .into_time(clamping_mode)
+             .map_err(|()| input.new_custom_error(StyleParseErrorKind::UnspecifiedError))
+     }
+ 
+diff --git a/servo/components/style/values/specified/time.rs b/servo/components/style/values/specified/time.rs
+index 53e3502770dc..cec9d4242d5d 100644
+--- a/servo/components/style/values/specified/time.rs
++++ b/servo/components/style/values/specified/time.rs
+@@ -8,28 +8,29 @@ use crate::derives::*;
+ use crate::parser::{Parse, ParserContext};
+ use crate::values::computed::time::Time as ComputedTime;
+ use crate::values::computed::{Context, ToComputedValue};
+-use crate::values::specified::calc::CalcNode;
++use crate::values::specified::calc::{CalcNode, CalcNumeric, Leaf};
+ use crate::values::CSSFloat;
+ use crate::Zero;
+ use cssparser::{match_ignore_ascii_case, Parser, Token};
+ use std::fmt::{self, Write};
+ use style_traits::values::specified::AllowedNumericType;
+ use style_traits::{
+-    CssString, CssWriter, MathSum, NumericValue, ParseError, SpecifiedValueInfo,
+-    StyleParseErrorKind, ToCss, ToTyped, TypedValue, UnitValue,
++    CssString, CssWriter, NumericValue, ParseError, SpecifiedValueInfo, StyleParseErrorKind, ToCss,
++    ToTyped, TypedValue, UnitValue,
+ };
+ use thin_vec::ThinVec;
+ 
+ /// A time value according to CSS-VALUES § 6.2.
+ #[derive(Clone, Copy, Debug, MallocSizeOf, PartialEq, ToShmem)]
+-pub struct Time {
++#[repr(C)]
++pub struct NoCalcTime {
+     seconds: CSSFloat,
+     unit: TimeUnit,
+-    calc_clamping_mode: Option<AllowedNumericType>,
+ }
+ 
+ /// A time unit.
+ #[derive(Clone, Copy, Debug, Eq, MallocSizeOf, PartialEq, ToShmem)]
++#[repr(u8)]
+ pub enum TimeUnit {
+     /// `s`
+     Second,
+@@ -37,26 +38,17 @@ pub enum TimeUnit {
+     Millisecond,
+ }
+ 
+-impl Time {
++impl NoCalcTime {
+     /// Returns a time value that represents `seconds` seconds.
+-    pub fn from_seconds_with_calc_clamping_mode(
+-        seconds: CSSFloat,
+-        calc_clamping_mode: Option<AllowedNumericType>,
+-    ) -> Self {
+-        Time {
++    pub fn from_seconds(seconds: CSSFloat) -> Self {
++        Self {
+             seconds,
+             unit: TimeUnit::Second,
+-            calc_clamping_mode,
+         }
+     }
+ 
+-    /// Returns a time value that represents `seconds` seconds.
+-    pub fn from_seconds(seconds: CSSFloat) -> Self {
+-        Self::from_seconds_with_calc_clamping_mode(seconds, None)
+-    }
+-
+     /// Returns the time in fractional seconds.
+-    pub fn seconds(self) -> CSSFloat {
++    pub fn seconds(&self) -> CSSFloat {
+         self.seconds
+     }
+ 
+@@ -91,26 +83,79 @@ impl Time {
+              _ => return Err(()),
+         };
+ 
+-        Ok(Time {
++        Ok(Self {
+             seconds: self.seconds,
+             unit,
+-            calc_clamping_mode: None,
+         })
+     }
+ 
+     /// Parses a time according to CSS-VALUES § 6.2.
+-    pub fn parse_dimension(value: CSSFloat, unit: &str) -> Result<Time, ()> {
++    pub fn parse_dimension(value: CSSFloat, unit: &str) -> Result<Self, ()> {
+         let (seconds, unit) = match_ignore_ascii_case! { unit,
+             "s" => (value, TimeUnit::Second),
+             "ms" => (value / 1000.0, TimeUnit::Millisecond),
+             _ => return Err(())
+         };
+ 
+-        Ok(Time {
+-            seconds,
+-            unit,
+-            calc_clamping_mode: None,
+-        })
++        Ok(Self { seconds, unit })
++    }
++}
++
++impl ToCss for NoCalcTime {
++    fn to_css<W>(&self, dest: &mut CssWriter<W>) -> fmt::Result
++    where
++        W: Write,
++    {
++        crate::values::serialize_specified_dimension(
++            self.unitless_value(),
++            self.unit(),
++            /* was_calc = */ false,
++            dest,
++        )
++    }
++}
++
++impl ToComputedValue for NoCalcTime {
++    type ComputedValue = ComputedTime;
++
++    fn to_computed_value(&self, _: &Context) -> Self::ComputedValue {
++        ComputedTime::from_seconds(self.seconds())
++    }
++
++    fn from_computed_value(computed: &Self::ComputedValue) -> Self {
++        Self::from_seconds(computed.seconds())
++    }
++}
++
++impl ToTyped for NoCalcTime {
++    fn to_typed(&self, dest: &mut ThinVec<TypedValue>) -> Result<(), ()> {
++        let numeric_value = NumericValue::Unit(UnitValue {
++            value: self.unitless_value(),
++            unit: CssString::from(self.unit()),
++        });
++
++        // https://drafts.css-houdini.org/css-typed-om-1/#reify-a-math-expression
++        dest.push(TypedValue::Numeric(numeric_value));
++
++        Ok(())
++    }
++}
++
++impl SpecifiedValueInfo for NoCalcTime {}
++
++/// A specified time value, either a plain value or a `calc()` expression.
++#[derive(Clone, Debug, MallocSizeOf, PartialEq, SpecifiedValueInfo, ToCss, ToShmem, ToTyped)]
++pub enum Time {
++    /// A plain <time> value.
++    NoCalc(NoCalcTime),
++    /// A calc() expression that produces a <time>.
++    Calc(Box<CalcNumeric>),
++}
++
++impl Time {
++    /// Returns a time value that represents `seconds` seconds.
++    pub fn from_seconds(seconds: CSSFloat) -> Self {
++        Time::NoCalc(NoCalcTime::from_seconds(seconds))
+     }
+ 
+     fn parse_with_clamping_mode<'i, 't>(
+@@ -130,12 +175,15 @@ impl Time {
+             Token::Dimension {
+                 value, ref unit, ..
+             } if clamping_mode.is_ok(ParsingMode::DEFAULT, value) => {
+-                Time::parse_dimension(value, unit)
++                NoCalcTime::parse_dimension(value, unit)
+                     .map_err(|()| location.new_custom_error(StyleParseErrorKind::UnspecifiedError))
++                    .map(Time::NoCalc)
+             },
+             Token::Function(ref name) => {
+                 let function = CalcNode::math_function(context, name, location)?;
+                 CalcNode::parse_time(context, input, clamping_mode, function)
++                    .map(Box::new)
++                    .map(Time::Calc)
+             },
+             ref t => return Err(location.new_unexpected_token_error(t.clone())),
+         }
+@@ -159,27 +207,35 @@ impl Zero for Time {
+     #[inline]
+     fn is_zero(&self) -> bool {
+         // The unit doesn't matter, i.e. `s` and `ms` are the same for zero.
+-        self.seconds == 0.0 && self.calc_clamping_mode.is_none()
++        matches!(self, Self::NoCalc(t) if t.seconds() == 0.0)
+     }
+ }
+ 
+ impl ToComputedValue for Time {
+     type ComputedValue = ComputedTime;
+ 
+-    fn to_computed_value(&self, _context: &Context) -> Self::ComputedValue {
+-        let seconds = self
+-            .calc_clamping_mode
+-            .map_or(self.seconds(), |mode| mode.clamp(self.seconds()));
+-
+-        ComputedTime::from_seconds(crate::values::normalize(seconds))
++    fn to_computed_value(&self, context: &Context) -> Self::ComputedValue {
++        match self {
++            Time::NoCalc(t) => t.to_computed_value(context),
++            Time::Calc(ref calc) => {
++                let value = match calc.node.with_computed_context(context).resolve() {
++                    Ok(Leaf::Time(t)) => t.seconds(),
++                    _ => {
++                        debug_assert!(false, "Unexpected Time::Calc without resolved time");
++                        f32::NAN
++                    },
++                };
++                ComputedTime::from_seconds(
++                    crate::values::normalize(calc.clamping_mode.clamp(value))
++                        .min(f32::MAX)
++                        .max(f32::MIN),
++                )
++            },
++        }
+     }
+ 
+     fn from_computed_value(computed: &Self::ComputedValue) -> Self {
+-        Time {
+-            seconds: computed.seconds(),
+-            unit: TimeUnit::Second,
+-            calc_clamping_mode: None,
+-        }
++        Time::NoCalc(NoCalcTime::from_seconds(computed.seconds()))
+     }
+ }
+ 
+@@ -191,39 +247,3 @@ impl Parse for Time {
+         Self::parse_with_clamping_mode(context, input, AllowedNumericType::All)
+     }
+ }
+-
+-impl ToCss for Time {
+-    fn to_css<W>(&self, dest: &mut CssWriter<W>) -> fmt::Result
+-    where
+-        W: Write,
+-    {
+-        crate::values::serialize_specified_dimension(
+-            self.unitless_value(),
+-            self.unit(),
+-            self.calc_clamping_mode.is_some(),
+-            dest,
+-        )
+-    }
+-}
+-
+-impl ToTyped for Time {
+-    fn to_typed(&self, dest: &mut ThinVec<TypedValue>) -> Result<(), ()> {
+-        let numeric_value = NumericValue::Unit(UnitValue {
+-            value: self.unitless_value(),
+-            unit: CssString::from(self.unit()),
+-        });
+-
+-        // https://drafts.css-houdini.org/css-typed-om-1/#reify-a-math-expression
+-        if self.calc_clamping_mode.is_some() {
+-            dest.push(TypedValue::Numeric(NumericValue::Sum(MathSum {
+-                values: ThinVec::from([numeric_value]),
+-            })));
+-        } else {
+-            dest.push(TypedValue::Numeric(numeric_value));
+-        }
+-
+-        Ok(())
+-    }
+-}
+-
+-impl SpecifiedValueInfo for Time {}

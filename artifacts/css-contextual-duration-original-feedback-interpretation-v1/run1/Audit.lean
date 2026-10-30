@@ -1,0 +1,3 @@
+import ObservedBoundary
+#print axioms ObservedBoundary.observed_stale_boundary
+#print axioms ObservedBoundary.observed_not_synchronized

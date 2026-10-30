@@ -1,0 +1,70 @@
+--- same-element-original-v2/check.py
++++ finite-depth-original-v1/check.py
+@@ -26,20 +26,14 @@
+     assert any(ast.dump(node.test) == ast.dump(ast.parse('len(policy["accepted_current_payloads"]) == 29', mode='eval').body) for node in runtime_assertions)
+     fixture = ROOT / policy["probe_packages"][0]
+     roster = json.loads((fixture / "ROSTER.json").read_text())
+-    assert policy["probe_packages"] == ["artifacts/css-contextual-duration-same-element-dependency-probe-v1"]
+-    assert settings["expected_subtests"] == roster["tests"]
+-    assert len(roster["tests"]) == 1 and sum(map(len, roster["tests"].values())) == 2
+-    expected_resources = {str(f.relative_to(fixture / "tests")): {"path": str(f.relative_to(ROOT)), "sha256": hashlib.sha256(f.read_bytes()).hexdigest()}
+-                          for f in (fixture / "tests").rglob("*") if f.is_file() and f.name != "lint.ignore"}
+-    assert settings["resources"] == expected_resources
+-    for name, record in settings["metadata"].items():
+-        if record["sha256"] is not None:
+-            assert (ROOT / record["path"]).read_bytes() == (fixture / "meta" / name).read_bytes()
+-        else:
+-            assert name == next(iter(roster["tests"])).lstrip("/") + ".ini"
+-    assert (ROOT / settings["manifest"]["path"]).read_bytes() == (fixture / "MANIFEST.json").read_bytes()
+-    assert sorted(policy["record_kinds"]) == sorted(roster["records"])
+-    assert (settings["expected_subtest_count"], settings["expected_control_count"], settings["expected_target_count"], settings["expected_page_count"], settings["expected_regression_signature_count"]) == (2, 2, 0, 1, 3)
++    assert policy["probe_packages"] == ["artifacts/css-contextual-duration-finite-depth-probe-v1"]
++    inputs = json.loads((fixture / "INPUTS.json").read_text())
++    assert settings["expected_subtests"] == roster["tests"] == inputs["source_roster"]["tests"]
++    assert len(roster["tests"]) == 1 and sum(map(len, roster["tests"].values())) == 4
++    assert settings["resources"] == inputs["resources"] and settings["metadata"] == inputs["metadata"]
++    assert settings["manifest"] == inputs["manifest"]
++    assert sorted(policy["record_kinds"]) == sorted(inputs["transport"]["expected_files"])
++    assert (settings["expected_subtest_count"], settings["expected_control_count"], settings["expected_target_count"], settings["expected_page_count"], settings["expected_regression_signature_count"]) == (4, 4, 0, 1, 5)
+     roles = json.loads((ROOT / "artifacts/css-contextual-easing-activation-prototype-v2/SOURCE-ROLES.json").read_bytes())
+     assert len(roles) == 8 and "servo/components/style/values/generics/calc.rs" not in roles
+     assert policy["source_role_pins"] == dict(
+@@ -129,10 +123,16 @@
+     import tempfile
+     collector = load("progress_collection_check", HERE / "records.py")
+     samples = {}
+-    historical = ROOT / policy["historical_compact_original"]["directory"]
+-    for filename in policy["record_kinds"]:
+-        samples[filename] = json.loads((historical / "records" / filename).read_text())
+-        samples[filename]["run_id"] = "synthetic_progress_run_123456"
++    for filename, rule in policy["record_kinds"].items():
++        depth = int(rule["kind"].removeprefix("depth-"))
++        timing = {"duration": None, "progress": None, "time": None, "state": "synthetic"}
++        snapshot = {"rootFont": None, "opacity": None, "leafDuration": None, "leaf": timing,
++                    "nodes": [{"font": None, "lineHeight": None, "duration": None, "timing": timing} for _ in range(depth)]}
++        observations = {mode: {"depth": depth, "mode": mode, "literalInitial": snapshot, "initial": snapshot,
++            "samples": [{"phase": phase, "opacity": None} for phase in ("first-leaf-read", "passive-frame-1", "passive-frame-2", "passive-frame-3")],
++            "beforeMembership": snapshot, "afterMembership": snapshot,
++            "membership": [{"animation": False, "effect": False} for _ in range(depth + 1)]} for mode in ("literal", "contextual")}
++        samples[filename] = {"run_id": "synthetic_progress_run_123456", "kind": rule["kind"], "observations": observations}
+     with tempfile.TemporaryDirectory(prefix="css-progress-record-check-", dir="/private/tmp") as temporary:
+         directory = Path(temporary)
+         directory.chmod(0o700)
+@@ -153,7 +153,7 @@
+         first = next(iter(samples))
+         (directory / first).unlink()
+         partial = collect(failed)
+-        assert not partial["complete"] and len(partial["missing"]) == 1 and not partial["errors"] and len(partial["records"]) == 1
++        assert not partial["complete"] and len(partial["missing"]) == 1 and not partial["errors"] and len(partial["records"]) == 3
+         assert collect()["errors"]
+         put(first, samples[first])
+         negatives = []
+@@ -163,7 +163,7 @@
+             ("wrong kind", lambda v: v.update(kind="unknown")),
+             ("missing first sample", lambda v: v["observations"]["contextual"]["samples"].pop(0)),
+             ("out of order samples", lambda v: v["observations"]["contextual"]["samples"].reverse()),
+-            ("nonfinite numeric sample", lambda v: v["observations"]["contextual"]["samples"][0].update(value=float("inf"))),
++            ("nonfinite numeric sample", lambda v: v["observations"]["contextual"]["samples"][0].update(opacity=float("inf"))),
+         ]:
+             value = copy.deepcopy(samples[first]); mutate(value); put(first, value)
+             result = collect(); assert result["errors"] and first in result["records"] and not result["records"][first]["schema_valid"], label

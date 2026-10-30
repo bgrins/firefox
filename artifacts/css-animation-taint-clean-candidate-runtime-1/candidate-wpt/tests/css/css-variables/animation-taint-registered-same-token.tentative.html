@@ -1,0 +1,91 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered animation taint invalidates equal custom property values</title>
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#animation-tainted">
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#registered-custom-properties">
+<meta name="assert" content="Adding animation taint without changing registered custom property tokens invalidates a non-animatable consumer.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+for (const mode of ["universal", "typed", "literal"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    let animation;
+    t.add_cleanup(() => { animation?.cancel(); frame.remove(); });
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    frame.srcdoc = "<!doctype html><html><head></head><body></body></html>";
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    win.CSS.registerProperty({name: "--v", syntax: mode === "universal" ? "*" : "<custom-ident>",
+      inherits: false, initialValue: "horizontal-tb"});
+    const style = doc.createElement("style");
+    style.textContent = `
+      @keyframes hold { from, to { --v: vertical-rl; } }
+      #calibration { --v: vertical-lr; }
+      #subject { --v: vertical-rl;
+        writing-mode: ${mode === "literal" ? "vertical-lr" : "var(--v, vertical-lr)"}; }
+      #subject.active { animation: hold 2s linear paused both; }
+      #subject.changed { --v: horizontal-tb; }
+    `;
+    doc.head.append(style);
+    doc.body.innerHTML = '<div id="calibration"><div id="child"></div></div>';
+    const child = doc.getElementById("child");
+    assert_equals(win.getComputedStyle(child).getPropertyValue("--v").trim(),
+      "horizontal-tb", "Registration supplies a non-inherited initial value");
+    child.style.setProperty("--v", "one two");
+    assert_equals(win.getComputedStyle(child).getPropertyValue("--v").trim(),
+      mode === "universal" ? "one two" : "horizontal-tb", "Registration syntax is effective");
+    doc.getElementById("calibration").remove();
+    const subject = doc.createElement("div");
+    subject.id = "subject";
+    doc.body.append(subject);
+    const ordinary = win.getComputedStyle(subject);
+    const before = {variable: ordinary.getPropertyValue("--v").trim(), sink: ordinary.writingMode};
+    assert_equals(before.variable, "vertical-rl", "Underlying tokens match the keyframes");
+    subject.classList.add("active");
+    const animations = subject.getAnimations();
+    assert_equals(animations.length, 1, "One CSS animation");
+    animation = animations[0];
+    const effect = animation.effect;
+    await animation.ready;
+    animation.currentTime = 750;
+    const phases = [];
+    const sample = async label => {
+      const readings = [win.getComputedStyle(subject).writingMode];
+      for (let i = 0; i < 3; ++i) {
+        await new Promise(resolve => win.requestAnimationFrame(resolve));
+        readings.push(win.getComputedStyle(subject).writingMode);
+      }
+      const computed = win.getComputedStyle(subject);
+      const members = subject.getAnimations();
+      phases.push({label, readings, variable: computed.getPropertyValue("--v").trim(),
+        cssDuration: computed.animationDuration, currentTime: animation.currentTime,
+        duration: effect.getTiming().duration, progress: effect.getComputedTiming().progress,
+        playState: animation.playState, sameAnimation: members.length === 1 && members[0] === animation,
+        sameEffect: animation.effect === effect});
+    };
+    await sample("same-token activation");
+    subject.classList.add("changed");
+    await sample("different underlying tokens");
+    const detail = JSON.stringify({mode, before, phases});
+    for (const phase of phases) {
+      assert_equals(phase.variable, "vertical-rl", `${phase.label}: animated source; ${detail}`);
+      assert_equals(phase.cssDuration, "2s", `${phase.label}: CSS duration`);
+      assert_equals(phase.duration, 2000, `${phase.label}: effect duration`);
+      assert_equals(phase.currentTime, 750, `${phase.label}: held time`);
+      assert_approx_equals(phase.progress, .375, .00001, `${phase.label}: held progress`);
+      assert_equals(phase.playState, "paused", `${phase.label}: paused state`);
+      assert_true(phase.sameAnimation && phase.sameEffect, `${phase.label}: retained animation identity`);
+    }
+    for (const phase of phases) {
+      assert_array_equals(phase.readings, ["vertical-lr", "vertical-lr", "vertical-lr", "vertical-lr"],
+        `${phase.label}: non-animatable consumer uses fallback; ${detail}`);
+    }
+  }, `Registered animation taint ${mode}: equal tokens invalidate the consumer`);
+}
+</script>

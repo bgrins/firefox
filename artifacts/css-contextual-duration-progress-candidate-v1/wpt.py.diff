@@ -1,0 +1,21 @@
+--- executed-broader/wpt.py
++++ disabled-progress-candidate/wpt.py
+@@ -38,7 +38,7 @@
+     targets = settings['target_subtests']
+     assert expected and set(targets) <= set(expected)
+     assert all(set(names) <= set(expected[test]) for test, names in targets.items())
+-    phase_policy = dict(settings, tests=settings['test_types'], held_subtests={})
++    phase_policy = dict(settings, tests={test: 'testharness' for test in expected}, held_subtests={})
+     phase_policy['regression_subtests'] = {test: [name for name in names if name not in targets.get(test, [])] for test, names in expected.items()}
+     phase_policy['cardinality_description'] = 'Exact sealed target and control names; existing control failures retain full signatures.'
+     output.mkdir()
+@@ -130,8 +130,8 @@
+     save(output / 'APPLICATION-METADATA-POST.json', app_after)
+     events = [json.loads(line) for line in (output / 'raw.jsonl').read_text().splitlines()]
+     if original is not None:
++        assert original == root / policy['baseline_binding']['directory'] / 'original-wpt'
+         comparison = load('strict_original_comparison', here / 'comparison.py')
+-        assert original == comparison.original_directory(root, policy)
+         replay = comparison.replay_original(root, policy, assessor, checks)
+     else:
+         replay = None

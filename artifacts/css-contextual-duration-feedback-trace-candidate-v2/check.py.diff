@@ -1,0 +1,25 @@
+--- artifacts/css-contextual-duration-feedback-trace-candidate-v1/check.py
++++ artifacts/css-contextual-duration-feedback-trace-candidate-v2/check.py
+@@ -57,6 +57,22 @@
+         for key in ('restoration','refresh'):
+             path = policy['prepared_state_evidence'][key]
+             assert policy['references'][path] == sha(ROOT / path)
++        terminal = read(ROOT / policy['prepared_state_evidence']['restoration'])
++        refresh = read(ROOT / policy['prepared_state_evidence']['refresh'])
++        assert terminal == policy['baseline_binding']['terminal']
++        assert terminal['state_and_application_restoration_independently_verified']
++        assert terminal['raw_replay_verified'] and terminal['calibrated_acquisition']
++        assert terminal['backup_removed_bytes'] == 1008605176
++        assert refresh['runtime_manifest_sha256'] == policy['baseline_binding']['manifest_sha256']
++        assert refresh['full_restored_state_verified'] and refresh['accepted_fix_increment'] == 0
++        assert refresh['only_changed_field'] == 'raw_index_observation.current'
++        assert refresh['before_epoch'] == source['controls']['CURRENT-EPOCH.json']
++        assert refresh['after_epoch'] == policy['controls']['CURRENT-EPOCH.json']
++        assert refresh['observation'] == terminal['raw_index_observation']
++        app = policy['prepared_application_metadata']
++        assert app['entry_identity'] == terminal['restored_application_entry']['identity']
++        assert app['identity'] == terminal['restored_application_target']['identity']
++        assert app['sha256'] == terminal['restored_application_target']['sha256']
+ 
+ 
+ def check():

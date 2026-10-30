@@ -1,0 +1,14 @@
+Two standalone tentative WPT pages separate animation-taint substitution from animation-duration input policy. Each page has three fresh-iframe callbacks: direct var(--v), alias --a:var(--v) then var(--a), and a literal fallback reference. All use one active unregistered --v CSS animation with constant endpoints, fixed literal 2s duration, paused at 750ms. No animation control property depends on a variable.
+
+| Sink | Animated --v | Ordinary --v mutation | Expected direct/alias/literal sink |
+| --- | --- | --- | --- |
+| direction | rtl | ltr → rtl | ltr |
+| writing-mode | vertical-rl | horizontal-tb → vertical-lr | horizontal-tb |
+
+The [direction](https://www.w3.org/TR/css-writing-modes-3/#propdef-direction) and [writing-mode](https://www.w3.org/TR/css-writing-modes-3/#propdef-writing-mode) property tables classify both sinks as not animatable. Current [CSS Variables animation taint](https://drafts.csswg.org/css-variables-1/#animation-tainted) also covers the alias reference; [var replacement steps 3–4](https://drafts.csswg.org/css-variables-1/#replace-a-var-function) select the distinct fallback. This is the authored substitution oracle, not an assertion that any browser implements it or that a native path was taken. No inactive-keyframe, inherited-global taint, registered-property or duration policy inference is made.
+
+After changing only the ordinary custom-property declaration, the first observation is the sink getter. Three bounded passive-frame sink reads follow before timing details and current membership. The complete collected diagnostic includes initial and later sink/custom/alias values, fixed driver timing, retained animation/effect identities, held time and every sample. Assertions run only after collection. They verify the active variable and alias, fixed 2000ms/.375 driver, identities, and fallback values. Acquisition errors can prevent complete collection. Passing assertions do not retain a full trace without an external reporting mechanism; failure messages include the complete JSON gathered so far. Getters can flush; these samples are not native pass counts or an unbounded liveness test.
+
+Preparation checks (initial 19a40f/0 and the final ready-before-seek rerun) registered all six names without running callbacks, passed WPT path/content lint, and generated a genuine explicit-path two-page manifest. Shared harness files are byte-identical to the earlier sealed taint fixture. Git subprocesses are denied. No browser, build or native mutation occurred. Do not rerun the generating checker into this package after sealing.
+
+The installed six-case observer can reuse its exact executable and completion-only report bridge with a policy pointing at these two pages, roster and frozen hashes. It changes no CSS feature preferences and retains ordinary assertion FAIL. Existing fixtures and their results are unchanged.

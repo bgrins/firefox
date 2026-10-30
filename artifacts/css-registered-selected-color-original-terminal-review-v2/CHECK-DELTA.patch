@@ -1,0 +1,33 @@
+--- artifacts/css-registered-selected-color-original-terminal-review-v1/check.py
++++ artifacts/css-registered-selected-color-original-terminal-review-v2/check.py
+@@ -13,10 +13,10 @@
+ config, owner = r.authenticate()
+ assert not config["execution_enabled"] and config["actual_terminal"] is None
+ policy = r.read(owner / "POLICY.json")
+-assert len(policy["wpt"]["expected_subtests"]) == 3
+-assert sum(map(len, policy["wpt"]["expected_subtests"].values())) == 42
++assert len(policy["wpt"]["expected_subtests"]) == 4
++assert sum(map(len, policy["wpt"]["expected_subtests"].values())) == 45
+ assert set(policy["wpt"]["fixture_target_pages"]) == set(policy["wpt"]["expected_subtests"])
+-assert len(policy["wpt"]["fixture_target_pages"]) == 3
++assert len(policy["wpt"]["fixture_target_pages"]) == 4
+ 
+ def reject(fn):
+     try:
+@@ -25,12 +25,12 @@
+         return
+     raise AssertionError("negative control accepted")
+ 
+-for passes in (0, 21, 42):
+-    replay = {"complete": True, "rows": [{"status": "PASS" if i < passes else "FAIL"} for i in range(42)], "ends": [{} for _ in range(3)]}
++for passes in (0, 22, 45):
++    replay = {"complete": True, "rows": [{"status": "PASS" if i < passes else "FAIL"} for i in range(45)], "ends": [{} for _ in range(4)]}
+     result = r.observed_outcomes(replay)
+-    assert result["callbacks_passed"] == passes and result["callbacks_failed"] == 42 - passes
++    assert result["callbacks_passed"] == passes and result["callbacks_failed"] == 45 - passes
+     assert not result["native_acceptance"]
+-for key, value in [("complete", False), ("rows", []), ("ends", []), ("rows", [{"status": "TIMEOUT"}] * 42)]:
++for key, value in [("complete", False), ("rows", []), ("ends", []), ("rows", [{"status": "TIMEOUT"}] * 45)]:
+     bad = copy.deepcopy(replay)
+     bad[key] = value
+     reject(lambda: r.observed_outcomes(bad))

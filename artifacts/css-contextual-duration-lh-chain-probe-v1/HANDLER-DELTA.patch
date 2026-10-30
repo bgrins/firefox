@@ -1,0 +1,95 @@
+--- shared-v1/record.py
++++ lh-v1/record.py
+@@ -5,20 +5,14 @@
+ import re
+ import stat
+ 
+-FILES = {f"{suite}-{mode}": f"{suite}-{mode}.json"
+-         for suite in ("two-hop", "property-only") for mode in ("literal", "ordinary", "animated")}
++FILES = {f"lh-chain-{mode}": f"lh-chain-{mode}.json"
++         for mode in ("literal", "ordinary", "animated")}
+ PHASES = ["first-child-read", "passive-frame-1", "passive-frame-2", "passive-frame-3"]
+ TIMING = {"duration", "progress", "time", "state"}
+ 
+ 
+ def numeric(value):
+     return value is None or (type(value) in (int, float) and math.isfinite(value))
+-
+-
+-def fields(value, numeric_fields, text_fields=()):
+-    assert isinstance(value, dict) and set(value) == set(numeric_fields) | set(text_fields)
+-    assert all(numeric(value[key]) for key in numeric_fields)
+-    assert all(isinstance(value[key], str) for key in text_fields)
+ 
+ 
+ def timing(value):
+@@ -28,18 +22,13 @@
+     assert isinstance(value["state"], str)
+ 
+ 
+-def snapshot(value, suite):
+-    if suite == "two-hop":
+-        assert isinstance(value, dict) and set(value) == {
+-            "childOpacity", "childDuration", "child", "middleFont", "middleDuration", "middle", "rootFont"}
+-        assert all(numeric(value[key]) for key in ("childOpacity", "childDuration", "middleFont", "middleDuration", "rootFont"))
+-        timing(value["child"])
+-        timing(value["middle"])
+-    else:
+-        assert isinstance(value, dict) and set(value) == {"width", "cssDuration", "parentFont", "duration", "progress", "time", "state"}
+-        assert all(numeric(value[key]) for key in ("width", "cssDuration", "parentFont", "progress", "time"))
+-        assert numeric(value["duration"]) or isinstance(value["duration"], str)
+-        assert isinstance(value["state"], str)
++def snapshot(value):
++    assert isinstance(value, dict) and set(value) == {
++        "childOpacity", "childDuration", "childLineHeight", "child", "middleLineHeight",
++        "middleDuration", "middle", "parentFont"}
++    assert all(numeric(value[key]) for key in ("childOpacity", "childDuration", "childLineHeight", "middleLineHeight", "middleDuration", "parentFont"))
++    timing(value["child"])
++    timing(value["middle"])
+ 
+ 
+ def reject_constant(value):
+@@ -50,35 +39,27 @@
+     assert isinstance(value, dict) and set(value) == {"kind", "observation"}
+     kind = value["kind"]
+     assert kind in FILES
+-    suite = "two-hop" if kind.startswith("two-hop-") else "property-only"
+     observation = value["observation"]
+-    membership = "membership" if suite == "two-hop" else "same"
+     assert isinstance(observation, dict) and set(observation) == {
+-        "mode", "samples", "beforeMembership", "driverTiming", membership,
++        "mode", "samples", "beforeMembership", "driverTiming", "membership",
+         "afterMembership", "seek751", "afterSeek"}
+     assert observation["mode"] in ("literal", "ordinary", "animated")
+-    assert kind == suite + "-" + observation["mode"]
++    assert kind == "lh-chain-" + observation["mode"]
+     samples = observation["samples"]
+     assert isinstance(samples, list) and len(samples) == 4
+-    dimension = "opacity" if suite == "two-hop" else "width"
++    dimension = "opacity"
+     for sample, phase in zip(samples, PHASES):
+         assert isinstance(sample, dict) and set(sample) == {"phase", dimension}
+         assert sample["phase"] == phase and numeric(sample[dimension])
+     for name in ("beforeMembership", "afterMembership", "seek751", "afterSeek"):
+-        snapshot(observation[name], suite)
++        snapshot(observation[name])
+     if observation["mode"] == "animated":
+-        if suite == "two-hop":
+-            timing(observation["driverTiming"])
+-        else:
+-            fields(observation["driverTiming"], ("time",), ("state",))
++        timing(observation["driverTiming"])
+     else:
+         assert observation["driverTiming"] is None
+-    if suite == "two-hop":
+-        flags = observation["membership"]
+-        assert isinstance(flags, dict) and set(flags) == {"middle", "child", "middleEffect", "childEffect"}
+-        assert all(type(flag) is bool for flag in flags.values())
+-    else:
+-        assert type(observation["same"]) is bool
++    flags = observation["membership"]
++    assert isinstance(flags, dict) and set(flags) == {"middle", "child", "middleEffect", "childEffect"}
++    assert all(type(flag) is bool for flag in flags.values())
+     return kind
+ 
+ 

@@ -1,0 +1,20 @@
+--- artifacts/css-registered-selected-color-candidate-terminal-review-v2/check.py
++++ artifacts/css-registered-selected-color-candidate-terminal-review-v3/check.py
+@@ -35,7 +35,7 @@
+         raise AssertionError("Malformed roster accepted")
+ policy = json.loads((HERE / "POLICY.json").read_text())
+ assert policy["execution_enabled"] is False and policy["actual_terminal"] is None
+-assert policy["expected_session"] == 50372 and policy["expected_launch"] == "cbc269"
++assert policy["expected_session"] == 86757 and policy["expected_launch"] == "2c6dfe"
+ import hashlib
+ ROOT = HERE.parents[1]
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+@@ -45,7 +45,7 @@
+ assert sha(owner / 'FILES.json') == policy['owner_manifest_sha256']
+ for name, pin in json.loads((owner / 'FILES.json').read_text()).items():
+     assert sha(owner / name) == pin['sha256']
+-old_source = (ROOT / 'artifacts/css-registered-selected-color-candidate-terminal-review-v1/review.py').read_text()
++old_source = (ROOT / 'artifacts/css-registered-selected-color-candidate-terminal-review-v2/review.py').read_text()
+ assert source == old_source
+ anchor = '    assert {name: sha(CONTROL / name) for name in policy["controls"]}'
+ assert source[source.index(anchor):] == old_source[old_source.index(anchor):]

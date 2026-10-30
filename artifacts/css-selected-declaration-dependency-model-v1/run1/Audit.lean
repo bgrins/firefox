@@ -1,0 +1,12 @@
+import Selection
+#print axioms SelectedDeclaration.losing_suffix_irrelevant
+#print axioms SelectedDeclaration.terminal_ignores_tail
+#print axioms SelectedDeclaration.rollback_preserves_reads
+#print axioms SelectedDeclaration.skipped_candidate_adds_no_reads
+#print axioms SelectedDeclaration.read_provenance
+#print axioms SelectedDeclaration.rollback_and_selected_fallback_trace
+#print axioms SelectedDeclaration.arbitrary_suffix_after_rollback
+#print axioms SelectedDeclaration.unused_fallback_not_collected
+#print axioms SelectedDeclaration.evaluated_rollback_not_discarded
+#print axioms SelectedDeclaration.eager_adds_losing_edge
+#print axioms SelectedDeclaration.eager_false_cycle_witness

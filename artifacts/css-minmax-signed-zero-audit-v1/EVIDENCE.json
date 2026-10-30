@@ -1,0 +1,55 @@
+{
+  "status": "scoped source-based no-finding; no browser or model execution",
+  "date": "2026-10-29",
+  "spec_url": "https://drafts.csswg.org/css-values-4/#calc-ieee",
+  "spec_edition_observed": "Editors Draft 24 August 2026",
+  "sources": [
+    {
+      "path": "servo/components/style/values/specified/calc.rs",
+      "sha256": "f019bc06014a061f025e5bd02a6623b498d1e251ddf364b35d28db5a63281847",
+      "bytes": 70110,
+      "excerpt": "    fn compare(&self, other: &Self) -> Option<cmp::Ordering> {\n        use self::Leaf::*;\n\n        if std::mem::discriminant(self) != std::mem::discriminant(other) {\n            return None;\n        }\n\n        // Percentages that resolve against some other basis value cannot be meaningfully compared.\n        if matches!(self, Percentage(p) if p.hint != Optional::Some(NumericBaseType::Percent)) {\n            return None;\n        }\n\n        let self_negative = self.is_negative().unwrap_or(false);\n        if self_negative != other.is_negative().unwrap_or(false) {\n            return Some(if self_negative {\n                cmp::Ordering::Less\n            } else {\n                cmp::Ordering::Greater\n            });\n        }\n\n        match (self, other) {\n            (Percentage(one), Percentage(other)) => one.get().partial_cmp(&other.get()),\n            (Length(one), Length(other)) => one.partial_cmp(other),\n            (Angle(one), Angle(other)) => one.degrees().partial_cmp(&other.degrees()),\n            (Time(one), Time(other)) => one.seconds().partial_cmp(&other.seconds()),\n            (Resolution(one), Resolution(other)) => one.dppx().partial_cmp(&other.dppx()),\n            (Number(one), Number(other)) => one.partial_cmp(other),\n            (ColorComponent(one), ColorComponent(other)) => one.partial_cmp(other),\n            (TreeCountingFunction(one), TreeCountingFunction(other)) => one.partial_cmp(other),\n            (RandomKey(_), RandomKey(_)) => None,\n            _ => {\n                match *self {\n                    Length(..)\n                    | Percentage(..)\n                    | Angle(..)\n                    | Time(..)\n                    | Number(..)\n                    | Resolution(..)\n                    | ColorComponent(..)\n                    | TreeCountingFunction(..)\n                    | RandomKey(..) => {},\n                }\n                unsafe {\n                    debug_unreachable!(\"Forgot a branch?\");\n                }\n            },\n        }\n    }\n"
+    },
+    {
+      "path": "artifacts/css-minmax-log-integration-plan-v1/candidate-calc.rs",
+      "sha256": "0803cce1f4e8c7c1f589342f4ddc7a0be923a9b43c244e1d5baa9bf4243fe526",
+      "bytes": 122451,
+      "excerpt": "    fn is_negative(&self) -> Result<bool, ()> {\n        self.unitless_value()\n            .map(|v| Ok(v.is_sign_negative()))\n            .unwrap_or_else(|| Err(()))\n    }\n"
+    }
+  ],
+  "searchfox_receipts": {
+    "589dcd/0": {
+      "command": "searchfox-cli --define calc_min",
+      "body": "match (a.is_sign_negative(), b.is_sign_negative()) { (true, false) => a, (false, true) => b, _ => a.min(b) }"
+    },
+    "3c1789/0": {
+      "command": "searchfox-cli --define calc_max",
+      "body": "match (a.is_sign_negative(), b.is_sign_negative()) { (true, false) => b, (false, true) => a, _ => a.max(b) }"
+    },
+    "1d728a/0": {
+      "command": "searchfox-cli --path testing/web-platform/tests/css/css-values/signed-zero.html --regexp -q '.' -l 30",
+      "observer": "clamp(-1, 1 / sign(${expression}), 1)",
+      "negative_expected": "-1",
+      "positive_expected": "1"
+    },
+    "7c428e/0": {
+      "command": "searchfox-cli --path testing/web-platform/tests/css/css-values/signed-zero.html -q min -l 80",
+      "matches": [
+        "test_zero('min(-0,  0)', { is_negative: true });",
+        "test_zero('min( 0, -0)', { is_negative: true });"
+      ]
+    },
+    "6b0b8c/0": {
+      "command": "searchfox-cli --path testing/web-platform/tests/css/css-values/signed-zero.html -q test_zero -l 100",
+      "additional_matches": [
+        "test_zero('max(-0,  0)', { is_negative: false });",
+        "test_zero('max( 0, -0)', { is_negative: false });"
+      ]
+    }
+  },
+  "failed_capture_attempt": {
+    "receipt": "33f869/1",
+    "reason": "searchfox subprocess DNS failure; empty directory only; direct tool calls subsequently succeeded; no partial evidence files sealed"
+  },
+  "live_owner_exclusion": "No reads or writes to live generic calc/provider overlay; generic calc examined from immutable combined candidate capture."
+}

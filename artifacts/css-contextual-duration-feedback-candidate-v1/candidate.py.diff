@@ -1,0 +1,30 @@
+--- artifacts/css-contextual-duration-broader-candidate-v4/candidate.py
++++ artifacts/css-contextual-duration-feedback-candidate-v1/candidate.py
+@@ -35,6 +35,7 @@
+         print('Authenticated candidate recipe; no live guard')
+         return
+     assert policy['execution_enabled'] and policy['candidate_execution_enabled']
++    assert policy['activation_pending'] == []
+     state, env, controls, original, flags, original_verify = baseline.guard(policy, ownership, roles)
+     original_before = original_verify()
+     output = ROOT / policy['runtime_output']
+@@ -48,9 +49,8 @@
+     assert read(original_directory / 'PRE.json') == read(original_directory / 'POST.json') == original_before
+     comparison = load('broader_original_replay', str((HERE / 'comparison.py').relative_to(ROOT)))
+     comparison.replay_all(ROOT, policy)
+-    for kind in ('normative','reftest','feedback'):
++    for kind in ('feedback',):
+         ownership.group_absent(read(original_directory / (kind + '-wpt') / 'PROCESS.json')['pgid'])
+-    ownership.group_absent(read(ROOT / policy['inactive_binding']['directory'] / 'original-wpt/PROCESS.json')['pgid'])
+     assert output.parent == ROOT / 'artifacts' and not output.exists() and not output.is_symlink()
+     output.mkdir()
+     epoch = copy.deepcopy(original)
+@@ -101,7 +101,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'contextual-duration-broader-candidate-v3'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'contextual-duration-feedback-candidate-v1'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):

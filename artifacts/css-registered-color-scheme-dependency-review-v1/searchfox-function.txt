@@ -1,0 +1,23 @@
+>>>  722: fn find_non_custom_references(
+     723:     registration: &PropertyDescriptors,
+     724:     value: &VariableValue,
+     725:     is_root_element: bool,
+     726: ) -> ReferenceFlags {
+     727:     use crate::properties_and_values::syntax::data_type::DependentDataTypes;
+     728: 
+     729:     let mut result = ReferenceFlags::empty();
+     730:     let Some(syntax) = registration.syntax.as_ref() else {
+     731:         return result;
+     732:     };
+     733:     let dependent_types = syntax.dependent_types();
+     734:     let may_reference_length = dependent_types.intersects(DependentDataTypes::LENGTH);
+     735:     if may_reference_length {
+     736:         result |= value.references.non_custom_references(is_root_element);
+     737:     }
+     738:     if dependent_types.intersects(DependentDataTypes::COLOR) {
+     739:         // The value depends on the used color-scheme (e.g. a `<color>` property referencing
+     740:         // `light-dark()` or a system color).
+     741:         result |= ReferenceFlags::COLOR_SCHEME;
+     742:     }
+     743:     result
+     744: }

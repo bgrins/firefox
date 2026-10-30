@@ -1,0 +1,27 @@
+--- previous/run.py
++++ inactive/run.py
+@@ -60,6 +60,10 @@
+              if name.startswith(("servo/", "layout/", "dom/")) or name in policy["rebuilt_binaries"]]
+     assert bound and all(epoch["pins"][name] == built["pins"][name] for name in bound)
+ 
++    assert len(policy["accepted_current_payloads"]) == 29
++    for name, claim in policy["accepted_current_payloads"].items():
++        assert epoch["pins"][name] == claim["sha256"] and epoch["installed_identities"][name] == claim["identity"]
++
+     def verify():
+         authenticate(sys.argv[2])
+         for name, pin in policy["source_role_pins"].items():
+@@ -93,11 +97,11 @@
+                        env, verify, owned, lambda: stopped[0])
+     assert not owned
+     assessment = read(output / "original-wpt/ASSESSMENT.json")
+-    assert assessment["complete"] and assessment["observed_subtest_count"] == 3
++    assert assessment["complete"] and assessment["observed_subtest_count"] == 1
+     observed = {page: [row["subtest"] for row in assessment["rows"] if row["test"] == page]
+                 for page in policy["wpt"]["expected_subtests"]}
+     runner.save(output / "OBSERVED-ROSTER.json", {
+-        "expected_subtests": observed, "observed_subtest_count": 3,
++        "expected_subtests": observed, "observed_subtest_count": 1,
+         "phase": phase, "owner_sha256": sys.argv[2],
+         "source_roster_sha256": policy["references"][policy["source_roster"]],
+         "candidate_authorized": False,

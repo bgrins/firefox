@@ -1,0 +1,45 @@
+--- a/layout/style/nsAnimationManager.cpp
++++ b/layout/style/nsAnimationManager.cpp
+@@ -547,8 +547,13 @@
+ 
+   NonOwningAnimationTarget target(aElement, aPseudoRequest);
+   ServoCSSAnimationBuilder builder(aComputedStyle);
+-
+-  DoUpdateAnimations(target, *aComputedStyle->StyleUIReset(), builder);
++  RefPtr<const ComputedStyle> timingStyle = aComputedStyle;
++  if (Element* animatingElement = aElement->GetPseudoElement(aPseudoRequest)) {
++    timingStyle = mPresContext->StyleSet()->GetBaseContextForElement(
++        animatingElement, aComputedStyle);
++  }
++
++  DoUpdateAnimations(target, *timingStyle->StyleUIReset(), builder);
+ }
+ 
+ void nsAnimationManager::RemoveNamedTimelineAnimation(
+--- a/servo/components/style/matching.rs
++++ b/servo/components/style/matching.rs
+@@ -316,7 +316,8 @@
+             return has_animations;
+         }
+ 
+-        false
++        // Equal composed lists do not imply equal pre-own-effect timing inputs.
++        true
+     }
+ 
+     fn might_need_transitions_update(
+@@ -448,11 +449,10 @@
+ 
+         let old_values = &old_styles.primary;
+         if context.shared.traversal_flags.for_animation_only() {
+-            if let Some(old_values) = old_values.as_deref() {
++            if old_values.is_some() {
+                 let new_ui_style = new_styles.primary_style().get_ui();
+-                if (new_ui_style.specifies_animations()
+-                    || self.has_css_animations(context.shared, None))
+-                    && !old_values.get_ui().animations_equals(new_ui_style)
++                if new_ui_style.specifies_animations()
++                    || self.has_css_animations(context.shared, None)
+                 {
+                     let task = crate::context::SequentialTask::update_animations(
+                         *self,

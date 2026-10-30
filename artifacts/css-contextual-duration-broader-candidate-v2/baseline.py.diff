@@ -1,0 +1,32 @@
+--- artifacts/css-contextual-duration-animated-input-candidate-v1/baseline.py
++++ artifacts/css-contextual-duration-broader-candidate-v2/baseline.py
+@@ -41,21 +41,19 @@
+             path = Path(record[kind + '_capture'])
+             assert not path.is_absolute() and '..' not in path.parts and not (ROOT / path).is_symlink()
+             assert policy['references'][str(path)] == sha(ROOT / path) == record[kind + '_sha256']
++    if policy['baseline_binding'] is None:
++        assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
++        return policy, ownership, roles
+     ownership.authenticate(ROOT / policy['baseline_capsule']['directory'], policy['baseline_capsule']['sha256'])
+     assert policy['wpt'] == expected_wpt(policy)
+-    wpt = policy['wpt']
+-    assert (wpt['expected_subtest_count'], wpt['expected_target_count'], wpt['expected_control_count'],
+-            wpt['expected_page_count'], wpt['expected_regression_signature_count']) == (3, 2, 1, 1, 2)
++    assert (policy['wpt']['expected_subtest_count'], policy['wpt']['expected_target_count'], policy['wpt']['expected_control_count'], policy['wpt']['expected_page_count'], policy['wpt']['expected_regression_signature_count']) == (49,4,45,10,55)
+     binding = policy['baseline_binding']
+     directory = ROOT / binding['directory']
+     ownership.authenticate(directory, binding['manifest_sha256'])
+-    assert read(directory / binding['terminal_path']) == binding['terminal']
+-    assert binding['terminal']['exit'] == 0 and sha(directory / 'RESULT.json') == binding['result_sha256']
+-    assert sha(directory / 'OBSERVED-ROSTER.json') == binding['roster_sha256']
+-    assessor = load('minmax_assessor', str((HERE / 'assess.py').relative_to(ROOT)))
+-    checks = load('minmax_checks', wpt['checks_helper'])
+-    comparison = load('minmax_comparison', str((HERE / 'comparison.py').relative_to(ROOT)))
+-    comparison.replay_original(ROOT, policy, assessor, checks)
++    assert read(directory / binding['terminal_path']) == binding['terminal'] and binding['terminal']['exit'] == 0
++    assert sha(directory / 'RESULT.json') == binding['result_sha256']
++    comparison = load('broader_complete_replay', str((HERE / 'comparison.py').relative_to(ROOT)))
++    comparison.replay_all(ROOT, policy)
+     return policy, ownership, roles
+ 
+ 

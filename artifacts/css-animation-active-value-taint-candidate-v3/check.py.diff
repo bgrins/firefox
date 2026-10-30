@@ -1,0 +1,48 @@
+--- artifacts/css-animation-active-value-taint-candidate-v2/check.py
++++ artifacts/css-animation-active-value-taint-candidate-v3/check.py
+@@ -80,8 +80,7 @@
+     comparison = load("taint_actual_replay", HERE / "comparison.py")
+     original = comparison.source_policy(ROOT, policy)
+     assert policy["baseline_binding"] is not None
+-    assert policy["head"] == original["head"] and policy["controls"] == original["controls"]
+-    assert policy["prepared_application_metadata"] == {k:v for k,v in original["prepared_application_metadata"].items() if k not in ("build_revision", "harness_revision", "source_role")}
++    load("taint_failed_restore", HERE / "handoff.py").validate(ROOT, policy, original)
+     flag = policy["prepared_flag_capture"]
+     assert policy["references"][flag["path"]] == sha(ROOT / flag["path"]) == flag["sha256"]
+     assert read(ROOT / flag["path"]) == policy["prepared_flag_hashes"]
+@@ -93,6 +92,35 @@
+ def check():
+     policy = read(HERE / "POLICY.json")
+     validate_policy(policy)
++    handoff = load("taint_handoff_negative_checks", HERE / "handoff.py")
++    runtime = ROOT / policy["restoration_handoff"]["runtime"]
++    original_policy = read(ROOT / policy["baseline_capsule"]["directory"] / "POLICY.json")
++    saved = {name: read(runtime / name) for name in (
++        "ROOT-CURRENT.json", "ROOT-TERMINAL.json", "ROOT-EPOCH-REFRESH.json",
++        "ROOT-BACKUP-CLEANUP.json", "RESTORATION.json", "CANDIDATE-RESULT.json",
++        "CANDIDATE-PRE.json", "POST.json", "ROOT-FLAGS.json", "BACKUP-CLEANUP.json",
++        "RAW-INDEX-OBSERVATION.json", "candidate-build/build-RESULT.json")}
++    mutations = (
++        lambda x: x["ROOT-CURRENT.json"]["prepared_application_metadata"].update(sha256="0" * 64),
++        lambda x: x["ROOT-CURRENT.json"]["prepared_application_metadata"].update(identity=[0, 0]),
++        lambda x: x["ROOT-CURRENT.json"]["snapshot"]["nested_index"].update(raw_index="0" * 64),
++        lambda x: x["ROOT-CURRENT.json"]["source_role_pins"].update({"servo/components/style/custom_properties.rs": "0" * 64}),
++        lambda x: x["RESTORATION.json"].update(errors=["unrestored"]),
++        lambda x: x["candidate-build/build-RESULT.json"].update(exit=0),
++        lambda x: x["ROOT-BACKUP-CLEANUP.json"].update(removed=False),
++        lambda x: x["ROOT-CURRENT.json"]["controls"].update({"ROLE.json": "0" * 64}),
++        lambda x: x["ROOT-FLAGS.json"].update(root="0" * 64),
++        lambda x: x["CANDIDATE-RESULT.json"].update(success=True),
++    )
++    for mutate in mutations:
++        bad = copy.deepcopy(saved)
++        mutate(bad)
++        try:
++            handoff.validate(ROOT, policy, original_policy, bad)
++        except AssertionError:
++            pass
++        else:
++            raise AssertionError("invalid failed-restoration handoff admitted")
+     lineage = read(ROOT / policy["source_equivalence"]["path"])
+     roles = read(HERE / "SOURCE-ROLES.json")
+     for mutate in (

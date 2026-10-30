@@ -1,0 +1,13 @@
+# Exact selected-color 45-case follow-up suite
+
+This artifact preserves sealed42 suite baaab995 exactly and appends sealed three-case absolute-color image probe178efa57. Total45 callbacks, four pages,49 signatures and six resources. Existing HTML, callback names, metadata and genuine manifest entries remain unchanged. Shared harness hashes match. No new test semantics, private transport or runtime machinery is introduced.
+
+The supplement isolates direct em/lh image lengths, typed-attribute em/lh lengths and inherited computed images without contextual colors. This distinguishes font-relative image dependency preservation from improvements that might only arise through selected scheme dependencies. It does not assume any outcome. All four .ini absences remain actual-owner admission obligations; saved assembly reads only captured artifacts.
+
+The checker authenticates all four source fixtures and exact prior42 subset, genuine manifest descriptors/blob IDs, six resources and saved metadata captures. It rejects omission of the new page, duplicate callback identity and extra callback. Expected statuses, execution and current state remain null. Completed42 results do not establish an original45 or candidate45 run.
+
+Follow-up after root restoration: obtain an actual clean committed-provider original45 baseline; run the combined candidate with byte-identical45 resources; independently verify restoration and all outcomes. Source-isolation trials must use that same roster and baseline, not combine outcomes from different fixture bytes. Existing original42 evidence stays distinct and immutable.
+
+The sealed split-plan is a source-design dependency, not an implemented ablation. Its A-only boundary removes Image-only deferral eligibility and restricts the new post-edge invalid/default classification to the original COLOR eligibility. Recursive image classification remains necessary for color-capable image unions. A matching combined trial then measures the added image behavior. Neither test names nor combined passing results establish which source change caused an improvement.
+
+An image-only trial against the original base needs a separately reviewed source variant that preserves original COLOR behavior while supplying necessary image machinery; this union does not invent that patch or independence proof. The current split plan describes B as a separate dependent commit after A. If independent cherry-pickability is required, shared prerequisites or a standalone image implementation must be made explicit and validated. Standalone native/WPT publication remains separate from these research runs; this package provides no native acceptance or publication evidence.

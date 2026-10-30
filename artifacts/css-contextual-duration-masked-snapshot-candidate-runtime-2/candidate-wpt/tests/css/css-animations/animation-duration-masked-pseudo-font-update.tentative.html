@@ -1,0 +1,62 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>An inherited host variable updates masked pseudo-element duration</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#model-liveness">
+<link rel="help" href="https://drafts.csswg.org/css-animations-1/#animation-duration">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+promise_test(async t => {
+  assert_true(CSS.supports("animation-duration", "calc(1em / 16px * 1s)"),
+              "Typed arithmetic duration is supported");
+  const iframe = document.createElement("iframe");
+  t.add_cleanup(() => iframe.remove());
+  const loaded = new Promise(resolve => iframe.onload = resolve);
+  iframe.srcdoc = `<!doctype html><style>
+    @keyframes fixed-font { from { font-size: 32px; } to { font-size: 32px; } }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+    #host::before { content: "x"; display: block;
+      font-size: var(--font); animation-name: fixed-font, fade;
+      animation-duration: 2s, calc(1em / 16px * 1s);
+      animation-timing-function: linear; animation-fill-mode: both;
+      animation-play-state: paused; }
+  </style><body><div id="host" style="--font: 16px"></div>`;
+  document.body.append(iframe);
+  await loaded;
+  const win = iframe.contentWindow;
+  const target = iframe.contentDocument.getElementById("host");
+  const acquired = target.getAnimations({subtree: true});
+  assert_equals(acquired.length, 2, "Two CSS animations acquired");
+  const animations = ["fixed-font", "fade"].map(
+    name => acquired.find(animation => animation.animationName === name));
+  assert_true(animations.every(Boolean), "Both named animations acquired");
+  for (const animation of animations) {
+    await animation.ready;
+    animation.currentTime = 750;
+  }
+  const effects = animations.map(animation => animation.effect);
+  for (let index = 0; index < 3; index++) {
+    await new Promise(resolve => win.requestAnimationFrame(resolve));
+  }
+  assert_equals(win.getComputedStyle(target, "::before").fontSize, "32px",
+                "Animated font masks the initial authored font");
+
+  target.style.setProperty("--font", "32px");
+  const firstOpacity = Number(win.getComputedStyle(target, "::before").opacity);
+  const duration = effects[1].getTiming().duration;
+  const progress = effects[1].getComputedTiming().progress;
+  const current = target.getAnimations({subtree: true});
+  const observed = `opacity=${firstOpacity}, duration=${duration}, progress=${progress}`;
+  assert_approx_equals(firstOpacity, 0.375, 0.0001, `First read: ${observed}`);
+  assert_equals(current.length, 2, "Two CSS animations remain");
+  assert_equals(duration, 2000, "Final contextual duration is 2s");
+  assert_approx_equals(progress, 0.375, 0.0001, "Final effect progress");
+  for (let index = 0; index < animations.length; index++) {
+    assert_true(current.includes(animations[index]), "Animation identity retained");
+    assert_equals(animations[index].effect, effects[index], "Effect identity retained");
+    assert_equals(animations[index].currentTime, 750, "Current time retained");
+    assert_equals(animations[index].playState, "paused", "Animation stays paused");
+  }
+}, "Changing an inherited host variable updates masked ::before duration on the first opacity read");
+</script>

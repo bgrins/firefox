@@ -1,0 +1,20 @@
+--- artifacts/css-contextual-duration-broader-candidate-v2/baseline.py
++++ artifacts/css-contextual-duration-broader-candidate-v3/baseline.py
+@@ -42,6 +42,7 @@
+             assert not path.is_absolute() and '..' not in path.parts and not (ROOT / path).is_symlink()
+             assert policy['references'][str(path)] == sha(ROOT / path) == record[kind + '_sha256']
+     if policy['baseline_binding'] is None:
++        assert policy['inactive_binding'] is None
+         assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
+         return policy, ownership, roles
+     ownership.authenticate(ROOT / policy['baseline_capsule']['directory'], policy['baseline_capsule']['sha256'])
+@@ -52,6 +53,9 @@
+     ownership.authenticate(directory, binding['manifest_sha256'])
+     assert read(directory / binding['terminal_path']) == binding['terminal'] and binding['terminal']['exit'] == 0
+     assert sha(directory / 'RESULT.json') == binding['result_sha256']
++    assert policy['inactive_binding'] is not None
++    ownership.authenticate(ROOT / policy['inactive_capsule']['directory'], policy['inactive_capsule']['sha256'])
++    ownership.authenticate(ROOT / policy['inactive_binding']['directory'], policy['inactive_binding']['manifest_sha256'])
+     comparison = load('broader_complete_replay', str((HERE / 'comparison.py').relative_to(ROOT)))
+     comparison.replay_all(ROOT, policy)
+     return policy, ownership, roles

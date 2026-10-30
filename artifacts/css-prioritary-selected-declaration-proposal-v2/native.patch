@@ -1,0 +1,590 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -4,14 +4,13 @@
+ 
+ //! The main cascading algorithm of the style system.
+ 
+-use crate::{FxHashMap, Namespace};
+ use crate::applicable_declarations::{CascadePriority, RevertKind};
+ use crate::color::AbsoluteColor;
+ use crate::computed_value_flags::ComputedValueFlags;
+ use crate::context::TreeCountingCaches;
+ use crate::custom_properties::{
+     ComputedCustomProperties, ComputedSubstitutionFunctions, Name, NonCustomReferenceMap,
+-    ReferenceFlags, References, SingleNonCustomReference, SubstitutionFunctionKind, VariableValue,
++    ReferenceFlags, References, SubstitutionFunctionKind, VariableValue,
+     get_attr_value_for_cycle_resolution, handle_invalid_at_computed_value_time,
+     remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
+ };
+@@ -42,6 +41,7 @@
+ use crate::values::specified::length::FontBaseSize;
+ use crate::values::specified::position::PositionTryFallbacksTryTactic;
+ use crate::values::{computed, specified};
++use crate::{FxHashMap, Namespace};
+ use hashbrown::hash_map::{Entry, EntryRef};
+ use selectors::matching::ElementSelectorFlags;
+ use servo_arc::Arc;
+@@ -470,6 +470,20 @@
+ /// This is a bit of a clunky way of achieving this.
+ type DeclarationsToApplyUnlessOverriden = SmallVec<[PropertyDeclaration; 2]>;
+ 
++struct PreparedLonghand<'a> {
++    declaration: Cow<'a, PropertyDeclaration>,
++    deferred: DeclarationsToApplyUnlessOverriden,
++}
++
++impl PreparedLonghand<'_> {
++    fn into_owned(self) -> PreparedLonghand<'static> {
++        PreparedLonghand {
++            declaration: Cow::Owned(self.declaration.into_owned()),
++            deferred: self.deferred,
++        }
++    }
++}
++
+ fn is_base_appearance(context: &computed::Context) -> bool {
+     use computed::Appearance;
+     let box_style = context.builder.get_box();
+@@ -483,6 +497,23 @@
+         Appearance::Base => *box_style.get__moz_default_appearance() != Appearance::None,
+         _ => false,
+     }
++}
++
++fn prioritary_adjustment_dependency(
++    ignore_colors: bool,
++    longhand: LonghandId,
++    declaration: &PropertyDeclaration,
++    origin: CascadeOrigin,
++) -> Option<LonghandId> {
++    if !ignore_colors
++        || !longhand.ignored_when_document_colors_disabled()
++        || matches!(origin, CascadeOrigin::UA | CascadeOrigin::User)
++        || declaration.get_css_wide_keyword().is_some()
++    {
++        return None;
++    }
++    debug_assert_eq!(longhand, LonghandId::ColorScheme);
++    Some(LonghandId::ForcedColorAdjust)
+ }
+ 
+ fn tweak_when_ignoring_colors(
+@@ -1100,12 +1131,33 @@
+         attribute_tracker: &mut AttributeTracker,
+     ) {
+         debug_assert!(!longhand_id.is_logical());
++        if !self.longhand_is_eligible(context.included_cascade_flags, longhand_id, priority) {
++            return;
++        }
++        let prepared = self.prepare_longhand(
++            context,
++            longhand_id,
++            declaration,
++            priority,
++            cache,
++            attribute_tracker,
++        );
++        self.apply_prepared_longhand(context, longhand_id, prepared, priority);
++    }
++
++    fn longhand_is_eligible(
++        &self,
++        included_flags: RuleCascadeFlags,
++        longhand_id: LonghandId,
++        priority: CascadePriority,
++    ) -> bool {
++        debug_assert!(!longhand_id.is_logical());
+         if self.seen.longhands.contains(longhand_id) {
+-            return;
+-        }
+-
+-        if !(priority.flags() - context.included_cascade_flags).is_empty() {
+-            return;
++            return false;
++        }
++
++        if !(priority.flags() - included_flags).is_empty() {
++            return false;
+         }
+ 
+         if self.reverted.longhands_set.contains(longhand_id)
+@@ -1113,24 +1165,66 @@
+                 self.reverted.longhands.get(&longhand_id)
+             && !reverted_priority.allows_when_reverted(&priority, revert_kind)
+         {
+-            return;
+-        }
+-
+-        let mut declaration =
++            return false;
++        }
++
++        true
++    }
++
++    fn prepare_longhand<'cache, 'decl>(
++        &self,
++        context: &mut computed::Context,
++        longhand_id: LonghandId,
++        declaration: &'decl PropertyDeclaration,
++        priority: CascadePriority,
++        cache: &'cache mut ShorthandsWithPropertyReferencesCache,
++        attribute_tracker: &mut AttributeTracker,
++    ) -> PreparedLonghand<'decl>
++    where
++        'cache: 'decl,
++    {
++        let declaration =
+             self.substitute_variables_if_needed(context, cache, declaration, attribute_tracker);
+-
+-        // When document colors are disabled, do special handling of
+-        // properties that are marked as ignored in that mode.
+-        let origin = priority.cascade_level().origin();
++        self.adjust_prepared_longhand(context, longhand_id, declaration, priority)
++    }
++
++    fn adjust_prepared_longhand<'decl>(
++        &self,
++        context: &computed::Context,
++        longhand_id: LonghandId,
++        mut declaration: Cow<'decl, PropertyDeclaration>,
++        priority: CascadePriority,
++    ) -> PreparedLonghand<'decl> {
++        let mut deferred = DeclarationsToApplyUnlessOverriden::new();
+         if self.ignore_colors {
+             tweak_when_ignoring_colors(
+                 context,
+                 longhand_id,
+-                origin,
++                priority.cascade_level().origin(),
+                 &mut declaration,
+-                &mut self.declarations_to_apply_unless_overridden,
++                &mut deferred,
+             );
+         }
++        PreparedLonghand {
++            declaration,
++            deferred,
++        }
++    }
++
++    fn apply_prepared_longhand(
++        &mut self,
++        context: &mut computed::Context,
++        longhand_id: LonghandId,
++        prepared: PreparedLonghand,
++        priority: CascadePriority,
++    ) {
++        let PreparedLonghand {
++            declaration,
++            deferred,
++        } = prepared;
++        self.declarations_to_apply_unless_overridden
++            .extend(deferred);
++        let origin = priority.cascade_level().origin();
+         let can_skip_apply = match declaration.get_css_wide_keyword() {
+             Some(keyword) => {
+                 if let Some(revert_kind) = keyword.revert_kind() {
+@@ -1936,34 +2030,13 @@
+             return;
+         }
+ 
+-        // Attributes in non-custom properties may reference `var()` or `attr()` in their
+-        // values, which we need to track to support chained references and detect cycles.
++        if PrioritaryPropertyId::from_longhand(id).is_some() {
++            self.may_have_custom_property_cycles = true;
++            return;
++        }
+         if refs.flags.intersects(ReferenceFlags::ATTR) {
+             self.update_attributes_map(context, value, attribute_tracker);
+         }
+-
+-        // The non-custom node(s) this property feeds. We don't try to figure out here which
+-        // referenced custom properties can actually cycle back to it: instead we record the whole
+-        // declaration value, and let `substitute_all` traverse its references (following fallbacks
+-        // only when the primary is invalid). This way, references that only appear in an unused
+-        // fallback (e.g. `var(--exists, var(--font-size-em))`) don't create a spurious cycle, while
+-        // references in a used fallback (e.g. `var(--noexist, var(--font-size-em))`) do.
+-        //
+-        // With unit algebra in `calc()`, references aren't limited to `font-size`. For example,
+-        // `--foo: 100ex; font-weight: calc(var(--foo) / 1ex);`, or
+-        // `--foo: 1em; zoom: calc(var(--foo) * 30px / 2em);`
+-        let references = match id {
+-            LonghandId::FontSize => ReferenceFlags::FONT_UNITS,
+-            LonghandId::LineHeight => ReferenceFlags::LH_UNITS | ReferenceFlags::FONT_UNITS,
+-            LonghandId::ColorScheme => ReferenceFlags::COLOR_SCHEME,
+-            _ => return,
+-        };
+-
+-        references.for_each_non_custom(context.is_root_element(), |idx| {
+-            self.references_from_non_custom_properties[idx]
+-                .get_or_insert_with(Vec::new)
+-                .push((v.id, v.value.clone()));
+-        });
+     }
+ 
+     fn value_may_affect_style(
+@@ -2179,7 +2252,7 @@
+     enum VarType {
+         Attr(Name, Namespace),
+         Custom(Name),
+-        NonCustom(SingleNonCustomReference),
++        NonCustom(LonghandId),
+     }
+ 
+     impl VarType {
+@@ -2228,7 +2301,9 @@
+         /// The map from a substitution function name to its order index.
+         index_map: OrderIndexMap,
+         /// Mapping from a non-custom dependency to its order index.
+-        non_custom_index_map: NonCustomReferenceMap<usize>,
++        non_custom_index_map: FxHashMap<LonghandId, usize>,
++        prepared_priorities:
++            FxHashMap<LonghandId, Vec<(PreparedLonghand<'static>, CascadePriority)>>,
+         /// Information of each variable indexed by the order index.
+         var_info: SmallVec<[VarInfo; 5]>,
+         /// The stack of order index of visited variables. It contains
+@@ -2254,7 +2329,8 @@
+         fn reset(&mut self) {
+             self.count = 0;
+             self.index_map.clear();
+-            self.non_custom_index_map = Default::default();
++            self.non_custom_index_map.clear();
++            self.prepared_priorities.clear();
+             self.var_info.clear();
+             self.stack.clear();
+         }
+@@ -2288,28 +2364,46 @@
+                     self.computed_context
+                         .builder
+                         .invalid_non_custom_properties
+-                        .insert(non_custom.to_prioritary_id().to_longhand());
++                        .insert(*non_custom);
+                 },
+             }
+         }
+ 
+-        /// Applies a prioritary property (and its dependencies) while resolving custom properties.
+-        ///
+-        /// The in-progress map lives outside `computed_context` during traversal; we move it into
+-        /// `computed_context.builder.substitution_functions` so the prioritary declaration's `var()`
+-        /// references resolve against the custom properties resolved so far, then take it back out.
+-        fn apply_prioritary_property(
++        fn apply_prepared_priority(
+             &mut self,
+-            id: PrioritaryPropertyId,
+-            attr_tracker: &mut AttributeTracker,
++            longhand: LonghandId,
++            attribute_tracker: &mut AttributeTracker,
+         ) {
+-            self.cascade.ensure_prioritary_property(
+-                self.computed_context,
+-                self.decls,
+-                self.cache,
+-                attr_tracker,
+-                id,
+-            );
++            let id = PrioritaryPropertyId::from_longhand(longhand).unwrap();
++            self.cascade.ensured_prioritary.insert(id);
++            for dependency in id.dependencies().iter() {
++                self.cascade.ensure_prioritary_property(
++                    self.computed_context,
++                    self.decls,
++                    self.cache,
++                    attribute_tracker,
++                    dependency,
++                );
++            }
++            let prepared = self.prepared_priorities.remove(&longhand).unwrap();
++            for (declaration, priority) in prepared {
++                debug_assert!(self.cascade.longhand_is_eligible(
++                    self.computed_context.included_cascade_flags,
++                    longhand,
++                    priority
++                ));
++                self.cascade.apply_prepared_longhand(
++                    self.computed_context,
++                    longhand,
++                    declaration,
++                    priority,
++                );
++                if self.cascade.seen.longhands.contains(longhand) {
++                    self.cascade
++                        .did_apply_prioritary_property(self.computed_context, id);
++                    break;
++                }
++            }
+         }
+     }
+ 
+@@ -2578,12 +2672,23 @@
+                 // need to keep reference to context.map.
+                 Some(value.clone())
+             },
+-            VarType::NonCustom(ref non_custom) => {
+-                let entry = &mut context.non_custom_index_map[*non_custom];
+-                if let Some(v) = entry {
+-                    return Some(*v);
+-                }
+-                *entry = Some(context.count);
++            VarType::NonCustom(ref longhand) => {
++                let id = PrioritaryPropertyId::from_longhand(*longhand).unwrap();
++                if context.cascade.ensured_prioritary.contains(id)
++                    || context
++                        .computed_context
++                        .builder
++                        .invalid_non_custom_properties
++                        .contains(*longhand)
++                {
++                    return None;
++                }
++                if let Some(index) = context.non_custom_index_map.get(longhand) {
++                    return Some(*index);
++                }
++                context
++                    .non_custom_index_map
++                    .insert(*longhand, context.count);
+                 None
+             },
+         };
+@@ -2630,7 +2735,7 @@
+             if registered && !value_non_custom_refs.is_empty() {
+                 value_non_custom_refs.for_each_non_custom(is_root, |r| {
+                     visit_link(
+-                        VarType::NonCustom(r),
++                        VarType::NonCustom(r.to_prioritary_id().to_longhand()),
+                         index,
+                         references_from_non_custom_properties,
+                         context,
+@@ -2640,19 +2745,11 @@
+                     );
+                 });
+             }
+-        } else if let VarType::NonCustom(non_custom) = var {
+-            // line-height's resolution depends on font-size's, so its node has a graph edge to the
+-            // font-size node. This is needed for cycle detection (not just application order, which
+-            // `prioritary_property_dependencies(LineHeight)` handles): it puts the line-height node
+-            // in the same strongly-connected component as a font-size<->custom cycle, so the node
+-            // doesn't apply line-height (and, transitively, font-size) before that cycle is
+-            // removed.
+-            //
+-            // TODO(emilio): I think the right fix for this is
+-            // s/SingleNonCustomReference/PrioritaryPropertyId in VarType::NonCustom.
+-            if non_custom == SingleNonCustomReference::LhUnits {
++        } else if let VarType::NonCustom(longhand) = var {
++            let id = PrioritaryPropertyId::from_longhand(longhand).unwrap();
++            if longhand == LonghandId::LineHeight {
+                 visit_link(
+-                    VarType::NonCustom(SingleNonCustomReference::FontUnits),
++                    VarType::NonCustom(LonghandId::FontSize),
+                     index,
+                     references_from_non_custom_properties,
+                     context,
+@@ -2661,31 +2758,124 @@
+                     attribute_tracker,
+                 );
+             }
+-            let entry = &references_from_non_custom_properties[non_custom];
+-            if let Some(values) = entry.as_ref() {
+-                for (longhand_id, value) in values {
+-                    // Traverse the non-custom property's declaration value(s), creating edges to
+-                    // the custom properties they reference (directly or through a used fallback)
+-                    // that might cycle back to this node. Note we traverse unregistered/universal
+-                    // references too: while their own font-relative units are textual (resolved
+-                    // against the parent, see `find_non_custom_references`), they may chain to a
+-                    // registered property that does cycle back.
+-                    let property_id = value.substitution_property_id(*longhand_id);
+-                    let value = &value.variable_value;
+-                    visit_value_references(
+-                        &value.references,
+-                        &value.url_data,
+-                        Some(property_id),
++            let mut prepared = Vec::new();
++            let mut reverted = context.cascade.reverted.longhands.get(&longhand).copied();
++            let mut declaration_index =
++                context.decls.prioritary_positions[id as usize].most_important;
++            while lowlink == index
++                && !self_ref
++                && context.stack.last() == Some(&index)
++                && declaration_index != DeclarationIndex::MAX
++            {
++                let entry = context.decls.longhand_declarations[declaration_index as usize];
++                let rollback_allows = reverted.is_none_or(|(priority, kind)| {
++                    priority.allows_when_reverted(&entry.priority, kind)
++                });
++                let included = context.computed_context.included_cascade_flags;
++                if rollback_allows
++                    && entry
++                        .priority
++                        .flags()
++                        .intersects(RuleCascadeFlags::APPEARANCE_BASE)
++                    && !included.intersects(RuleCascadeFlags::APPEARANCE_BASE)
++                    && context.cascade.longhand_is_eligible(
++                        included | RuleCascadeFlags::APPEARANCE_BASE,
++                        longhand,
++                        entry.priority,
++                    )
++                {
++                    visit_link(
++                        VarType::NonCustom(LonghandId::Appearance),
+                         index,
+                         references_from_non_custom_properties,
+                         context,
+                         &mut lowlink,
+                         &mut self_ref,
+                         attribute_tracker,
+-                        &mut Default::default(),
+                     );
+                 }
+-            }
++                if lowlink != index || self_ref || context.stack.last() != Some(&index) {
++                    break;
++                }
++                let eligible = rollback_allows
++                    && context.cascade.longhand_is_eligible(
++                        context.computed_context.included_cascade_flags,
++                        longhand,
++                        entry.priority,
++                    );
++                if eligible {
++                    if let PropertyDeclaration::WithVariables(declaration) = entry.decl {
++                        let value = &declaration.value;
++                        visit_value_references(
++                            &value.variable_value.references,
++                            &value.variable_value.url_data,
++                            Some(value.substitution_property_id(longhand)),
++                            index,
++                            references_from_non_custom_properties,
++                            context,
++                            &mut lowlink,
++                            &mut self_ref,
++                            attribute_tracker,
++                            &mut Default::default(),
++                        );
++                    }
++                    if lowlink != index || self_ref || context.stack.last() != Some(&index) {
++                        break;
++                    }
++                    let declaration = context
++                        .cascade
++                        .substitute_variables_if_needed(
++                            context.computed_context,
++                            context.cache,
++                            entry.decl,
++                            attribute_tracker,
++                        )
++                        .into_owned();
++                    if let Some(dependency) = prioritary_adjustment_dependency(
++                        context.cascade.ignore_colors,
++                        longhand,
++                        &declaration,
++                        entry.priority.cascade_level().origin(),
++                    ) {
++                        visit_link(
++                            VarType::NonCustom(dependency),
++                            index,
++                            references_from_non_custom_properties,
++                            context,
++                            &mut lowlink,
++                            &mut self_ref,
++                            attribute_tracker,
++                        );
++                    }
++                    if lowlink != index || self_ref || context.stack.last() != Some(&index) {
++                        break;
++                    }
++                    let declaration = context
++                        .cascade
++                        .adjust_prepared_longhand(
++                            context.computed_context,
++                            longhand,
++                            Cow::Owned(declaration),
++                            entry.priority,
++                        )
++                        .into_owned();
++                    let revert = declaration
++                        .declaration
++                        .get_css_wide_keyword()
++                        .and_then(|keyword| keyword.revert_kind());
++                    prepared.push((declaration, entry.priority));
++                    if let Some(kind) = revert {
++                        reverted = Some((entry.priority, kind));
++                    } else {
++                        break;
++                    }
++                }
++                declaration_index = entry.next_index;
++                if declaration_index == 0 {
++                    break;
++                }
++            }
++            context.prepared_priorities.insert(longhand, prepared);
+         }
+ 
+         context.var_info[index].lowlink = lowlink;
+@@ -2700,6 +2890,7 @@
+ 
+         // This is the root of a strong-connected component.
+         let mut in_loop = self_ref;
++        let mut invalid_priorities = Vec::new();
+         loop {
+             let var_index = context
+                 .stack
+@@ -2718,6 +2909,10 @@
+             }
+             if in_loop {
+                 context.handle_loop(&var_name);
++                if let VarType::NonCustom(longhand) = var_name {
++                    context.prepared_priorities.remove(&longhand);
++                    invalid_priorities.push(PrioritaryPropertyId::from_longhand(longhand).unwrap());
++                }
+             }
+             if var_index == index {
+                 debug_assert_eq!(var_name, var);
+@@ -2726,6 +2921,15 @@
+         }
+ 
+         if in_loop {
++            for id in invalid_priorities {
++                context.cascade.ensure_prioritary_property(
++                    context.computed_context,
++                    context.decls,
++                    context.cache,
++                    attribute_tracker,
++                    id,
++                );
++            }
+             return None;
+         }
+ 
+@@ -2746,7 +2950,7 @@
+                 }
+             },
+             VarType::NonCustom(non_custom) => {
+-                context.apply_prioritary_property(non_custom.to_prioritary_id(), attribute_tracker);
++                context.apply_prepared_priority(non_custom, attribute_tracker);
+             },
+         }
+         // All resolved, so return the signal value.
+@@ -2756,7 +2960,8 @@
+     let mut context = Context {
+         count: 0,
+         index_map: OrderIndexMap::default(),
+-        non_custom_index_map: NonCustomReferenceMap::default(),
++        non_custom_index_map: FxHashMap::default(),
++        prepared_priorities: FxHashMap::default(),
+         stack: SmallVec::new(),
+         var_info: SmallVec::new(),
+         stylist,
+@@ -2787,6 +2992,11 @@
+         }
+         run_one(VarType::Custom((*var).clone()));
+     }
++    if decls.has_prioritary_properties {
++        for id in PrioritaryPropertyId::each() {
++            run_one(VarType::NonCustom(id.to_longhand()));
++        }
++    }
+     // Traverse potentially untraversed chained references from `attr(type())` in non-custom
+     // properties.
+     for (namespace, attributes) in &seen.attr {

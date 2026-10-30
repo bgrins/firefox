@@ -1,0 +1,25 @@
+--- a/baseline.py
++++ b/baseline.py
+@@ -47,8 +47,14 @@
+     assert (native['accepted_fix'], native['accepted_fixes'], native['tracked']) == (150,149,150)
+ 
+ 
++def metadata_guard(policy):
++    for name, digest in policy['metadata_current_pins'].items():
++        assert sha(ROOT / name) == digest
++
++
+ def guard(policy, ownership, roles):
+     require_ready(policy)
++    metadata_guard(policy)
+     assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'CC', 'CXX', 'RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS', 'CARGO_TARGET_DIR', 'RUSTC', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER', 'MOZ_ARTIFACT_BUILDS', 'MOZ_CONFIGURE_OPTIONS', 'MOZ_PROFILE', 'MOZ_DURATION_RESTYLE_TRACE'))
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS='0', PYTHONDONTWRITEBYTECODE='1', MOZCONFIG=str(ROOT / 'mozconfig'), MOZ_OBJDIR=str(ROOT / 'objdir-full.noindex'), MOZ_HEADLESS='1', MOZ_SKIP_PATH_PERFORMANCE_CHECK='1')
+     state = load('activation_state', policy['state_helper'])
+@@ -143,6 +149,7 @@
+     flags = {name: state.h.git(path, env, 'ls-files', '-v', '-z') for name, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]}
+     assert {name: hashlib.sha256(body).hexdigest() for name, body in flags.items()} == policy['prepared_flag_hashes']
+     def verify():
++        metadata_guard(policy)
+         assert all((RUNTIME / name).read_bytes() == body for name, body in controls.items())
+         for name in policy['preserved_absent_metadata'] + policy['preserved_absent_resources']:
+             assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()

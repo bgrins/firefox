@@ -1,0 +1,445 @@
+--- a/servo/components/style/properties_and_values/value.rs
++++ b/servo/components/style/properties_and_values/value.rs
+@@ -191,6 +191,9 @@
+     /// Flag indicating whether this value is tainted by an attr().
+     #[css(skip)]
+     pub attr_tainted: bool,
++    /// Whether the winning value carries animation provenance.
++    #[css(skip)]
++    pub animation_tainted: bool,
+ }
+ 
+ impl<Component: ToComputedValue> ToComputedValue for Value<Component> {
+@@ -202,6 +205,7 @@
+             v: self.v.to_computed_value(context),
+             url_data: self.url_data.to_computed_value(context),
+             attr_tainted: self.attr_tainted.to_computed_value(context),
++            animation_tainted: self.animation_tainted,
+         })
+     }
+ 
+@@ -211,6 +215,7 @@
+             v: ToComputedValue::from_computed_value(&computed.v),
+             url_data: ToComputedValue::from_computed_value(&computed.url_data),
+             attr_tainted: ToComputedValue::from_computed_value(&computed.attr_tainted),
++            animation_tainted: computed.animation_tainted,
+         }
+     }
+ }
+@@ -229,6 +234,7 @@
+             v,
+             url_data: self.url_data.clone(),
+             attr_tainted: self.attr_tainted || other.attr_tainted,
++            animation_tainted: self.animation_tainted || other.animation_tainted,
+         })
+     }
+ }
+@@ -240,18 +246,21 @@
+             v,
+             url_data,
+             attr_tainted: Default::default(),
++            animation_tainted: false,
+         }
+     }
+ 
+     /// Creates a new registered custom property value presumed to have universal syntax.
+     pub fn universal(var: Arc<ComputedPropertyValue>) -> Self {
+         let attr_tainted = var.is_attr_tainted();
++        let animation_tainted = var.explicitly_animation_tainted;
+         let url_data = var.url_data.clone();
+         let v = ValueInner::Universal(var);
+         Self {
+             v,
+             url_data,
+             attr_tainted,
++            animation_tainted,
+         }
+     }
+ }
+@@ -264,7 +273,9 @@
+     /// Convert to an untyped variable value.
+     pub fn to_variable_value(&self) -> ComputedPropertyValue {
+         if let ValueInner::Universal(ref value) = self.v {
+-            return (**value).clone();
++            let mut value = (**value).clone();
++            value.explicitly_animation_tainted |= self.animation_tainted;
++            return value;
+         }
+         let css = self.to_css_string();
+         let mut input = CSSParser::new(&css);
+@@ -282,7 +293,9 @@
+             };
+         }
+         drop(input);
+-        ComputedPropertyValue::new(css, &self.url_data, first, last)
++        let mut value = ComputedPropertyValue::new(css, &self.url_data, first, last);
++        value.explicitly_animation_tainted = self.animation_tainted;
++        value
+     }
+ }
+ 
+@@ -393,9 +406,12 @@
+             // Servo_GetComputedKeyframeValues. We should instead just use the 'normal' path for
+             // animated values. For more information see Bug 1883255.
+             // https://drafts.csswg.org/css-values-5/#attr-security
+-            if self.attr_tainted && !var.is_attr_tainted() {
++            if (self.attr_tainted && !var.is_attr_tainted())
++                || (self.animation_tainted && !var.explicitly_animation_tainted)
++            {
+                 let mut tainted = (**var).clone();
+-                tainted.explicitly_attr_tainted = true;
++                tainted.explicitly_attr_tainted |= self.attr_tainted;
++                tainted.explicitly_animation_tainted |= self.animation_tainted;
+                 return properties::CustomDeclarationValue::Unparsed(Arc::new(tainted));
+             }
+             return properties::CustomDeclarationValue::Unparsed(Arc::clone(var));
+--- a/servo/components/style/custom_properties_map.rs
++++ b/servo/components/style/custom_properties_map.rs
+@@ -93,7 +93,9 @@
+             // TODO(emilio): Seems we should compare `url_data` as well? It doesn't seem to matter
+             // much in practice since url values would be already-computed against the right base
+             // URI here, I think...
+-            a == b && a.attr_tainted == b.attr_tainted
++            a == b
++                && a.attr_tainted == b.attr_tainted
++                && a.animation_tainted == b.animation_tainted
+         },
+         (None, None) => true,
+         _ => false,
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -295,6 +295,8 @@
+     /// information when uncomputing a style that needs to be put back into the
+     /// cascade.
+     pub explicitly_attr_tainted: bool,
++    /// Preserves animation provenance through uncomputation.
++    pub explicitly_animation_tainted: bool,
+ }
+ 
+ trivial_to_computed_value!(VariableValue);
+@@ -987,6 +989,7 @@
+             url_data: url_data.clone(),
+             references: Default::default(),
+             explicitly_attr_tainted: false,
++            explicitly_animation_tainted: false,
+         }
+     }
+ 
+@@ -1005,6 +1008,7 @@
+             last_token_type,
+             references: References::default(),
+             explicitly_attr_tainted: false,
++            explicitly_animation_tainted: false,
+         }
+     }
+ 
+@@ -1123,6 +1127,7 @@
+             last_token_type,
+             references,
+             explicitly_attr_tainted: false,
++            explicitly_animation_tainted: false,
+         })
+     }
+ 
+@@ -1202,6 +1207,7 @@
+             last_token_type: token_type,
+             references: Default::default(),
+             explicitly_attr_tainted: false,
++            explicitly_animation_tainted: false,
+         }
+     }
+ 
+@@ -1749,6 +1755,7 @@
+         attribute_tracker,
+         &mut state,
+         None,
++        false,
+     );
+     let substitution = if is_var && state.cyclic_names.contains(&name) {
+         Err(())
+@@ -1770,6 +1777,7 @@
+     };
+ 
+     // If variable fallback results in a wide keyword, deal with it now.
++    let animation_tainted = substitution.animation_tainted;
+     if is_var {
+         let css_wide_kw = {
+             let mut input = Parser::new(&substitution.css);
+@@ -1797,6 +1805,13 @@
+                     .builder
+                     .substitution_functions
+                     .remove_var(registration, name);
++            }
++            if animation_tainted {
++                let value = context.builder.substitution_functions.get_var(registration, name).cloned();
++                if let Some(mut value) = value {
++                    value.animation_tainted = true;
++                    context.builder.substitution_functions.insert_var(registration, name, value);
++                }
+             }
+             return;
+         }
+@@ -1855,6 +1870,7 @@
+     first_token_type: TokenSerializationType,
+     last_token_type: TokenSerializationType,
+     attr_tainted: bool,
++    animation_tainted: bool,
+ }
+ 
+ impl<'a> Substitution<'a> {
+@@ -1912,6 +1928,7 @@
+ 
+     fn from_value(v: VariableValue, attr_tainted: bool) -> Self {
+         Substitution {
++            animation_tainted: v.explicitly_animation_tainted,
+             css: v.css.into(),
+             first_token_type: v.first_token_type,
+             last_token_type: v.last_token_type,
+@@ -1935,6 +1952,7 @@
+                     self.last_token_type,
+                 )));
+             value.attr_tainted |= self.attr_tainted;
++            value.animation_tainted |= self.animation_tainted;
+             return Ok(value);
+         }
+         let taint = if self.attr_tainted {
+@@ -1955,6 +1973,7 @@
+             property_id,
+         )?;
+         v.attr_tainted |= self.attr_tainted;
++        v.animation_tainted |= self.animation_tainted;
+         Ok(v)
+     }
+ 
+@@ -1969,6 +1988,7 @@
+             first_token_type,
+             last_token_type,
+             attr_tainted,
++            animation_tainted: false,
+         }
+     }
+ }
+@@ -2033,6 +2053,7 @@
+     attribute_tracker: &mut AttributeTracker,
+     seen: &mut SubstitutionState<'a>,
+     mut attr_taint: Option<&mut AttrTaint>,
++    suppress_animation_taint_sink: bool,
+ ) -> Result<Substitution<'a>, ()> {
+     if start == end {
+         // Empty string. Easy.
+@@ -2053,6 +2074,7 @@
+     let mut next_token_type = first_token_type;
+     let mut cur_pos = start;
+     let mut attr_tainted = false;
++    let mut animation_tainted = false;
+     let references = references.iter();
+     for reference in references {
+         if reference.start != cur_pos {
+@@ -2074,6 +2096,7 @@
+             computed_context,
+             attribute_tracker,
+             seen,
++            suppress_animation_taint_sink,
+         )?;
+ 
+         // Optimize the property: var(--...) case to avoid allocating at all.
+@@ -2093,6 +2116,7 @@
+                 .filter(|_| substitution.attr_tainted),
+         )?;
+         attr_tainted |= substitution.attr_tainted;
++        animation_tainted |= substitution.animation_tainted;
+         next_token_type = reference.next_token_type;
+         cur_pos = reference.end;
+     }
+@@ -2105,6 +2129,7 @@
+             /* attr_taint */ None,
+         )?;
+     }
++    substituted.explicitly_animation_tainted = animation_tainted;
+     Ok(Substitution::from_value(substituted, attr_tainted))
+ }
+ 
+@@ -2124,6 +2149,7 @@
+     computed_context: &computed::Context,
+     attribute_tracker: &mut AttributeTracker,
+     seen: &mut SubstitutionState<'a>,
++    suppress_animation_taint_sink: bool,
+ ) -> Result<Substitution<'a>, ()> {
+     let simple_attr_subst = |s: &str| {
+         Some(Substitution::new(
+@@ -2167,6 +2193,7 @@
+                                 attribute_tracker,
+                                 seen,
+                                 /* attr_taint */ None,
++                                true,
+                             );
+                             seen.names.pop();
+                             if seen.cyclic_names.contains(&&reference.name) {
+@@ -2186,6 +2213,7 @@
+                                 match result {
+                                     Ok(mut substitution) => {
+                                         substitution.attr_tainted |= v.attr_tainted;
++                                        substitution.animation_tainted |= v.animation_tainted;
+                                         match substitution.registered_default(
+                                             &reference.name,
+                                             registration,
+@@ -2322,6 +2350,12 @@
+         },
+     };
+ 
++    let substitution = substitution.filter(|value| {
++        !(reference.substitution_kind == SubstitutionFunctionKind::Var
++            && value.animation_tainted
++            && !suppress_animation_taint_sink
++            && matches!(property_id, Some(PropertyIdRef::NonCustom(id)) if !id.is_animatable()))
++    });
+     if let Some(s) = substitution {
+         return Ok(s);
+     }
+@@ -2345,6 +2379,7 @@
+         attribute_tracker,
+         seen,
+         /* attr_taint */ None,
++        suppress_animation_taint_sink,
+     )
+ }
+ 
+@@ -2358,8 +2393,9 @@
+     attribute_tracker: &mut AttributeTracker,
+     seen: &mut SubstitutionState<'a>,
+     attr_taint: Option<&mut AttrTaint>,
++    suppress_animation_taint_sink: bool,
+ ) -> Result<Substitution<'a>, ()> {
+-    do_substitute_chunk(
++    let mut result = do_substitute_chunk(
+         &variable_value.css,
+         /* start = */ 0,
+         /* end = */ variable_value.css.len(),
+@@ -2374,7 +2410,10 @@
+         attribute_tracker,
+         seen,
+         attr_taint,
+-    )
++        suppress_animation_taint_sink,
++    )?;
++    result.animation_tainted |= variable_value.explicitly_animation_tainted;
++    Ok(result)
+ }
+ 
+ /// Replace var(), env(), and attr() functions, returning the resulting CSS string.
+@@ -2397,6 +2436,7 @@
+         attribute_tracker,
+         &mut SubstitutionState::default(),
+         Some(&mut attr_taint),
++        false,
+     )?;
+     Ok(SubstitutionResult {
+         css: v.css,
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -1775,8 +1775,27 @@
+ 
+         let registration = self.stylist.get_custom_property_registration(name);
+         let initial_values = self.stylist.get_custom_property_initial_values();
+-        if !Self::value_may_affect_style(context, name, registration, initial_values, value) {
++        let animation_tainted = std::ptr::eq(registration, PropertyDescriptors::unregistered())
++            && priority.cascade_level().origin() == CascadeOrigin::Animations;
++        let mark_animation_taint = |context: &mut computed::Context| {
++            if animation_tainted {
++                let value = context
++                    .builder
++                    .substitution_functions
++                    .get_var(registration, name)
++                    .cloned();
++                if let Some(mut value) = value {
++                    value.animation_tainted = true;
++                    context
++                        .builder
++                        .substitution_functions
++                        .insert_var(registration, name, value);
++                }
++            }
++        };
++        if !Self::value_may_affect_style(context, name, registration, initial_values, value, animation_tainted) {
+             entry.insert(false);
++            mark_animation_taint(context);
+             return;
+         }
+ 
+@@ -1816,6 +1835,13 @@
+                     .remove_var(registration, name);
+             },
+             CustomDeclarationValue::Unparsed(unparsed_value) => {
++                let unparsed_value = if animation_tainted {
++                    let mut value = (**unparsed_value).clone();
++                    value.explicitly_animation_tainted = true;
++                    Arc::new(value)
++                } else {
++                    Arc::clone(unparsed_value)
++                };
+                 if !has_references {
+                     // If the variable value has no references to other properties, perform
+                     // substitution here instead of forcing a full traversal in `substitute_all`
+@@ -1823,7 +1849,7 @@
+                     substitute_references_if_needed_and_apply(
+                         name,
+                         None,
+-                        unparsed_value,
++                        &unparsed_value,
+                         self.stylist,
+                         context,
+                         // We just checked there are no attr dependencies.
+@@ -1831,7 +1857,7 @@
+                     );
+                     return;
+                 }
+-                let value = ComputedRegisteredValue::universal(Arc::clone(unparsed_value));
++                let value = ComputedRegisteredValue::universal(unparsed_value);
+                 context
+                     .builder
+                     .substitution_functions
+@@ -1850,6 +1876,7 @@
+                     self.reverted
+                         .custom
+                         .insert(name.clone(), (priority, revert_kind));
++                    return;
+                 },
+                 None => match keyword {
+                     CSSWideKeyword::Initial => {
+@@ -1894,6 +1921,7 @@
+                 },
+             },
+         }
++        mark_animation_taint(context);
+     }
+ 
+     /// Fast check to avoid calling maybe_note_non_custom_dependency in ~all cases.
+@@ -1972,6 +2000,7 @@
+         registration: &PropertyDescriptors,
+         initial_values: &ComputedCustomProperties,
+         value: &CustomDeclarationValue,
++        animation_tainted: bool,
+     ) -> bool {
+         match *value {
+             CustomDeclarationValue::CSSWideKeyword(CSSWideKeyword::Inherit) => {
+@@ -2023,7 +2052,8 @@
+                 // Don't bother overwriting an existing value with the same
+                 // specified value.
+                 if let Some(existing_unparsed) = existing_value.as_universal() {
+-                    return existing_value.attr_tainted != value.is_attr_tainted()
++                    return existing_value.animation_tainted != (animation_tainted || value.explicitly_animation_tainted)
++                        || existing_value.attr_tainted != value.is_attr_tainted()
+                         || existing_unparsed != value;
+                 }
+             },
+@@ -2045,7 +2075,9 @@
+                         // Don't bother overwriting an existing value with the initial value
+                         // specified in the registration.
+                         if let Some(initial_value) = initial_values.get(registration, name) {
+-                            return existing_value.attr_tainted || existing_value != initial_value;
++                            return existing_value.attr_tainted
++                                || existing_value.animation_tainted != initial_value.animation_tainted
++                                || existing_value != initial_value;
+                         }
+                     },
+                     CSSWideKeyword::Unset => {

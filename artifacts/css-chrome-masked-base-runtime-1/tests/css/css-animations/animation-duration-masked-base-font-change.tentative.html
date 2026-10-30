@@ -1,0 +1,121 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Masked base font change and pre-own-animation duration hypothesis</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#model-liveness">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+function frame(win) {
+  return new Promise(resolve => win.requestAnimationFrame(resolve));
+}
+
+function timing(animation) {
+  return {duration: animation.effect.getTiming().duration,
+          progress: animation.effect.getComputedTiming().progress,
+          time: animation.currentTime, state: animation.playState};
+}
+
+function details(context) {
+  const {win, target, animations} = context;
+  const style = win.getComputedStyle(target);
+  return {font: parseFloat(style.fontSize), opacity: Number(style.opacity),
+          cssDuration: style.animationDuration, timings: animations.map(timing)};
+}
+
+async function observe(t, mode) {
+  const iframe = document.createElement("iframe");
+  t.add_cleanup(() => iframe.remove());
+  const loaded = new Promise(resolve => iframe.onload = resolve);
+  iframe.srcdoc = `<!doctype html><html><style>
+    @keyframes constant-font { from { font-size: 32px; } to { font-size: 32px; } }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+    .target { font-size: 16px;
+      animation-name: constant-font, fade;
+      animation-duration: 2s, calc(1em / 16px * 1s);
+      animation-timing-function: linear; animation-fill-mode: both;
+      animation-play-state: paused; }
+    .literal { animation-duration: 2s, 1s; }
+  </style><body><div class="target ${mode}"></div></body></html>`;
+  document.body.append(iframe);
+  await loaded;
+  const win = iframe.contentWindow;
+  const target = iframe.contentDocument.querySelector(".target");
+  const acquired = target.getAnimations();
+  assert_equals(acquired.length, 2, "Exact CSS animation acquisition");
+  const animations = ["constant-font", "fade"].map(
+    name => acquired.find(animation => animation.animationName === name));
+  assert_true(animations.every(Boolean), "Named CSS animations acquired");
+  for (const animation of animations) {
+    await animation.ready;
+    animation.currentTime = 750;
+  }
+  const effects = animations.map(animation => animation.effect);
+  const context = {win, target, animations};
+  for (let index = 0; index < 3; index++) await frame(win);
+  const initial = details(context);
+  target.style.fontSize = "32px";
+  if (mode === "literal") target.style.animationDuration = "2s, 2s";
+  const read = () => Number(win.getComputedStyle(target).opacity);
+  const samples = [{phase: "first-read", value: read()}];
+  for (let index = 1; index <= 3; index++) {
+    await frame(win);
+    samples.push({phase: `passive-frame-${index}`, value: read()});
+  }
+  const beforeMembership = details(context);
+  const current = target.getAnimations();
+  const membership = animations.map((animation, index) => ({
+    animation: current.includes(animation), effect: animation.effect === effects[index]
+  }));
+  const afterMembership = details(context);
+  iframe.remove();
+  return {kind: "acyclic", mode, initial, samples, beforeMembership, membership, afterMembership};
+}
+
+function assertTrajectory(observation, label) {
+  for (const item of observation.membership) {
+    assert_true(item.animation && item.effect, `${label}: retained animation and effect`);
+  }
+  for (const snapshot of [observation.initial, observation.beforeMembership, observation.afterMembership]) {
+    assert_approx_equals(snapshot.font, 32, 0.02, `${label}: constant composed font masks authored base`);
+    assert_equals(snapshot.timings[0].duration, 2000, `${label}: fixed font duration`);
+    for (const item of snapshot.timings) {
+      assert_equals(item.time, 750, `${label}: retained currentTime`);
+      assert_equals(item.state, "paused", `${label}: paused state`);
+    }
+  }
+  assert_approx_equals(observation.initial.opacity, 0.75, 0.0001, `${label}: initial opacity`);
+  assert_equals(observation.initial.timings[1].duration, 1000, `${label}: initial opacity duration`);
+  assert_approx_equals(observation.initial.timings[1].progress, 0.75, 0.0001, `${label}: initial progress`);
+  for (const sample of observation.samples) {
+    assert_approx_equals(sample.value, 0.375, 0.0001, `${label}: ${sample.phase} opacity`);
+  }
+  for (const snapshot of [observation.beforeMembership, observation.afterMembership]) {
+    assert_approx_equals(snapshot.opacity, 0.375, 0.0001, `${label}: final opacity`);
+    assert_equals(snapshot.timings[1].duration, 2000, `${label}: final opacity duration`);
+    assert_approx_equals(snapshot.timings[1].progress, 0.375, 0.0001, `${label}: final progress`);
+  }
+}
+
+async function record(observations) {
+  const kind = "masked-base-acyclic";
+  const response = await fetch("duration-masked-base-record.py", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({kind, observations})
+  });
+  assert_true(response.ok, "Private observation record acknowledged");
+  const acknowledgement = await response.json();
+  assert_equals(acknowledgement.kind, kind, "Recorded observation kind");
+  assert_equals(acknowledgement.sampleCount, 4, "Recorded passive samples per trajectory");
+  assert_true(/^[A-Za-z0-9_-]{16,128}$/.test(acknowledgement.run_id), "Owner-bound record identity");
+}
+
+promise_test(async t => {
+  const contextual = await observe(t, "contextual");
+  const literal = await observe(t, "literal");
+  await record({contextual, literal});
+  const trace = JSON.stringify({contextual, literal});
+  assertTrajectory(literal, `Literal mutation calibration; ${trace}`);
+  assertTrajectory(contextual, `Pre-own-animation timing hypothesis; ${trace}`);
+}, "Masked base font change updates contextual duration under the pre-own-animation timing hypothesis");
+</script>

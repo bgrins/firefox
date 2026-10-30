@@ -1,0 +1,135 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Contextual keyframe easing follows an animated inherited font</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#keyframe-processing">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+const settle = () => new Promise(resolve => {
+  requestAnimationFrame(() => requestAnimationFrame(resolve));
+});
+
+async function probe(t, animatedInput, scriptOverride) {
+  const host = document.createElement("div");
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const root = host.attachShadow({mode: "open"});
+  root.innerHTML = `
+    <style>
+      .parent { font-size: 16px; }
+      .target { animation: contextual 1000ms linear both paused; }
+      @keyframes contextual {
+        from { opacity: 0; animation-timing-function: steps(calc(1em / 8px), end); }
+        to { opacity: 1; }
+      }
+    </style>
+    <div class="parent"><div class="target"></div></div>
+    <div class="references"><div></div><div></div><div></div></div>`;
+  const parent = root.querySelector(".parent");
+  const target = root.querySelector(".target");
+  const sheet = root.querySelector("style").sheet;
+  const rule = sheet.cssRules[2];
+  const declaration = rule.cssRules[0].style.animationTimingFunction;
+  assert_not_equals(declaration, "", "Contextual easing parsed");
+  let driver;
+  if (animatedInput) {
+    driver = parent.animate([{fontSize: "16px"}, {fontSize: "24px"}],
+                            {duration: 1000, fill: "both"});
+    t.add_cleanup(() => driver.cancel());
+    driver.pause();
+    await driver.ready;
+    driver.currentTime = 0;
+  }
+  const animations = target.getAnimations();
+  assert_equals(animations.length, 1, "One CSS animation created");
+  const animation = animations[0];
+  assert_true(animation instanceof CSSAnimation);
+  await animation.ready;
+  animation.currentTime = 750;
+  const effect = animation.effect;
+  if (scriptOverride) {
+    effect.setKeyframes([{opacity: 0, offset: 0, easing: "steps(5, end)"},
+                         {opacity: 1, offset: 1}]);
+  }
+  const scriptFrames = JSON.stringify(effect.getKeyframes());
+  const referenceElements = [...root.querySelector(".references").children];
+  const references = referenceElements.map((element, i) => {
+    const reference = element.animate(
+      [{opacity: 0, easing: `steps(${[2, 3, 5][i]}, end)`}, {opacity: 1}],
+      {duration: 1000, fill: "both"});
+    t.add_cleanup(() => reference.cancel());
+    reference.pause();
+    return reference;
+  });
+  await Promise.all(references.map(reference => reference.ready));
+  references.forEach(reference => { reference.currentTime = 750; });
+  await settle();
+
+  function snapshot() {
+    const current = target.getAnimations();
+    const style = getComputedStyle(target);
+    return {
+      font: style.fontSize,
+      opacity: Number(style.opacity),
+      repeatOpacity: Number(getComputedStyle(target).opacity),
+      references: referenceElements.map(element => Number(getComputedStyle(element).opacity)),
+      sameAnimation: current.length === 1 && current[0] === animation,
+      sameEffect: animation.effect === effect && effect.target === target,
+      sameRule: sheet.cssRules[2] === rule &&
+                rule.cssRules[0].style.animationTimingFunction === declaration,
+      sameRoot: target.getRootNode() === root && target.parentElement === parent,
+      time: animation.currentTime,
+      state: animation.playState,
+      pending: animation.pending,
+      frames: JSON.stringify(effect.getKeyframes()),
+    };
+  }
+  const snapshots = [];
+  for (const time of [0, 1000, 0, 1000]) {
+    if (animatedInput) {
+      driver.currentTime = time;
+    } else {
+      parent.style.fontSize = time === 0 ? "16px" : "24px";
+    }
+    await settle();
+    snapshots.push(snapshot());
+  }
+  target.style.outlineColor = "rgb(1, 2, 3)";
+  await settle();
+  const afterNormalRestyle = snapshot();
+  const diagnostic = JSON.stringify({snapshots, afterNormalRestyle});
+  for (const [i, sample] of [...snapshots, afterNormalRestyle].entries()) {
+    const font = i === 0 || i === 2 ? "16px" : "24px";
+    const expected = scriptOverride ? 0.6 : font === "16px" ? 0.5 : 2 / 3;
+    const label = `sample ${i}: ${diagnostic}`;
+    assert_equals(sample.font, font, `Inherited input ${label}`);
+    assert_true(sample.sameAnimation && sample.sameEffect && sample.sameRule && sample.sameRoot,
+                `Stable identities ${label}`);
+    assert_equals(sample.time, 750, `Paused sample time ${label}`);
+    assert_equals(sample.state, "paused", `Paused state ${label}`);
+    assert_false(sample.pending, `No pending task ${label}`);
+    for (const [j, value] of [0.5, 2 / 3, 0.6].entries()) {
+      assert_approx_equals(sample.references[j], value, 0.00001, `Literal reference ${j} ${label}`);
+    }
+    if (scriptOverride) {
+      assert_equals(sample.frames, scriptFrames, `Script keyframes retained ${label}`);
+    }
+    const referenceIndex = scriptOverride ? 2 : font === "16px" ? 0 : 1;
+    assert_approx_equals(sample.opacity, sample.references[referenceIndex], 0.00001,
+                         `Selected literal branch ${label}`);
+    assert_approx_equals(sample.opacity, expected, 0.00001, `Contextual output ${label}`);
+    assert_equals(sample.repeatOpacity, sample.opacity, `Repeat read ${label}`);
+  }
+}
+
+promise_test(t => probe(t, false, false),
+             "Normal inherited font mutation refreshes contextual keyframe easing");
+promise_test(t => probe(t, true, false),
+             "Animated inherited font refreshes contextual keyframe easing without replacing its effect");
+promise_test(t => probe(t, true, true),
+             "Animated inherited font preserves successful literal setKeyframes override");
+</script>

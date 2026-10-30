@@ -1,0 +1,28 @@
+--- artifacts/css-contextual-duration-feedback-trace-original-v1/baseline.py
++++ artifacts/css-contextual-duration-feedback-trace-candidate-v1/baseline.py
+@@ -34,12 +34,15 @@
+     for package in (policy['logger'], policy['feedback_transport'], policy['trace_parser']):
+         ownership.authenticate(ROOT / package['directory'], package['manifest_sha256'])
+     roles = read(HERE / 'SOURCE-ROLES.json')
+-    assert set(roles) == set(policy['source_paths']) == {'dom/animation/EffectCompositor.cpp'}
++    assert set(roles) == set(policy['source_paths']) == {'dom/animation/EffectCompositor.cpp', 'servo/components/style/matching.rs'}
+     for record in roles.values():
+         for kind in ('base', 'candidate'):
+             path = Path(record[kind + '_capture'])
+             assert not path.is_absolute() and '..' not in path.parts and not (ROOT / path).is_symlink()
+             assert policy['references'][str(path)] == sha(ROOT / path) == record[kind + '_sha256']
++    if policy['baseline_binding'] is not None:
++        comparison = load('trace_original_replay', str((HERE / 'comparison.py').relative_to(ROOT)))
++        comparison.replay_all(ROOT, policy)
+     return policy, ownership, roles
+ 
+ 
+@@ -78,7 +81,7 @@
+     assert build_result['command_success'] and build_result['preservation_verified'] and build_result['error'] is None
+     assert inner['exit'] == 0 and inner['owned_group_absent'] and inner['cleanup_errors'] == [] and inner['error'] is None and inner['stop_reason'] is None
+     assert build_epoch['semantic_index']['head'] == policy['restored_app_revision']
+-    assert policy['wpt']['phase_revisions'] == {'original': policy['head']}
++    assert policy['wpt']['phase_revisions'] == {'original': policy['head'], 'candidate': policy['head']}
+     changed = set(state.h.git(ROOT, env, 'diff', '--no-renames', '--name-only', build_epoch['semantic_index']['head'], policy['head']).decode().splitlines())
+     assert {name for name in changed if not name.startswith('artifacts/')} == set(policy['original_build']['later_committed_payloads']) | set(policy['original_build']['later_removed_payloads'])
+     for name, pin in policy['original_build']['later_committed_payloads'].items():

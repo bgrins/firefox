@@ -1,0 +1,193 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>N-ary min and max preserve contextual infinity and explicit NaN</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#comp-func">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-ieee">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-simplification">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="log"></div>
+<script>
+const cases = [
+  {
+    "expression": "min(infinity * 1em, -1px, -2px)",
+    "expected": [
+      "0px",
+      "-2px",
+      "0px"
+    ],
+    "group": "nary_relative_infinity",
+    "specified": null
+  },
+  {
+    "expression": "min(-1px, infinity * 1em, -2px)",
+    "expected": [
+      "0px",
+      "-2px",
+      "0px"
+    ],
+    "group": "nary_relative_infinity",
+    "specified": null
+  },
+  {
+    "expression": "min(-1px, -2px, infinity * 1em)",
+    "expected": [
+      "0px",
+      "-2px",
+      "0px"
+    ],
+    "group": "nary_relative_infinity",
+    "specified": null
+  },
+  {
+    "expression": "min(NaN * 1px, -1px, infinity * 1em)",
+    "expected": [
+      "0px",
+      "0px",
+      "0px"
+    ],
+    "group": "explicit_nan_precedence",
+    "specified": "calc(NaN * 1px)"
+  },
+  {
+    "expression": "min(-1px, infinity * 1em, NaN * 1px)",
+    "expected": [
+      "0px",
+      "0px",
+      "0px"
+    ],
+    "group": "explicit_nan_precedence",
+    "specified": "calc(NaN * 1px)"
+  },
+  {
+    "expression": "max(-infinity * 1em, 1px, 2px)",
+    "expected": [
+      "0px",
+      "2px",
+      "0px"
+    ],
+    "group": "nary_relative_infinity",
+    "specified": null
+  },
+  {
+    "expression": "max(1px, -infinity * 1em, 2px)",
+    "expected": [
+      "0px",
+      "2px",
+      "0px"
+    ],
+    "group": "nary_relative_infinity",
+    "specified": null
+  },
+  {
+    "expression": "max(1px, 2px, -infinity * 1em)",
+    "expected": [
+      "0px",
+      "2px",
+      "0px"
+    ],
+    "group": "nary_relative_infinity",
+    "specified": null
+  },
+  {
+    "expression": "max(NaN * 1px, 1px, -infinity * 1em)",
+    "expected": [
+      "0px",
+      "0px",
+      "0px"
+    ],
+    "group": "explicit_nan_precedence",
+    "specified": "calc(NaN * 1px)"
+  },
+  {
+    "expression": "max(1px, -infinity * 1em, NaN * 1px)",
+    "expected": [
+      "0px",
+      "0px",
+      "0px"
+    ],
+    "group": "explicit_nan_precedence",
+    "specified": "calc(NaN * 1px)"
+  }
+];
+
+for (const entry of cases) {
+  test(t => {
+    const target = document.createElement("div");
+    target.style.position = "relative";
+    target.style.left = entry.expression;
+    assert_not_equals(target.style.left, "", "Declaration parses");
+    const specified = target.style.left;
+    const calibration = document.createElement("div");
+    calibration.style.width = "1em";
+    target.append(calibration);
+    document.body.append(target);
+    t.add_cleanup(() => target.remove());
+    const sizes = ["0px", "16px", "0px"];
+    const rows = sizes.map(size => {
+      target.style.fontSize = size;
+      return {
+        font: getComputedStyle(target).fontSize,
+        basis: getComputedStyle(calibration).width,
+        first: getComputedStyle(target).left,
+        repeat: getComputedStyle(target).left,
+      };
+    });
+    const details = JSON.stringify(rows);
+    for (let i = 0; i < rows.length; ++i) {
+      assert_equals(rows[i].font, sizes[i], `font at stage ${i}: ${details}`);
+      assert_equals(rows[i].basis, sizes[i], `em basis at stage ${i}: ${details}`);
+      assert_equals(rows[i].repeat, rows[i].first, `repeat at stage ${i}: ${details}`);
+    }
+    assert_array_equals(rows.map(row => row.first), entry.expected, details);
+    if (entry.specified !== null) {
+      assert_equals(specified, entry.specified, "Explicit NaN simplifies before the contextual-infinity defer guard");
+    }
+  }, `${entry.expression} preserves n-ary contextual and NaN behavior`);
+}
+</script>
+<script>
+for (const [expression, reference, sign] of [
+  ["min(infinity * 1em)", "calc(infinity * 1em)", 1],
+  ["max(-infinity * 1em)", "calc(-infinity * 1em)", -1],
+]) {
+  test(t => {
+    const target = document.createElement("div");
+    target.style.position = "relative";
+    target.style.left = expression;
+    assert_not_equals(target.style.left, "", "Declaration parses");
+    const specified = target.style.left;
+    const comparison = document.createElement("div");
+    comparison.style.position = "relative";
+    comparison.style.left = reference;
+    assert_not_equals(comparison.style.left, "", "Reference parses");
+    const calibration = document.createElement("div");
+    calibration.style.width = "1em";
+    target.append(comparison, calibration);
+    document.body.append(target);
+    t.add_cleanup(() => target.remove());
+    const sizes = ["0px", "16px", "0px"];
+    const rows = sizes.map(size => {
+      target.style.fontSize = size;
+      return {
+        font: getComputedStyle(target).fontSize,
+        basis: getComputedStyle(calibration).width,
+        first: getComputedStyle(target).left,
+        repeat: getComputedStyle(target).left,
+        reference: getComputedStyle(comparison).left,
+      };
+    });
+    const details = JSON.stringify(rows);
+    assert_equals(specified, reference, "Singleton min/max is removed during simplification");
+    for (let i = 0; i < rows.length; ++i) {
+      assert_equals(rows[i].font, sizes[i], `font at stage ${i}: ${details}`);
+      assert_equals(rows[i].basis, sizes[i], `em basis at stage ${i}: ${details}`);
+      assert_equals(rows[i].repeat, rows[i].first, `repeat at stage ${i}: ${details}`);
+      assert_equals(rows[i].first, rows[i].reference, `reference at stage ${i}: ${details}`);
+    }
+    assert_equals(rows[0].first, "0px", details);
+    assert_equals(Math.sign(parseFloat(rows[1].first)), sign, details);
+    assert_equals(rows[2].first, "0px", details);
+  }, `${expression} preserves singleton simplification and contextual computation`);
+}
+</script>

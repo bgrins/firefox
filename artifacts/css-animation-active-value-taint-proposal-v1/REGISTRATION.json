@@ -1,0 +1,17 @@
+{
+  "references": {
+    "artifacts/css-contextual-easing-servo-closure-v4/baseline/servo/components/style/properties_and_values/rule.rs": {
+      "sha256": "42772a570efa55206a2149384f19b3c379f26ba0282a6d47f8a62c80f0477579",
+      "bytes": 12223
+    },
+    "artifacts/css-contextual-easing-servo-closure-v4/baseline/servo/components/style/stylist.rs": {
+      "sha256": "1d31ff166603105b880aadbcd978f6dd3f41c7d2d4a9f6b6a7580ea19cd0cd21",
+      "bytes": 195303
+    }
+  },
+  "exact_functions": {
+    "properties_and_values/rule.rs": "    pub fn unregistered() -> &'static Self {\n        static UNREGISTERED: Descriptors = Descriptors {\n            inherits: Some(Inherits::True),\n            syntax: Some(SyntaxDescriptor::universal()),\n            initial_value: None,\n        };\n        &UNREGISTERED\n    }",
+    "stylist.rs": "    pub fn get_custom_property_registration(&self, name: &Atom) -> &PropertyDescriptors {\n        if let Some(registration) = self.custom_property_script_registry().get(name) {\n            return &registration.descriptors;\n        }\n        for (data, _) in self.iter_origins() {\n            if let Some(registration) = data.custom_property_registrations.get(name) {\n                return &registration.descriptors;\n            }\n        }\n        PropertyDescriptors::unregistered()\n    }"
+  },
+  "finding": "Unregistered uses Some(universal), not syntax None. Getter returns the unique unregistered() static reference only after both registries miss; registered universal syntax has its own descriptor address."
+}

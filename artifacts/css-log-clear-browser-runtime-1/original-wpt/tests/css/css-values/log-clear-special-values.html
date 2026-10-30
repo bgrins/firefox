@@ -1,0 +1,75 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CSS log invalid base one and positive zero at argument one</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#exponent-infinities">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-ieee">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="../support/numeric-testcommon.js"></script>
+<div id="target"></div>
+<script>
+const classes = {
+  nan: ["0", "0", "0", "0"],
+  positiveZero: ["0", "0", "1", "0"],
+  negativeZero: ["0", "0", "0", "1"],
+  positiveInfinity: ["1", "0", "0", "0"],
+  negativeInfinity: ["0", "1", "0", "0"],
+};
+
+function observe(t, expression, fontSize) {
+  const element = document.createElement("div");
+  element.style.fontSize = `${fontSize}px`;
+  document.body.append(element);
+  t.add_cleanup(() => element.remove());
+  return [expression, `-1 * (${expression})`,
+          `1 / (${expression})`, `-1 / (${expression})`].map(value => {
+    element.style.opacity = "";
+    element.style.opacity = `calc(${value})`;
+    assert_not_equals(element.style.opacity, "", `valid expression: ${value}`);
+    return getComputedStyle(element).opacity;
+  });
+}
+
+for (const [name, expression, expected] of [
+  ["calibrate NaN", "NaN", "nan"],
+  ["calibrate positive zero", "0", "positiveZero"],
+  ["calibrate generated negative zero", "-1 * 0", "negativeZero"],
+  ["calibrate positive infinity", "infinity", "positiveInfinity"],
+  ["calibrate negative infinity", "-infinity", "negativeInfinity"],
+  ["base one above one", "log(2, 1)", "nan"],
+  ["base one below one", "log(0.5, 1)", "nan"],
+  ["base one at positive zero", "log(0, 1)", "nan"],
+  ["base one at generated negative zero", "log(-1 * 0, 1)", "nan"],
+  ["base one at positive infinity", "log(infinity, 1)", "nan"],
+  ["argument one at base one half", "log(1, 0.5)", "positiveZero"],
+  ["argument one at base one quarter", "log(1, 0.25)", "positiveZero"],
+  ["base one takes precedence over argument one", "log(1, 1)", "nan"],
+  ["negative base takes precedence over argument one", "log(1, -1)", "nan"],
+  ["NaN base takes precedence over argument one", "log(1, NaN)", "nan"],
+  ["NaN argument remains infectious", "log(NaN, 0.5)", "nan"],
+  ["argument one at base two", "log(1, 2)", "positiveZero"],
+  ["natural log argument one", "log(1)", "positiveZero"],
+]) {
+  test(t => assert_array_equals(observe(t, expression, 16), classes[expected]), name);
+}
+
+for (const [name, expression, expected] of [
+  ["deferred base reaches one", "log(2, sign(1em - 1px))", ["nan", "nan", "nan"]],
+  ["deferred valid base crosses one", "log(1, 2 + 1.5 * sign(1em - 1px))",
+   ["positiveZero", "positiveZero", "positiveZero"]],
+  ["deferred argument reaches one", "log(sign(1em - 1px), 0.5)",
+   ["nan", "positiveZero", "nan"]],
+  ["deferred invalid base precedes argument one", "log(1, sign(1em - 1px))",
+   ["nan", "nan", "nan"]],
+]) {
+  test(t => {
+    const observations = [0, 2, 0].map(fontSize => observe(t, expression, fontSize));
+    observations.forEach((value, index) => {
+      assert_array_equals(value, classes[expected[index]], `sample ${index}`);
+    });
+  }, name);
+}
+
+test_math_computed("log(8, 2)", "3", {type: "number", msg: "ordinary increasing log"});
+test_math_computed("log(4, 0.5)", "-2", {type: "number", msg: "ordinary decreasing log"});
+</script>

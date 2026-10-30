@@ -1,0 +1,15 @@
+--- artifacts/css-contextual-duration-finite-depth-candidate-v1/phases.py
++++ artifacts/css-contextual-duration-base-timing-candidate-v1/phases.py
+@@ -53,9 +53,12 @@
+         if assessment['complete']:
+             collection = load('progress_record_collection', here / 'records.py').collect(root, directory, binding, policy, assessment)
+             wpt.save(output / 'PROGRESS-RECORDS.json', collection)
++            calibration = load('timing_literal_calibration', here / 'calibration.py').report(directory, collection, policy)
++            wpt.save(output / 'CALIBRATION.json', calibration)
+             wpt.save(output / 'RECORD-COMPARISON.json', record_comparison(root, output, policy, collection))
+             if not failure:
+                 assert collection['complete'] and not collection['errors']
++                assert calibration['all_calibrated']
+     if failure:
+         raise failure
+     assert result is not None and not owned

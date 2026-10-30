@@ -1,0 +1,16 @@
+import Selection
+#print axioms SelectedColor.first_success
+#print axioms SelectedColor.first_failure
+#print axioms SelectedColor.independent_cycle_oracle
+#print axioms SelectedColor.no_self_edges
+#print axioms SelectedColor.selected_dependency_requires_color
+#print axioms SelectedColor.identifiers_avoid_false_cycle
+#print axioms SelectedColor.reversed_union_light_still_identifier
+#print axioms SelectedColor.overlapping_clause_order
+#print axioms SelectedColor.absolute_color_no_scheme_dependency
+#print axioms SelectedColor.genuine_system_color_cycle
+#print axioms SelectedColor.unused_fallback_not_selected
+#print axioms SelectedColor.invalid_primary_selects_fallback
+#print axioms SelectedColor.unused_fallback_admission_distinction
+#print axioms SelectedColor.selected_fallback_can_change_dependency
+#print axioms SelectedColor.invalid_value_has_no_computation_edge

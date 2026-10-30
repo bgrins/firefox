@@ -1,0 +1,23 @@
+--- executed-same-element/assess.py
++++ finite-depth/assess.py
+@@ -12,7 +12,7 @@
+     rows = [e for e in events if e.get("action") == "test_status"]
+     ends = [e for e in events if e.get("action") == "test_end"]
+     require(len(starts) == len(finishes) == len(begins) == len(ends) == 1, "exact suite/test lifecycle")
+-    require(len(rows) == 2 and {e.get("subtest") for e in rows} == set(policy["expected_names"]), "exact two callback roster")
++    require(len(rows) == 4 and {e.get("subtest") for e in rows} == set(policy["expected_names"]), "exact four callback roster")
+     require(all(e.get("test") == policy["page"] for e in rows + begins + ends), "exact page")
+     require(all(e.get("status") in ("PASS", "FAIL") for e in rows), "ordinary callback outcomes")
+     require(all(e.get("status") == "OK" for e in ends), "OK test ending")
+@@ -21,9 +21,9 @@
+     if len(starts) == 1:
+         info = starts[0].get("run_info", {})
+         require(info.get("product") == "chrome" and info.get("browser_version") == policy["version"], "Chrome run_info/version")
+-    if len(starts) == len(finishes) == len(begins) == len(ends) == 1 and len(rows) == 2:
++    if len(starts) == len(finishes) == len(begins) == len(ends) == 1 and len(rows) == 4:
+         positions = [events.index(starts[0]), events.index(begins[0]), *[events.index(e) for e in rows], events.index(ends[0]), events.index(finishes[0])]
+-        require(positions == sorted(positions) and len(set(positions)) == 6, "ordered lifecycle")
++        require(positions == sorted(positions) and len(set(positions)) == 8, "ordered lifecycle")
+     require(all(e.get("expected", "PASS") == "PASS" and e.get("known_intermittent", []) == [] for e in rows), "no expected failures or intermittents")
+     require(all(e.get("expected", "OK") == "OK" and e.get("known_intermittent", []) == [] for e in ends), "no expected ending failure")
+     failures = sum(e.get("status") == "FAIL" for e in rows)

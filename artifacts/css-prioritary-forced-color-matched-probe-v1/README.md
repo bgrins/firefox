@@ -1,0 +1,17 @@
+# Matched forced-color dependency reference
+
+This separate fixture replaces only `registered-prioritary-forced-color-selection.tentative.html` in a future suite. It retains two callback names, two phases, and four target samples per phase. The included test 51, its expected-FAIL metadata, directory metadata, and shared harness bytes are identical to the sealed 74-suite. Existing 74/77 fixtures and observations remain unchanged.
+
+The `auto` callback compares the target's registered color against a second registered `<color>` on an otherwise comparable element. The reference uses literal `forced-color-adjust:auto`, literal phase `color-scheme:dark` or `light`, and `light-dark(red,blue)`. It has no losing variable declaration. Its initial green calibration must succeed, and its phase value must be red or blue; a reference that also incorrectly defaults to green cannot make the test pass.
+
+The old reference remains present with `forced-color-adjust:none` and explicit `color-scheme:light dark` for auto. Its value and scheme are recorded, and its own setup is still checked, but auto's target value is compared with the matched reference. The target's computed scheme remains diagnostic in auto. This separates dependency/defaulting preservation from test 51's known literal scheme serialization failure; it does not establish that failure is fixed or that the implementation's used scheme is normatively correct. A shared error that produces the same red/blue result in target and matched reference can still pass this preservation comparison.
+
+The `none` callback retains the target's literal phase-scheme assertion and comparison with the original opt-out reference. All target value assertions remain. No expected failure is added for either research callback, and test 51's metadata is preserved without reinterpretation.
+
+Each phase replaces the stylesheet, immediately reads the target custom value, then collects three passive frame samples. Only afterward are target and reference diagnostics read. Both phases are captured before assertions. The additional initial reference read happens before the stylesheet is installed and is registration calibration only. The hidden diagnostic JSON is included in assertion messages on failure; ordinary PASS transport does not serialize that JSON, so PASS is not a full before/after diagnostic record.
+
+The accompanying [oracle review](../css-prioritary-forced-color-oracle-review-v1/README.md) explains the difference between normative scheme equality and a matched implementation reference. This is an isolated browser test, not product UI; literal colors deliberately distinguish the valid expression branches from the green registration default.
+
+`check.py` creates the genuine WPT manifest, extracts three callbacks without executing them, runs WPT path/content lint, authenticates six unchanged payloads, and verifies the exact fixture delta. Static check `e21904/0` passed with zero lint findings. No browser, server, native build, Git, or current-state operation was performed.
+
+Future execution must explicitly replace this one URL and its manifest/content hash in both fresh original and candidate inputs, retain all other suite resources and metadata, and rerun the original. Old original74/77 statuses are not a baseline for the changed callback bodies. The overall callback/page counts do not change. `INPUTS.json` describes the replacement and metadata; it is not an execution owner or a claim that the 77-suite has already been assembled or run.

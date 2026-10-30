@@ -1,0 +1,12 @@
+--- artifacts/css-prioritary-selection-original-v1/check.py
++++ artifacts/css-prioritary-selection-original-v2/check.py
+@@ -20,6 +20,9 @@
+ 
+ def validate_policy(policy):
+     ownership = load('preservation_ownership', ROOT / policy['ownership_helper'])
++    prepared = ROOT / 'artifacts/css-prioritary-selection-original-v1'
++    ownership.authenticate(prepared, '25f467e4f382b575ff4d78c1e32ddb20c6fa7e80fe5063a802272c8eb4658af8')
++    assert all((HERE/name).read_bytes() == (prepared/name).read_bytes() for name in ('run.py','baseline.py','phases.py','wpt.py','assess.py','SOURCE-ROLES.json'))
+     predecessor = read(HERE / 'PREDECESSOR.json')
+     assert policy['predecessor'] == predecessor
+     previous = ROOT / predecessor['directory']

@@ -1,0 +1,227 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1826,7 +1826,9 @@
+ impl PreparedCustomValue {
+     pub fn depends_on_color_scheme(&self) -> bool {
+         match &self.kind {
+-            PreparedCustomKind::Typed(value) | PreparedCustomKind::Initial(value) => value.depends_on_color_scheme(),
++            PreparedCustomKind::Typed(value) | PreparedCustomKind::Initial(value) => {
++                value.depends_on_color_scheme()
++            },
+             PreparedCustomKind::Existing | PreparedCustomKind::Invalid => false,
+         }
+     }
+@@ -1837,15 +1839,28 @@
+             PreparedCustomKind::Typed(specified) => {
+                 let mut value = specified.to_computed_value(context);
+                 value.attr_tainted |= self.substitution.unwrap().attr_tainted;
+-                context.builder.substitution_functions.insert_var(registration, name, value);
++                context
++                    .builder
++                    .substitution_functions
++                    .insert_var(registration, name, value);
+             },
+             PreparedCustomKind::Initial(specified) => {
+                 let value = specified.to_computed_value(context);
+-                context.builder.substitution_functions.insert_var(registration, name, value);
++                context
++                    .builder
++                    .substitution_functions
++                    .insert_var(registration, name, value);
+             },
+-            PreparedCustomKind::Invalid => handle_invalid_at_computed_value_time(name, registration, context),
++            PreparedCustomKind::Invalid => {
++                handle_invalid_at_computed_value_time(name, registration, context)
++            },
+             PreparedCustomKind::Existing => apply_substituted_value(
+-                name, None, &self.url_data, self.substitution, stylist, context,
++                name,
++                None,
++                &self.url_data,
++                self.substitution,
++                stylist,
++                context,
+             ),
+         }
+     }
+@@ -1860,9 +1875,16 @@
+ ) -> PreparedCustomValue {
+     let url_data = value.url_data.clone();
+     let substitution = substitute_internal(
+-        value, Some(PropertyIdRef::from(name)), &context.builder.substitution_functions,
+-        stylist, context, attribute_tracker, &mut SmallVec::new(), None,
+-    ).map(|value| Substitution {
++        value,
++        Some(PropertyIdRef::from(name)),
++        &context.builder.substitution_functions,
++        stylist,
++        context,
++        attribute_tracker,
++        &mut SmallVec::new(),
++        None,
++    )
++    .map(|value| Substitution {
+         css: Cow::Owned(value.css.into_owned()),
+         first_token_type: value.first_token_type,
+         last_token_type: value.last_token_type,
+@@ -1883,8 +1905,13 @@
+                 };
+                 let mut parser = Parser::new(&value.css);
+                 match SpecifiedRegisteredValue::parse(
+-                    &mut parser, syntax, &url_data, None,
+-                    AllowComputationallyDependent::Yes, taint, Some(PropertyIdRef::from(name)),
++                    &mut parser,
++                    syntax,
++                    &url_data,
++                    None,
++                    AllowComputationallyDependent::Yes,
++                    taint,
++                    Some(PropertyIdRef::from(name)),
+                 ) {
+                     Ok(parsed) => PreparedCustomKind::Typed(parsed),
+                     Err(_) => PreparedCustomKind::Invalid,
+@@ -1897,7 +1924,11 @@
+     if matches!(kind, PreparedCustomKind::Invalid) {
+         kind = prepare_invalid_custom_kind(name, registration, context);
+     }
+-    PreparedCustomValue { substitution, url_data: value.url_data.clone(), kind }
++    PreparedCustomValue {
++        substitution,
++        url_data: value.url_data.clone(),
++        kind,
++    }
+ }
+ 
+ fn prepare_invalid_custom_kind(
+@@ -1911,8 +1942,13 @@
+     {
+         let mut parser = Parser::new(&initial.css);
+         if let Ok(parsed) = SpecifiedRegisteredValue::parse(
+-            &mut parser, syntax, &initial.url_data, None,
+-            AllowComputationallyDependent::Yes, AttrTaint::default(), Some(PropertyIdRef::from(name)),
++            &mut parser,
++            syntax,
++            &initial.url_data,
++            None,
++            AllowComputationallyDependent::Yes,
++            AttrTaint::default(),
++            Some(PropertyIdRef::from(name)),
+         ) {
+             return PreparedCustomKind::Initial(parsed);
+         }
+@@ -1925,7 +1961,11 @@
+     stylist: &Stylist,
+     context: &computed::Context,
+ ) -> bool {
+-    match prepare_invalid_custom_kind(name, stylist.get_custom_property_registration(name), context) {
++    match prepare_invalid_custom_kind(
++        name,
++        stylist.get_custom_property_registration(name),
++        context,
++    ) {
+         PreparedCustomKind::Initial(value) => value.depends_on_color_scheme(),
+         _ => false,
+     }
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -4,7 +4,6 @@
+ 
+ //! The main cascading algorithm of the style system.
+ 
+-use crate::{FxHashMap, Namespace};
+ use crate::applicable_declarations::{CascadePriority, RevertKind};
+ use crate::color::AbsoluteColor;
+ use crate::computed_value_flags::ComputedValueFlags;
+@@ -13,7 +12,8 @@
+     ComputedCustomProperties, ComputedSubstitutionFunctions, Name, NonCustomReferenceMap,
+     ReferenceFlags, References, SingleNonCustomReference, SubstitutionFunctionKind, VariableValue,
+     get_attr_value_for_cycle_resolution, handle_invalid_at_computed_value_time,
+-    invalid_custom_value_depends_on_color_scheme, prepare_custom_value, remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
++    invalid_custom_value_depends_on_color_scheme, prepare_custom_value,
++    remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
+ };
+ use crate::dom::{AttributeTracker, DummyElementContext, ElementContext, TElement};
+ #[cfg(feature = "gecko")]
+@@ -42,6 +42,7 @@
+ use crate::values::specified::length::FontBaseSize;
+ use crate::values::specified::position::PositionTryFallbacksTryTactic;
+ use crate::values::{computed, specified};
++use crate::{FxHashMap, Namespace};
+ use hashbrown::hash_map::{Entry, EntryRef};
+ use selectors::matching::ElementSelectorFlags;
+ use servo_arc::Arc;
+@@ -2629,13 +2630,21 @@
+             );
+ 
+             if let VarType::Custom(ref name) = var {
+-                let may_compute_color = value_non_custom_refs.intersects(ReferenceFlags::COLOR_SCHEME);
++                let may_compute_color =
++                    value_non_custom_refs.intersects(ReferenceFlags::COLOR_SCHEME);
+                 value_non_custom_refs.remove(ReferenceFlags::COLOR_SCHEME);
+-                if registered && may_compute_color && lowlink == index && !self_ref
++                if registered
++                    && may_compute_color
++                    && lowlink == index
++                    && !self_ref
+                     && context.stack.last() == Some(&index)
+                 {
+                     let prepared = prepare_custom_value(
+-                        name, v, context.stylist, context.computed_context, attribute_tracker,
++                        name,
++                        v,
++                        context.stylist,
++                        context.computed_context,
++                        attribute_tracker,
+                     );
+                     if prepared.depends_on_color_scheme() {
+                         value_non_custom_refs |= ReferenceFlags::COLOR_SCHEME;
+@@ -2710,16 +2719,23 @@
+ 
+         if let VarType::Custom(ref name) = var {
+             let cyclic = self_ref || lowlink < index || context.stack.last() != Some(&index);
+-            if registered && cyclic
++            if registered
++                && cyclic
+                 && !value_non_custom_refs.intersects(ReferenceFlags::COLOR_SCHEME)
+                 && invalid_custom_value_depends_on_color_scheme(
+-                    name, context.stylist, context.computed_context,
++                    name,
++                    context.stylist,
++                    context.computed_context,
+                 )
+             {
+                 visit_link(
+-                    VarType::NonCustom(SingleNonCustomReference::ColorScheme), index,
+-                    references_from_non_custom_properties, context, &mut lowlink,
+-                    &mut self_ref, attribute_tracker,
++                    VarType::NonCustom(SingleNonCustomReference::ColorScheme),
++                    index,
++                    references_from_non_custom_properties,
++                    context,
++                    &mut lowlink,
++                    &mut self_ref,
++                    attribute_tracker,
+                 );
+             }
+         }
+--- a/servo/components/style/properties_and_values/value.rs
++++ b/servo/components/style/properties_and_values/value.rs
+@@ -308,7 +308,6 @@
+ pub type ComputedValue = Value<ComputedValueComponent>;
+ 
+ impl SpecifiedValue {
+-
+     /// Whether computing this selected value reads the element's used color scheme.
+     pub(crate) fn depends_on_color_scheme(&self) -> bool {
+         fn color(value: &specified::Color) -> bool {
+@@ -321,7 +320,9 @@
+                 Color::CurrentColor | Color::Absolute(_) | Color::InheritFromBodyQuirk => false,
+             }
+         }
+-        fn stops<T>(items: &[crate::values::generics::image::GradientItem<specified::Color, T>]) -> bool {
++        fn stops<T>(
++            items: &[crate::values::generics::image::GradientItem<specified::Color, T>],
++        ) -> bool {
+             use crate::values::generics::image::GradientItem;
+             items.iter().any(|item| match item {
+                 GradientItem::SimpleColorStop(value)

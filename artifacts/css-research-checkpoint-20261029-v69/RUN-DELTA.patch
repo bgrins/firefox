@@ -1,0 +1,57 @@
+--- artifacts/css-research-checkpoint-20261029-v68/commit.py
++++ artifacts/css-research-checkpoint-20261029-v69/commit.py
+@@ -13,8 +13,9 @@
+ HERE = Path(__file__).resolve().parent
+ RUNTIME = ROOT / 'artifacts/css-registered-number-native-runtime-v1'
+ HEAD = 'ecfe313d582a335c04d80bfd360fd3a591defdb7'
+-EPOCH = 'e73e66132730fca8b1cf5bde149016653c3e4a1f1a5f0ed29ab2551d291c4064'
+-INVENTORY = ROOT / 'artifacts/css-continuation-completed-inventory-20261029-v67'
++EPOCH = 'e29a6b368f2b5cc98aa8488e62cd40f316988a989ae9b41bb4fca03545f2bfe4'
++EXECUTION_ENABLED = True
++INVENTORY = ROOT / 'artifacts/css-continuation-completed-inventory-20261029-v69'
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+@@ -33,19 +34,21 @@
+ 
+ def main():
+     assert sys.argv[1:] in [['--check'], ['--run']]
++    if sys.argv[1:] == ['--run']:
++        assert EXECUTION_ENABLED, 'Draft signing execution is disabled'
+     assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES'))
+     assert git('rev-parse', 'HEAD').decode().strip() == HEAD
+     assert git('symbolic-ref', '--short', 'HEAD').decode().strip() == 'stylo-bloom-verification-2'
+     assert git('config', '--get', 'commit.gpgsign').strip() == b'true'
+-    assert sha((INVENTORY / 'SELECTION.json').read_bytes()) == '365827f18e7cbbb99b5abe80677f691dee561b66b9d1bb2045f476e3bdf61d0c'
++    assert sha((INVENTORY / 'SELECTION.json').read_bytes()) == '4ba7af9d6a7b9e0eddbd19c6dfeb786511230a2083136b83b98f6be5aa031293'
+     selected = json.loads((INVENTORY / 'SELECTION.json').read_bytes())
+-    assert sha((INVENTORY / 'FILES.json').read_bytes()) == '0780328dd2a1e443842ad0dfc6dcb43f59fe6c63e2a4805c9a31f54d41d9aa86'
++    assert sha((INVENTORY / 'FILES.json').read_bytes()) == '897c92964737762b78247452942fd413442f94c7ae5623648bc0812786040b65'
+     inventory_files = json.loads((INVENTORY / 'FILES.json').read_bytes())
+     for name, record in inventory_files.items():
+         assert sha((INVENTORY / name).read_bytes()) == record['sha256']
+         assert (INVENTORY / name).stat().st_size == record['bytes']
+     extras = [INVENTORY / name for name in [*inventory_files, 'FILES.json']]
+-    extras += [HERE / name for name in ['commit.py', 'README.md', 'WORK-TABLE.md']]
++    extras += [HERE / name for name in ['commit.py', 'README.md', 'WORK-TABLE.md', 'RUN-DELTA.patch']]
+     for path in extras:
+         selected[str(path.relative_to(ROOT))] = {'sha256': sha(path.read_bytes()), 'bytes': path.stat().st_size}
+     for path, record in selected.items():
+@@ -79,7 +82,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v68-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v69-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)
+@@ -93,7 +96,7 @@
+             tree = git('write-tree', env=index_env).decode().strip()
+             assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+             message = directory / 'message'
+-            message.write_text('No bug - Record CSS math validation and verification checkpoint. r?#firefox-style-system-reviewers\n')
++            message.write_text('No bug - Record CSS duration scheduling and completed research. r?#firefox-style-system-reviewers\n')
+             with (HERE / 'signing.log').open('x') as stream:
+                 result = subprocess.run(GIT + ['commit', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
+             if result.returncode:

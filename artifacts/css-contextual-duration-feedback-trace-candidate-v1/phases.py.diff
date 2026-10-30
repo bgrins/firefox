@@ -1,0 +1,25 @@
+--- artifacts/css-contextual-duration-feedback-trace-original-v1/phases.py
++++ artifacts/css-contextual-duration-feedback-trace-candidate-v1/phases.py
+@@ -52,8 +52,8 @@
+ 
+ def require_metadata(policy, metadata):
+     assert metadata['revision'] == metadata['build_revision'] == policy['head']
+-    assert metadata['trace_source_role'] == policy['trace_source_role'] == 'instrumented-original'
+-    assert metadata['source_role'] == 'original'
++    assert metadata['trace_source_role'] == policy['trace_source_role'] == 'instrumented-candidate'
++    assert metadata['source_role'] == 'candidate'
+ 
+ 
+ def run(root, here, output, policy, env, verify, owned, cancelled):
+@@ -68,8 +68,10 @@
+     phase_env = dict(env, **policy['trace_environment'], DURATION_FEEDBACK_RECORD_DIR=str(records), DURATION_FEEDBACK_RUN_ID=run_id)
+     phase = output / 'feedback-wpt'
+     failure, result, record_result, trace_result = None, None, None, None
++    comparison = load('trace_phase_comparison', here / 'comparison.py')
++    original = comparison.original_directory(root, policy)
+     try:
+-        result = wpt.run(root, here, phase, 'original', policy, phase_env, verify, owned, cancelled)
++        result = wpt.run(root, here, phase, 'candidate', policy, phase_env, verify, owned, cancelled, original)
+     except BaseException as error:
+         failure = error
+     diagnostic_errors = []

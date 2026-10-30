@@ -1,0 +1,37 @@
+--- executed/baseline.py
++++ disabled-reduced/baseline.py
+@@ -34,6 +34,10 @@
+     ownership.authenticate(HERE, manifest)
+     for name, pin in policy['references'].items():
+         assert sha(ROOT / name) == pin, name
++    assert policy['source_context_pins']['dom/animation/EffectCompositor.cpp'] == '6ec3a0ca45789b3089e8d2abcfb3ff37b881b0ee9084e09d0d396d73491249ed'
++    assert policy['source_context_pins']['dom/animation/EffectCompositor.h'] == '5ee054432f5105515def6f1eba9e2875226d6a59b6a0dc4d1e05b9617a12dc19'
++    if not policy['execution_enabled']:
++        assert policy['activation_pending'] and not policy['candidate_execution_enabled']
+     roles = read(HERE / 'SOURCE-ROLES.json')
+     assert set(roles) == set(policy['source_paths']) == {'servo/components/style/matching.rs'}
+     for record in roles.values():
+@@ -45,7 +49,7 @@
+     assert policy['wpt'] == expected_wpt(policy)
+     wpt = policy['wpt']
+     assert (wpt['expected_subtest_count'], wpt['expected_target_count'], wpt['expected_control_count'],
+-            wpt['expected_page_count'], wpt['expected_regression_signature_count']) == (3, 2, 1, 1, 2)
++            wpt['expected_page_count'], wpt['expected_regression_signature_count']) == (2, 0, 2, 1, 3)
+     binding = policy['baseline_binding']
+     directory = ROOT / binding['directory']
+     ownership.authenticate(directory, binding['manifest_sha256'])
+@@ -60,6 +64,14 @@
+ 
+ 
+ def guard(policy, ownership, roles):
++    assert policy['activation_pending'] == []
++    assert set(policy['current_restoration_binding']) == {'terminal', 'refresh'}
++    for record in policy['current_restoration_binding'].values():
++        assert policy['references'][record['path']] == record['sha256'] == sha(ROOT / record['path'])
++    assert policy['head'] == policy['wpt']['harness_revision']
++    assert policy['prepared_application_metadata'] and policy['prepared_flag_hashes'] and policy['closed_process_receipts']
++    for name, pin in policy['deferred_nonartifact_references'].items():
++        assert sha(ROOT / name) == pin, name
+     assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'CC', 'CXX', 'RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS', 'CARGO_TARGET_DIR', 'RUSTC', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER', 'MOZ_ARTIFACT_BUILDS', 'MOZ_CONFIGURE_OPTIONS', 'MOZ_PROFILE'))
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS='0', PYTHONDONTWRITEBYTECODE='1', MOZCONFIG=str(ROOT / 'mozconfig'), MOZ_OBJDIR=str(ROOT / 'objdir-full.noindex'), MOZ_HEADLESS='1', MOZ_SKIP_PATH_PERFORMANCE_CHECK='1')
+     state = load('activation_state', policy['state_helper'])

@@ -1,0 +1,15 @@
+>>> 2527: void RestyleManager::PostRestyleEventForAnimations(
+    2528:     Element* aElement, const PseudoStyleRequest& aPseudoRequest,
+    2529:     RestyleHint aRestyleHint) {
+    2530:   Element* elementToRestyle = aElement->GetPseudoElement(aPseudoRequest);
+    2531:   if (!elementToRestyle) {
+    2532:     // FIXME: Bug 1371107: When reframing happens,
+    2533:     // EffectCompositor::mElementsToRestyle still has unbound old pseudo
+    2534:     // element. We should drop it.
+    2535:     return;
+    2536:   }
+    2537: 
+    2538:   mPresContext->TriggeredAnimationRestyle();
+    2539: 
+    2540:   Servo_NoteExplicitHints(elementToRestyle, aRestyleHint, nsChangeHint(0));
+    2541: }

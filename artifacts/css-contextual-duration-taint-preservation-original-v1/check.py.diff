@@ -1,0 +1,119 @@
+--- masked-nine/check.py
++++ taint-preservation/check.py
+@@ -7,6 +7,8 @@
+ 
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
++read = lambda p: json.loads(p.read_bytes())
++sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+ 
+ 
+ def load(name, path):
+@@ -17,49 +19,70 @@
+ 
+ 
+ def check_binding(policy):
+-    return load("masked_nine_admission", HERE / "admission.py").validate(policy)
++    for name, expected in policy["references"].items():
++        assert name.startswith("artifacts/") and ".." not in Path(name).parts
++        assert not (ROOT / name).is_symlink() and sha(ROOT / name) == expected, name
++    previous = read(ROOT / policy["predecessor"]["directory"] / "POLICY.json")
++    for key in ("accepted_calc_sha256", "accepted_current_payloads", "build_epoch", "build_unpinned_sources", "deferred_nonartifact_references", "head", "original_only", "candidate_execution_enabled", "rebuilt_binaries", "source_role_pins", "state_helper", "wpt_helper"):
++        assert policy[key] == previous[key], key
++    mutable = {"expected_control_count", "expected_page_count", "expected_regression_signature_count", "expected_subtest_count", "expected_subtests", "fixture_target_pages", "manifest", "metadata", "resources"}
++    assert {k:v for k,v in policy["wpt"].items() if k not in mutable} == {k:v for k,v in previous["wpt"].items() if k not in mutable}
++    assert policy["original_only"] and policy["candidate_execution_enabled"] is False
++    assert policy["activation_pending"] == ([] if policy["execution_enabled"] else ["root saved review and activation"])
++    current = read(ROOT / policy["fresh_admission"]["path"])
++    assert policy["references"][policy["fresh_admission"]["path"]] == policy["fresh_admission"]["sha256"]
++    assert policy["head"] == current["head"] and policy["controls"] == current["controls"]
++    assert current["source_transition_lock_absent"] and current["native_acceptance_increment"] == 0
++    assert sha(ROOT / current["final_state_audit"]) == current["final_state_audit_sha256"]
++    snapshot = read(ROOT / current["final_state_audit"])
++    assert snapshot["index"]["head"] == policy["head"] and snapshot["index"]["raw_index"] == current["raw_index"]
++    assert sha(ROOT / current["fresh_application_capture"]) == current["fresh_application_capture_sha256"]
++    app = read(ROOT / current["fresh_application_capture"])
++    app.update(build_revision=app["revision"], harness_revision=policy["head"], source_role="original")
++    assert policy["prepared_application_metadata"] == app
++    assert app["revision"] == policy["wpt"]["phase_revisions"]["original"]
++    failed = read(ROOT / policy["failed_signing_receipt"]["path"])
++    assert policy["references"][policy["failed_signing_receipt"]["path"]] == policy["failed_signing_receipt"]["sha256"]
++    assert failed["head"] == policy["head"] and failed["committed"] is False and failed["git_exit"] == 128
++    assert all(failed[k] for k in ("head_unchanged", "controls_unchanged", "raw_index_unchanged", "native_working_diff_preserved", "untracked_paths_unchanged", "source_transition_lock_absent", "owned_temporary_index_removed"))
++    attempt = ROOT / "artifacts/css-research-checkpoint-20261030-v82"
++    assert sha(attempt / "result.json") == failed["result_sha256"] and sha(attempt / "signing.log") == failed["signing_log_sha256"]
++    assert read(attempt / "result.json") == {"committed": False, "exit": 128, "real_index_and_canonical_state_unchanged": True}
+ 
+ 
+ def check(policy):
+     check_binding(policy)
+     settings = policy["wpt"]
+-    sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+-    for name, expected in policy["references"].items():
+-        assert sha(ROOT / name) == expected, name
+-    source = ROOT / policy["probe_packages"][0]
+-    for name, pin in json.loads((source / "FILES.json").read_bytes()).items():
+-        assert sha(source / name) == (pin if isinstance(pin, str) else pin["sha256"])
+-    assert settings["expected_subtests"] == json.loads((ROOT / policy["source_roster"]).read_bytes())
+-    inputs = json.loads((source / "INPUTS.json").read_bytes())
+-    for name, expected in inputs["resources"].items():
+-        assert settings["resources"][name] == {"path": str((source / "tests" / name).relative_to(ROOT)), "sha256": expected}
+-    assert set(settings["resources"]) == set(inputs["resources"]) | {"resources/testharness.js.headers", "resources/testharnessreport.js.headers"}
+-    assert (settings["expected_subtest_count"], settings["expected_control_count"], settings["expected_target_count"], settings["expected_page_count"], settings["expected_regression_signature_count"]) == (9, 9, 0, 4, 13)
+-    assert settings["target_subtests"] == {} and not policy["candidate_execution_enabled"]
++    roster = {}
++    expected_resources = {}
++    combined = None
++    for directory in policy["probe_packages"]:
++        source = ROOT / directory
++        for name, record in read(source / "FILES.json").items():
++            assert sha(source / name) == (record if isinstance(record, str) else record["sha256"])
++        roster.update(read(source / "ROSTER.json"))
++        for name, record in read(source / "INPUTS.json")["resources"].items():
++            digest = record if isinstance(record, str) else record["sha256"]
++            assert sha(source / "tests" / name) == digest
++            if name in expected_resources:
++                assert expected_resources[name]["sha256"] == digest
++            else:
++                expected_resources[name] = {"path": str((source / "tests" / name).relative_to(ROOT)), "sha256": digest}
++        manifest = read(source / "MANIFEST.json")
++        if combined is None:
++            combined = manifest
++        else:
++            assert combined["version"] == manifest["version"] and combined["url_base"] == manifest["url_base"] and combined["items"]["support"] == manifest["items"]["support"]
++            combined["items"]["testharness"]["css"]["css-animations"].update(manifest["items"]["testharness"]["css"]["css-animations"])
++    assert roster == settings["expected_subtests"] == read(ROOT / policy["source_roster"])
++    assert read(ROOT / settings["manifest"]["path"]) == combined
++    assert sha(ROOT / settings["manifest"]["path"]) == settings["manifest"]["sha256"]
++    for name, record in expected_resources.items():
++        assert settings["resources"][name] == record
++    assert set(settings["resources"]) == set(expected_resources) | {"resources/testharness.js.headers", "resources/testharnessreport.js.headers"}
++    assert (settings["expected_subtest_count"], settings["expected_control_count"], settings["expected_target_count"], settings["expected_page_count"], settings["expected_regression_signature_count"]) == (6, 6, 0, 2, 8)
++    assert settings["target_subtests"] == {} and set(settings["fixture_target_pages"]) == set(roster)
+     assert len(policy["accepted_current_payloads"]) == 29
+-    runtime_assertions = [node for node in ast.walk(ast.parse((HERE / "run.py").read_text())) if isinstance(node, ast.Assert)]
+-    assert any(ast.dump(node.test) == ast.dump(ast.parse('len(policy["accepted_current_payloads"]) == 29', mode='eval').body) for node in runtime_assertions)
+-    for record in settings["resources"].values():
+-        assert sha(ROOT / record["path"]) == record["sha256"]
+-    manifest = json.loads((ROOT / settings["manifest"]["path"]).read_bytes())
+-    assert sha(ROOT / settings["manifest"]["path"]) == settings["manifest"]["sha256"]
+-    assert set(manifest["items"]["testharness"]["css"]["css-animations"]) == {Path(p).name for p in settings["expected_subtests"]}
+-    if policy["fresh_admission"] is None:
+-        for label, mutate in [
+-            ("premature execution", lambda p: p.update(execution_enabled=True)),
+-            ("stale HEAD", lambda p: p.update(head="a" * 40)),
+-            ("missing pending gate", lambda p: p.update(activation_pending=[])),
+-            ("altered original source", lambda p: p["source_role_pins"].update({"servo/components/style/matching.rs": "0" * 64})),
+-            ("missing accepted claim", lambda p: p["accepted_current_payloads"].pop(next(iter(p["accepted_current_payloads"])))),
+-        ]:
+-            changed = copy.deepcopy(policy)
+-            mutate(changed)
+-            try:
+-                check_binding(changed)
+-            except AssertionError:
+-                pass
+-            else:
+-                raise AssertionError(label)
+     settings = dict(settings, harness_revision="a" * 40, phase_revisions={"original": "b" * 40})
+     app = {"browser_build_id": "static-build-id", "revision": "b" * 40,
+            "build_revision": "b" * 40, "harness_revision": "a" * 40,

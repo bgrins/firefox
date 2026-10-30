@@ -1,0 +1,22 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1686,8 +1686,8 @@
+     );
+ }
+ 
+-enum SubstitutionInput<'a> {
+-    Unresolved(&'a VariableValue, &'a mut AttributeTracker),
++enum SubstitutionInput<'a, 'b> {
++    Unresolved(&'a VariableValue, &'a mut AttributeTracker<'b>),
+     Prepared(Result<Substitution<'static>, ()>),
+ }
+ 
+@@ -1695,7 +1695,7 @@
+     name: &Name,
+     namespace: Option<&Namespace>,
+     url_data: &UrlExtraData,
+-    input: SubstitutionInput,
++    input: SubstitutionInput<'_, '_>,
+     stylist: &Stylist,
+     context: &mut computed::Context,
+ ) {

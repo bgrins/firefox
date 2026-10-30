@@ -1,0 +1,50 @@
+--- artifacts/css-contextual-duration-feedback-consistency-candidate-v1/wpt.py
++++ artifacts/css-contextual-duration-feedback-trace-original-v1/wpt.py
+@@ -29,6 +29,9 @@
+ 
+ 
+ def run(root, here, output, role, policy, env, verify, owned, cancelled, original=None):
++    assert role == 'original' and original is None
++    assert policy['trace_source_role'] == 'instrumented-original'
++    assert env['MOZ_DURATION_RESTYLE_TRACE'] == '1'
+     settings = policy['wpt']
+     metadata_helper = load('activation_metadata', root / settings['metadata_helper'])
+     checks = load('activation_checks', root / settings['checks_helper'])
+@@ -44,7 +47,7 @@
+     output.mkdir()
+     before = verify()
+     app_before = metadata_helper.application_metadata(root / settings['application_ini'], settings['phase_revisions'][role])
+-    app_before.update(build_revision=app_before['revision'], harness_revision=settings['harness_revision'], source_role=role)
++    app_before.update(build_revision=app_before['revision'], harness_revision=settings['harness_revision'], source_role=role, trace_source_role=policy['trace_source_role'])
+     binaries = {name: sha(root / name) for name in policy['rebuilt_binaries']}
+     save(output / 'PRE.json', before)
+     save(output / 'APPLICATION-METADATA.json', app_before)
+@@ -97,7 +100,7 @@
+     phase_env = dict(env, TMPDIR=str(temporary), TMP=str(temporary), TEMP=str(temporary), MOZ_DISABLE_SAFE_MODE_KEY='1', MOZ_DISABLE_UPDATE_PROCESSING='1')
+     command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'wpt', '--headless', '--processes=1', '--no-manifest-update', '--no-manifest-download', '--binary=' + str(root / settings['binary']), '--config=' + str(config_path), '--run-info=' + str(root / 'objdir-full.noindex'), '--prefs-root=' + str(root / 'testing/profiles'), '--log-raw=' + str(output / 'raw.jsonl')]
+     command.extend('--include=' + test for test in expected)
+-    save(output / 'COMMAND.json', {'command': command, 'temporary_root': str(temporary), 'temporary_identity': identity, 'timeout_seconds': settings['timeout_seconds']})
++    save(output / 'COMMAND.json', {'command': command, 'temporary_root': str(temporary), 'temporary_identity': identity, 'timeout_seconds': settings['timeout_seconds'], 'environment_overrides': policy['trace_environment'], 'trace_source_role': policy['trace_source_role']})
+     process, code, error, cleanup = None, None, None, None
+     try:
+         with (output / 'wpt.log').open('x') as stream:
+@@ -124,17 +127,12 @@
+         save(output / 'CLEANUP.json', cleanup)
+     after = verify()
+     app_after = metadata_helper.application_metadata(root / settings['application_ini'], settings['phase_revisions'][role])
+-    app_after.update(build_revision=app_after['revision'], harness_revision=settings['harness_revision'], source_role=role)
++    app_after.update(build_revision=app_after['revision'], harness_revision=settings['harness_revision'], source_role=role, trace_source_role=policy['trace_source_role'])
+     preserved = before == after and app_before == app_after and {name: sha(root / name) for name in binaries} == binaries
+     save(output / 'POST.json', after)
+     save(output / 'APPLICATION-METADATA-POST.json', app_after)
+     events = [json.loads(line) for line in (output / 'raw.jsonl').read_text().splitlines()]
+-    if original is not None:
+-        comparison = load('strict_original_comparison', here / 'comparison.py')
+-        assert original == comparison.original_directory(root, policy)
+-        replay = comparison.replay_original(root, policy, assessor, checks)
+-    else:
+-        replay = None
++    replay = None
+     assessment = assessor.assess(events, code, phase_policy, checks, original=replay, run_binding=app_before)
+     save(output / 'ASSESSMENT.json', assessment)
+     success = error is None and preserved and cleanup and cleanup.get('temporary_root_removed') and assessment['complete'] and (role == 'original' or assessment['comparison_gate_passed'])

@@ -1,0 +1,45 @@
+--- artifacts/css-registered-selected-color-candidate-v1/check.py
++++ artifacts/css-registered-selected-color-candidate-v2/check.py
+@@ -25,11 +25,14 @@
+     mutable = {'owner_directory','runtime_output','predecessor','proposal','references','source_paths','execution_enabled','candidate_execution_enabled','activation_pending','head','controls','prepared_application_metadata','prepared_flag_hashes','prepared_flag_capture','execution_handoff','baseline_binding','baseline_capsule','original_admission_policy_sha256','restoration_binding','preparation_predecessor','correction_predecessor','suite_binding','wpt','source_roster','preserved_absent_resources','proposal_independent_review'}
+     assert {k:v for k,v in policy.items() if k not in mutable} == {k:v for k,v in old.items() if k not in mutable}
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-registered-selected-color-candidate-runtime-1'
++    assert policy['runtime_output'] == 'artifacts/css-registered-selected-color-candidate-runtime-2'
+     assert type(policy['execution_enabled']) is bool and policy['execution_enabled'] == policy['candidate_execution_enabled']
+     assert bool(policy['activation_pending']) != policy['execution_enabled']
+     assert all(policy[k] is not None for k in ('head','controls','prepared_application_metadata','prepared_flag_hashes','prepared_flag_capture','execution_handoff','baseline_binding','baseline_capsule','original_admission_policy_sha256'))
+     assert len(policy['accepted_current_payloads']) == 29
++    corrected = ROOT / policy['correction_predecessor']['directory']
++    ownership.authenticate(corrected, policy['correction_predecessor']['manifest_sha256'])
++    assert all((HERE / name).read_bytes() == (corrected / name).read_bytes() for name in ('admission.py','comparison.py','phases.py','wpt.py','assess.py','SOURCE-ROLES.json'))
+     assert isinstance(policy['suite_binding'], dict)
+     suite = ROOT / policy['suite_binding']['directory']
+     ownership.authenticate(suite, policy['suite_binding']['manifest_sha256'])
+@@ -74,6 +77,17 @@
+ def check():
+     policy = read(HERE / 'POLICY.json')
+     actual = validate_policy(policy)
++    baseline = load('corrected_terminal_prepare', HERE / 'baseline.py')
++    directory = ROOT / policy['baseline_binding']['directory']
++    assert baseline.owner_terminal(directory, policy['baseline_binding'], policy['baseline_capsule']) == policy['baseline_binding']['terminal']
++    for mode in ('owner', 'terminal', 'exit'):
++        binding, capsule = copy.deepcopy(policy['baseline_binding']), copy.deepcopy(policy['baseline_capsule'])
++        if mode == 'owner': capsule['sha256'] = '0' * 64
++        elif mode == 'terminal': binding['terminal']['terminal_chunk'] = 'invented'
++        else: binding['terminal']['exit'] = 1
++        try: baseline.owner_terminal(directory, binding, capsule)
++        except AssertionError: pass
++        else: raise AssertionError('Incorrect terminal schema join accepted')
+     assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
+     mutations = (
+         lambda p: p.update(baseline_binding=None),
+@@ -124,7 +138,7 @@
+     phase_predecessor = ROOT / read(prior / 'POLICY.json')['predecessor']['directory']
+     assert (HERE / 'phases.py').read_bytes() == (phase_predecessor / 'phases.py').read_bytes()
+     load('executed_phase_test', phase_predecessor / 'check.py').phases_check(policy, original, observed)
+-    print(json.dumps({'references': len(policy['references']), 'actual_binding_negatives': len(mutations), 'all42FAIL_retained': True, 'actual_clean_original': {'passed': sum(row['status'] == 'PASS' for row in actual['rows']), 'failed': sum(row['status'] == 'FAIL' for row in actual['rows']), 'endings': len(actual['ends'])}, 'live_operations': False}))
++    print(json.dumps({'references': len(policy['references']), 'actual_binding_negatives': len(mutations), 'terminal_schema_negatives': 3, 'all42FAIL_retained': True, 'actual_clean_original': {'passed': sum(row['status'] == 'PASS' for row in actual['rows']), 'failed': sum(row['status'] == 'FAIL' for row in actual['rows']), 'endings': len(actual['ends'])}, 'live_operations': False}))
+ 
+ 
+ if __name__ == '__main__':
