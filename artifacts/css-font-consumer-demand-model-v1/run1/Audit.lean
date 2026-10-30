@@ -1,0 +1,18 @@
+import FontDemand
+#print axioms FontConsumerDemand.join_assoc
+#print axioms FontConsumerDemand.join_comm
+#print axioms FontConsumerDemand.join_covers_both
+#print axioms FontConsumerDemand.ready_weaken
+#print axioms FontConsumerDemand.ready_join
+#print axioms FontConsumerDemand.ready_single_iff
+#print axioms FontConsumerDemand.ready_summary_iff
+#print axioms FontConsumerDemand.universal_readiness_iff_covers
+#print axioms FontConsumerDemand.least_sufficient_projection
+#print axioms FontConsumerDemand.summary_append
+#print axioms FontConsumerDemand.alias_projection_composes
+#print axioms FontConsumerDemand.accumulated_demand_exact
+#print axioms FontConsumerDemand.later_demands_preserved
+#print axioms FontConsumerDemand.ready_after_escalation
+#print axioms FontConsumerDemand.coarse_projection_loses_metric_information
+#print axioms FontConsumerDemand.metrics_without_orientation_is_insufficient
+#print axioms FontConsumerDemand.later_alias_requires_upgrade

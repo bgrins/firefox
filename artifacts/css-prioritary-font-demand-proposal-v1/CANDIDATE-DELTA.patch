@@ -1,0 +1,257 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -522,10 +522,10 @@
+ 
+ /// Set of flags to references this custom property makes.
+ #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, MallocSizeOf, ToShmem)]
+-pub struct ReferenceFlags(u8);
++pub struct ReferenceFlags(u16);
+ 
+ bitflags! {
+-    impl ReferenceFlags : u8 {
++    impl ReferenceFlags : u16 {
+         /// At least one custom property depends on font-relative units.
+         const FONT_UNITS = 1 << 0;
+         /// At least one custom property depends on root element's font-relative units.
+@@ -536,10 +536,14 @@
+         const ROOT_LH_UNITS = 1 << 3;
+         /// The value depends on the used color-scheme (e.g. a registered `<color>` property).
+         const COLOR_SCHEME = 1 << 4;
++        const FONT_METRICS = 1 << 8;
++        const ROOT_FONT_METRICS = 1 << 9;
++        const FONT_ORIENTATION = 1 << 10;
++        const ROOT_FONT_ORIENTATION = 1 << 11;
+         /// All dependencies not depending on the root element.
+-        const NON_ROOT_DEPENDENCIES = Self::FONT_UNITS.0 | Self::LH_UNITS.0;
++        const NON_ROOT_DEPENDENCIES = Self::FONT_UNITS.0 | Self::LH_UNITS.0 | Self::FONT_METRICS.0 | Self::FONT_ORIENTATION.0;
+         /// All dependencies depending on the root element.
+-        const ROOT_DEPENDENCIES = Self::ROOT_FONT_UNITS.0 | Self::ROOT_LH_UNITS.0;
++        const ROOT_DEPENDENCIES = Self::ROOT_FONT_UNITS.0 | Self::ROOT_LH_UNITS.0 | Self::ROOT_FONT_METRICS.0 | Self::ROOT_FONT_ORIENTATION.0;
+         /// All non-custom dependencies
+         const NON_CUSTOM = Self::NON_ROOT_DEPENDENCIES.0 | Self::ROOT_DEPENDENCIES.0;
+         /// At least one attr() reference.
+@@ -576,6 +580,10 @@
+                 Self::COLOR_SCHEME => SingleNonCustomReference::ColorScheme,
+                 Self::ROOT_FONT_UNITS
+                 | Self::ROOT_LH_UNITS
++                | Self::FONT_METRICS
++                | Self::ROOT_FONT_METRICS
++                | Self::FONT_ORIENTATION
++                | Self::ROOT_FONT_ORIENTATION
+                 | Self::VAR
+                 | Self::ENV
+                 | Self::ATTR => continue,
+@@ -585,35 +593,104 @@
+         }
+     }
+ 
++    /// Iterate semantic cycle edges with their requested font inputs.
++    pub fn for_each_non_custom_dependency<F>(self, is_root_element: bool, mut f: F)
++    where
++        F: FnMut(NonCustomDependency),
++    {
++        let metrics = self.intersects(Self::FONT_METRICS)
++            || (is_root_element && self.intersects(Self::ROOT_FONT_METRICS));
++        let orientation = self.intersects(Self::FONT_ORIENTATION)
++            || (is_root_element && self.intersects(Self::ROOT_FONT_ORIENTATION));
++        self.for_each_non_custom(is_root_element, |reference| {
++            let font_demand = match reference {
++                SingleNonCustomReference::FontUnits if orientation => {
++                    FontDependencyDemand::OrientedMetrics
++                },
++                SingleNonCustomReference::FontUnits if metrics => FontDependencyDemand::FontMetrics,
++                SingleNonCustomReference::FontUnits => FontDependencyDemand::ComputedSize,
++                SingleNonCustomReference::LhUnits => FontDependencyDemand::OrientedMetrics,
++                SingleNonCustomReference::ColorScheme => FontDependencyDemand::None,
++            };
++            f(NonCustomDependency {
++                reference,
++                font_demand,
++            });
++        });
++    }
++
+     fn from_unit(value: &CowRcStr) -> Self {
+         // For registered properties, any reference to font-relative dimensions
+         // make it dependent on font-related properties.
+         // TODO(dshin): When we unit algebra gets implemented and handled -
+         // Is it valid to say that `calc(1em / 2em * 3px)` triggers this?
+         if value.eq_ignore_ascii_case(NoCalcLength::LH) {
+-            return Self::FONT_UNITS | Self::LH_UNITS;
+-        }
+-        if value.eq_ignore_ascii_case(NoCalcLength::EM)
+-            || value.eq_ignore_ascii_case(NoCalcLength::EX)
++            return Self::FONT_UNITS | Self::LH_UNITS | Self::FONT_METRICS | Self::FONT_ORIENTATION;
++        }
++        if value.eq_ignore_ascii_case(NoCalcLength::EM) {
++            return Self::FONT_UNITS;
++        }
++        if value.eq_ignore_ascii_case(NoCalcLength::EX)
+             || value.eq_ignore_ascii_case(NoCalcLength::CAP)
+-            || value.eq_ignore_ascii_case(NoCalcLength::CH)
++        {
++            return Self::FONT_UNITS | Self::FONT_METRICS;
++        }
++        if value.eq_ignore_ascii_case(NoCalcLength::CH)
+             || value.eq_ignore_ascii_case(NoCalcLength::IC)
+         {
+-            return Self::FONT_UNITS;
++            return Self::FONT_UNITS | Self::FONT_METRICS | Self::FONT_ORIENTATION;
+         }
+         if value.eq_ignore_ascii_case(NoCalcLength::RLH) {
+-            return Self::ROOT_FONT_UNITS | Self::ROOT_LH_UNITS;
+-        }
+-        if value.eq_ignore_ascii_case(NoCalcLength::REM)
+-            || value.eq_ignore_ascii_case(NoCalcLength::REX)
+-            || value.eq_ignore_ascii_case(NoCalcLength::RCH)
++            return Self::ROOT_FONT_UNITS
++                | Self::ROOT_LH_UNITS
++                | Self::ROOT_FONT_METRICS
++                | Self::ROOT_FONT_ORIENTATION;
++        }
++        if value.eq_ignore_ascii_case(NoCalcLength::REM) {
++            return Self::ROOT_FONT_UNITS;
++        }
++        if value.eq_ignore_ascii_case(NoCalcLength::REX)
+             || value.eq_ignore_ascii_case(NoCalcLength::RCAP)
++        {
++            return Self::ROOT_FONT_UNITS | Self::ROOT_FONT_METRICS;
++        }
++        if value.eq_ignore_ascii_case(NoCalcLength::RCH)
+             || value.eq_ignore_ascii_case(NoCalcLength::RIC)
+         {
+-            return Self::ROOT_FONT_UNITS;
++            return Self::ROOT_FONT_UNITS | Self::ROOT_FONT_METRICS | Self::ROOT_FONT_ORIENTATION;
+         }
+         Self::empty()
+     }
++}
++
++/// Requested computation inputs, separate from semantic cycle identity.
++#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
++pub enum FontDependencyDemand {
++    /// No font inputs.
++    #[default]
++    None,
++    /// The computed font size.
++    ComputedSize,
++    /// Computed size and current font metrics.
++    FontMetrics,
++    /// Font metrics and writing-mode-dependent orientation.
++    OrientedMetrics,
++}
++
++impl FontDependencyDemand {
++    /// Preserve the stronger requested input set.
++    pub fn join(self, other: Self) -> Self {
++        if self >= other { self } else { other }
++    }
++}
++
++/// A semantic cycle edge and its separate computation demand.
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub struct NonCustomDependency {
++    /// The existing cycle identity.
++    pub reference: SingleNonCustomReference,
++    /// Requested inputs, not evidence that they are ready.
++    pub font_demand: FontDependencyDemand,
+ }
+ 
+ /// A non-custom reference that participates in cycle resolution.
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -9,8 +9,9 @@
+ use crate::computed_value_flags::ComputedValueFlags;
+ use crate::context::TreeCountingCaches;
+ use crate::custom_properties::{
+-    ComputedCustomProperties, ComputedSubstitutionFunctions, Name, NonCustomReferenceMap,
+-    ReferenceFlags, References, SubstitutionFunctionKind, VariableValue,
++    ComputedCustomProperties, ComputedSubstitutionFunctions, FontDependencyDemand, Name,
++    NonCustomDependency, NonCustomReferenceMap, ReferenceFlags, References,
++    SingleNonCustomReference, SubstitutionFunctionKind, VariableValue,
+     get_attr_value_for_cycle_resolution, handle_invalid_at_computed_value_time,
+     invalid_custom_value_depends_on_color_scheme, prepare_custom_value,
+     remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
+@@ -858,6 +859,8 @@
+     references_from_non_custom_properties: NonCustomPropertyReferences,
+     /// Set of prioritary properties that have already been applied.
+     ensured_prioritary: PrioritaryPropertyIdSet,
++    // Requests accumulate across graph roots; this is not a readiness marker.
++    requested_font_dependency: FontDependencyDemand,
+ }
+ 
+ impl<'a> Cascade<'a> {
+@@ -876,6 +879,7 @@
+             declarations_to_apply_unless_overridden: Default::default(),
+             may_have_custom_property_cycles: false,
+             ensured_prioritary: PrioritaryPropertyIdSet::default(),
++            requested_font_dependency: FontDependencyDemand::None,
+             references_from_non_custom_properties: Default::default(),
+         }
+     }
+@@ -893,6 +897,7 @@
+             declarations_to_apply_unless_overridden: Default::default(),
+             may_have_custom_property_cycles: false,
+             ensured_prioritary: PrioritaryPropertyIdSet::default(),
++            requested_font_dependency: FontDependencyDemand::None,
+             references_from_non_custom_properties: Default::default(),
+         }
+     }
+@@ -2540,6 +2545,30 @@
+                 }
+             }
+         }
++    }
++
++    fn visit_non_custom_dependency<'a, 'b: 'a, 'c, 'd>(
++        dependency: NonCustomDependency,
++        index: usize,
++        references_from_non_custom_properties: &NonCustomPropertyReferences,
++        context: &mut Context<'a, 'b, 'c, 'd>,
++        lowlink: &mut usize,
++        self_ref: &mut bool,
++        attribute_tracker: &mut AttributeTracker,
++    ) {
++        context.cascade.requested_font_dependency = context
++            .cascade
++            .requested_font_dependency
++            .join(dependency.font_demand);
++        visit_link(
++            VarType::NonCustom(dependency.reference.to_prioritary_id().to_longhand()),
++            index,
++            references_from_non_custom_properties,
++            context,
++            lowlink,
++            self_ref,
++            attribute_tracker,
++        );
+     }
+ 
+     /// Traverse a single dependency `var` of the variable at order index `index`, updating its
+@@ -2775,9 +2804,9 @@
+             // color-scheme), as computed by `find_non_custom_references` above.
+             let is_root = context.computed_context.is_root_element();
+             if registered && !value_non_custom_refs.is_empty() {
+-                value_non_custom_refs.for_each_non_custom(is_root, |r| {
+-                    visit_link(
+-                        VarType::NonCustom(r.to_prioritary_id().to_longhand()),
++                value_non_custom_refs.for_each_non_custom_dependency(is_root, |dependency| {
++                    visit_non_custom_dependency(
++                        dependency,
+                         index,
+                         references_from_non_custom_properties,
+                         context,
+@@ -2790,8 +2819,11 @@
+         } else if let VarType::NonCustom(longhand) = var {
+             let id = PrioritaryPropertyId::from_longhand(longhand).unwrap();
+             if longhand == LonghandId::LineHeight {
+-                visit_link(
+-                    VarType::NonCustom(LonghandId::FontSize),
++                visit_non_custom_dependency(
++                    NonCustomDependency {
++                        reference: SingleNonCustomReference::FontUnits,
++                        font_demand: FontDependencyDemand::OrientedMetrics,
++                    },
+                     index,
+                     references_from_non_custom_properties,
+                     context,

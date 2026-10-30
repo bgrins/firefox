@@ -1,0 +1,56 @@
+--- artifacts/css-appearance-typed-attr-installed-release-v1/run.py
++++ artifacts/css-font-metric-demand-installed-release-v1/run.py
+@@ -14,10 +14,10 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ sys.dont_write_bytecode = True
+ ROOT = Path(__file__).resolve().parents[2]
+-OUTPUT = ROOT / 'artifacts/css-appearance-typed-attr-installed-release-runtime-1'
+-PHASE = ROOT / 'artifacts/css-appearance-typed-attr-pair-runtime-2/original-wpt-ordinary'
++OUTPUT = ROOT / 'artifacts/css-font-metric-demand-installed-release-runtime-1'
++PHASE = ROOT / 'artifacts/css-font-metric-demand-installed-stage-v1'
+ APP = Path('/Applications/Firefox.app/Contents')
+-PAGE = '/css/css-ui/appearance-typed-attr-scheduling.tentative.html'
++PAGE = '/css/css-properties-values-api/registered-font-metric-demand.tentative.html'
+ 
+ def sha(path):
+     with path.open('rb') as stream:
+@@ -46,23 +46,21 @@
+     spec = importlib.util.spec_from_file_location('installed_process_control', control_path)
+     control = importlib.util.module_from_spec(spec)
+     spec.loader.exec_module(control)
+-    assert sha(ROOT / 'artifacts/css-appearance-typed-attr-pair-runtime-2/original-wpt-ordinary/STAGED-RESOURCES.json') == '6ee7159ebfbdf14bb14e801d8ab46d4f013e01848bfe9bd955959bc21a5466f3'
+-    assert sha(ROOT / 'artifacts/css-appearance-typed-attr-pair-runtime-2/original-wpt-ordinary/wptrunner.ini') == '175f57c7227f38547ac2ce335260c5ad856cec03922db4e97c5ff5fa574f7d00'
+-    assert sha(ROOT / 'artifacts/css-appearance-typed-attr-scheduling-probe-v1/ROSTER.json') == '02989b6965fa76b1ba1aef28b23be2bd79c4fd8c0441feb4fce2fda48587d64e'
++    assert sha(ROOT / 'artifacts/css-font-metric-demand-installed-stage-v1/STAGED-RESOURCES.json') == '2545831ba951ae4af3da79876d904415848674ae783e2cbfaab1e0e997ea97b9'
++    assert sha(ROOT / 'artifacts/css-font-metric-demand-installed-stage-v1/wptrunner.ini') == '3f4a7cdb83b03e6f2fdd13618cb95c4179150d75b8e6bb65c5ee5a9aae57ea77'
++    assert sha(ROOT / 'artifacts/css-registered-font-metric-demand-probe-v1/ROSTER.json') == '19facd6259f538f6b1b80a7b932ca9d44f0d36a010a54dbf7152658abe96f332'
+     staged = json.loads((PHASE / 'STAGED-RESOURCES.json').read_bytes())
+     assert all(sha(PHASE / name) == pin for name, pin in staged.items())
+-    roster = json.loads((ROOT / 'artifacts/css-appearance-typed-attr-scheduling-probe-v1/ROSTER.json').read_bytes())
+-    assert list(roster) == [PAGE] and len(roster[PAGE]) == 4
+-    live = ROOT / 'artifacts/css-appearance-typed-attr-pair-runtime-2/ROOT-LIVE-RESTORATION.json'
+-    assert sha(live) == '28375fd909a7db7b3c1e6a15e336778e64c11faa06b3f34ec6cf5e6c56fca231'
+-    assert json.loads(live.read_bytes())['independent_live_restoration_verified']
++    roster = json.loads((ROOT / 'artifacts/css-registered-font-metric-demand-probe-v1/ROSTER.json').read_bytes())
++    assert list(roster) == [PAGE] and len(roster[PAGE]) == 3
++    assert not (ROOT / 'artifacts/css-registered-number-native-runtime-v1/SOURCE-TRANSITION.lock').exists()
+     OUTPUT.mkdir()
+     before = app_snapshot()
+     save('APP-PRE.json', before)
+     assert before['version'] == '158.0'
+     run_info = OUTPUT / 'run-info'
+     run_info.mkdir()
+-    temporary = Path(tempfile.mkdtemp(prefix='css-portable-installed-', dir='/private/tmp'))
++    temporary = Path(tempfile.mkdtemp(prefix='css-font-metric-installed-', dir='/private/tmp'))
+     identity = [temporary.stat().st_dev, temporary.stat().st_ino]
+     command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'wpt', '--headless', '--processes=1', '--no-manifest-update', '--no-manifest-download', '--no-install-fonts', '--browser-channel=stable', '--binary=' + str(APP / 'MacOS/firefox'), '--config=' + str(PHASE / 'wptrunner.ini'), '--run-info=' + str(run_info), '--prefs-root=' + str(ROOT / 'testing/profiles'), '--log-raw=' + str(OUTPUT / 'raw.jsonl'), '--include=' + PAGE]
+     save('COMMAND.json', {'command': command, 'temporary_root': str(temporary), 'temporary_identity': identity, 'timeout_seconds': 180, 'script_sha256': sha(Path(__file__))})
+@@ -120,7 +118,7 @@
+     ends = [row for row in events if row.get('action') == 'test_end']
+     run_infos = [r.get('run_info') for r in events if r.get('action') == 'suite_start']
+     browser_bound = len(run_infos) == 1 and run_infos[0].get('browser_build_id') == before['application']['buildid']
+-    complete = code in (0, 1) and browser_bound and len(rows) == 4 and {(r['test'], r['subtest']) for r in rows} == {(PAGE, name) for name in roster[PAGE]} and len(ends) == 1 and ends[0]['test'] == PAGE and ends[0]['status'] == 'OK' and all(r['status'] in ('PASS', 'FAIL') for r in rows)
++    complete = code in (0, 1) and browser_bound and len(rows) == 3 and {(r['test'], r['subtest']) for r in rows} == {(PAGE, name) for name in roster[PAGE]} and len(ends) == 1 and ends[0]['test'] == PAGE and ends[0]['status'] == 'OK' and all(r['status'] in ('PASS', 'FAIL') for r in rows)
+     save('RESULT.json', {'complete': complete, 'exit': code, 'error': error, 'rows': rows, 'endings': ends, 'run_info': [r.get('run_info') for r in events if r.get('action') == 'suite_start'], 'app_and_staged_inputs_preserved': preserved, 'cleanup': cleanup, 'preference_samples_saved': len(samples), 'raw_sha256': sha(raw) if raw.exists() else None, 'native_acceptance': False, 'role': 'installed-release-WPT-stable-profile', 'prerequisite_failures_require_separate_triage': True})
+     assert preserved and cleanup and cleanup.get('owned_group_absent') and cleanup.get('temporary_root_removed') and error is None and complete and any(name.endswith('-user.js') for name in samples)
+     print('Installed release observation complete; ordinary FAIL rows retained')

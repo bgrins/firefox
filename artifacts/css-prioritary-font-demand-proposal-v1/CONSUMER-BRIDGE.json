@@ -1,0 +1,32 @@
+{
+  "registered_context": {
+    "source": "servo/components/style/values/computed/mod.rs",
+    "source_sha256": "557bcb142d276c32822f5484045e27a5186de1ded244dbd599986f8eba79ee6c",
+    "text": "    pub fn with_registered_value<R>(&self, f: impl FnOnce(&Self) -> R) -> R {\n        struct Reset<'a>(&'a Cell<bool>, bool);\n\n        impl Drop for Reset<'_> {\n            fn drop(&mut self) {\n                self.0.set(self.1);\n            }\n        }\n\n        let _reset = Reset(\n            &self.in_registered_value,\n            self.in_registered_value.replace(true),\n        );\n        f(self)\n    }\n\n"
+  },
+  "registered_component": {
+    "source": "servo/components/style/properties_and_values/value.rs",
+    "source_sha256": "6624c2a54d4fe1ed136b7cf6ff69288e3d4c4f73d0e63016128af38b9c28f66c",
+    "text": "impl<Component: ToComputedValue> ToComputedValue for Value<Component> {\n    type ComputedValue = Value<Component::ComputedValue>;\n\n    #[inline]\n    fn to_computed_value(&self, context: &computed::Context) -> Self::ComputedValue {\n        context.with_registered_value(|context| Value {\n            v: self.v.to_computed_value(context),\n            url_data: self.url_data.to_computed_value(context),\n            attr_tainted: self.attr_tainted.to_computed_value(context),\n        })\n    }\n\n    #[inline]\n    fn from_computed_value(computed: &Self::ComputedValue) -> Self {\n        Self {\n            v: ToComputedValue::from_computed_value(&computed.v),\n            url_data: ToComputedValue::from_computed_value(&computed.url_data),\n            attr_tainted: ToComputedValue::from_computed_value(&computed.attr_tainted),\n        }\n    }\n}\n\n"
+  },
+  "default_length_base": {
+    "source": "servo/components/style/values/specified/length.rs",
+    "source_sha256": "f4130679d2ab64a49ed54c2fbdc69af1dbb9139ffd90269514a41b7d7ecfd147",
+    "text": "impl ToComputedValue for NoCalcLength {\n    type ComputedValue = computed::Length;\n\n    #[inline]\n    fn to_computed_value(&self, context: &Context) -> Self::ComputedValue {\n        self.to_computed_value_with_base_size(\n            context,\n            FontBaseSize::CurrentStyle,\n            LineHeightBase::CurrentStyle,\n        )\n    }\n\n    #[inline]\n    fn from_computed_value(computed: &Self::ComputedValue) -> Self {\n        Self::from_px(computed.px())\n    }\n}\n\n"
+  },
+  "metric_context": {
+    "source": "servo/components/style/values/computed/mod.rs",
+    "source_sha256": "557bcb142d276c32822f5484045e27a5186de1ded244dbd599986f8eba79ee6c",
+    "text": "    pub fn query_font_metrics(\n        &self,\n        base_size: FontBaseSize,\n        orientation: FontMetricsOrientation,\n        mut flags: QueryFontMetricsFlags,\n    ) -> FontMetrics {\n        if self.for_non_inherited_property {\n            self.rule_cache_conditions.borrow_mut().set_uncacheable();\n        }\n        self.builder.add_flags(match base_size {\n            FontBaseSize::CurrentStyle => ComputedValueFlags::DEPENDS_ON_SELF_FONT_METRICS,\n            FontBaseSize::InheritedStyle => ComputedValueFlags::DEPENDS_ON_INHERITED_FONT_METRICS,\n        });\n        let size = base_size.resolve(self).used_size();\n        let style = self.style();\n\n        let (wm, font) = match base_size {\n            FontBaseSize::CurrentStyle => (style.writing_mode, style.get_font()),\n            // This is only used for font-size computation.\n            FontBaseSize::InheritedStyle => {\n                (*style.inherited_writing_mode(), style.get_parent_font())\n            },\n        };\n\n        let vertical = match orientation {\n            FontMetricsOrientation::MatchContextPreferHorizontal => {\n                wm.is_vertical() && wm.is_upright()\n            },\n            FontMetricsOrientation::MatchContextPreferVertical => wm.is_text_vertical(),\n            FontMetricsOrientation::Horizontal => false,\n        };\n        if !self.in_media_query {\n            flags |= QueryFontMetricsFlags::USE_USER_FONT_SET\n        }\n        self.device()\n            .query_font_metrics(vertical, font, size, flags, /* track_changes = */ true)\n    }\n\n"
+  },
+  "parser_property_context": {
+    "source": "servo/components/style/parser.rs",
+    "source_sha256": "5bea661eb93b9fb0e7dfac5ae3396f91d7fa60d3d13bd953ab54bde4f7088db0",
+    "text": "    pub fn with_property_declaration<R>(\n        &mut self,\n        property_id: PropertyIdRef<'a>,\n        cb: impl FnOnce(&Self) -> R,\n    ) -> R {\n        self.property_declaration_context.set(property_id);\n        let r = cb(self);\n        self.property_declaration_context.clear();\n        r\n    }\n\n"
+  },
+  "font_metrics_canonical_units": {
+    "source": "servo/components/style/values/specified/length.rs",
+    "source_sha256": "f4130679d2ab64a49ed54c2fbdc69af1dbb9139ffd90269514a41b7d7ecfd147",
+    "text": "    pub(crate) fn to_computed_value_for_math(\n        &self,\n        context: &Context,\n        base_size: FontBaseSize,\n        line_height_base: LineHeightBase,\n    ) -> CSSPixelLength {\n        if let Some(px) = self.to_px_if_absolute() {\n            if context.in_registered_value() {\n                return CSSPixelLength::new(px);\n            }\n            return CSSPixelLength::new(px).zoom(context.builder.effective_zoom);\n        }\n        let unit = self.length_unit();\n        if unit.is_font_relative() {\n            let value = self.font_relative_to_computed_value(context, base_size, line_height_base);\n            return if context.in_registered_value() {\n                CSSPixelLength::new(context.builder.effective_zoom.unzoom(value.px()))\n            } else {\n                value\n            };\n        }\n        if unit.is_viewport_percentage() {\n            return self.viewport_percentage_to_computed_value(context);\n        }\n        if unit.is_container_relative() {\n            return self.container_relative_to_computed_value(context);\n        }\n        debug_assert_eq!(unit, LengthUnit::ServoCharacterWidth);\n        let value = self.servo_character_width_to_computed_value(\n            context\n                .style()\n                .get_font()\n                .slow_clone_font_size()\n                .computed_size(),\n        );\n        if context.in_registered_value() {\n            CSSPixelLength::new(context.builder.effective_zoom.unzoom(value.px()))\n        } else {\n            value\n        }\n    }\n}\n\n"
+  }
+}

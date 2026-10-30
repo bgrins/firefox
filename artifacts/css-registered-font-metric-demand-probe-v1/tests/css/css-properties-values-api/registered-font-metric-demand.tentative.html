@@ -1,0 +1,81 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered font-relative lengths use the selected font metrics</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#computed-value-time">
+<link rel="help" href="https://www.w3.org/TR/css-values-4/#font-relative-lengths">
+<link rel="help" href="https://drafts.csswg.org/css-font-loading/#font-face-set-ready">
+<link rel="help" href="https://www.w3.org/TR/css-fonts-4/#font-prop-desc">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const mode of ["em", "ch", "ch-selected-weight"]) {
+  promise_test(async t => {
+    const unit = mode === "ch-selected-weight" ? "ch" : mode;
+    const frame = document.createElement("iframe");
+    frame.srcdoc = `<!doctype html><link rel="stylesheet" href="/fonts/ahem.css"><style>
+      @font-face { font-family: MetricNoto; src: url(/fonts/noto/noto-sans-v8-latin-regular.woff); }
+      @font-face { font-family: MetricWeights; font-weight: 400; src: url(/fonts/Ahem.ttf); }
+      @font-face { font-family: MetricWeights; font-weight: 700; src: url(/fonts/noto/noto-sans-v8-latin-regular.woff); }
+    </style><style id="phase-style"></style><body>`;
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    document.body.append(frame);
+    t.add_cleanup(() => frame.remove());
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    const variants = mode === "ch-selected-weight" ?
+      [{family: "MetricWeights", weight: 400}, {family: "MetricWeights", weight: 700}] :
+      [{family: "Ahem", weight: 400}, {family: "MetricNoto", weight: 400}];
+    for (const {family, weight} of variants) {
+      const faces = await doc.fonts.load(`${weight} 20px ${family}`, "0");
+      assert_equals(faces.length, 1, `${family} must load its test font`);
+      assert_equals(faces[0].status, "loaded", `${family} font loaded`);
+    }
+    await doc.fonts.ready;
+    win.CSS.registerProperty({name: "--metric", syntax: "<length>", inherits: false, initialValue: "0px"});
+    for (const id of ["target", "reference", "ch-reference", "em-reference"]) {
+      const element = doc.createElement("div");
+      element.id = id;
+      doc.body.append(element);
+    }
+    const target = doc.getElementById("target");
+    const phaseStyle = doc.getElementById("phase-style");
+    const observations = [];
+    for (const size of [20, 30]) {
+      for (const {family, weight} of variants) {
+        phaseStyle.textContent = `
+          div { font-family: ${family}; font-size: ${size}px; font-weight: ${weight};
+            font-style: normal; font-stretch: normal; font-size-adjust: none;
+            writing-mode: horizontal-tb; text-orientation: mixed; }
+          #target { --metric: 1${unit}; }
+          #reference { width: 1${unit}; }
+          #ch-reference { width: 1ch; }
+          #em-reference { width: 1em; }`;
+        const first = win.getComputedStyle(target).getPropertyValue("--metric");
+        const reference = win.getComputedStyle(doc.getElementById("reference")).width;
+        const ch = win.getComputedStyle(doc.getElementById("ch-reference")).width;
+        const em = win.getComputedStyle(doc.getElementById("em-reference")).width;
+        const computed = win.getComputedStyle(target);
+        observations.push({size, family, weight, first, reference, ch, em,
+          fontSize: computed.fontSize, fontFamily: computed.fontFamily, fontWeight: computed.fontWeight});
+      }
+    }
+    const diagnostic = JSON.stringify({mode, unit, observations});
+    for (const size of [20, 30]) {
+      const pair = observations.filter(row => row.size === size);
+      assert_true(pair.every(row => parseFloat(row.ch) > 0), diagnostic);
+      assert_greater_than(Math.abs(parseFloat(pair[0].ch) - parseFloat(pair[1].ch)), 1, diagnostic);
+    }
+    for (const row of observations) {
+      assert_equals(row.fontSize, `${row.size}px`, diagnostic);
+      assert_equals(row.fontFamily, row.family, diagnostic);
+      assert_equals(row.fontWeight, String(row.weight), diagnostic);
+      assert_approx_equals(parseFloat(row.em), row.size, 0.02, diagnostic);
+      assert_regexp_match(row.first, /^\d+(?:\.\d+)?px$/, diagnostic);
+      assert_approx_equals(parseFloat(row.first), parseFloat(row.reference), 0.02, diagnostic);
+      if (unit === "em") assert_approx_equals(parseFloat(row.first), row.size, 0.02, diagnostic);
+    }
+  }, `Registered font metric demand: ${mode}`);
+}
+</script>
