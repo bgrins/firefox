@@ -1,0 +1,30 @@
+--- a/intermediate.py
++++ b/intermediate.py
+@@ -3,7 +3,7 @@
+ import stat
+ 
+ 
+-def verify_intermediate(h, root, env, epoch, consumed_inputs):
++def verify_intermediate(h, root, env, epoch, consumed_inputs, record_index_mismatch=None):
+     assert consumed_inputs and isinstance(consumed_inputs, dict)
+     before = h.index_state(root, env)
+     assert before['raw_index'] == epoch['raw_index_observation']['current']
+@@ -24,8 +24,17 @@
+                  if not p.startswith('artifacts/')}
+     assert untracked == set(epoch['untracked_native'])
+     after = h.index_state(root, env)
++    if after != before and record_index_mismatch is not None:
++        record_index_mismatch({'repository': 'root', 'before': before, 'after': after,
++                               'changed_fields': sorted(k for k in before.keys() | after.keys()
++                                                        if before.get(k) != after.get(k))})
+     assert after == before
+-    assert h.index_state(root / 'artifacts/css-spec-lean', env) == nested_before
++    nested_after = h.index_state(root / 'artifacts/css-spec-lean', env)
++    if nested_after != nested_before and record_index_mismatch is not None:
++        record_index_mismatch({'repository': 'nested', 'before': nested_before, 'after': nested_after,
++                               'changed_fields': sorted(k for k in nested_before.keys() | nested_after.keys()
++                                                        if nested_before.get(k) != nested_after.get(k))})
++    assert nested_after == nested_before
+     return {'index': after, 'nested_index': nested_before,
+             'current_raw_stable_during_check': True,
+             'working_sources_binaries_preserved': True,

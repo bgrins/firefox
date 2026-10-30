@@ -1,0 +1,164 @@
+--- artifacts/css-research-checkpoint-20261030-v87/commit.py
++++ artifacts/css-research-checkpoint-20261030-v88/commit.py
+@@ -15,7 +15,7 @@
+ BINDINGS = json.loads((HERE / 'BINDINGS.json').read_bytes())
+ HEAD = BINDINGS['head']
+ EPOCH = BINDINGS['epoch_sha256']
+-EXECUTION_ENABLED = True
++EXECUTION_ENABLED = False
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+@@ -76,83 +76,28 @@
+     return module
+ 
+ 
+-def verify_publication_receipt(stage, receipt, parent):
+-    assert receipt['signature_verified'] and receipt['parent'] == parent
+-    assert not receipt['accepted'] and not receipt['app_rebuilt'] and receipt['accepted_fix_increment'] == 0
+-    assert set(receipt['files']) == set(stage['statuses'])
+-    if stage['stage'] in ('union', 'image'):
+-        assert receipt['stage'] == stage['stage']
+-    return receipt['commit']
+-
+-
+ def saved_admission():
+     assert not BINDINGS['pending_current_admission']
+-    assert HEAD and EPOCH and BINDINGS['controls']
+-    current = json.loads((ROOT / BINDINGS['current_capture']).read_bytes())
+-    research = json.loads((ROOT / BINDINGS['research_receipt']).read_bytes())
+-    assert sha((ROOT / BINDINGS['research_receipt']).read_bytes()) == BINDINGS['research_receipt_sha256']
+-    assert research['committed'] and research['signature_verified'] and research['accepted_fix_increment'] == 0
+-    assert research['head'] == '8f0f2859676d19f41848f376724e1281c12f1f00'
+-    parent = research['head']
+-    stages = json.loads((HERE / 'NATIVE-COMMITS.json').read_bytes())
+-    assert [stage['stage'] for stage in stages] == ['minmax', 'log', 'union', 'image']
+-    assert len(BINDINGS['native_receipts']) == 4
+-    commits = {}
+-    for stage, binding in zip(stages, BINDINGS['native_receipts']):
+-        assert binding['stage'] == stage['stage'] and binding['path'] and binding['sha256']
+-        body = (ROOT / binding['path']).read_bytes()
+-        assert sha(body) == binding['sha256']
+-        receipt = json.loads(body)
+-        parent = verify_publication_receipt(stage, receipt, parent)
+-        commits[stage['stage']] = parent
+-    batch = json.loads((ROOT / BINDINGS['batch_receipt']).read_bytes())
+-    terminal = json.loads((ROOT / BINDINGS['batch_terminal']).read_bytes())
+-    assert batch['all_four_signed_publications_complete'] and batch['commits'] == commits
+-    assert not batch['pushed'] and not terminal['pushed'] and terminal['commits'] == commits
+-    assert (terminal['session'], terminal['launch_chunk'], terminal['terminal_chunk'], terminal['exit']) == (46597, 'bb3321', 'ee9e4e', 0)
+-    assert terminal['result_sha256'] == sha((ROOT / BINDINGS['batch_receipt']).read_bytes())
+-    assert parent == HEAD == current['audit']['index']['head']
+-    assert current['controls'] == BINDINGS['controls'] and current['controls']['CURRENT-EPOCH.json'] == EPOCH == receipt['epoch_sha256']
++    body = (ROOT / BINDINGS['prior_receipt']).read_bytes()
++    assert sha(body) == BINDINGS['prior_receipt_sha256']
++    receipt = json.loads(body)
++    assert receipt['committed'] and receipt['signature_verified']
++    assert receipt['head'] == HEAD and receipt['epoch_sha256'] == EPOCH
++    assert receipt['accepted_fix_increment'] == 0 and receipt['native_working_diff_preserved']
++    body = (ROOT / BINDINGS['current_capture']).read_bytes()
++    assert sha(body) == BINDINGS['current_capture_sha256']
++    current = json.loads(body)
++    assert current['prior_receipt_sha256'] == BINDINGS['prior_receipt_sha256']
++    assert current['controls'] == BINDINGS['controls']
++    assert current['controls']['CURRENT-EPOCH.json'] == EPOCH
+     assert current['full_current_state_verified'] and current['source_transition_lock_absent']
+-    assert current['publication_receipts'] == BINDINGS['native_receipts']
+-    role = current['role']
+-    assert role['role'] == 'published-native' and role['variant'] == 'registered-image'
+-    assert role['built'] is False and role['paired_head'] == HEAD and 'last_build' not in role
+-    assert 'last_install' not in role and role['pending_gtest_overlay_installed'] is False
+-    retirement = current['prototype_overlay_state']
+-    assert retirement['installed'] is False and retirement['held_provider_parked'] is True
+-    assert retirement['old_restoration_recipes_require_rebase'] is True
+-    union_runtime = (ROOT / BINDINGS['native_receipts'][2]['path']).parent
+-    claim = current['retirement_claim']
+-    assert retirement['original_role_preserved_in'] == claim['path'] == str((union_runtime / 'PRE-ROLE.json').relative_to(ROOT))
+-    assert sha((ROOT / claim['path']).read_bytes()) == claim['sha256']
+-    assert claim['initial_claims_path'] == str((union_runtime / 'INITIAL-CLAIMS.json').relative_to(ROOT))
+-    assert sha((ROOT / claim['initial_claims_path']).read_bytes()) == claim['initial_claims_sha256']
+-    assert json.loads((ROOT / claim['initial_claims_path']).read_bytes())['controls']['ROLE.json']['owned_sha256'] == claim['sha256']
+-    audit_path = ROOT / BINDINGS['completed_untracked_audit']['path']
+-    assert current['untracked_audit_sha256'] == sha(audit_path.read_bytes())
+-    assert current['untracked_audit'] == BINDINGS['completed_untracked_audit']['path']
+-    audit = json.loads(audit_path.read_bytes())
+-    assert audit['head'] == HEAD and not audit['staged_paths'] and not audit['tracked_modified_paths']
+-    assert audit['untracked_count'] == 563 and not audit['unexpected_paths'] and not audit['missing_paths']
+-    assert audit['project_hashes_match_committed_recovery'] and len(audit['project_files']) == 68
+-    assert audit['unrelated_count'] == 495 and not audit['unrelated_metadata_mismatches']
+-    return current['audit']
+-
+-
+-def verify_native_commits():
+-    stages = json.loads((HERE / 'NATIVE-COMMITS.json').read_bytes())
+-    for stage, binding in zip(stages, BINDINGS['native_receipts']):
+-        receipt = json.loads((ROOT / binding['path']).read_bytes())
+-        commit = receipt['commit']
+-        assert git('rev-list', '--parents', '-n', '1', commit).decode().split() == [commit, receipt['parent']]
+-        expected = {stage['statuses'][name] + '\t' + name for name in stage['statuses']}
+-        assert set(git('diff-tree', '--no-commit-id', '--name-status', '--no-renames', '-r', commit).decode().splitlines()) == expected
+-        for name, pin in stage['files'].items():
+-            assert sha(git('show', commit + ':' + name)) == pin
+-        for name, pin in stage['deleted'].items():
+-            assert sha(git('show', receipt['parent'] + ':' + name)) == pin
+-        git('-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', commit)
++    assert current['tracked_modified_paths'] == [] and current['staged_paths'] == []
++    audit = current['audit']
++    assert audit['index']['head'] == HEAD
++    assert audit['index']['working_diff'] == audit['index']['cached_diff'] == sha(b'')
++    assert audit['current_raw_stable_during_check'] and audit['working_sources_binaries_research_preserved']
++    return audit
++
+ 
+ def main():
+     assert sys.argv[1:] in [['--check'], ['--run']]
+@@ -168,12 +113,9 @@
+     assert git('rev-parse', 'HEAD').decode().strip() == HEAD
+     assert git('symbolic-ref', '--short', 'HEAD').decode().strip() == 'stylo-bloom-verification-2'
+     assert git('config', '--get', 'commit.gpgsign').strip() == b'true'
+-    verify_native_commits()
++    git('-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', HEAD)
+     assert sha((HERE / 'SELECTION.json').read_bytes()) == BINDINGS['selection_sha256']
+     selected = json.loads((HERE / 'SELECTION.json').read_bytes())
+-    assert sha((HERE / 'BASE-SELECTION.json').read_bytes()) == BINDINGS['base_selection_sha256']
+-    base_selected = json.loads((HERE / 'BASE-SELECTION.json').read_bytes())
+-    assert len(base_selected) == BINDINGS['base_selected_paths'] and all(selected.get(path) == row for path, row in base_selected.items())
+     assert len(selected) == BINDINGS['selected_paths_before_self']
+     for manifest_path, digest in BINDINGS['completed_packages'].items():
+         manifest = ROOT / manifest_path
+@@ -185,7 +127,7 @@
+             path = str((manifest.parent / name).relative_to(ROOT))
+             expected = record['sha256'] if isinstance(record, dict) else record
+             assert selected[path]['sha256'] == expected
+-    extras = [HERE / name for name in ['commit.py', 'README.md', 'WORK-TABLE.md', 'RUN-DELTA.patch', 'BINDINGS.json', 'CHECK.json', 'FILES.json', 'SELECTION.json', 'BASE-SELECTION.json', 'check.py', 'NATIVE-COMMITS.json', 'capture_current.py']]
++    extras = [HERE / name for name in ['commit.py', 'README.md', 'RUN-DELTA.patch', 'BINDINGS.json', 'CHECK.json', 'FILES.json', 'SELECTION.json', 'check.py', 'capture_current.py']]
+     for path in extras:
+         selected[str(path.relative_to(ROOT))] = {'sha256': sha(path.read_bytes()), 'bytes': path.stat().st_size}
+     for path, record in selected.items():
+@@ -195,7 +137,7 @@
+         assert file.stat().st_size == record['bytes'] and sha(file.read_bytes()) == record['sha256'], path
+     tracked = set(git('ls-files', '-z').decode().split('\0'))
+     skipped = [path for path in selected if path in tracked]
+-    verify_blobs([(HEAD + ':' + path, selected[path]) for path in skipped])
++    assert not skipped, 'V88 must not reselect already committed payloads'
+     for path in skipped:
+         del selected[path]
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+@@ -219,7 +161,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v87-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v88-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)
+@@ -232,7 +174,7 @@
+             tree = git('write-tree', env=index_env).decode().strip()
+             assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+             message = directory / 'message'
+-            message.write_text('No bug - Record signed CSS native publication evidence. r?#firefox-style-system-reviewers\n')
++            message.write_text('No bug - Record CSS unit fallback verification research. r?#firefox-style-system-reviewers\n')
+             with (HERE / 'signing.log').open('x') as stream:
+                 result = subprocess.run(GIT + ['commit', '--quiet', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
+             if result.returncode:

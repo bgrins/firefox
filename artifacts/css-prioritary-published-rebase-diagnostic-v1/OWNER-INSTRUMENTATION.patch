@@ -1,0 +1,25 @@
+--- a/candidate.py
++++ b/candidate.py
+@@ -133,7 +133,9 @@
+         for record in accepted.values():
+             if record['path'] not in roles:
+                 ownership.claim(ROOT, record['path'], record['owned_sha256'], record['identity'])
++    verification_calls = [0]
+     def candidate_verify():
++        verification_calls[0] += 1
+         stable_controls()
+         local = copy.deepcopy(epoch)
+         for name, record in roles.items():
+@@ -150,7 +152,11 @@
+         assert all(index[key] == epoch['semantic_index'][key] for key in ('head', 'entries', 'cached_diff'))
+         local['semantic_index'] = state.h.semantic_index(index)
+         local['raw_index_observation']['current'] = index['raw_index']
+-        verified = intermediate.verify_intermediate(state.h, ROOT, env, local, consumed_inputs)
++        def record_index_mismatch(value):
++            state.save(output / 'INTERMEDIATE-INDEX-MISMATCH.json',
++                       dict(value, verification_call=verification_calls[0]))
++        verified = intermediate.verify_intermediate(
++            state.h, ROOT, env, local, consumed_inputs, record_index_mismatch)
+         assert verified['nested_index'] == before['nested_index']
+         for name, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]:
+             assert state.h.git(path, env, 'ls-files', '-v', '-z') == flags[name]
