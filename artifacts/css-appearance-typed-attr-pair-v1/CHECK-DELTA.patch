@@ -1,0 +1,123 @@
+--- artifacts/css-prioritary-publication-pair-v2/check.py
++++ artifacts/css-appearance-typed-attr-pair-v1/check.py
+@@ -24,47 +24,35 @@
+ 
+ def validate_policy(policy):
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-prioritary-publication-pair-runtime-1'
+-    assert policy['head'] == '939bbb7e8438fdac86e078fdabcd48db6cf646b0'
++    assert policy['runtime_output'] == 'artifacts/css-appearance-typed-attr-pair-runtime-1'
++    assert policy['head'] == '272e8b2ddc4f6824c5d22e5395f275dc00ee34a6'
+     admission = load('admission')
+     suite = admission.authenticate(ROOT, policy['suite_binding'])
+-    assert policy['suite_binding']['manifest_sha256'] == '6a277a7a24ab2e0b2b8b1d700e0767cbe6fb659fc42e08c853a5b541b8432a9c'
+-    data, roster, lanes = (read(suite / name) for name in ('INPUTS.json', 'ROSTER.json', 'LANES.json'))
+-    assert (data['callbacks'], data['pages'], data['signatures'], len(data['resources'])) == (28, 6, 34, 8)
+-    assert data['resources'] == data['copy_resources'] and not data['install_managed_resources']
+-    assert policy['lane_order'] == ['ordinary', 'forced_colors', 'mozilla_appearance']
+-    assert policy['diagnostic_lane_order'] == ['appearance_scheduling']
+-    assert set(policy['wpt_lanes']) == set(lanes) | set(policy['diagnostic_lane_order'])
+-    prior = read(ROOT / policy['capture_owner']['directory'] / 'POLICY.json')
++    assert policy['suite_binding']['manifest_sha256'] == '940fdda04d54d73778a608cb32dfa6274922ae9d93ac9ed3de3fabd5b9bfb759'
++    data, roster = (read(suite / name) for name in ('INPUTS.json', 'ROSTER.json'))
++    assert (data['callbacks'], data['pages'], data['signatures'], len(data['resources'])) == (4, 1, 5, 3)
++    assert policy['lane_order'] == ['ordinary'] and policy['diagnostic_lane_order'] == []
++    assert set(policy['wpt_lanes']) == {'ordinary'}
++    prior = read(ROOT / 'artifacts/css-prioritary-publication-pair-v2/POLICY.json')
+     for key in ('image_commit', 'ownership_helper', 'phase_helper', 'process_helper', 'state_helper', 'bundle_helper', 'bundle_path', 'extra_backup_paths', 'rebuilt_binaries', 'metadata_current_pins', 'preserved_absent_metadata', 'source_context_pins', 'restored_application_revision', 'timeout_seconds'):
+         assert policy[key] == prior[key], key
+-    assert policy['preserved_absent_resources'] == sorted(set(prior['preserved_absent_resources']) | {'testing/web-platform/meta/css/css-properties-values-api/registered-overridden-line-height.tentative.html.ini', 'testing/web-platform/mozilla/meta/css/css-cascade/appearance-generated-scheduling.html.ini'})
++    assert policy['preserved_absent_resources'] == sorted(set(prior['preserved_absent_resources']) | {'testing/web-platform/meta/css/css-ui/appearance-typed-attr-scheduling.tentative.html.ini'})
+     changing = {'expected_subtests', 'target_subtests', 'expected_subtest_count', 'expected_target_count', 'expected_control_count', 'expected_page_count', 'expected_regression_signature_count', 'fixture_target_pages', 'candidate_required_pass_pages', 'phase_revisions', 'harness_revision', 'resources', 'manifests', 'metadata', 'capture', 'install_managed_resources'}
+-    def require_settings(settings, expected, inputs=data):
+-        assert {k: v for k, v in settings.items() if k not in changing} == {k: v for k, v in prior['wpt'].items() if k not in changing}
+-        count = sum(map(len, expected.values()))
+-        assert settings['expected_subtests'] == settings['target_subtests'] == expected
+-        assert (settings['expected_subtest_count'], settings['expected_target_count'], settings['expected_control_count'], settings['expected_page_count'], settings['expected_regression_signature_count']) == (count, count, 0, len(expected), len(expected))
+-        assert settings['fixture_target_pages'] == settings['candidate_required_pass_pages'] == sorted(expected)
+-        assert settings['phase_revisions'] == {'original': policy['head'], 'candidate': policy['head']}
+-        assert settings['harness_revision'] == policy['head']
+-        for key in ('resources', 'manifests', 'metadata'):
+-            assert settings[key] == inputs[key]
+-        assert settings['capture'] is None and settings['install_managed_resources'] == {}
+-    require_settings(policy['wpt'], roster)
+-    for lane, row in lanes.items():
+-        require_settings(policy['wpt_lanes'][lane], row['roster'])
+-    assert [(lanes[k]['callbacks'], lanes[k]['pages']) for k in policy['lane_order']] == [(20, 3), (2, 1), (6, 2)]
+-    supplement = admission.authenticate(ROOT, policy['supplement_binding'])
+-    extra_roster = read(supplement / 'ROSTER.json')
+-    assert sum(map(len, extra_roster.values())) == 5 and len(extra_roster) == 1
+-    url = next(iter(extra_roster))
+-    relative = url[len('/_mozilla/'):]
+-    supplement_inputs = copy.deepcopy(data)
+-    supplement_inputs['resources'][url] = {'path': str((supplement / 'mozilla/tests' / relative).relative_to(ROOT)), 'sha256': sha(supplement / 'mozilla/tests' / relative)}
+-    supplement_inputs['manifests']['mozilla'] = {'path': str((supplement / 'MOZILLA-MANIFEST.json').relative_to(ROOT)), 'sha256': sha(supplement / 'MOZILLA-MANIFEST.json')}
+-    supplement_inputs['metadata']['mozilla'][relative + '.ini'] = {'path': str((supplement / 'mozilla/meta' / (relative + '.ini')).relative_to(ROOT)), 'sha256': sha(supplement / 'mozilla/meta' / (relative + '.ini'))}
+-    require_settings(policy['wpt_lanes']['appearance_scheduling'], extra_roster, supplement_inputs)
++    settings = policy['wpt']
++    assert settings == policy['wpt_lanes']['ordinary']
++    assert {k: v for k, v in settings.items() if k not in changing} == {k: v for k, v in prior['wpt'].items() if k not in changing}
++    assert settings['expected_subtests'] == settings['target_subtests'] == roster
++    assert (settings['expected_subtest_count'], settings['expected_target_count'], settings['expected_control_count'], settings['expected_page_count'], settings['expected_regression_signature_count']) == (4, 4, 0, 1, 1)
++    assert settings['fixture_target_pages'] == settings['candidate_required_pass_pages'] == sorted(roster)
++    assert settings['phase_revisions'] == {'original': policy['head'], 'candidate': policy['head']}
++    assert settings['harness_revision'] == policy['head']
++    assert settings['resources'] == data['resources']
++    assert settings['manifests']['portable'] == data['manifest']
++    assert settings['manifests']['mozilla'] == prior['wpt']['manifests']['mozilla']
++    assert settings['metadata'] == {'portable': {}, 'mozilla': {}}
++    assert settings['capture'] is None and settings['install_managed_resources'] == {}
++    assert all(not page.startswith('/_mozilla/') for page in roster)
++    assert not data['prefs'] and not data['metadata']
+ 
+     old_run = (ROOT / 'artifacts/css-prioritary-published-candidate-v1/candidate.py').read_text()
+     new_run = (HERE / 'run.py').read_text()
+@@ -82,6 +70,14 @@
+         for kind in ('base', 'candidate'):
+             assert sha(ROOT / row[kind + '_capture']) == row[kind + '_sha256']
+     admission.validate_prerequisite(ROOT, policy, roles)
++    evidence = policy['prior_pair_evidence']
++    for kind in ('runtime', 'audit'):
++        directory = ROOT / evidence[kind + '_directory']
++        assert sha(directory / 'FILES.json') == evidence[kind + '_manifest_sha256']
++    audit = read(ROOT / evidence['audit_directory'] / 'AUDIT.json')
++    assert audit == read(ROOT / evidence['runtime_directory'] / 'ROOT-REVIEW.json')
++    assert audit['publication28_gate'] and not audit['diagnostic5_gate'] and not audit['combined_gate']
++    assert not audit['native_acceptance']
+     assert (HERE / 'assess.py').read_bytes() == (ROOT / policy['assessor_binding']['directory'] / 'assess.py').read_bytes()
+     for name in ('inputs.py', 'review_scope.py'):
+         assert (HERE / name).read_bytes() == (ROOT / policy['capture_owner']['directory'] / name).read_bytes()
+@@ -96,7 +92,7 @@
+         assert not policy['execution_enabled'] and not policy['candidate_execution_enabled'] and policy['activation_pending']
+     else:
+         capture = admission.validate_current(ROOT, policy, roles)
+-        assert capture['checkpoint_receipt']['sha256'] == '54c4ba84f5f3cfd32c5073cb7df59099e1bbd7f5c56e067d6fe34308f33ef874'
++        assert capture['checkpoint_receipt']['sha256'] == '48cd5f34e7c62dc429dae364188789ad08c8aa0f5fdbd1c959cd10b583661c82'
+     return len(external)
+ 
+ 
+@@ -176,7 +172,7 @@
+     finally:
+         shutil.rmtree(directory)
+     assert not directory.exists()
+-    return 4
++    return 1
+ 
+ 
+ def replay_checks(policy):
+@@ -233,12 +229,12 @@
+         bad = copy.deepcopy(saved); bad['source_role'] = 'candidate'; write(path, bad)
+         rejected(lambda: comparison.replay_original(ROOT, here, output, local, 'ordinary', assessor, checks))
+         write(path, saved)
+-        path = output / 'original-wpt-mozilla_appearance/raw.jsonl'; saved = path.read_bytes(); path.write_bytes(saved.replace(b'ordinary assertion failure', b'altered assertion', 1))
+-        rejected(lambda: comparison.replay_original(ROOT, here, output, local, 'mozilla_appearance', assessor, checks))
++        path = output / 'original-wpt-ordinary/raw.jsonl'; saved = path.read_bytes(); path.write_bytes(saved.replace(b'ordinary assertion failure', b'altered assertion', 1))
++        rejected(lambda: comparison.replay_original(ROOT, here, output, local, 'ordinary', assessor, checks))
+     finally:
+         shutil.rmtree(directory)
+     assert not directory.exists()
+-    return {'original_lanes_replayed': 4, 'build_positives': 2, 'build_and_replay_negatives': 6, 'scratch_removed': True}
++    return {'original_lanes_replayed': 1, 'build_positives': 2, 'build_and_replay_negatives': 6, 'scratch_removed': True}
+ 
+ 
+ if __name__ == '__main__':

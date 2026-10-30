@@ -1,0 +1,47 @@
+{
+  "source": {
+    "bytes": 122955,
+    "path": "artifacts/css-prioritary-published-rebase-diagnostic-v1/candidate/servo/components/style/properties/cascade.rs",
+    "sha256": "a6f4e611985f25340e339a402169cfea3abbdfa3c683183646c9300ae31c5e4b"
+  },
+  "excerpts": [
+    {
+      "end": 1007,
+      "source": "candidate_cascade",
+      "start": 990,
+      "text": "    fn did_apply_prioritary_property(\n        &mut self,\n        context: &mut computed::Context,\n        id: PrioritaryPropertyId,\n    ) {\n        use crate::properties::PrioritaryPropertyId::*;\n        match id {\n            Appearance => {\n                if is_base_appearance(context) {\n                    context\n                        .style()\n                        .add_flags(ComputedValueFlags::IS_IN_APPEARANCE_BASE_SUBTREE);\n                    context\n                        .included_cascade_flags\n                        .insert(RuleCascadeFlags::APPEARANCE_BASE);\n                }\n            },\n            WritingMode | Direction | TextOrientation => {\n"
+    },
+    {
+      "end": 1281,
+      "source": "candidate_cascade",
+      "start": 1218,
+      "text": "    fn apply_prepared_longhand(\n        &mut self,\n        context: &mut computed::Context,\n        longhand_id: LonghandId,\n        prepared: PreparedLonghand,\n        priority: CascadePriority,\n    ) {\n        let PreparedLonghand {\n            declaration,\n            deferred,\n        } = prepared;\n        self.declarations_to_apply_unless_overridden\n            .extend(deferred);\n        let origin = priority.cascade_level().origin();\n        let can_skip_apply = match declaration.get_css_wide_keyword() {\n            Some(keyword) => {\n                if let Some(revert_kind) = keyword.revert_kind() {\n                    // We intentionally don't want to insert it into\n                    // `self.seen.longhands`, `reverted` takes care of rejecting\n                    // other declarations as needed.\n                    self.reverted.longhands_set.insert(longhand_id);\n                    self.reverted\n                        .longhands\n                        .insert(longhand_id, (priority, revert_kind));\n                    return;\n                }\n\n                let inherited = longhand_id.inherited();\n                let zoomed = !context.builder.effective_zoom_for_inheritance.is_one()\n                    && longhand_id.zoom_dependent();\n                match keyword {\n                    CSSWideKeyword::Revert\n                    | CSSWideKeyword::RevertLayer\n                    | CSSWideKeyword::RevertRule => unreachable!(),\n                    CSSWideKeyword::Unset => !zoomed || !inherited,\n                    CSSWideKeyword::Inherit => inherited && !zoomed,\n                    CSSWideKeyword::Initial => !inherited,\n                }\n            },\n            None => false,\n        };\n\n        self.seen.longhands.insert(longhand_id);\n        if origin != CascadeOrigin::UA {\n            self.author_or_user_specified.insert(longhand_id);\n        }\n\n        if !can_skip_apply {\n            // Set context.scope to this declaration's cascade level so that\n            // tree-scoped properties (anchor-name, position-anchor, anchor-scope)\n            // get the correct scope when converted to computed values.\n            let old_scope = context.scope;\n            let cascade_level = priority.cascade_level();\n            context.scope = cascade_level;\n            unsafe { self.do_apply_declaration(context, longhand_id, &declaration) }\n            context.scope = old_scope;\n        }\n    }\n\n    #[inline]\n    unsafe fn do_apply_declaration(\n        &self,\n        context: &mut computed::Context,\n        longhand_id: LonghandId,\n"
+    },
+    {
+      "end": 1847,
+      "source": "candidate_cascade",
+      "start": 1826,
+      "text": "    fn ensure_prioritary_property(\n        &mut self,\n        context: &mut computed::Context,\n        decls: &Declarations,\n        cache: &mut ShorthandsWithPropertyReferencesCache,\n        attribute_tracker: &mut AttributeTracker,\n        id: PrioritaryPropertyId,\n    ) {\n        if self.ensured_prioritary.contains(id) {\n            return;\n        }\n        self.ensured_prioritary.insert(id);\n        let deps = id.dependencies();\n        if !self.ensured_prioritary.contains_all(deps) {\n            for dep in deps.iter() {\n                self.ensure_prioritary_property(context, decls, cache, attribute_tracker, dep);\n            }\n        }\n        self.apply_one_prioritary_property(context, decls, cache, id, attribute_tracker);\n    }\n\n    /// Cascade a given custom property declaration.\n"
+    },
+    {
+      "end": 2412,
+      "source": "candidate_cascade",
+      "start": 2376,
+      "text": "        fn apply_prepared_priority(\n            &mut self,\n            longhand: LonghandId,\n            attribute_tracker: &mut AttributeTracker,\n        ) {\n            let id = PrioritaryPropertyId::from_longhand(longhand).unwrap();\n            self.cascade.ensured_prioritary.insert(id);\n            for dependency in id.dependencies().iter() {\n                self.cascade.ensure_prioritary_property(\n                    self.computed_context,\n                    self.decls,\n                    self.cache,\n                    attribute_tracker,\n                    dependency,\n                );\n            }\n            let prepared = self.prepared_priorities.remove(&longhand).unwrap();\n            for (declaration, priority) in prepared {\n                debug_assert!(self.cascade.longhand_is_eligible(\n                    self.computed_context.included_cascade_flags,\n                    longhand,\n                    priority\n                ));\n                self.cascade.apply_prepared_longhand(\n                    self.computed_context,\n                    longhand,\n                    declaration,\n                    priority,\n                );\n                if self.cascade.seen.longhands.contains(longhand) {\n                    self.cascade\n                        .did_apply_prioritary_property(self.computed_context, id);\n                    break;\n                }\n            }\n        }\n    }\n"
+    },
+    {
+      "end": 2876,
+      "source": "candidate_cascade",
+      "start": 2843,
+      "text": "                let eligible = rollback_allows\n                    && context.cascade.longhand_is_eligible(\n                        context.computed_context.included_cascade_flags,\n                        longhand,\n                        entry.priority,\n                    );\n                if eligible {\n                    if let PropertyDeclaration::WithVariables(declaration) = entry.decl {\n                        let value = &declaration.value;\n                        visit_value_references(\n                            &value.variable_value.references,\n                            &value.variable_value.url_data,\n                            Some(value.substitution_property_id(longhand)),\n                            index,\n                            references_from_non_custom_properties,\n                            context,\n                            &mut lowlink,\n                            &mut self_ref,\n                            attribute_tracker,\n                            &mut Default::default(),\n                        );\n                    }\n                    if lowlink != index || self_ref || context.stack.last() != Some(&index) {\n                        break;\n                    }\n                    let declaration = context\n                        .cascade\n                        .substitute_variables_if_needed(\n                            context.computed_context,\n                            context.cache,\n                            entry.decl,\n                            attribute_tracker,\n                        )\n                        .into_owned();\n"
+    }
+  ],
+  "bridge_assumptions": [
+    "Selection eligibility/evaluation includes all relevant state, rollback and reads; reached agreement is a premise.",
+    "Initial models the non-inherited Initial skip; literal models a resolved target value. No CSS finish decoder is derived.",
+    "An unrelated action must preserve all relevant target/effect state and cannot consume a not-final target; actual generated dependencies are not proved unrelated.",
+    "Publication and observation lists are abstract semantic effects, not an instrumented Rust trace.",
+    "The target field omits seen, eligibility flags, font/scheme caches and SCC state; the native implementation must additionally protect these effects."
+  ],
+  "native_refinement_proved": false
+}

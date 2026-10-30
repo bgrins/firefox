@@ -1,0 +1,338 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -485,6 +485,20 @@
+     }
+ }
+ 
++/* CSS_PRIORITY_TRACE_BEGIN */
++macro_rules! priority_trace {
++    ($cascade:expr, $longhand:expr, $event:expr, $($args:tt)*) => {
++        if matches!($longhand, LonghandId::Appearance | LonghandId::FontSize | LonghandId::FontFamily | LonghandId::XTextScale | LonghandId::ColorScheme)
++            && std::env::var_os("MOZ_CSS_PRIORITY_TRACE").as_deref() == Some(std::ffi::OsStr::new("1"))
++        {
++            use std::io::Write;
++            let _ = writeln!(std::io::stderr().lock(), "CSS_PRIORITY_TRACE thread={:?} cascade={:p} property={:?} event={} {}",
++                std::thread::current().id(), std::ptr::from_ref($cascade), $longhand, $event, format_args!($($args)*));
++        }
++    };
++}
++
++/* CSS_PRIORITY_TRACE_END */
+ fn is_base_appearance(context: &computed::Context) -> bool {
+     use computed::Appearance;
+     let box_style = context.builder.get_box();
+@@ -1187,6 +1201,34 @@
+     where
+         'cache: 'decl,
+     {
++        /* CSS_PRIORITY_TRACE_BEGIN */
++        if std::env::var_os("MOZ_CSS_PRIORITY_TRACE").as_deref() == Some(std::ffi::OsStr::new("1"))
++        {
++            if let PropertyDeclaration::WithVariables(value) = declaration {
++                for reference in &value.value.variable_value.references.refs {
++                    if reference.substitution_kind == SubstitutionFunctionKind::Attr {
++                        let cached = reference.attribute_data.namespace().and_then(|ns| {
++                            context
++                                .builder
++                                .substitution_functions
++                                .get_attr(&reference.name, ns)
++                        });
++                        priority_trace!(
++                            &*self,
++                            longhand_id,
++                            "ordinary-attr-cache",
++                            "name={:?} present={} unresolved={:?}",
++                            reference.name,
++                            cached.is_some(),
++                            cached
++                                .and_then(|v| v.as_universal())
++                                .map(|v| v.has_references())
++                        );
++                    }
++                }
++            }
++        }
++        /* CSS_PRIORITY_TRACE_END */
+         let declaration =
+             self.substitute_variables_if_needed(context, cache, declaration, attribute_tracker);
+         self.adjust_prepared_longhand(context, longhand_id, declaration, priority)
+@@ -1257,6 +1299,21 @@
+             None => false,
+         };
+ 
++        /* CSS_PRIORITY_TRACE_BEGIN */
++        priority_trace!(
++            &*self,
++            longhand_id,
++            "resolved-apply-before",
++            "wide={:?} skip={} already_seen={} appearance={:?} base_flag={}",
++            declaration.get_css_wide_keyword(),
++            can_skip_apply,
++            self.seen.longhands.contains(longhand_id),
++            context.builder.get_box().get_appearance(),
++            context
++                .included_cascade_flags
++                .intersects(RuleCascadeFlags::APPEARANCE_BASE)
++        );
++        /* CSS_PRIORITY_TRACE_END */
+         self.seen.longhands.insert(longhand_id);
+         if origin != CascadeOrigin::UA {
+             self.author_or_user_specified.insert(longhand_id);
+@@ -1272,6 +1329,19 @@
+             unsafe { self.do_apply_declaration(context, longhand_id, &declaration) }
+             context.scope = old_scope;
+         }
++        /* CSS_PRIORITY_TRACE_BEGIN */
++        priority_trace!(
++            &*self,
++            longhand_id,
++            "resolved-apply-return",
++            "skip={} appearance={:?} base_flag={}",
++            can_skip_apply,
++            context.builder.get_box().get_appearance(),
++            context
++                .included_cascade_flags
++                .intersects(RuleCascadeFlags::APPEARANCE_BASE)
++        );
++        /* CSS_PRIORITY_TRACE_END */
+     }
+ 
+     #[inline]
+@@ -1831,6 +1901,20 @@
+         attribute_tracker: &mut AttributeTracker,
+         id: PrioritaryPropertyId,
+     ) {
++        /* CSS_PRIORITY_TRACE_BEGIN */
++        priority_trace!(
++            &*self,
++            id.to_longhand(),
++            "ordinary-ensure-enter",
++            "ensured={} seen={} appearance={:?} base_flag={}",
++            self.ensured_prioritary.contains(id),
++            self.seen.longhands.contains(id.to_longhand()),
++            context.builder.get_box().get_appearance(),
++            context
++                .included_cascade_flags
++                .intersects(RuleCascadeFlags::APPEARANCE_BASE)
++        );
++        /* CSS_PRIORITY_TRACE_END */
+         if self.ensured_prioritary.contains(id) {
+             return;
+         }
+@@ -1838,10 +1922,32 @@
+         let deps = id.dependencies();
+         if !self.ensured_prioritary.contains_all(deps) {
+             for dep in deps.iter() {
++                /* CSS_PRIORITY_TRACE_BEGIN */
++                priority_trace!(
++                    &*self,
++                    id.to_longhand(),
++                    "ordinary-ensure-dependency",
++                    "dependency={:?}",
++                    dep.to_longhand()
++                );
++                /* CSS_PRIORITY_TRACE_END */
+                 self.ensure_prioritary_property(context, decls, cache, attribute_tracker, dep);
+             }
+         }
+         self.apply_one_prioritary_property(context, decls, cache, id, attribute_tracker);
++        /* CSS_PRIORITY_TRACE_BEGIN */
++        priority_trace!(
++            &*self,
++            id.to_longhand(),
++            "ordinary-ensure-return",
++            "seen={} appearance={:?} base_flag={}",
++            self.seen.longhands.contains(id.to_longhand()),
++            context.builder.get_box().get_appearance(),
++            context
++                .included_cascade_flags
++                .intersects(RuleCascadeFlags::APPEARANCE_BASE)
++        );
++        /* CSS_PRIORITY_TRACE_END */
+     }
+ 
+     /// Cascade a given custom property declaration.
+@@ -2378,9 +2484,37 @@
+             longhand: LonghandId,
+             attribute_tracker: &mut AttributeTracker,
+         ) {
++            /* CSS_PRIORITY_TRACE_BEGIN */
++            priority_trace!(
++                &*self.cascade,
++                longhand,
++                "prepared-commit-enter",
++                "appearance_active={} seen={} appearance={:?}",
++                self.non_custom_index_map
++                    .get(&LonghandId::Appearance)
++                    .is_some_and(|i| self.var_info.get(*i).is_some_and(|info| info.var.is_some())),
++                self.cascade.seen.longhands.contains(longhand),
++                self.computed_context.builder.get_box().get_appearance()
++            );
++            /* CSS_PRIORITY_TRACE_END */
+             let id = PrioritaryPropertyId::from_longhand(longhand).unwrap();
+             self.cascade.ensured_prioritary.insert(id);
+             for dependency in id.dependencies().iter() {
++                /* CSS_PRIORITY_TRACE_BEGIN */
++                priority_trace!(
++                    &*self.cascade,
++                    longhand,
++                    "prepared-ensure-dependency",
++                    "dependency={:?} appearance_active={}",
++                    dependency.to_longhand(),
++                    self.non_custom_index_map
++                        .get(&LonghandId::Appearance)
++                        .is_some_and(|i| self
++                            .var_info
++                            .get(*i)
++                            .is_some_and(|info| info.var.is_some()))
++                );
++                /* CSS_PRIORITY_TRACE_END */
+                 self.cascade.ensure_prioritary_property(
+                     self.computed_context,
+                     self.decls,
+@@ -2391,6 +2525,21 @@
+             }
+             let prepared = self.prepared_priorities.remove(&longhand).unwrap();
+             for (declaration, priority) in prepared {
++                /* CSS_PRIORITY_TRACE_BEGIN */
++                priority_trace!(
++                    &*self.cascade,
++                    longhand,
++                    "prepared-apply-before",
++                    "eligible_now={} wide={:?} appearance={:?}",
++                    self.cascade.longhand_is_eligible(
++                        self.computed_context.included_cascade_flags,
++                        longhand,
++                        priority
++                    ),
++                    declaration.declaration.get_css_wide_keyword(),
++                    self.computed_context.builder.get_box().get_appearance()
++                );
++                /* CSS_PRIORITY_TRACE_END */
+                 debug_assert!(self.cascade.longhand_is_eligible(
+                     self.computed_context.included_cascade_flags,
+                     longhand,
+@@ -2788,6 +2937,26 @@
+                 });
+             }
+         } else if let VarType::NonCustom(longhand) = var {
++            /* CSS_PRIORITY_TRACE_BEGIN */
++            priority_trace!(
++                &*context.cascade,
++                longhand,
++                "graph-enter",
++                "index={} stack_len={} ensured={} seen={} appearance={:?} base_flag={}",
++                index,
++                context.stack.len(),
++                context
++                    .cascade
++                    .ensured_prioritary
++                    .contains(PrioritaryPropertyId::from_longhand(longhand).unwrap()),
++                context.cascade.seen.longhands.contains(longhand),
++                context.computed_context.builder.get_box().get_appearance(),
++                context
++                    .computed_context
++                    .included_cascade_flags
++                    .intersects(RuleCascadeFlags::APPEARANCE_BASE)
++            );
++            /* CSS_PRIORITY_TRACE_END */
+             let id = PrioritaryPropertyId::from_longhand(longhand).unwrap();
+             if longhand == LonghandId::LineHeight {
+                 visit_link(
+@@ -2846,9 +3015,51 @@
+                         longhand,
+                         entry.priority,
+                     );
++                /* CSS_PRIORITY_TRACE_BEGIN */
++                priority_trace!(
++                    &*context.cascade,
++                    longhand,
++                    "graph-eligibility",
++                    "index={} declaration={} eligible={} rollback={} base_flag={}",
++                    index,
++                    declaration_index,
++                    eligible,
++                    rollback_allows,
++                    context
++                        .computed_context
++                        .included_cascade_flags
++                        .intersects(RuleCascadeFlags::APPEARANCE_BASE)
++                );
++                /* CSS_PRIORITY_TRACE_END */
+                 if eligible {
+                     if let PropertyDeclaration::WithVariables(declaration) = entry.decl {
+                         let value = &declaration.value;
++                        /* CSS_PRIORITY_TRACE_BEGIN */
++                        if std::env::var_os("MOZ_CSS_PRIORITY_TRACE").as_deref()
++                            == Some(std::ffi::OsStr::new("1"))
++                        {
++                            for reference in &value.variable_value.references.refs {
++                                if reference.substitution_kind == SubstitutionFunctionKind::Attr {
++                                    let cached = reference
++                                        .attribute_data
++                                        .namespace()
++                                        .and_then(|ns| context.map().get_attr(&reference.name, ns));
++                                    priority_trace!(
++                                        &*context.cascade,
++                                        longhand,
++                                        "graph-attr-cache",
++                                        "index={} name={:?} present={} unresolved={:?}",
++                                        index,
++                                        reference.name,
++                                        cached.is_some(),
++                                        cached
++                                            .and_then(|v| v.as_universal())
++                                            .map(|v| v.has_references())
++                                    );
++                                }
++                            }
++                        }
++                        /* CSS_PRIORITY_TRACE_END */
+                         visit_value_references(
+                             &value.variable_value.references,
+                             &value.variable_value.url_data,
+@@ -2865,6 +3076,27 @@
+                     if lowlink != index || self_ref || context.stack.last() != Some(&index) {
+                         break;
+                     }
++                    /* CSS_PRIORITY_TRACE_BEGIN */
++                    priority_trace!(
++                        &*context.cascade,
++                        longhand,
++                        "graph-resume",
++                        "index={} eligible_before={} eligible_now={} seen={} appearance={:?} base_flag={}",
++                        index,
++                        eligible,
++                        context.cascade.longhand_is_eligible(
++                            context.computed_context.included_cascade_flags,
++                            longhand,
++                            entry.priority
++                        ),
++                        context.cascade.seen.longhands.contains(longhand),
++                        context.computed_context.builder.get_box().get_appearance(),
++                        context
++                            .computed_context
++                            .included_cascade_flags
++                            .intersects(RuleCascadeFlags::APPEARANCE_BASE)
++                    );
++                    /* CSS_PRIORITY_TRACE_END */
+                     let declaration = context
+                         .cascade
+                         .substitute_variables_if_needed(
+@@ -2874,6 +3106,16 @@
+                             attribute_tracker,
+                         )
+                         .into_owned();
++                    /* CSS_PRIORITY_TRACE_BEGIN */
++                    priority_trace!(
++                        &*context.cascade,
++                        longhand,
++                        "graph-substituted",
++                        "index={} wide={:?}",
++                        index,
++                        declaration.get_css_wide_keyword()
++                    );
++                    /* CSS_PRIORITY_TRACE_END */
+                     if let Some(dependency) = prioritary_adjustment_dependency(
+                         context.cascade.ignore_colors,
+                         longhand,

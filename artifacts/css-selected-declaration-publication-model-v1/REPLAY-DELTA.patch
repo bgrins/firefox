@@ -1,0 +1,58 @@
+--- artifacts/css-selected-declaration-preparation-stability-model-v1/replay.py
++++ artifacts/css-selected-declaration-publication-model-v1/replay.py
+@@ -17,16 +17,18 @@
+ assert len(sys.argv) == 2 and Path(sys.argv[1]).name == sys.argv[1]
+ output = HERE / sys.argv[1]
+ output.mkdir()
+-names = re.findall(r"^theorem (\w+)", (HERE / "Stability.lean").read_text(), re.M)
++names = re.findall(r"^theorem (\w+)", (HERE / "Publication.lean").read_text(), re.M)
+ false_cases = {
+-    "RetainedEligibilitySuffices": "scan beforeEligibility literal () [0, 1] = scan afterEligibility literal () [0, 1]",
+-    "AdjustmentCanBeReevaluated": "scan afterEligibility beforeAdjustment () [0, 1] = scan afterEligibility afterAdjustment () [0, 1]",
+-    "SkippedCandidateNotVisited": "((), 0) ∉ visited beforeEligibility literal () [0, 1]",
++    "InitialSkipAfterWrite": "(optimized Appearance.none .initial earlyBase).value = Appearance.none",
++    "ResetRepairsConsumedHistory": "(explicit Appearance.none .initial earlyBase).observations = [.none]",
++    "NoTargetWritesSuffices": "(optimized Appearance.none (.literal .base) (run [.observe] clean)).observations = (step .observe (optimized Appearance.none (.literal .base) clean)).observations",
++    "RestoringFieldErasesPriorPublications": "(optimized Appearance.none .initial (run [.publish .base, .publish .none] clean)).publications = [.none]",
+ }
++
+ 
+ records = []
+ (output / "TOOLCHAIN.txt").write_bytes(subprocess.check_output([str(LEAN), "--version"]))
+-with tempfile.TemporaryDirectory(prefix="css-preparation-stability-lean-") as temporary:
++with tempfile.TemporaryDirectory(prefix="css-prepared-publication-lean-") as temporary:
+     scratch = Path(temporary)
+     (output / "SCRATCH.json").write_text(json.dumps({"path": str(scratch)}) + "\n")
+     env = dict(os.environ, LEAN_PATH=str(scratch))
+@@ -37,17 +39,17 @@
+         target = scratch / name
+         target.parent.mkdir(parents=True, exist_ok=True)
+         shutil.copyfile(original, target)
+-    shutil.copyfile(HERE / "Stability.lean", scratch / "Stability.lean")
+-    (scratch / "Audit.lean").write_text("import Stability\n" + "".join(
+-        "#print axioms PreparationStability." + name + "\n" for name in names))
++    shutil.copyfile(HERE / "Publication.lean", scratch / "Publication.lean")
++    (scratch / "Audit.lean").write_text("import Publication\n" + "".join(
++        "#print axioms PreparedPublication." + name + "\n" for name in names))
+     for name, claim in false_cases.items():
+         (scratch / (name + ".lean")).write_text(
+-            "import Stability\nopen SelectedDeclaration PreparationStability\nexample : " + claim + " := by decide\n")
++            "import Publication\nopen SelectedDeclaration PreparationStability PreparedPublication\nexample : " + claim + " := by decide\n")
+     for source in scratch.rglob("*.lean"):
+         target = output / source.relative_to(scratch)
+         target.parent.mkdir(parents=True, exist_ok=True)
+         shutil.copyfile(source, target)
+-    for name, expected in [(name, True) for name in ["CssSemantics/Variables", "CssSemantics/FiniteGraph", "CssSemantics/VariablesGraph", "CssSemantics/VariablesRank", "CssSemantics/VariablesBase", "Demand", "Selection", "Stability", "Audit"]] + [(n, False) for n in false_cases]:
++    for name, expected in [(name, True) for name in ["CssSemantics/Variables", "CssSemantics/FiniteGraph", "CssSemantics/VariablesGraph", "CssSemantics/VariablesRank", "CssSemantics/VariablesBase", "Demand", "Selection", "Stability", "Publication", "Audit"]] + [(n, False) for n in false_cases]:
+         result = subprocess.run([str(LEAN), "-o", name + ".olean", name + ".lean"],
+                                 cwd=scratch, env=env, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, timeout=60)
+@@ -69,7 +71,7 @@
+ assert not scratch.exists()
+ (output / "CHECK.json").write_text(json.dumps({
+     "success": True, "audited_theorems": names, "false_controls_rejected": len(false_cases),
+-    "source_sha256": sha(HERE / "Stability.lean"), "lean_sha256": sha(LEAN),
++    "source_sha256": sha(HERE / "Publication.lean"), "lean_sha256": sha(LEAN),
+     "scratch_removed": True, "canonical_coverage_increment": 0,
+     "native_refinement_proved": False, "native_scheduling_refinement_proved": False, "cycle_policy_or_convergence_proved": False,
+ }, indent=2, sort_keys=True) + "\n")
