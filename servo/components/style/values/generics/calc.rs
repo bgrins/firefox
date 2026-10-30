@@ -27,6 +27,13 @@ use style_traits::{CssWriter, ToCss};
 
 use thin_vec::ThinVec;
 
+fn pow(a: f32, b: f32) -> f32 {
+    if a.is_nan() || b.is_nan() || (a.abs() == 1.0 && b.is_infinite()) {
+        return f32::NAN;
+    }
+    a.powf(b)
+}
+
 fn hypot(a: f32, b: f32) -> f32 {
     let a = a as f64;
     let b = b as f64;
@@ -1572,7 +1579,7 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
                 if !a_ty.is_number() || !b_ty.is_number() {
                     return Err(());
                 }
-                Ok((a.powf(b), NumericType::number()))
+                Ok((pow(a, b), NumericType::number()))
             },
             Self::Sqrt(c) => {
                 let (value, ty) = c.resolve_internal(leaf_to_output_fn)?;
@@ -2428,7 +2435,7 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
                 if let (CalcNode::Leaf(la), CalcNode::Leaf(lb)) = (&**a, &**b)
                     && let (Some(a_val), Some(b_val)) = (la.as_number(), lb.as_number())
                 {
-                    let mut result = Self::Leaf(L::new_number(a_val.powf(b_val)));
+                    let mut result = Self::Leaf(L::new_number(pow(a_val, b_val)));
                     replace_self_with!(&mut result);
                     return SimplificationResult::Simplified;
                 }
