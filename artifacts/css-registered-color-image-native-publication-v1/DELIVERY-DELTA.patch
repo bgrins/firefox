@@ -1,0 +1,20 @@
+--- artifacts/css-minmax-native-publication-v3/delivery.py
++++ delivery.py
+@@ -18,7 +18,7 @@
+ 
+ def verify_entries(serialized, tests_root, files):
+     assert set(serialized['items']) == {'testharness'}
+-    entries = serialized['items']['testharness']['css']['css-values']
++    entries = serialized['items']['testharness']['css']['css-properties-values-api']
+     assert set(entries) == {Path(name).name for name in files}
+     for name, pin in files.items():
+         path = ROOT / name
+@@ -32,7 +32,7 @@
+ def run(policy, installation_manifest):
+     output = ROOT / policy['runtime_output'] / 'delivery'
+     output.mkdir()
+-    files = {name: record['sha256'] for name, record in policy['files'].items() if name != policy['source_path']}
++    files = {name: record['sha256'] for name, record in policy['files'].items() if name.startswith('testing/')}
+     for name, pin in files.items():
+         assert sha(ROOT / name) == pin
+     save(output / 'COMMANDS.json', {'lint': policy['lint_command'],

@@ -1,0 +1,37 @@
+--- artifacts/css-log-native-publication-v2-before-helper-fix/check.py
++++ artifacts/css-log-native-publication-v2/check.py
+@@ -35,7 +35,7 @@
+ def reject(name, call):
+     try:
+         call()
+-    except (AssertionError, FileExistsError):
++    except (AssertionError, FileExistsError, FileNotFoundError):
+         negative.append(name)
+     else:
+         raise AssertionError(name)
+@@ -48,6 +48,7 @@
+     p.HERE = scratch / 'artifacts/template'
+     p.HERE.mkdir()
+     (p.HERE / 'run.py').write_bytes((HERE / 'run.py').read_bytes())
++    (p.HERE / 'evidence.py').write_bytes((HERE / 'evidence.py').read_bytes())
+     records = {'run.py': {'sha256': p.sha(p.HERE / 'run.py'), 'bytes': (p.HERE / 'run.py').stat().st_size}}
+     binding = {'head': 'actual-head', 'controls': {'CURRENT-EPOCH.json': 'actual-epoch'}, 'accepted_claims': {'calc': {'sha256': 'preimage'}}}
+     bound = p.bind_owner(policy, binding, 'install', 'authenticated-template', records)
+@@ -55,6 +56,17 @@
+     assert bound['files'] == policy['files'] and bound['message'] == policy['message']
+     owner, pin = p.create_owner(bound, 'install')
+     p.authenticate(owner, pin)
++    driver_spec = importlib.util.spec_from_file_location('bound_log_driver', owner / 'run.py')
++    driver = importlib.util.module_from_spec(driver_spec)
++    driver_spec.loader.exec_module(driver)
++    helper_path = str((owner / 'evidence.py').relative_to(scratch))
++    helper = driver.load('bound_log_evidence', helper_path)
++    assert helper.verify(ROOT, policy)['authored_log_passes'] == 24
++    helper_body = (owner / 'evidence.py').read_bytes()
++    (owner / 'evidence.py').unlink()
++    reject('missing bound helper authentication', lambda: p.authenticate(owner, pin))
++    reject('actual driver missing helper load', lambda: driver.load('missing_log_evidence', helper_path))
++    (owner / 'evidence.py').write_bytes(helper_body)
+     reject('duplicate install owner', lambda: p.create_owner(bound, 'install'))
+     reject('wrong owner manifest', lambda: p.authenticate(owner, 'wrong'))
+     body = (owner / 'POLICY.json').read_bytes()

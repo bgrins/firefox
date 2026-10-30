@@ -1,0 +1,31 @@
+--- artifacts/css-log-native-publication-v2-before-metadata-pin-fix/check_bindings.py
++++ artifacts/css-log-native-publication-v2/check_bindings.py
+@@ -84,6 +84,21 @@
+     assert result['historical_markers']['preserved_snapshot'] == epoch['preserved_snapshot']
+     assert result['historical_markers']['minmax_relative_infinity_transition'] == epoch['minmax_relative_infinity_transition']
+     assert result['absent_metadata'] == [absent]
++    del epoch['pins'][metadata]
++    write(b.RUNTIME / 'CURRENT-EPOCH.json', epoch)
++    minmax['epoch_sha256'] = b.sha((b.RUNTIME / 'CURRENT-EPOCH.json').read_bytes())
++    write(minmax_path, minmax)
++    assert extract()['preserved_claims'] == result['preserved_claims']
++    for bad_pin in ('wrong', None):
++        epoch['pins'][metadata] = bad_pin
++        write(b.RUNTIME / 'CURRENT-EPOCH.json', epoch)
++        minmax['epoch_sha256'] = b.sha((b.RUNTIME / 'CURRENT-EPOCH.json').read_bytes())
++        write(minmax_path, minmax)
++        reject('present wrong metadata pin ' + repr(bad_pin), extract)
++    epoch['pins'][metadata] = policy['deleted_metadata']['sha256']
++    write(b.RUNTIME / 'CURRENT-EPOCH.json', epoch)
++    minmax['epoch_sha256'] = b.sha((b.RUNTIME / 'CURRENT-EPOCH.json').read_bytes())
++    write(minmax_path, minmax)
+     for field, wrong in [('parent', 'wrong'), ('signature_verified', False), ('epoch_sha256', 'stale')]:
+         altered = dict(minmax, **{field: wrong})
+         write(minmax_path, altered)
+@@ -100,5 +115,5 @@
+     write(research_path, dict(research, committed=False))
+     reject('failed research receipt', extract)
+ assert not root.exists()
+-print(json.dumps({'synthetic_31_claim_projection': True, 'historical_markers_preserved': True,
++print(json.dumps({'synthetic_31_claim_projection': True, 'historical_markers_preserved': True, 'missing_metadata_pin_positive': True,
+                   'negative_checks': negative, 'scratch_removed': True, 'live_extraction': False}, indent=2))

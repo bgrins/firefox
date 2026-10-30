@@ -1,0 +1,22 @@
+--- artifacts/css-log-native-publication-v2-before-helper-fix/publish.py
++++ artifacts/css-log-native-publication-v2/publish.py
+@@ -42,6 +42,7 @@
+     assert policy['bindings'] is None and policy['enabled_modes'] == []
+     assert (HERE / 'run.py').read_bytes() == (ROOT / 'artifacts/css-log-native-publication-v1/run.py').read_bytes()
+     assert (HERE / 'POLICY.json').read_bytes() == (ROOT / 'artifacts/css-log-native-publication-v1/POLICY.json').read_bytes()
++    assert (HERE / 'evidence.py').read_bytes() == (ROOT / 'artifacts/css-log-native-publication-v1/evidence.py').read_bytes()
+     return policy, records
+ 
+ 
+@@ -65,8 +66,9 @@
+ def create_owner(policy, action):
+     directory = owner_path(action)
+     directory.mkdir()
+-    with (directory / 'run.py').open('xb') as stream:
+-        stream.write((HERE / 'run.py').read_bytes())
++    for name in ('run.py', 'evidence.py'):
++        with (directory / name).open('xb') as stream:
++            stream.write((HERE / name).read_bytes())
+     save(directory / 'POLICY.json', policy)
+     save(directory / 'FILES.json', {p.name: {'sha256': sha(p), 'bytes': p.stat().st_size}
+                                    for p in directory.iterdir()})

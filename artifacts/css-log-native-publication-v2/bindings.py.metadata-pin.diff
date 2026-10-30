@@ -1,0 +1,11 @@
+--- artifacts/css-log-native-publication-v2-before-metadata-pin-fix/bindings.py
++++ artifacts/css-log-native-publication-v2/bindings.py
+@@ -63,7 +63,7 @@
+         assert name not in epoch['installed_identities'] and name not in owned
+     deletion = policy['deleted_metadata']
+     assert sha((ROOT / deletion['path']).read_bytes()) == deletion['sha256']
+-    assert epoch['pins'][deletion['path']] == deletion['sha256']
++    assert epoch['pins'].get(deletion['path'], deletion['sha256']) == deletion['sha256']
+     absent = sorted(name for name, pin in epoch['pins'].items() if pin is None and name.startswith('testing/web-platform/meta/'))
+     for name in absent:
+         assert not os.path.lexists(ROOT / name)

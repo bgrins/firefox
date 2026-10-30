@@ -1,0 +1,381 @@
+--- artifacts/css-minmax-native-publication-v2/run.py
++++ run.py
+@@ -26,7 +26,7 @@
+ 
+ 
+ def load(name, path):
+-    spec = importlib.util.spec_from_file_location(name, ROOT / path)
++    spec = importlib.util.spec_from_file_location(name, path)
+     module = importlib.util.module_from_spec(spec)
+     spec.loader.exec_module(module)
+     return module
+@@ -38,227 +38,233 @@
+         stream.write('\n')
+ 
+ 
++def authenticated_receipt(binding, name):
++    record = binding[name]
++    path = ROOT / record['path']
++    assert sha(path) == record['sha256']
++    return read(path)
++
++
+ def main():
+     assert len(sys.argv) == 3 and sys.argv[1] in ('check', 'install', 'commit')
+     action, manifest = sys.argv[1:]
+     assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES'))
+-    owner = load('minmax_owner', 'artifacts/css-registered-number-source-transition-v4/transition.py')
+-    creation = load('minmax_creation', 'artifacts/css-registered-admission-wpt-install-v1/install.py')
+-    state = owner.load_state(RUNTIME)
++    owner = load('publication_owner', ROOT / 'artifacts/css-registered-number-source-transition-v4/transition.py')
+     owner.authenticate(HERE, manifest)
+     policy = read(HERE / 'POLICY.json')
+     for path, pin in policy['references'].items():
+         assert sha(ROOT / path) == pin, path
+-    for directory, pin in policy['packages'].items():
+-        owner.authenticate(ROOT / directory, pin)
+-    for record in policy['files'].values():
+-        assert sha(ROOT / record['capture']) == record['sha256']
++    stages = read(HERE / 'STAGES.json')['stages']
++    for stage in stages:
++        for record in stage['files'].values():
++            assert sha(ROOT / record['path']) == record['sha256']
+     if action == 'check':
+-        compile((HERE / 'run.py').read_bytes(), 'run.py', 'exec')
+-        print('Static payload and helper authentication passed; no live guards executed')
++        print('Saved payload authentication passed; no live guard')
+         return
+     assert action in policy['enabled_modes'] and policy['bindings'] is not None
++    stage = next(s for s in stages if s['stage'] == policy['stage'])
+     binding = policy['bindings']
++    creation = load('publication_creation', ROOT / 'artifacts/css-registered-admission-wpt-install-v1/install.py')
++    transform = load('publication_transform', HERE / 'transform.py')
++    state = owner.load_state(RUNTIME)
+     assert git('rev-parse', 'HEAD').decode().strip() == binding['head']
+     assert git('symbolic-ref', 'HEAD').decode().strip() == binding['branch']
+-    research = read(ROOT / binding['research_receipt'])
+-    assert sha(ROOT / binding['research_receipt']) == binding['research_receipt_sha256']
+-    assert research['committed'] and research['signature_verified'] and research['head'] == binding['head']
++    prior = authenticated_receipt(binding, 'predecessor_receipt')
++    assert prior['commit'] == binding['head'] and prior['signature_verified']
++    if stage['stage'] == 'union':
++        assert binding['predecessor_kind'] == 'log'
++        assert set(prior['files']) == set(policy['log_predecessor_files'])
++    else:
++        assert prior['stage'] == 'union'
++        assert binding['predecessor_kind'] == prior['stage']
++    git('-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / policy['allowed_signers']), 'verify-commit', binding['head'])
+     controls = {n: (RUNTIME / n).read_bytes() for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+     assert {n: digest(b) for n, b in controls.items()} == binding['controls']
+-    epoch = json.loads(controls['CURRENT-EPOCH.json'])
++    epoch, ownership, role = (json.loads(controls[n]) for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json'))
+     assert epoch['semantic_index']['head'] == binding['head'] and epoch['staged_working'] == {}
++    if stage['stage'] == 'union':
++        assert epoch['log_clear_special_values_transition']['native_commit'] == binding['head']
+     before = state.a.verify_current(state.h, ROOT, ENV, epoch)
+-    source = policy['source_path']
+-    held = 'servo/components/style/custom_properties.rs'
+-    assert sha(ROOT / held) == policy['held_provider_sha256']
+-    assert len(binding['accepted_claims']) == 29
+-    for name, record in binding['accepted_claims'].items():
+-        expected = policy['files'][source]['sha256'] if action == 'commit' and name == source else record['sha256']
+-        assert epoch['pins'][name] == expected
+-        owner.claim(ROOT, name, expected, record['identity'])
+-        assert digest(git('show', binding['head'] + ':' + name)) == record['sha256']
+-    for name, value in binding['historical_markers'].items():
+-        assert epoch[name] == value
+-    for name in binding['absent_metadata']:
+-        assert epoch['pins'][name] is None and not os.path.lexists(ROOT / name)
+-        assert name not in epoch['installed_identities'] and name not in json.loads(controls['OWNED.json'])
++    assert before == binding['snapshot']
++    for path, pin in stage['head_preimages'].items():
++        assert digest(git('show', binding['head'] + ':' + path)) == pin
++    for path, record in binding['preserved_claims'].items():
++        assert path not in stage['files']
++        assert epoch['pins'][path] == record['sha256']
++        owner.claim(ROOT, path, record['sha256'], record['identity'])
++    assert binding['historical_markers'] == {n: epoch[n] for n in binding['historical_markers']}
++    for path in binding['absent_metadata']:
++        assert epoch['pins'].get(path) is None and not os.path.lexists(ROOT / path)
+     owner.quiescent(RUNTIME)
+     owner.quiescent(ROOT / 'artifacts/css-page-selector-native-runtime-v1')
+     output = ROOT / policy['runtime_output']
++    assert output.parent == ROOT / 'artifacts' and output.name.startswith('css-registered-color-image-publication-')
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not os.path.lexists(lock)
++    sources = set(stage['head_preimages'])
++    tests = set(stage['files']) - sources
++    assert {p.replace('testing/web-platform/tests/', 'testing/web-platform/meta/') + '.ini' for p in tests} <= set(binding['absent_metadata'])
++    source_claims, parents = {}, {}
++    held = 'servo/components/style/custom_properties.rs'
+     if action == 'install':
+         assert not os.path.lexists(output)
+-        assert epoch['modified_native_paths'] == [held]
+-        assert sha(ROOT / source) == policy['base_sha256']
+-        assert digest(git('show', binding['head'] + ':' + source)) == policy['base_sha256']
+-        assert epoch['accepted_pow_special_value']['files'][source] == policy['base_sha256']
+-        assert epoch['pins'][source] == policy['base_sha256']
+-        load('minmax_pair_replay', policy['pair_replay'])
+-        tests = set(policy['files']) - {source}
+-        parents = {}
+-        for name in tests:
+-            assert not os.path.lexists(ROOT / name) and epoch['pins'].get(name) is None
+-            assert name not in epoch['installed_identities'] and name not in json.loads(controls['OWNED.json'])
+-            assert not git('ls-files', '--stage', '--', name)
+-            assert not git('ls-tree', binding['head'], '--', name)
+-            parents[name] = creation.parent_pins(ROOT, ROOT / name)
++        expected_dirty = [held] if stage['stage'] == 'union' else []
++        assert epoch['modified_native_paths'] == expected_dirty
++        for path in sources:
++            pin = stage.get('working_preimages', stage['head_preimages'])[path]
++            assert epoch['pins'][path] == pin
++            source_claims[path] = owner.claim(ROOT, path, pin, epoch['installed_identities'][path])
++        if stage['stage'] == 'union':
++            archive = read(HERE / 'STAGES.json')['held_provider_archive_capture']
++            assert sha(ROOT / archive) == policy['held_provider_sha256']
++            assert digest(git('show', binding['head'] + ':' + archive)) == policy['held_provider_sha256']
++        for path in tests:
++            assert not os.path.lexists(ROOT / path) and epoch['pins'].get(path) is None
++            assert path not in epoch['installed_identities'] and path not in ownership
++            assert not git('ls-files', '--stage', '--', path) and not git('ls-tree', binding['head'], '--', path)
++            parents[path] = creation.parent_pins(ROOT, ROOT / path)
+     else:
+-        assert output.is_dir() and not (output / 'COMMIT-RESULT.json').exists()
+         installed = read(output / 'INSTALL-RESULT.json')
++        assert installed['stage'] == stage['stage'] and installed['installed'] and not installed['app_rebuilt']
+         assert installed['manifest_sha256'] == binding['installation_manifest']
+         assert installed['epoch_sha256'] == binding['controls']['CURRENT-EPOCH.json']
+-        assert installed['installed'] and not installed['accepted'] and not installed['app_rebuilt']
+-        assert epoch['minmax_relative_infinity_transition']['installation_manifest'] == binding['installation_manifest']
+-        assert epoch['modified_native_paths'] == sorted([held, source])
+-        assert not epoch['minmax_relative_infinity_transition']['accepted']
+-        for name, record in policy['files'].items():
+-            assert epoch['pins'][name] == record['sha256']
+-            owner.claim(ROOT, name, record['sha256'], epoch['installed_identities'][name])
+-        delivery = read(ROOT / binding['delivery_receipt'])
+-        assert sha(ROOT / binding['delivery_receipt']) == binding['delivery_sha256']
+-        assert delivery['lint_exit'] == 0 and delivery['lint_errors'] == 0
+-        assert delivery['files'] == {n: r['sha256'] for n, r in policy['files'].items() if n != source}
+-        assert delivery['registered_urls'] == sorted('/' + n.removeprefix('testing/web-platform/tests/') for n in delivery['files'])
+-        assert delivery['manifest_entries_verified'] and not delivery['browser_executed']
+-        assert delivery['lint_command'] == policy['lint_command']
+-        assert delivery['evidence'] and delivery['manifest_command']
+-        for path, pin in delivery['evidence'].items():
+-            assert sha(ROOT / path) == pin
++        assert epoch['registered_color_image_publication'][stage['stage']]['installation_manifest'] == binding['installation_manifest']
++        assert epoch['modified_native_paths'] == sorted(sources)
++        for path, record in stage['files'].items():
++            assert epoch['pins'][path] == record['sha256']
++            owner.claim(ROOT, path, record['sha256'], epoch['installed_identities'][path])
++        assert not role['built'] and role['variant'] == 'registered-' + stage['stage']
++        if tests:
++            delivery = authenticated_receipt(binding, 'delivery_receipt')
++            assert delivery['lint_exit'] == 0 and delivery['lint_errors'] == 0
++            assert delivery['files'] == {p: stage['files'][p]['sha256'] for p in tests}
++            assert delivery['registered_urls'] == sorted('/' + p.removeprefix('testing/web-platform/tests/') for p in tests)
++            assert delivery['manifest_entries_verified'] and not delivery['browser_executed']
++            assert delivery['installation_manifest'] == binding['installation_manifest']
++            assert delivery['lint_command'] == policy['lint_prefix'] + sorted(tests)
++            assert delivery['manifest_command']
++            assert delivery['evidence']
++            for path, pin in delivery['evidence'].items():
++                assert sha(ROOT / path) == pin
++        assert not (output / 'COMMIT-RESULT.json').exists()
+         assert git('config', '--get', 'commit.gpgsign').strip() == b'true'
+-    claims = {n: owner.claim(ROOT, str((RUNTIME / n).relative_to(ROOT)), digest(body)) for n, body in controls.items()}
++    control_claims = {n: owner.claim(ROOT, str((RUNTIME / n).relative_to(ROOT)), digest(body)) for n, body in controls.items()}
+     untracked = git('ls-files', '--others', '--exclude-standard', '-z')
+     lock.mkdir()
+     lock_identity = [lock.stat().st_dev, lock.stat().st_ino]
+-    safe = False
+-    created = {}
+-    source_claim = owner.claim(ROOT, source, epoch['pins'][source], epoch['installed_identities'][source])
++    safe, created, originals = False, {}, {}
+     try:
+         assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+         if action == 'install':
+             output.mkdir()
+             for name, body in controls.items():
+-                (output / ('LOCAL-PRE-' + name)).write_bytes(body)
+-            save(output / 'LOCAL-RECOVERY-REFERENCES.json', {name: digest(body) for name, body in controls.items()})
++                with (output / ('PRE-' + name)).open('xb') as stream:
++                    stream.write(body)
+             save(output / 'PRE.json', before)
+-            save(output / 'INITIAL-CLAIMS.json', {'source':source_claim, 'controls':claims, 'parents':parents})
+-            owner.write_owned(ROOT, source_claim, (ROOT / policy['files'][source]['capture']).read_bytes())
+-            current = copy.deepcopy(epoch)
+-            owned = json.loads(controls['OWNED.json'])
+-            current['pins'][source] = source_claim['owned_sha256']
+-            owned[source] = source_claim
+-            for name in sorted(tests):
++            save(output / 'INITIAL-CLAIMS.json', {'sources': source_claims, 'controls': control_claims, 'parents': parents})
++            for number, path in enumerate(sorted(sources)):
++                originals[path] = (ROOT / path).read_bytes()
++                with (output / ('SOURCE-PRE-' + str(number))).open('xb') as stream:
++                    stream.write(originals[path])
++                owner.write_owned(ROOT, source_claims[path], (ROOT / stage['files'][path]['path']).read_bytes())
++            for path in sorted(tests):
+                 blocked = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
+                 try:
+-                    created[name] = creation.create_owned(owner, ROOT, name, parents[name])
+-                    save(output / ('CREATED-' + str(len(created)) + '.json'), created)
++                    created[path] = creation.create_owned(owner, ROOT, path, parents[path])
++                    save(output / 'CREATED.json', created)
+                 finally:
+                     signal.pthread_sigmask(signal.SIG_SETMASK, blocked)
+-                owner.write_owned(ROOT, created[name], (ROOT / policy['files'][name]['capture']).read_bytes())
+-                save(output / ('WRITTEN-' + str(len(created)) + '.json'), created)
+-                if name in current['pins']:
+-                    assert current['pins'].pop(name) is None
+-                current = creation.updated_epoch(current, name, created[name], policy['files'][name]['sha256'])
+-                owned[name] = created[name]
+-            save(output / 'OWNERSHIP.json', {source: source_claim, **created})
+-            actual = state.h.index_state(ROOT, ENV)
+-            assert {k:v for k,v in state.h.semantic_index(actual).items() if k != 'working_diff'} == {k:v for k,v in epoch['semantic_index'].items() if k != 'working_diff'}
+-            current['semantic_index'] = state.h.semantic_index(actual)
+-            current['raw_index_observation']['current'] = actual['raw_index']
+-            current['modified_native_paths'] = sorted([held, source])
+-            current['counts']['native_modified_paths'] = 2
+-            current['minmax_relative_infinity_transition'] = {
+-                'source_sha256': policy['files'][source]['sha256'], 'installation_manifest': manifest,
+-                'compiled': False, 'current_app_contains_candidate': False, 'accepted': False,
+-                'historical_pair_result': policy['pair_result_sha256'], 'supersedes_source_pin': {'fix':150, 'path':source, 'sha256':policy['base_sha256']}}
++                owner.write_owned(ROOT, created[path], (ROOT / stage['files'][path]['path']).read_bytes())
++            claims = {**source_claims, **created}
++            save(output / 'OWNERSHIP.json', claims)
++            index = state.h.index_state(ROOT, ENV)
++            semantic = state.h.semantic_index(index)
++            assert {k:v for k,v in semantic.items() if k != 'working_diff'} == {k:v for k,v in epoch['semantic_index'].items() if k != 'working_diff'}
++            current, new_owned, new_role = transform.installed(epoch, ownership, role, stage, claims, index, semantic, manifest, str(output.relative_to(ROOT)))
+             after = state.a.verify_current(state.h, ROOT, ENV, current)
+             assert after['nested_index'] == before['nested_index']
+-            assert set(git('ls-files', '--others', '--exclude-standard', '-z').split(b'\0')) == set(untracked.split(b'\0')) | {n.encode() for n in tests}
+-            assert all((RUNTIME / n).read_bytes() == b for n,b in controls.items())
+-            owner.write_owned(ROOT, claims['OWNED.json'], owner.encoded(owned))
+-            owner.write_owned(ROOT, claims['CURRENT-EPOCH.json'], owner.encoded(current))
++            assert set(git('ls-files', '--others', '--exclude-standard', '-z').split(b'\0')) == set(untracked.split(b'\0')) | {p.encode() for p in tests}
++            assert all((RUNTIME / n).read_bytes() == body for n, body in controls.items())
++            for name, value in [('OWNED.json', new_owned), ('ROLE.json', new_role), ('CURRENT-EPOCH.json', current)]:
++                owner.write_owned(ROOT, control_claims[name], owner.encoded(value))
+             state.a.verify_current(state.h, ROOT, ENV, current)
+-            save(output / 'INSTALL-RESULT.json', {'installed':True, 'accepted':False, 'app_rebuilt':False,
+-                 'manifest_sha256':manifest, 'epoch_sha256':digest(owner.encoded(current)), 'files':list(policy['files'])})
++            save(output / 'INSTALL-RESULT.json', {'stage': stage['stage'], 'installed': True, 'accepted': False,
++                 'manifest_sha256': manifest, 'epoch_sha256': digest(owner.encoded(current)),
++                 'files': sorted(stage['files']), 'app_rebuilt': False, 'held_provider_parked': True})
+             safe = True
+         else:
+-            with tempfile.TemporaryDirectory(prefix='css-minmax-native-', dir='/private/tmp') as temporary:
++            with tempfile.TemporaryDirectory(prefix='css-color-image-native-', dir='/private/tmp') as temporary:
+                 temporary = Path(temporary)
+                 index_env = dict(ENV, GIT_INDEX_FILE=str(temporary / 'index'))
+                 git('read-tree', binding['head'], env=index_env)
+                 names = temporary / 'paths'
+-                names.write_bytes(b''.join(n.encode() + b'\0' for n in sorted(policy['files'])))
++                names.write_bytes(b''.join(p.encode() + b'\0' for p in sorted(stage['files'])))
+                 add = ['add', '-f', '--pathspec-from-file=' + str(names), '--pathspec-file-nul']
+                 git(*add, env=index_env)
+-                assert set(git('diff', '--cached', '--name-only', env=index_env).decode().splitlines()) == set(policy['files'])
+-                for name, record in policy['files'].items():
+-                    assert digest(git('show', ':' + name, env=index_env)) == record['sha256']
+-                    assert git('ls-files', '--stage', '--', name, env=index_env).split()[0] == b'100644'
++                assert set(git('diff', '--cached', '--name-only', env=index_env).decode().splitlines()) == set(stage['files'])
++                for path, record in stage['files'].items():
++                    assert digest(git('show', ':' + path, env=index_env)) == record['sha256']
++                    assert git('ls-files', '--stage', '--', path, env=index_env).split()[0] == b'100644'
+                 tree = git('write-tree', env=index_env).decode().strip()
+                 message = temporary / 'message'
+-                message.write_text(policy['message'] + '\n')
++                message.write_text(policy['messages'][stage['stage']] + '\n')
+                 assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+                 with (output / 'native-signing.log').open('x') as stream:
+                     result = subprocess.run(GIT + ['commit', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
+                 if result.returncode:
+                     assert git('rev-parse', 'HEAD').decode().strip() == binding['head']
+                     assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+-                    assert all((RUNTIME / n).read_bytes() == b for n,b in controls.items())
++                    assert all((RUNTIME / n).read_bytes() == body for n, body in controls.items())
+                     assert git('ls-files', '--others', '--exclude-standard', '-z') == untracked
+-                    assert all(sha(ROOT / n) == r['sha256'] for n,r in policy['files'].items())
+-                    save(output / 'SIGNING-FAILURE.json', {'exit':result.returncode, 'installed_pending_state_preserved':True})
++                    save(output / 'SIGNING-FAILURE.json', {'exit': result.returncode, 'installed_pending_state_preserved': True})
+                     safe = True
+-                    raise RuntimeError('Signing failed; installed pending state retained, no retry')
++                    raise RuntimeError('Signing failed; pending installation retained, no retry')
+                 commit = git('rev-parse', 'HEAD').decode().strip()
+                 assert git('rev-parse', commit + '^').decode().strip() == binding['head']
+                 assert git('rev-parse', commit + '^{tree}').decode().strip() == tree
+                 git(*add)
+             with (output / 'native-signature.log').open('x') as stream:
+                 subprocess.run(GIT + ['-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / policy['allowed_signers']), 'verify-commit', commit], cwd=ROOT, env=ENV, stdout=stream, stderr=subprocess.STDOUT, check=True)
+-            current = copy.deepcopy(epoch)
+-            actual = state.h.index_state(ROOT, ENV)
+-            current['semantic_index'] = state.h.semantic_index(actual)
+-            current['raw_index_observation']['current'] = actual['raw_index']
+-            current['modified_native_paths'] = [held]
+-            current['counts']['native_modified_paths'] = 1
+-            current['minmax_relative_infinity_transition']['native_commit'] = commit
+-            expected_untracked = set(untracked.split(b'\0')) - {n.encode() for n in policy['files']}
+-            assert set(git('ls-files', '--others', '--exclude-standard', '-z').split(b'\0')) == expected_untracked
++            index = state.h.index_state(ROOT, ENV)
++            current = transform.committed(epoch, stage['stage'], index, state.h.semantic_index(index), commit)
++            new_role = copy.deepcopy(role)
++            new_role['paired_head'] = commit
++            assert set(git('ls-files', '--others', '--exclude-standard', '-z').split(b'\0')) == set(untracked.split(b'\0')) - {p.encode() for p in stage['files']}
+             after = state.a.verify_current(state.h, ROOT, ENV, current)
+             assert after['nested_index'] == before['nested_index']
+-            assert all((RUNTIME / n).read_bytes() == b for n,b in controls.items())
+-            owner.write_owned(ROOT, claims['CURRENT-EPOCH.json'], owner.encoded(current))
++            assert all((RUNTIME / n).read_bytes() == body for n, body in controls.items())
++            owner.write_owned(ROOT, control_claims['ROLE.json'], owner.encoded(new_role))
++            owner.write_owned(ROOT, control_claims['CURRENT-EPOCH.json'], owner.encoded(current))
+             state.a.verify_current(state.h, ROOT, ENV, current)
+-            save(output / 'COMMIT-RESULT.json', {'commit':commit, 'parent':binding['head'], 'signature_verified':True,
+-                 'files':list(policy['files']), 'epoch_sha256':digest(owner.encoded(current)),
+-                 'accepted':False, 'accepted_fix_increment':0, 'app_rebuilt':False})
++            save(output / 'COMMIT-RESULT.json', {'stage': stage['stage'], 'commit': commit, 'parent': binding['head'],
++                 'signature_verified': True, 'files': sorted(stage['files']), 'epoch_sha256': digest(owner.encoded(current)),
++                 'accepted': False, 'accepted_fix_increment': 0, 'app_rebuilt': False})
+             safe = True
+     except BaseException as error:
+         if action == 'install':
+             try:
+-                for name, item in reversed(list(created.items())):
+-                    owner.claim(ROOT, name, item['owned_sha256'], item['identity'])
+-                    assert creation.parent_pins(ROOT, ROOT / name) == parents[name]
+-                    (ROOT / name).unlink()
+-                owner.write_owned(ROOT, source_claim, (ROOT / policy['base_capture']).read_bytes())
++                for path, claim in reversed(list(created.items())):
++                    owner.claim(ROOT, path, claim['owned_sha256'], claim['identity'])
++                    assert creation.parent_pins(ROOT, ROOT / path) == parents[path]
++                    (ROOT / path).unlink()
++                for path, body in originals.items():
++                    owner.write_owned(ROOT, source_claims[path], body)
+                 restored = copy.deepcopy(epoch)
+-                actual = state.h.index_state(ROOT, ENV)
+-                assert state.h.semantic_index(actual) == epoch['semantic_index']
+-                restored['raw_index_observation']['current'] = actual['raw_index']
++                index = state.h.index_state(ROOT, ENV)
++                assert state.h.semantic_index(index) == epoch['semantic_index']
++                restored['raw_index_observation']['current'] = index['raw_index']
+                 expected = copy.deepcopy(before)
+-                expected['index']['raw_index'] = actual['raw_index']
++                expected['index']['raw_index'] = index['raw_index']
+                 assert state.a.verify_current(state.h, ROOT, ENV, restored) == expected
+                 assert git('ls-files', '--others', '--exclude-standard', '-z') == untracked
+-                owner.write_owned(ROOT, claims['OWNED.json'], controls['OWNED.json'])
+-                owner.write_owned(ROOT, claims['CURRENT-EPOCH.json'], owner.encoded(restored))
+-                assert (RUNTIME / 'ROLE.json').read_bytes() == controls['ROLE.json']
++                for name, body in controls.items():
++                    owner.write_owned(ROOT, control_claims[name], owner.encoded(restored) if name == 'CURRENT-EPOCH.json' else body)
+                 state.a.verify_current(state.h, ROOT, ENV, restored)
+                 safe = True
+             finally:
+                 if output.exists():
+-                    save(output / 'INSTALL-FAILURE.json', {'error':repr(error), 'rollback_verified':safe, 'manual_recovery_required':not safe,
+-                         'source_claim':source_claim, 'control_claims':claims, 'created_claims':created})
++                    save(output / 'INSTALL-FAILURE.json', {'error': repr(error), 'rollback_verified': safe,
++                         'manual_recovery_required': not safe, 'sources': source_claims, 'created': created})
+         raise
+     finally:
+         if safe:
