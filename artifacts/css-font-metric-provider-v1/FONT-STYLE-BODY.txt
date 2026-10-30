@@ -1,0 +1,66 @@
+ 115: };
+ 116: 
+ 117: }  // namespace
+ 118: 
+ 119: nsFontMetrics::nsFontMetrics(const nsFont& aFont, const Params& aParams,
+ 120:                              nsPresContext* aContext)
+ 121:     : mFont(aFont),
+ 122:       mLanguage(aParams.language),
+ 123:       mPresContext(aContext),
+ 124:       mP2A(aContext->DeviceContext()->AppUnitsPerDevPixel()),
+ 125:       mOrientation(aParams.orientation),
+ 126:       mExplicitLanguage(aParams.explicitLanguage),
+ 127: #ifdef XP_WIN
+ 128:       mAllowForceGDIClassic(aParams.allowForceGDIClassic),
+ 129: #endif
+ 130:       mTextRunRTL(false),
+ 131:       mVertical(false),
+ 132:       mTextOrientation(mozilla::StyleTextOrientation::Mixed) {
+ 133:   gfxFontStyle style(aFont.style, aFont.weight, aFont.width,
+ 134:                      gfxFloat(aFont.size.ToAppUnits()) / mP2A, aFont.sizeAdjust,
+ 135:                      aFont.family.is_system_font,
+ 136:                      aContext->DeviceContext()->IsPrinterContext(),
+ 137: #ifdef XP_WIN
+ 138:                      mAllowForceGDIClassic,
+ 139: #endif
+ 140:                      aFont.synthesisWeight == StyleFontSynthesis::Auto,
+ 141:                      aFont.synthesisStyle,
+ 142:                      aFont.synthesisSmallCaps == StyleFontSynthesis::Auto,
+ 143:                      aFont.synthesisPosition == StyleFontSynthesis::Auto,
+ 144:                      aFont.languageOverride);
+ 145: 
+ 146:   aFont.AddFontFeaturesToStyle(&style, mOrientation == eVertical);
+ 147:   style.featureValueLookup = aParams.featureValueLookup;
+ 148: 
+ 149:   aFont.AddFontVariationsToStyle(&style);
+ 150: 
+ 151:   gfxFloat devToCssSize = gfxFloat(mP2A) / gfxFloat(AppUnitsPerCSSPixel());
+ 152:   mFontGroup = new gfxFontGroup(
+ 153:       mPresContext, aFont.family.families, &style, mLanguage, mExplicitLanguage,
+ 154:       aParams.textPerf, aParams.userFontSet, devToCssSize, aFont.variantEmoji);
+ 155: }
+ 156: 
+ 157: nsFontMetrics::~nsFontMetrics() {
+ 158:   // Should not be dropped by stylo
+ 159:   MOZ_ASSERT(NS_IsMainThread());
+ 160:   if (mPresContext) {
+ 161:     mPresContext->FontMetricsDeleted(this);
+ 162:   }
+ 163: }
+ 164: 
+ 165: void nsFontMetrics::Destroy() { mPresContext = nullptr; }
+ 166: 
+ 167: // XXXTODO get rid of this macro
+ 168: #define ROUND_TO_TWIPS(x) (nscoord) floor(((x) * mP2A) + 0.5)
+ 169: #define CEIL_TO_TWIPS(x) (nscoord) ceil((x) * mP2A)
+ 170: 
+ 171: static gfxFloat GetBaseline(const nsFontMetrics* aFontMetrics,
+ 172:                             gfxFont::Baseline aBaseline) {
+ 173:   RefPtr<gfxFont> font =
+ 174:       aFontMetrics->GetThebesFontGroup()->GetFirstValidFont();
+ 175:   return font->GetBaseline(aBaseline, aFontMetrics->Orientation());
+ 176: }
+ 177: 
+ 178: nscoord nsFontMetrics::AlphabeticBaseline() const {
+ 179:   return ROUND_TO_TWIPS(GetBaseline(this, gfxFont::kAlphabetic));
+ 180: }

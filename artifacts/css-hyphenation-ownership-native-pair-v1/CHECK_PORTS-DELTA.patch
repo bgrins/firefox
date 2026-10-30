@@ -1,0 +1,29 @@
+--- artifacts/css-language-partition-native-pair-v1/check_ports.py
++++ artifacts/css-hyphenation-ownership-native-pair-v1/check_ports.py
+@@ -23,7 +23,7 @@
+ def check(policy):
+     source = ROOT / 'artifacts/css-nowrap-native-pair-runtime-1'
+     load('admission').authenticate(ROOT, policy['port_fixture_binding'])
+-    scratch = Path(tempfile.mkdtemp(prefix='css-language-port-check-', dir=ROOT / 'artifacts'))
++    scratch = Path(tempfile.mkdtemp(prefix='css-hyphenation-port-check-', dir=ROOT / 'artifacts'))
+     ports, assessor = load('port_comparison'), load('assess')
+     assessments, events = {}, {}
+     try:
+@@ -52,7 +52,7 @@
+             return ports.compare(ROOT, scratch, policy, actual['original'], actual['candidate'], assessor.signature)
+ 
+         result = evaluate(events)
+-        assert result['derived_language_gate'] and result['preserved_signatures'] == 381
++        assert result['derived_ownership_gate'] and result['preserved_signatures'] == 452
+         for mutation in ('target-failure', 'control-failure-message', 'prior-pass-message', 'wrong-port-host'):
+             changed = copy.deepcopy(events)
+             rows = changed['candidate']
+@@ -75,7 +75,7 @@
+                 if mutation != 'wrong-port-host':
+                     raise
+             else:
+-                assert mutation != 'wrong-port-host' and not observed['derived_language_gate'], mutation
++                assert mutation != 'wrong-port-host' and not observed['derived_ownership_gate'], mutation
+         return {'positive': 1, 'negative': 4, 'synthetic_target_improvements': True, 'frozen_server_and_manifest_evidence': True}
+     finally:
+         shutil.rmtree(scratch)

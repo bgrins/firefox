@@ -1,0 +1,30 @@
+--- artifacts/css-hyphenation-ownership-native-freeze-v1.py
++++ artifacts/css-hyphenation-ownership-native-failure-freeze-v1.py
+@@ -13,16 +13,23 @@
+ result = read(RUNTIME/'RESULT.json')
+ terminal = read(RUNTIME/'ROOT-OWNER-TERMINAL.json')
+ assert terminal['session'] == 27391 and terminal['launch'] == '71c531'
+-assert terminal['terminal'] and terminal['exit'] == 0 and terminal['result_sha256'] == sha(RUNTIME/'RESULT.json')
+-assert result['success'] and result['restoration_verified'] and not result['native_fix_acceptance']
++assert terminal['terminal'] and terminal['exit'] == 1 and terminal['result_sha256'] == sha(RUNTIME/'RESULT.json')
++assert result['success'] is False and result['restoration_verified'] and not result['native_fix_acceptance']
+ audit = read(RUNTIME/'ROOT-LIVE-RESTORATION.json')
+ audit_terminal = read(RUNTIME/'ROOT-LIVE-AUDIT-TERMINAL.json')
+ assert audit_terminal['terminal'] and audit_terminal['exit'] == 0
+ assert audit_terminal['audit_sha256'] == sha(RUNTIME/'ROOT-LIVE-RESTORATION.json')
+ assert audit['independent_live_restoration_verified'] and audit['owner_result_sha256'] == sha(RUNTIME/'RESULT.json')
+-assert audit['audit_script_sha256'] == sha(ROOT/'artifacts/css-hyphenation-ownership-native-live-audit-v1.py')
++assert audit['audit_script_sha256'] == sha(ROOT/'artifacts/css-hyphenation-ownership-native-failure-audit-v1.py')
++cleanup = read(RUNTIME/'ROOT-BACKUP-CLEANUP.json')
++assert cleanup['removed'] and cleanup['inventory_verified_before_removal']
++assert cleanup['owned_backup_bytes'] == 1008605176
++assert cleanup['independent_restoration_report_sha256'] == sha(RUNTIME/'ROOT-LIVE-RESTORATION.json')
++assert cleanup['historical_owner_cleanup_sha256'] == sha(RUNTIME/'BACKUP-CLEANUP.json')
++assert cleanup['cleanup_script_sha256'] == sha(ROOT/'artifacts/css-hyphenation-ownership-native-failure-backup-cleanup-v1.py')
++assert read(RUNTIME/'BACKUP-CLEANUP.json')['retained_after_failure'] is True
+ assert not (RUNTIME/'backups').exists()
+-expected = {role+'-wpt-'+lane+'/tests/tools':str(ROOT/'testing/web-platform/tests/tools') for role in ('original','candidate') for lane in ('target','regression','context')}
++expected = {role+'-wpt-'+lane+'/tests/tools':str(ROOT/'testing/web-platform/tests/tools') for role in ('original',) for lane in ('target','regression','context')}
+ links = {}
+ paths = []
+ for directory, subdirs, files in os.walk(RUNTIME, followlinks=False):

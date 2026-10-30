@@ -1,0 +1,17 @@
+>>> 9824: already_AddRefed<nsFontMetrics> nsLayoutUtils::GetMetricsFor(
+    9825:     nsPresContext* aPresContext, bool aIsVertical,
+    9826:     const nsStyleFont* aStyleFont, Length aFontSize, bool aUseUserFontSet) {
+    9827:   nsFont font = aStyleFont->mFont;
+    9828:   font.size = aFontSize;
+    9829:   gfxFont::Orientation orientation =
+    9830:       aIsVertical ? nsFontMetrics::eVertical : nsFontMetrics::eHorizontal;
+    9831:   nsFontMetrics::Params params;
+    9832:   params.language = aStyleFont->GetLangAtom();
+    9833:   params.explicitLanguage = aStyleFont->mExplicitLanguage;
+    9834:   params.orientation = orientation;
+    9835:   params.userFontSet =
+    9836:       aUseUserFontSet ? aPresContext->GetUserFontSet() : nullptr;
+    9837:   params.textPerf = aPresContext->GetTextPerfMetrics();
+    9838:   params.featureValueLookup = aPresContext->GetFontFeatureValuesLookup();
+    9839:   return aPresContext->GetMetricsFor(font, params);
+    9840: }

@@ -1,0 +1,15 @@
+# Native typecheck handoff for the synthesis producer
+
+This is an unexecuted, root-only handoff for the exact two-file synthesis producer candidate. It supersedes only the candidate identity in the existing parent-frame native-check plan; that plan's Mach/Cargo routing and side-effect analysis still apply. No browser run is requested, and no current source, HEAD, epoch, app or index binding is inferred from this artifact.
+
+After the hyphenation experiment and publication finish, root must freshly authenticate the then-current sources and controls using its established controlled overlay/restoration procedure. Match the two source preimages in SOURCE.json; reject a mismatch rather than adapting a patch during the check. Preserve any separately owned working preimage and its identity for restoration. Overlay only cascade.rs and custom_properties.rs with their pinned candidate bodies. Other source files and canonical state remain guarded by the existing full preservation checks. Revalidate the existing plan's build helper/configuration inputs, including the configured backend, before invoking:
+
+```sh
+/Users/bgrins/venvs/firefox/bin/python ./mach cargo check -p geckoservo -j 2 --message-format-json --locked --offline > artifacts/css-font-metric-synthesis-native-check-v1.log 2>&1
+```
+
+Retain the whole unfiltered log, actual command/process terminal, all compiler diagnostics and warnings. Mach exit zero is insufficient because cargo-check.yaml enables continue_on_error. Require exactly one Cargo JSON build-finished record with success:true, no error-level compiler diagnostics, and compiler-artifact library records for both style and geckoservo under the freshly authenticated source/configuration context. Fresh artifacts are acceptable only for those exact inputs. Missing or failed terminal JSON, interrupted output and tool errors fail the typecheck. Do not infer success from a shell status or warning count.
+
+Restore the admitted source bodies and identities on success or failure. Use the existing full source/app/extras/binary/flags/HEAD/index/control checks and preserve their actual receipts separately. Cargo/backend/build-script writes must remain distinguishable from the restored app: this check does not rebuild or install a newly validated browser. Do not overlap it with the text experiment or publication.
+
+The candidate retains actual synthesis selection, rollback, owned declarations and completion boundaries, and now scans ordinary declaration indices without the priority-only u16 limit. Extracted tests cover the actual 65,535 boundary. They still use Stylo/Context doubles, so this native check is needed for real generated APIs, map types and lifetimes. Selected var/attr prerequisite work and unsupported font inputs can still suspend into an experimental terminal tripwire. The root loop is not a shipping repair, and successful compilation would not establish the 13-case metric matrix, scheduler progress, finality, cycle policy or browser preservation. This handoff adds no execution wrapper or enabled owner.

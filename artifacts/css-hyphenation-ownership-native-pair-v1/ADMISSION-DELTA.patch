@@ -1,0 +1,27 @@
+--- artifacts/css-language-partition-native-pair-v1/admission.py
++++ artifacts/css-hyphenation-ownership-native-pair-v1/admission.py
+@@ -39,18 +39,18 @@
+         spec=importlib.util.spec_from_file_location('admitted_'+name,here/(name+'.py'))
+         module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+     role = capture['role']
+-    assert role['role']=='published-native' and role['variant']=='nowrap' and role['built'] is False
+-    assert role['paired_head']==policy['nowrap_commit'] and role['pending_gtest_overlay_installed'] is False
++    assert role['role']=='published-native' and role['variant']=='language' and role['built'] is False
++    assert role['paired_head']==policy['language_commit'] and role['pending_gtest_overlay_installed'] is False
+     assert 'last_build' not in role and 'last_install' not in role
+-    assert role['last_transition']=='artifacts/css-nowrap-publication-nowrap-runtime-1'
++    assert role['last_transition']=='artifacts/css-language-partition-publication-language-runtime-1'
+     captured_owner=authenticate(root,policy['capture_source_owner'])
+     adapter_binding=read(owner/'BINDINGS.json')
+     assert adapter_binding['executed_original_manifest']==policy['capture_source_owner']['manifest_sha256']
+-    assert adapter_binding['nowrap_commit']==policy['nowrap_commit']
++    assert adapter_binding['language_commit']==policy['language_commit']
+     for path,pin in adapter_binding['references'].items():
+         assert policy['references'][path]==sha(root/path)==pin
+-    native_receipt=read(root/'artifacts/css-nowrap-publication-nowrap-runtime-1/COMMIT-RESULT.json')
+-    assert native_receipt['signature_verified'] and native_receipt['commit']==policy['nowrap_commit']
++    native_receipt=read(root/'artifacts/css-language-partition-publication-language-runtime-1/COMMIT-RESULT.json')
++    assert native_receipt['signature_verified'] and native_receipt['commit']==policy['language_commit']
+     retirement=capture['prototype_overlay_state']
+     assert retirement=={'held_provider_parked':True,'installed':False,'old_restoration_recipes_require_rebase':True,'original_role_preserved_in':'artifacts/css-registered-color-image-publication-union-runtime-1/PRE-ROLE.json'}
+     local('review_scope').require_full(capture['snapshot'])

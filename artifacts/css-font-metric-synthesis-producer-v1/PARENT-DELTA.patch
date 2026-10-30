@@ -1,0 +1,457 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -834,11 +834,17 @@
+     }
+ }
+ 
+-fn has_unprepared_font_inputs(decls: &Declarations) -> bool {
+-    decls.longhand_declarations.iter().any(|entry| {
++fn next_unprepared_font_input(
++    decls: &Declarations,
++    completed: &LonghandIdSet,
++) -> Option<LonghandId> {
++    decls.longhand_declarations.iter().find_map(|entry| {
+         let PropertyDeclarationId::Longhand(id) = entry.decl.id() else {
+-            return false;
++            return None;
+         };
++        if completed.contains(id) {
++            return None;
++        }
+         matches!(
+             id.name(),
+             "font-feature-settings"
+@@ -863,7 +869,39 @@
+                 | "-moz-osx-font-smoothing"
+                 | "-moz-math-variant"
+         )
++        .then_some(id)
+     })
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++enum FontTarget {
++    Metric(PrioritaryPropertyId),
++    Synthesis(LonghandId),
++}
++
++fn is_synthesis_longhand(id: LonghandId) -> bool {
++    matches!(
++        id,
++        LonghandId::FontSynthesisWeight
++            | LonghandId::FontSynthesisStyle
++            | LonghandId::FontSynthesisSmallCaps
++            | LonghandId::FontSynthesisPosition
++    )
++}
++
++fn next_font_declaration(
++    declarations: &Declarations,
++    longhand: LonghandId,
++    start: usize,
++) -> Option<usize> {
++    declarations
++        .longhand_declarations
++        .iter()
++        .enumerate()
++        .skip(start)
++        .find_map(|(index, entry)| {
++            (entry.decl.id() == PropertyDeclarationId::Longhand(longhand)).then_some(index)
++        })
+ }
+ 
+ struct PreparedMetricDeclaration {
+@@ -872,9 +910,9 @@
+ }
+ 
+ struct MetricPreparation<'a, 'b> {
+-    id: PrioritaryPropertyId,
++    longhand: LonghandId,
+     declarations: &'a Declarations<'b>,
+-    cursor: DeclarationIndex,
++    cursor: Option<usize>,
+     flags: RuleCascadeFlags,
+     initial_revert: Option<(CascadePriority, RevertKind)>,
+     revert: Option<(CascadePriority, RevertKind)>,
+@@ -912,12 +950,15 @@
+     }
+ 
+     fn advance(&mut self) {
+-        let next = self.declarations.longhand_declarations[self.cursor as usize].next_index;
+-        self.cursor = if next == 0 {
+-            DeclarationIndex::MAX
+-        } else {
+-            next
+-        };
++        let index = self
++            .cursor
++            .expect("advancing an exhausted declaration cursor");
++        if PrioritaryPropertyId::from_longhand(self.longhand).is_none() {
++            self.cursor = next_font_declaration(self.declarations, self.longhand, index + 1);
++            return;
++        }
++        let next = self.declarations.longhand_declarations[index].next_index;
++        self.cursor = (next != 0).then_some(next as usize);
+     }
+ }
+ 
+@@ -939,11 +980,27 @@
+                 | WritingMode
+                 | TextOrientation
+         ));
+-        let initial_revert = self.reverted.longhands.get(&id.to_longhand()).copied();
++        self.begin_font_preparation(context, declarations, id.to_longhand())
++    }
++
++    fn begin_font_preparation<'a, 'b>(
++        &self,
++        context: &computed::Context,
++        declarations: &'a Declarations<'b>,
++        longhand: LonghandId,
++    ) -> MetricPreparation<'a, 'b> {
++        let cursor = if let Some(id) = PrioritaryPropertyId::from_longhand(longhand) {
++            let index = declarations.prioritary_positions[id as usize].most_important;
++            (index != DeclarationIndex::MAX).then_some(index as usize)
++        } else {
++            assert!(is_synthesis_longhand(longhand));
++            next_font_declaration(declarations, longhand, 0)
++        };
++        let initial_revert = self.reverted.longhands.get(&longhand).copied();
+         MetricPreparation {
+-            id,
++            longhand,
+             declarations,
+-            cursor: declarations.prioritary_positions[id as usize].most_important,
++            cursor,
+             flags: context.included_cascade_flags,
+             initial_revert,
+             revert: initial_revert,
+@@ -963,27 +1020,30 @@
+         completed: &PrioritaryPropertyIdSet,
+         mut resolved_reference: Option<Arc<UnparsedValue>>,
+     ) -> MetricPreparationStep {
+-        let longhand = state.id.to_longhand();
+-        if self.ensured_prioritary.contains(state.id)
++        let longhand = state.longhand;
++        let priority = PrioritaryPropertyId::from_longhand(longhand);
++        if priority.is_some_and(|id| self.ensured_prioritary.contains(id))
+             || state.flags != context.included_cascade_flags
+             || self.seen.longhands.contains(longhand)
+             || self.reverted.longhands.get(&longhand).copied() != state.initial_revert
+         {
+             return MetricPreparationStep::Invalidated;
+         }
+-        let prerequisites = state.id.dependencies();
+-        if !completed.contains_all(prerequisites) {
+-            return MetricPreparationStep::Prerequisites(prerequisites);
++        if let Some(id) = priority {
++            let prerequisites = id.dependencies();
++            if !completed.contains_all(prerequisites) {
++                return MetricPreparationStep::Prerequisites(prerequisites);
++            }
+         }
+         loop {
+             if state.complete {
+                 return MetricPreparationStep::Complete;
+             }
+-            if state.cursor == DeclarationIndex::MAX {
++            let Some(index) = state.cursor else {
+                 state.complete = true;
+                 continue;
+-            }
+-            let entry = state.declarations.longhand_declarations[state.cursor as usize];
++            };
++            let entry = state.declarations.longhand_declarations[index];
+             if let Some(value) = state.waiting.as_ref() {
+                 let Some(resolved) = resolved_reference.take() else {
+                     return MetricPreparationStep::References(longhand, value.clone());
+@@ -1024,11 +1084,12 @@
+         state: MetricPreparation<'a, 'b>,
+         completed: &PrioritaryPropertyIdSet,
+     ) -> Result<(), MetricPreparation<'a, 'b>> {
+-        let longhand = state.id.to_longhand();
+-        if self.ensured_prioritary.contains(state.id)
++        let longhand = state.longhand;
++        let priority = PrioritaryPropertyId::from_longhand(longhand);
++        if priority.is_some_and(|id| self.ensured_prioritary.contains(id))
+             || !state.complete
+             || state.waiting.is_some()
+-            || !completed.contains_all(state.id.dependencies())
++            || priority.is_some_and(|id| !completed.contains_all(id.dependencies()))
+             || state.flags != context.included_cascade_flags
+             || self.seen.longhands.contains(longhand)
+             || self.reverted.longhands.get(&longhand).copied() != state.initial_revert
+@@ -1045,10 +1106,12 @@
+                 attribute_tracker,
+             );
+         }
+-        if self.seen.longhands.contains(longhand) {
+-            self.did_apply_prioritary_property(context, state.id);
+-        }
+-        self.ensured_prioritary.insert(state.id);
++        if let Some(id) = priority {
++            if self.seen.longhands.contains(longhand) {
++                self.did_apply_prioritary_property(context, id);
++            }
++            self.ensured_prioritary.insert(id);
++        }
+         Ok(())
+     }
+ }
+@@ -2783,6 +2846,9 @@
+         priority_completion: PriorityCompletion,
+         metric_drain: MetricDrain<'a, 'd>,
+         metric_action: Option<MetricAction>,
++        font_preparation: Option<MetricPreparation<'a, 'd>>,
++        completed_font_inputs: LonghandIdSet,
++        font_completion_flags: Option<RuleCascadeFlags>,
+         /// The stack of order index of visited variables. It contains
+         /// all unfinished strong connected components.
+         stack: SmallVec<[usize; 5]>,
+@@ -2804,7 +2870,7 @@
+ 
+     impl<'a, 'b: 'a, 'c, 'd> Context<'a, 'b, 'c, 'd> {
+         fn reset(&mut self) {
+-            assert!(self.metric_action.is_none());
++            assert!(self.metric_action.is_none() && self.font_preparation.is_none());
+             assert!(
+                 self.frames.is_empty() && self.frame_root.is_none() && self.frame_reply.is_none()
+             );
+@@ -2829,7 +2895,7 @@
+             publication_ready: &mut impl FnMut(
+                 FontDependencyDemand,
+                 &PrioritaryPropertyIdSet,
+-                bool,
++                Option<LonghandId>,
+             ) -> PublicationDemand,
+         ) -> VisitResult {
+             if let Some(root) = &self.frame_root {
+@@ -2896,6 +2962,10 @@
+         }
+ 
+         fn import_priority_completion(&mut self) {
++            if self.font_completion_flags != Some(self.computed_context.included_cascade_flags) {
++                self.completed_font_inputs = LonghandIdSet::default();
++                self.font_completion_flags = Some(self.computed_context.included_cascade_flags);
++            }
+             self.cascade
+                 .refresh_priority_completion(self.computed_context);
+             self.priority_completion.complete = self.cascade.completed_prioritary.clone();
+@@ -2931,9 +3001,15 @@
+             {
+                 return MetricActionProgress::WrongAction;
+             }
++            let target_id = match action.prerequisite {
++                FontTarget::Metric(id) => id,
++                FontTarget::Synthesis(longhand) => {
++                    return self.perform_synthesis_action(longhand, attribute_tracker);
++                },
++            };
+             use PrioritaryPropertyId::*;
+             if !matches!(
+-                action.prerequisite,
++                target_id,
+                 FontWeight
+                     | FontWidth
+                     | FontStyle
+@@ -2944,17 +3020,13 @@
+             ) {
+                 return MetricActionProgress::Unsupported;
+             }
+-            if self
+-                .priority_completion
+-                .complete
+-                .contains(action.prerequisite)
+-            {
++            if self.priority_completion.complete.contains(target_id) {
+                 self.metric_action = None;
+                 return MetricActionProgress::AlreadyComplete;
+             }
+             if self
+                 .metric_drain
+-                .request(action.prerequisite, &mut self.priority_completion)
++                .request(target_id, &mut self.priority_completion)
+                 .is_err()
+             {
+                 return MetricActionProgress::Invalidated;
+@@ -2969,11 +3041,11 @@
+             ) {
+                 MetricDrainStep::Published(id) => {
+                     self.cascade.completed_prioritary.insert(id);
+-                    if id == action.prerequisite {
++                    if id == target_id {
+                         assert!(self.priority_completion.complete.contains(id));
+                         self.metric_action = None;
+                     }
+-                    MetricActionProgress::Published(id)
++                    MetricActionProgress::Published(FontTarget::Metric(id))
+                 },
+                 MetricDrainStep::Prerequisite(id) => {
+                     MetricActionProgress::GeneratedPrerequisite(id)
+@@ -2985,6 +3057,57 @@
+                 | MetricDrainStep::WrongReply
+                 | MetricDrainStep::Complete => MetricActionProgress::Invalidated,
+             }
++        }
++
++        fn perform_synthesis_action(
++            &mut self,
++            longhand: LonghandId,
++            attribute_tracker: &mut AttributeTracker,
++        ) -> MetricActionProgress {
++            if !is_synthesis_longhand(longhand) {
++                return MetricActionProgress::Unsupported;
++            }
++            if self.completed_font_inputs.contains(longhand) {
++                self.metric_action = None;
++                return MetricActionProgress::AlreadyComplete;
++            }
++            let state = self.font_preparation.get_or_insert_with(|| {
++                self.cascade
++                    .begin_font_preparation(self.computed_context, self.decls, longhand)
++            });
++            if state.longhand != longhand {
++                return MetricActionProgress::Invalidated;
++            }
++            match self.cascade.resume_metric_preparation(
++                self.computed_context,
++                self.cache,
++                attribute_tracker,
++                state,
++                &self.priority_completion.complete,
++                None,
++            ) {
++                MetricPreparationStep::References(id, value) => {
++                    return MetricActionProgress::References(id, value);
++                },
++                MetricPreparationStep::Prerequisites(_) | MetricPreparationStep::Invalidated => {
++                    return MetricActionProgress::Invalidated;
++                },
++                MetricPreparationStep::Complete => {},
++            }
++            let state = self.font_preparation.take().unwrap();
++            if let Err(state) = self.cascade.publish_prepared_metric(
++                self.computed_context,
++                self.cache,
++                attribute_tracker,
++                state,
++                &self.priority_completion.complete,
++            ) {
++                self.font_preparation = Some(state);
++                return MetricActionProgress::Invalidated;
++            }
++            self.completed_font_inputs.insert(longhand);
++            self.metric_action = None;
++            MetricActionProgress::Published(FontTarget::Synthesis(longhand))
+         }
+ 
+         fn visited(&self, var: &VarType) -> Option<VisitResult> {
+@@ -3434,7 +3557,7 @@
+     fn font_publication_demand(
+         demand: FontDependencyDemand,
+         complete: &PrioritaryPropertyIdSet,
+-        unprepared_font_inputs: bool,
++        unprepared_font_inputs: Option<LonghandId>,
+     ) -> PublicationDemand {
+         use PrioritaryPropertyId::*;
+         if demand == FontDependencyDemand::None {
+@@ -3457,8 +3580,14 @@
+                 }
+             }
+         }
+-        if demand >= FontDependencyDemand::FontMetrics && unprepared_font_inputs {
+-            return PublicationDemand::Unresolved;
++        if demand >= FontDependencyDemand::FontMetrics
++            && let Some(id) = unprepared_font_inputs
++        {
++            return if is_synthesis_longhand(id) {
++                PublicationDemand::Synthesis(id)
++            } else {
++                PublicationDemand::Unresolved
++            };
+         }
+         PublicationDemand::Ready
+     }
+@@ -3472,6 +3601,7 @@
+     enum PublicationDemand {
+         Ready,
+         Metric(PrioritaryPropertyId),
++        Synthesis(LonghandId),
+         Unresolved,
+     }
+ 
+@@ -3481,11 +3611,11 @@
+         root: VarType,
+         owner: VarType,
+         index: usize,
+-        prerequisite: PrioritaryPropertyId,
++        prerequisite: FontTarget,
+     }
+ 
+     enum MetricActionProgress {
+-        Published(PrioritaryPropertyId),
++        Published(FontTarget),
+         AlreadyComplete,
+         GeneratedPrerequisite(PrioritaryPropertyId),
+         References(LonghandId, Arc<UnparsedValue>),
+@@ -3536,7 +3666,7 @@
+     enum FrameStep {
+         Link(VarType),
+         Complete(VisitResult),
+-        Pending(Option<PrioritaryPropertyId>),
++        Pending(Option<FontTarget>),
+     }
+ 
+     impl TraversalFrame {
+@@ -3595,7 +3725,7 @@
+             publication_ready: &mut impl FnMut(
+                 FontDependencyDemand,
+                 &PrioritaryPropertyIdSet,
+-                bool,
++                Option<LonghandId>,
+             ) -> PublicationDemand,
+         ) -> FrameStep {
+             assert!(self.waiting.is_none());
+@@ -3655,7 +3785,10 @@
+                                             publication_ready(
+                                                 demand,
+                                                 &context.priority_completion.complete,
+-                                                has_unprepared_font_inputs(context.decls)
++                                                next_unprepared_font_input(
++                                                    context.decls,
++                                                    &context.completed_font_inputs
++                                                )
+                                             ),
+                                             PublicationDemand::Ready
+                                         ) {
+@@ -3818,10 +3951,18 @@
+                         match publication_ready(
+                             demand,
+                             &context.priority_completion.complete,
+-                            has_unprepared_font_inputs(context.decls),
++                            next_unprepared_font_input(
++                                context.decls,
++                                &context.completed_font_inputs,
++                            ),
+                         ) {
+                             PublicationDemand::Ready => {},
+-                            PublicationDemand::Metric(id) => return FrameStep::Pending(Some(id)),
++                            PublicationDemand::Metric(id) => {
++                                return FrameStep::Pending(Some(FontTarget::Metric(id)));
++                            },
++                            PublicationDemand::Synthesis(id) => {
++                                return FrameStep::Pending(Some(FontTarget::Synthesis(id)));
++                            },
+                             PublicationDemand::Unresolved => return FrameStep::Pending(None),
+                         }
+                         context.publish_closed(self.index, attribute_tracker);
+@@ -4336,6 +4477,9 @@
+         priority_completion: PriorityCompletion::default(),
+         metric_drain: MetricDrain::new(decls),
+         metric_action: None,
++        font_preparation: None,
++        completed_font_inputs: LonghandIdSet::default(),
++        font_completion_flags: None,
+         stylist,
+         computed_context: &mut *computed_context,
+         cascade: &mut *cascade,

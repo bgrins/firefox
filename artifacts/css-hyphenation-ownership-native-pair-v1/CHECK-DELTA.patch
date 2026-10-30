@@ -1,0 +1,132 @@
+--- artifacts/css-language-partition-native-pair-v1/check.py
++++ artifacts/css-hyphenation-ownership-native-pair-v1/check.py
+@@ -25,87 +25,51 @@
+ 
+ def validate_policy(policy):
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-language-partition-native-pair-runtime-1'
+-    assert policy['head'] == 'a2b561b8cdab0ce60eb038265b6de5ab87c02d09'
++    assert policy['runtime_output'] == 'artifacts/css-hyphenation-ownership-native-pair-runtime-1'
++    assert policy['head'] == 'ff9e311b6b4445a01a7261e898b81f98019cbd8d'
++    assert policy['language_commit'] == '2435535e6f09be35da5c5cd3d0afac7d0dd60d6d'
+     admission = load('admission')
+-    assert policy['capture_owner'] == {'directory':'artifacts/css-language-partition-current-capture-v1','manifest_sha256':'73e0b4beb6b2dd27c1463be7514210dceba089fd03d239c043ba7100eb8f8072'}
+-    assert policy['port_binding'] == {'directory':'artifacts/css-nowrap-native-outcome-review-v1','manifest_sha256':'cf55c6d5ea90108272604ec83edee240e415fe8bcf82d5814285965958de61f3'}
+-    assert policy['nowrap_commit'] == '28bbc39fb8fec210ff9ee9880eeedc77be3f6d52'
+-    suite = admission.authenticate(ROOT, policy['suite_binding'])
+-    assert policy['suite_binding']['manifest_sha256'] == '1d13e3d31c00b3cff73b6e8f10191365ca1e3bd12b2c33e526a6c62235a14edc'
+-    data = read(suite / 'INPUTS.json')
+-    assert (data['callbacks'], data['pages'], data['signatures']) == (889, 22, 911)
+-    assert policy['lane_order'] == ['target', 'regression', 'context'] and policy['diagnostic_lane_order'] == []
+-    assert policy['language_target_pages'] == ['/css/css-text/line-break/line-break-language-latin1-partitions.html', '/css/css-text/line-break/line-break-language-text-partitions.html']
+-    assert set(policy['wpt_lanes']) == set(data['lanes']) | {'context'} and policy['wpt'] == policy['wpt_lanes']['target']
++    assert policy['capture_owner'] == {'directory':'artifacts/css-hyphenation-ownership-current-capture-v1','manifest_sha256':'73ab303d6f9cece54c059c8e7ebb0ca7c13fd312543791a0e44f183df42fb2e6'}
+     prior_dir = admission.authenticate(ROOT, policy['predecessor_binding'])
+-    assert prior_dir == ROOT / 'artifacts/css-nowrap-native-pair-v1'
++    assert prior_dir == ROOT / 'artifacts/css-language-partition-native-pair-v1'
+     prior = read(prior_dir / 'POLICY.json')
+-    for key in ('image_commit', 'ownership_helper', 'phase_helper', 'process_helper', 'state_helper', 'bundle_helper', 'bundle_path', 'extra_backup_paths', 'rebuilt_binaries', 'source_context_pins', 'restored_application_revision', 'timeout_seconds'):
++    for key in ('suite_binding', 'context_binding', 'port_binding', 'port_fixture_binding', 'image_commit', 'nowrap_commit', 'ownership_helper', 'phase_helper', 'process_helper', 'state_helper', 'bundle_helper', 'bundle_path', 'extra_backup_paths', 'rebuilt_binaries', 'source_context_pins', 'restored_application_revision', 'timeout_seconds', 'metadata_current_pins', 'preserved_absent_metadata', 'preserved_absent_resources', 'lane_order', 'diagnostic_lane_order'):
+         assert policy[key] == prior[key], key
+-    expected_metadata = dict(prior['metadata_current_pins'])
+-    expected_absent = set(prior['preserved_absent_metadata'])
+-    changing = {'tests', 'expected_subtests', 'target_subtests', 'expected_subtest_count', 'expected_target_count', 'expected_control_count', 'expected_page_count', 'expected_regression_signature_count', 'fixture_target_pages', 'candidate_required_pass_pages', 'phase_revisions', 'harness_revision', 'resources', 'manifests', 'metadata', 'capture', 'install_managed_resources', 'timeout_seconds'}
+-    context = admission.authenticate(ROOT, policy['context_binding'])
+-    roster = read(context / 'ROSTER.json')
+-    assert sum(map(len, roster.values())) == 8 and len(roster) == 1
+-    context_settings = policy['wpt_lanes']['context']
+-    assert context_settings['expected_subtests'] == context_settings['target_subtests'] == roster
+-    assert context_settings['tests'] == {name:'testharness' for name in roster}
+-    assert context_settings['resources'] == {'/'+str(path.relative_to(context/'tests')):{'path':str(path.relative_to(ROOT)),'sha256':sha(path),'bytes':path.stat().st_size} for path in (context/'tests').rglob('*') if path.is_file()}
+-    assert context_settings['manifests']['portable'] == {'path':str((context/'MANIFEST.json').relative_to(ROOT)), 'sha256':sha(context/'MANIFEST.json'), 'bytes':(context/'MANIFEST.json').stat().st_size}
+-    assert set(context_settings['metadata']['portable']) == {'__dir__.ini','css/__dir__.ini','css/css-text/__dir__.ini','css/css-text/line-break/__dir__.ini','css/css-text/line-break/line-break-unknown-language-context.html.ini'}
+-    assert context_settings['metadata']['mozilla'] == prior['wpt']['metadata']['mozilla']
+-    lane_rows = dict(data['lanes'])
+-    lane_rows['context'] = {key:context_settings[key] for key in ('tests','expected_subtests','resources','manifests','metadata')}
+-    lane_rows['context'].update(callbacks=8,pages=1)
+-    for lane, row in lane_rows.items():
+-        settings = policy['wpt_lanes'][lane]
+-        assert {k:v for k,v in settings.items() if k not in changing} == {k:v for k,v in prior['wpt'].items() if k not in changing}
+-        for key in ('tests', 'expected_subtests', 'resources', 'manifests', 'metadata'):
+-            assert settings[key] == row[key]
+-        expected_targets = {page:names for page,names in row['expected_subtests'].items() if page in policy['language_target_pages'] or lane=='context'}
+-        assert settings['target_subtests'] == expected_targets
+-        count = sum(map(len, expected_targets.values()))
+-        assert (settings['expected_subtest_count'], settings['expected_target_count'], settings['expected_control_count'], settings['expected_page_count'], settings['expected_regression_signature_count']) == (row['callbacks'], count, row['callbacks']-count, row['pages'], row['callbacks']-count+row['pages'])
+-        assert settings['fixture_target_pages'] == [page for page, kind in row['tests'].items() if kind == 'testharness']
+-        assert settings['candidate_required_pass_pages'] == sorted(expected_targets)
++    admission.authenticate(ROOT, policy['suite_binding'])
++    admission.authenticate(ROOT, policy['context_binding'])
++    assert policy['ownership_target_pages'] == ['/css/css-text/hyphens/hyphenate-limit-chars-inline-ownership.html']
++    assert set(policy['wpt_lanes']) == set(prior['wpt_lanes']) and policy['wpt'] == policy['wpt_lanes']['target']
++    changing = {'target_subtests', 'expected_target_count', 'expected_control_count', 'expected_regression_signature_count', 'candidate_required_pass_pages', 'phase_revisions', 'harness_revision'}
++    for lane, settings in policy['wpt_lanes'].items():
++        old = prior['wpt_lanes'][lane]
++        assert {k:v for k,v in settings.items() if k not in changing} == {k:v for k,v in old.items() if k not in changing}
++        targets = {page:names for page,names in settings['expected_subtests'].items() if page in policy['ownership_target_pages']}
++        count = sum(map(len, targets.values()))
++        assert settings['target_subtests'] == targets and settings['candidate_required_pass_pages'] == sorted(targets)
++        assert (settings['expected_target_count'], settings['expected_control_count'], settings['expected_regression_signature_count']) == (count, settings['expected_subtest_count']-count, settings['expected_subtest_count']-count+settings['expected_page_count'])
+         assert settings['phase_revisions'] == {'original':policy['head'], 'candidate':policy['head']} and settings['harness_revision'] == policy['head']
+-        assert settings['timeout_seconds'] == 600 and settings['capture'] is None and settings['install_managed_resources'] == {}
+-        for name, record in row['metadata']['portable'].items():
+-            path = 'testing/web-platform/meta/' + name
+-            if record['sha256'] is None:
+-                expected_absent.add(path)
+-            else:
+-                assert path not in expected_metadata or expected_metadata[path] == record['sha256']
+-                expected_metadata[path] = record['sha256']
+-    assert sum(settings['expected_target_count'] for settings in policy['wpt_lanes'].values()) == 368
+-    assert sum(settings['expected_control_count'] for settings in policy['wpt_lanes'].values()) == 529
+-    assert policy['metadata_current_pins'] == expected_metadata
+-    assert policy['preserved_absent_metadata'] == sorted(expected_absent)
+-    assert policy['preserved_absent_resources'] == sorted(set(prior['preserved_absent_resources']) | {'testing/web-platform/meta/css/css-text/white-space/nowrap-inline-break-policies.html.ini'})
++    assert sum(x['expected_target_count'] for x in policy['wpt_lanes'].values()) == 289
++    assert sum(x['expected_control_count'] for x in policy['wpt_lanes'].values()) == 608
++    assert sum(x['expected_subtest_count'] for x in policy['wpt_lanes'].values()) == 897
++    assert sum(x['expected_page_count'] for x in policy['wpt_lanes'].values()) == 23
++    source = admission.authenticate(ROOT, policy['source_binding'])
++    assert policy['source_binding'] == {'directory':'artifacts/css-hyphenation-ownership-formatted-v1','manifest_sha256':'a605b8dab6440e495f1ff587ce6ac276acbf5d7ebecab4341474f53f9fe707c9'}
+     roles = read(HERE / 'SOURCE-ROLES.json')
+-    source = admission.authenticate(ROOT, policy['source_binding'])
+-    assert source == ROOT / 'artifacts/css-language-partition-formatted-v1'
+-    assert set(roles) == {'dom/base/nsLineBreaker.cpp'}
+-    assert roles['dom/base/nsLineBreaker.cpp']['base_sha256'] == 'a87f4210c39f99f27e78df7827b2836362098ff7cd5290a88660d5f943052e03'
+-    assert roles['dom/base/nsLineBreaker.cpp']['candidate_sha256'] == 'a1ae4b3afd12908b882d3a6e34c4fd1d078c5b66dff9b06a75c31a6624ad4d9d'
++    expected = {row['path']:{'base_capture':str((source/'base'/row['path']).relative_to(ROOT)), 'base_sha256':row['base_sha256'], 'candidate_capture':str((source/'candidate'/row['path']).relative_to(ROOT)), 'candidate_sha256':row['candidate_sha256']} for row in read(source/'FORMAT.json')['files']}
++    assert roles == expected and len(roles) == 3
+     assert policy['committed_source_preimages'] == {name:row['base_sha256'] for name,row in roles.items()}
+     for row in roles.values():
+-        for kind in ('base', 'candidate'):
+-            assert sha(ROOT / row[kind+'_capture']) == row[kind+'_sha256']
+-            assert (ROOT / row[kind+'_capture']).is_relative_to(source)
+-    old_baseline, new_baseline = ast.parse((prior_dir/'baseline.py').read_text()), ast.parse((HERE/'baseline.py').read_text())
++        for kind in ('base','candidate'):
++            assert sha(ROOT/row[kind+'_capture']) == row[kind+'_sha256']
+     baseline = load('baseline')
++    before_tree, after_tree = ast.parse((prior_dir/'baseline.py').read_text()), ast.parse((HERE/'baseline.py').read_text())
+     for name in ('require_app_inventory','environment'):
+-        before = next(n for n in old_baseline.body if isinstance(n,ast.FunctionDef) and n.name==name)
+-        after = next(n for n in new_baseline.body if isinstance(n,ast.FunctionDef) and n.name==name)
++        before = next(n for n in before_tree.body if isinstance(n,ast.FunctionDef) and n.name==name)
++        after = next(n for n in after_tree.body if isinstance(n,ast.FunctionDef) and n.name==name)
+         assert callable(getattr(baseline,name)) and ast.dump(before)==ast.dump(after)
+-    old_run, new_run = (prior_dir/'run.py').read_text(), (HERE/'run.py').read_text()
+-    assert new_run == old_run.replace('nowrap-native-pair-v1', 'language-partition-native-pair-v1')
+-    for name in ('inputs.py', 'review_scope.py', 'intermediate.py'):
++    assert (HERE/'run.py').read_text() == (prior_dir/'run.py').read_text().replace('language-partition-native-pair-v1','hyphenation-ownership-native-pair-v1')
++    for name in ('inputs.py','review_scope.py','intermediate.py','comparison.py','wpt.py','assess.py','closure.py'):
+         assert (HERE/name).read_bytes() == (prior_dir/name).read_bytes()
+-    assert (HERE/'wpt.py').read_bytes() == (ROOT/'artifacts/css-font-metric-demand-native-original-v1/wpt.py').read_bytes()
+     external = load('closure').external_inputs(ROOT, policy, roles)
+     for name,pin in external.items():
+         if name.startswith('artifacts/'):
+@@ -116,7 +80,7 @@
+         assert not policy['execution_enabled'] and not policy['candidate_execution_enabled'] and policy['activation_pending']
+     else:
+         capture = admission.validate_current(ROOT, policy, roles)
+-        assert capture['checkpoint_receipt']['sha256'] == '7f020e2fc19393020cfa79ba04023ba6f0a83c02618853e08b45667c457cbe80'
++        assert capture['checkpoint_receipt']['sha256'] == '4f7012aa106a67b20f0c15aac850d2d6f4c711e403fe2a4bf306dc9cb81de810'
+     return len(external)
+ 
+ 

@@ -1,0 +1,13 @@
+--- artifacts/css-language-partition-native-pair-v1/phases.py
++++ artifacts/css-hyphenation-ownership-native-pair-v1/phases.py
+@@ -44,8 +44,8 @@
+                 read(output/'original-wpt-regression/ASSESSMENT.json'),
+                 read(output/'candidate-wpt-regression/ASSESSMENT.json'), assessor.signature)
+         except (AssertionError, KeyError, TypeError, ValueError) as error:
+-            derived = {'derived_language_gate': False, 'error': repr(error), 'raw_assessments_unchanged': True}
+-        derived['publication_observation_gate'] = derived['derived_language_gate'] and behaviors['target']['publication_observation_gate'] and behaviors['context']['publication_observation_gate']
++            derived = {'derived_ownership_gate': False, 'error': repr(error), 'raw_assessments_unchanged': True}
++        derived['publication_observation_gate'] = derived['derived_ownership_gate'] and behaviors['target']['publication_observation_gate'] and behaviors['context']['publication_observation_gate']
+         derived['native_acceptance'] = False
+         wpt.save(output/'DERIVED-COMPARISON.json', derived)
+     wpt.save(output/(role+'-OUTCOMES.json'),{'callbacks_passed':sum(row['status']=='PASS' for row in rows),'callbacks_failed':sum(row['status']=='FAIL' for row in rows),'rows':rows,'endings':endings,'lanes':results,'diagnostics':diagnostics,'provider_source_role':role,'native_acceptance':False})

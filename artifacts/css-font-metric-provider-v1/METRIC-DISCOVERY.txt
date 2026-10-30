@@ -1,0 +1,22 @@
+  void AssertIsMainThreadOrServoFFILocked() {
+    if (!NS_IsMainThread()) {
+      MOZ_ASSERT(sServoFFILock);
+      sServoFFILock->AssertCurrentThreadOwns();
+    }
+  }
+  #endif
+  
+  }  // namespace mozilla
+  
+layout/style/GeckoBindings.cpp:1297: GeckoFontMetrics Gecko_GetFontMetrics(const nsPresContext* aPresContext,
+                                        bool aIsVertical,
+                                        const nsStyleFont* aFont,
+                                        Length aFontSize,
+                                        StyleQueryFontMetricsFlags flags) {
+    MutexAutoLock guard(*sServoFFILock);
+  
+    // Getting font metrics can require some main thread only work to be
+    // done, such as work that needs to touch non-threadsafe refcounted
+    // objects (like the DOM FontFace/FontFaceSet objects), network loads, etc.
+    //
+Total matches: 1

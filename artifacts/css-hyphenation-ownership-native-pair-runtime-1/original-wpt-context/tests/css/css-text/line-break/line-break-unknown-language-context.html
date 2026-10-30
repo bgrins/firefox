@@ -1,0 +1,107 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Unknown-language line breaking is independent of the preceding word's language</title>
+<link rel="help" href="https://drafts.csswg.org/css-text-3/#line-break-property">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@font-face {
+  font-family: mplus;
+  src: url("/fonts/mplus-1p-regular.woff");
+}
+.sample, .calibration {
+  font: 30px/30px mplus;
+  direction: ltr;
+  writing-mode: horizontal-tb;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: manual;
+  line-break: loose;
+}
+.calibration { display: inline-block; white-space: nowrap; }
+</style>
+<div id="log"></div>
+<script>
+const fontReady = document.fonts.load("30px mplus", "A°");
+function glyphs(target) {
+  const result = [];
+  const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode() && result.length < 3) {
+    for (let i = 0; i < walker.currentNode.length && result.length < 3; ++i) {
+      const range = document.createRange();
+      range.setStart(walker.currentNode, i);
+      range.setEnd(walker.currentNode, i + 1);
+      const rect = range.getBoundingClientRect();
+      result.push({x: rect.x, y: rect.y, width: rect.width});
+    }
+  }
+  return result;
+}
+for (const language of ["omitted", "empty", "und", "invalid"]) {
+  for (const transform of ["none", "capitalize"]) {
+    promise_test(async t => {
+      const faces = await fontReady;
+      assert_equals(faces.length, 1, "Test font loaded");
+      assert_equals(faces[0].status, "loaded");
+      const calibration = document.createElement("span");
+      calibration.className = "calibration";
+      calibration.textContent = "A";
+      document.body.append(calibration);
+      t.add_cleanup(() => calibration.remove());
+      const advance = calibration.getBoundingClientRect().width;
+      assert_greater_than(advance, 0);
+      const observations = [];
+      for (const targetLanguage of [language, "en", "ja"]) {
+        for (const partition of ["single", "adjacent", "no-space"]) {
+          for (const prefixLanguage of ["omitted", "en", "ja"]) {
+            const sample = document.createElement("div");
+            sample.className = "sample";
+            sample.style.width = `${advance + 0.1}px`;
+            sample.style.textTransform = transform;
+            const prefix = document.createElement("span");
+            if (prefixLanguage !== "omitted") prefix.lang = prefixLanguage;
+            prefix.textContent = "A";
+            const target = document.createElement("span");
+            if (targetLanguage !== "omitted") {
+              target.lang = targetLanguage === "empty" ? "" :
+                targetLanguage === "invalid" ? "!" : targetLanguage;
+            }
+            if (partition === "adjacent") {
+              target.append(document.createTextNode("A°A"), document.createTextNode(" "));
+            } else {
+              target.textContent = "A°A" + (partition === "single" ? " " : "");
+            }
+            sample.append(prefix, document.createTextNode(" "), target);
+            document.body.append(sample);
+            t.add_cleanup(() => sample.remove());
+            const rects = glyphs(target);
+            const prefixRect = prefix.getBoundingClientRect();
+            const sampleRect = sample.getBoundingClientRect();
+            observations.push({targetLanguage, partition, prefixLanguage,
+              rects, prefixWidth: prefixRect.width, sampleWidth: sampleRect.width,
+              breakBeforeDegree: rects[1].y - rects[0].y});
+          }
+        }
+      }
+      const diagnostic = JSON.stringify(observations);
+      for (const row of observations) {
+        assert_equals(row.rects.length, 3, diagnostic);
+        assert_approx_equals(row.prefixWidth, advance, 0.1, diagnostic);
+        assert_approx_equals(row.sampleWidth, advance + 0.1, 0.1, diagnostic);
+        assert_approx_equals(row.rects[0].width, advance, 0.1, diagnostic);
+        if (row.targetLanguage === "en" || row.targetLanguage === "ja") {
+          assert_approx_equals(row.breakBeforeDegree,
+            row.targetLanguage === "ja" ? 30 : 0, 0.1, diagnostic);
+        } else {
+          const fresh = observations.find(value =>
+            value.targetLanguage === row.targetLanguage &&
+            value.partition === row.partition && value.prefixLanguage === "omitted");
+          assert_approx_equals(row.breakBeforeDegree, fresh.breakBeforeDegree, 0.1,
+            "Changing only the preceding word's language: " + diagnostic);
+        }
+      }
+    }, `${language} target language; ${transform}; preceding-language independence`);
+  }
+}
+</script>

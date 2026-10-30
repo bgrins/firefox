@@ -1,0 +1,25 @@
+--- artifacts/css-language-partition-native-pair-v1/port_comparison.py
++++ artifacts/css-hyphenation-ownership-native-pair-v1/port_comparison.py
+@@ -47,18 +47,18 @@
+     targets = {(page, 'test_status', name)
+                for page, names in policy['wpt_lanes']['regression']['target_subtests'].items()
+                for name in names}
+-    assert len(targets) == 360 and targets <= set(before)
++    assert len(targets) == 289 and targets <= set(before)
+     errors = [error for error in candidate['comparison_errors']
+               if error != 'regression identities/status/expectations/intermittents changed']
+     for identity, row in before.items():
+         if (identity not in targets or row['status'] == 'PASS') and after[identity] != row:
+             errors.append('preserved full signature changed: ' + str(identity))
+     if any(after[identity]['status'] != 'PASS' for identity in targets):
+-        errors.append('language target did not pass')
++        errors.append('ownership target did not pass')
+     raw_before, raw_after = raw_signatures['original'], raw_signatures['candidate']
+     changed = [key for key in raw_before if raw_before[key] != raw_after[key]]
+-    return {'derived_language_gate': not errors, 'errors': errors,
+-            'target_callbacks': 360, 'preserved_signatures': 381,
++    return {'derived_ownership_gate': not errors, 'errors': errors,
++            'target_callbacks': 289, 'preserved_signatures': 452,
+             'raw_changed_signatures': len(changed), 'port_bound_reftest_endings': 4,
+             'role_port_evidence': receipts, 'pins': pins,
+             'raw_assessments_unchanged': True, 'native_acceptance': False}

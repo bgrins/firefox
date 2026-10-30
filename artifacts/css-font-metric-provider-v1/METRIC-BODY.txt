@@ -1,0 +1,84 @@
+1297: GeckoFontMetrics Gecko_GetFontMetrics(const nsPresContext* aPresContext,
+1298:                                       bool aIsVertical,
+1299:                                       const nsStyleFont* aFont,
+1300:                                       Length aFontSize,
+1301:                                       StyleQueryFontMetricsFlags flags) {
+1302:   MutexAutoLock guard(*sServoFFILock);
+1303: 
+1304:   // Getting font metrics can require some main thread only work to be
+1305:   // done, such as work that needs to touch non-threadsafe refcounted
+1306:   // objects (like the DOM FontFace/FontFaceSet objects), network loads, etc.
+1307:   //
+1308:   // To handle this work, font code checks whether we are in a Servo traversal
+1309:   // and if so, appends PostTraversalTasks to the current ServoStyleSet
+1310:   // to be performed immediately after the traversal is finished.  This
+1311:   // works well for starting downloadable font loads, since we don't have
+1312:   // those fonts available to get metrics for anyway.  Platform fonts and
+1313:   // ArrayBuffer-backed FontFace objects are handled synchronously.
+1314: 
+1315:   nsPresContext* presContext = const_cast<nsPresContext*>(aPresContext);
+1316:   RefPtr<nsFontMetrics> fm = nsLayoutUtils::GetMetricsFor(
+1317:       presContext, aIsVertical, aFont, aFontSize,
+1318:       bool(flags & StyleQueryFontMetricsFlags::USE_USER_FONT_SET));
+1319:   auto* fontGroup = fm->GetThebesFontGroup();
+1320:   auto metrics = fontGroup->GetMetricsForCSSUnits(fm->Orientation(), flags);
+1321: 
+1322:   float scriptPercentScaleDown = 0;
+1323:   float scriptScriptPercentScaleDown = 0;
+1324:   if (flags & StyleQueryFontMetricsFlags::NEEDS_MATH_SCALES) {
+1325:     RefPtr<gfxFont> font = fontGroup->GetFirstValidFont();
+1326:     if (font->TryGetMathTable()) {
+1327:       scriptPercentScaleDown = static_cast<float>(
+1328:           font->MathTable()->Constant(gfxMathTable::ScriptPercentScaleDown));
+1329:       scriptScriptPercentScaleDown =
+1330:           static_cast<float>(font->MathTable()->Constant(
+1331:               gfxMathTable::ScriptScriptPercentScaleDown));
+1332:     }
+1333:   }
+1334: 
+1335:   int32_t d2a = aPresContext->AppUnitsPerDevPixel();
+1336:   auto ToLength = [](nscoord aLen) {
+1337:     return Length::FromPixels(CSSPixel::FromAppUnits(aLen));
+1338:   };
+1339:   return {ToLength(NS_round(metrics.xHeight * d2a)),
+1340:           ToLength(NS_round(metrics.zeroWidth * d2a)),
+1341:           ToLength(NS_round(metrics.capHeight * d2a)),
+1342:           ToLength(NS_round(metrics.ideographicWidth * d2a)),
+1343:           ToLength(NS_round(metrics.maxAscent * d2a)),
+1344:           ToLength(NS_round(fontGroup->GetStyle()->size * d2a)),
+1345:           scriptPercentScaleDown,
+1346:           scriptScriptPercentScaleDown};
+1347: }
+1348: 
+1349: NS_IMPL_THREADSAFE_FFI_REFCOUNTING(SheetLoadDataHolder, SheetLoadDataHolder);
+1350: 
+1351: void Gecko_StyleSheet_FinishAsyncParse(
+1352:     SheetLoadDataHolder* aData,
+1353:     StyleStrong<StyleStylesheetContents> aSheetContents) {
+1354:   RefPtr<SheetLoadDataHolder> loadData = aData;
+1355:   RefPtr<StyleStylesheetContents> sheetContents = aSheetContents.Consume();
+1356:   NS_DispatchToMainThreadQueue(
+1357:       NS_NewRunnableFunction(__func__,
+1358:                              [d = std::move(loadData),
+1359:                               contents = std::move(sheetContents)]() mutable {
+1360:                                MOZ_ASSERT(NS_IsMainThread());
+1361:                                SheetLoadData* data = d->get();
+1362:                                data->mSheet->FinishAsyncParse(
+1363:                                    contents.forget());
+1364:                              }),
+1365:       EventQueuePriority::RenderBlocking);
+1366: }
+1367: 
+1368: static already_AddRefed<StyleSheet> LoadImportSheet(
+1369:     Loader* aLoader, StyleSheet* aParent, SheetLoadData* aParentLoadData,
+1370:     LoaderReusableStyleSheets* aReusableSheets, const StyleCssUrl& aURL,
+1371:     already_AddRefed<StyleLockedMediaList> aMediaList) {
+1372:   MOZ_ASSERT(NS_IsMainThread());
+1373:   MOZ_ASSERT(aLoader, "Should've catched this before");
+1374:   MOZ_ASSERT(aParent, "Only used for @import, so parent should exist!");
+1375: 
+1376:   auto media = MakeRefPtr<MediaList>(std::move(aMediaList));
+1377:   nsCOMPtr<nsIURI> uri = aURL.GetURI();
+1378:   nsresult rv = uri ? NS_OK : NS_ERROR_FAILURE;
+1379: 
+1380:   size_t previousSheetCount = aParent->ChildSheets().Length();
