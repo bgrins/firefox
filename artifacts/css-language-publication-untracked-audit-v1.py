@@ -1,0 +1,63 @@
+import hashlib
+import json
+import os
+from pathlib import Path
+import stat
+import subprocess
+import sys
+
+assert sys.flags.isolated and sys.flags.no_site
+ROOT=Path(__file__).resolve().parent.parent
+GIT=['git','--no-optional-locks','-c','core.fsmonitor=false']
+def git(*args,cwd=ROOT):
+    return subprocess.check_output(GIT+list(args),cwd=cwd,env=dict(os.environ,GIT_OPTIONAL_LOCKS='0'))
+sha=lambda b:hashlib.sha256(b).hexdigest()
+EXPECTED_RECEIPT_SHA256 = '1c6ff9cc8c96efed933978baf05a3ef23a17ba4df4f21765efe2b1e46024e9ca'
+assert EXPECTED_RECEIPT_SHA256, 'Actual signed language receipt binding is pending'
+receipt_body=(ROOT/'artifacts/css-language-partition-publication-language-runtime-1/COMMIT-RESULT.json').read_bytes()
+assert sha(receipt_body)==EXPECTED_RECEIPT_SHA256
+receipt=json.loads(receipt_body)
+assert receipt['stage']=='language' and receipt['signature_verified'] is True
+assert git('rev-parse','HEAD').decode().strip()==receipt['commit']
+adopted=[
+    'testing/web-platform/tests/css/css-text/white-space/nowrap-inline-break-policies.html',
+    'testing/web-platform/tests/css/css-text/line-break/line-break-language-latin1-partitions.html',
+    'testing/web-platform/tests/css/css-text/line-break/line-break-language-text-partitions.html',
+]
+created='testing/web-platform/tests/css/css-text/line-break/line-break-unknown-language-context.html'
+assert receipt['files']==sorted(['dom/base/nsLineBreaker.cpp',*adopted[1:],created])
+pins=json.loads((ROOT/'artifacts/css-worktree-recovery-20261028-v1/SOURCE-PINS.json').read_bytes())
+baseline='10e043823f5fb60317be96ada71e8fd39794e100'
+tracked_baseline=set(git('ls-tree','-r','--name-only',baseline,'--',*pins).decode().splitlines())
+already_tracked=sorted(p for p,r in pins.items() if not r['tracked'] and p in tracked_baseline)
+assert len(already_tracked)==6
+project={p:r for p,r in pins.items() if not r['tracked'] and p not in tracked_baseline and p not in adopted}
+assert len(project)==65
+assert sum(p.startswith('testing/web-platform/tests/') and p.endswith('.html') for p in project)==50
+unrelated=json.loads((ROOT/'artifacts/css-untracked-audit-shadow-pair-20261029-v1/UNRELATED-METADATA.json').read_bytes())
+assert len(unrelated)==495
+expected=set(project)|{r['path'] for r in unrelated}
+actual=set(git('ls-files','--others','--exclude-standard','-z').decode().rstrip('\0').split('\0'))
+assert actual==expected and len(actual)==560
+for path,record in project.items():
+    body=(ROOT/path).read_bytes()
+    assert sha(body)==record['sha256']
+    archive=git('show','0197d1c8e8fd678680d78b212f6a2c0ae9d82d51:artifacts/css-worktree-recovery-20261028-v1/working/'+path)
+    assert body==archive
+for record in unrelated:
+    path=ROOT/record['path'];s=path.lstat()
+    kind='symlink' if stat.S_ISLNK(s.st_mode) else 'file' if stat.S_ISREG(s.st_mode) else 'unexpected'
+    assert kind==record['kind']
+    assert s.st_size==record['bytes'] and stat.S_IMODE(s.st_mode)==record['mode']
+    assert [s.st_dev,s.st_ino]==record['identity']
+assert not git('diff','--name-only').strip() and not git('diff','--cached','--name-only').strip()
+assert set(git('ls-files','--',*adopted,created).decode().splitlines())==set(adopted+[created])
+assert created not in pins
+assert sha((ROOT/created).read_bytes())=='b4283942b4656abe352395e8c38c931428492e26db814d5a9accef51b3d30967'
+assert git('show',receipt['commit']+':'+created)==(ROOT/created).read_bytes()
+nested=git('status','--short','--untracked-files=all',cwd=ROOT/'artifacts/css-spec-lean').decode().splitlines()
+assert nested==['?? .DS_Store']
+result={'head':git('rev-parse','HEAD').decode().strip(),'untracked_count':560,'historical_recovery_files_already_tracked':already_tracked,'project_files_matching_committed_recovery':65,'untracked_project_wpt_count':50,'unrelated_metadata_matches':495,'unrelated_contents_read':False,'exact_inventory':True,'adopted_wpts_tracked':adopted,'created_wpt_tracked':created,'publication_receipt_sha256':EXPECTED_RECEIPT_SHA256,'tracked_modified':[],'staged':[],'nested_status':nested,'script_sha256':sha(Path(__file__).read_bytes())}
+out=ROOT/'artifacts/css-language-publication-untracked-audit-v1.json'
+with out.open('x') as f:json.dump(result,f,indent=2);f.write('\n')
+print(json.dumps(result))

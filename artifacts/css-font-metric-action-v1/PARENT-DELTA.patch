@@ -1,0 +1,231 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -2711,6 +2711,9 @@
+         frames: Vec<TraversalFrame>,
+         frame_root: Option<VarType>,
+         frame_reply: Option<(VarType, VisitResult)>,
++        priority_completion: PriorityCompletion,
++        metric_drain: MetricDrain<'a, 'd>,
++        metric_action: Option<MetricAction>,
+         /// The stack of order index of visited variables. It contains
+         /// all unfinished strong connected components.
+         stack: SmallVec<[usize; 5]>,
+@@ -2732,6 +2735,7 @@
+ 
+     impl<'a, 'b: 'a, 'c, 'd> Context<'a, 'b, 'c, 'd> {
+         fn reset(&mut self) {
++            assert!(self.metric_action.is_none());
+             assert!(
+                 self.frames.is_empty() && self.frame_root.is_none() && self.frame_reply.is_none()
+             );
+@@ -2753,7 +2757,7 @@
+             var: VarType,
+             references: &NonCustomPropertyReferences,
+             attribute_tracker: &mut AttributeTracker,
+-            publication_ready: &mut impl FnMut(&VarType) -> bool,
++            publication_ready: &mut impl FnMut(&VarType, &PrioritaryPropertyIdSet) -> PublicationDemand,
+         ) -> VisitResult {
+             if let Some(root) = &self.frame_root {
+                 assert_eq!(*root, var);
+@@ -2767,6 +2771,9 @@
+                         return result;
+                     },
+                 }
++            }
++            if let Some(action) = &self.metric_action {
++                return VisitResult::ComputationPending(action.index);
+             }
+             loop {
+                 let mut frame = self.frames.pop().expect("Active root owns a frame");
+@@ -2790,8 +2797,15 @@
+                 }
+                 match frame.step(references, self, attribute_tracker, publication_ready) {
+                     FrameStep::Link(_) => self.frames.push(frame),
+-                    FrameStep::Pending => {
++                    FrameStep::Pending(prerequisite) => {
+                         let index = frame.index;
++                        self.metric_action = prerequisite.map(|prerequisite| MetricAction {
++                            identity: Arc::new(()),
++                            root: self.frame_root.as_ref().unwrap().clone(),
++                            owner: frame.var.clone(),
++                            index,
++                            prerequisite,
++                        });
+                         self.frames.push(frame);
+                         return VisitResult::ComputationPending(index);
+                     },
+@@ -2805,6 +2819,91 @@
+                         self.frame_reply = Some((frame.var, result));
+                     },
+                 }
++            }
++        }
++
++        fn pending_metric_action(&self) -> Option<MetricAction> {
++            self.metric_action.clone()
++        }
++
++        fn perform_metric_action(
++            &mut self,
++            action: &MetricAction,
++            attribute_tracker: &mut AttributeTracker,
++        ) -> MetricActionProgress {
++            let Some(current) = &self.metric_action else {
++                return MetricActionProgress::WrongAction;
++            };
++            if !std::ptr::eq(current.identity.as_ref(), action.identity.as_ref())
++                || current.root != action.root
++                || current.owner != action.owner
++                || current.index != action.index
++                || current.prerequisite != action.prerequisite
++                || self.frame_root.as_ref() != Some(&action.root)
++                || !self.frames.last().is_some_and(|frame| {
++                    frame.index == action.index
++                        && frame.var == action.owner
++                        && matches!(frame.phase, FramePhase::Publish)
++                })
++                || !matches!(
++                    self.var_info[action.index].publication,
++                    NodePublication::Pending(_)
++                )
++            {
++                return MetricActionProgress::WrongAction;
++            }
++            use PrioritaryPropertyId::*;
++            if !matches!(
++                action.prerequisite,
++                FontWeight
++                    | FontWidth
++                    | FontStyle
++                    | FontSizeAdjust
++                    | Direction
++                    | WritingMode
++                    | TextOrientation
++            ) {
++                return MetricActionProgress::Unsupported;
++            }
++            if self
++                .priority_completion
++                .complete
++                .contains(action.prerequisite)
++            {
++                self.metric_action = None;
++                return MetricActionProgress::AlreadyComplete;
++            }
++            if self
++                .metric_drain
++                .request(action.prerequisite, &mut self.priority_completion)
++                .is_err()
++            {
++                return MetricActionProgress::Invalidated;
++            }
++            match self.metric_drain.poll(
++                self.cascade,
++                self.computed_context,
++                self.cache,
++                attribute_tracker,
++                &mut self.priority_completion,
++                None,
++            ) {
++                MetricDrainStep::Published(id) => {
++                    if id == action.prerequisite {
++                        assert!(self.priority_completion.complete.contains(id));
++                        self.metric_action = None;
++                    }
++                    MetricActionProgress::Published(id)
++                },
++                MetricDrainStep::Prerequisite(id) => {
++                    MetricActionProgress::GeneratedPrerequisite(id)
++                },
++                MetricDrainStep::References(id, value) => {
++                    MetricActionProgress::References(id, value)
++                },
++                MetricDrainStep::Invalidated(_)
++                | MetricDrainStep::WrongReply
++                | MetricDrainStep::Complete => MetricActionProgress::Invalidated,
+             }
+         }
+ 
+@@ -3239,6 +3338,32 @@
+ 
+     /// Separates semantic ancestry from completed map outcomes.
+     #[derive(Clone, Copy)]
++    enum PublicationDemand {
++        Ready,
++        Metric(PrioritaryPropertyId),
++        Unresolved,
++    }
++
++    #[derive(Clone)]
++    struct MetricAction {
++        identity: Arc<()>,
++        root: VarType,
++        owner: VarType,
++        index: usize,
++        prerequisite: PrioritaryPropertyId,
++    }
++
++    enum MetricActionProgress {
++        Published(PrioritaryPropertyId),
++        AlreadyComplete,
++        GeneratedPrerequisite(PrioritaryPropertyId),
++        References(LonghandId, Arc<UnparsedValue>),
++        Invalidated,
++        Unsupported,
++        WrongAction,
++    }
++
++    #[derive(Clone, Copy)]
+     enum FramePhase {
+         References,
+         Prepare,
+@@ -3280,7 +3405,7 @@
+     enum FrameStep {
+         Link(VarType),
+         Complete(VisitResult),
+-        Pending,
++        Pending(Option<PrioritaryPropertyId>),
+     }
+ 
+     impl TraversalFrame {
+@@ -3336,7 +3461,7 @@
+             references: &NonCustomPropertyReferences,
+             context: &mut Context,
+             attribute_tracker: &mut AttributeTracker,
+-            publication_ready: &mut impl FnMut(&VarType) -> bool,
++            publication_ready: &mut impl FnMut(&VarType, &PrioritaryPropertyIdSet) -> PublicationDemand,
+         ) -> FrameStep {
+             assert!(self.waiting.is_none());
+             loop {
+@@ -3525,8 +3650,10 @@
+                         self.phase = FramePhase::Publish;
+                     },
+                     FramePhase::Publish => {
+-                        if !publication_ready(&self.var) {
+-                            return FrameStep::Pending;
++                        match publication_ready(&self.var, &context.priority_completion.complete) {
++                            PublicationDemand::Ready => {},
++                            PublicationDemand::Metric(id) => return FrameStep::Pending(Some(id)),
++                            PublicationDemand::Unresolved => return FrameStep::Pending(None),
+                         }
+                         context.publish_closed(self.index, attribute_tracker);
+                         return FrameStep::Complete(VisitResult::Complete);
+@@ -4037,6 +4164,9 @@
+         frames: Vec::new(),
+         frame_root: None,
+         frame_reply: None,
++        priority_completion: PriorityCompletion::default(),
++        metric_drain: MetricDrain::new(decls),
++        metric_action: None,
+         stylist,
+         computed_context: &mut *computed_context,
+         cascade: &mut *cascade,
+@@ -4055,7 +4185,7 @@
+                 var,
+                 references_from_non_custom_properties,
+                 attr_tracker,
+-                &mut |_| true,
++                &mut |_, _| PublicationDemand::Ready,
+             )
+         } else {
+             traverse(
