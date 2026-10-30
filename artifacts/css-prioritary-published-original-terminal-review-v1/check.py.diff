@@ -1,0 +1,70 @@
+--- artifacts/css-prioritary-selection-original-terminal-review-v2/check.py
++++ artifacts/css-prioritary-published-original-terminal-review-v1/check.py
+@@ -17,15 +17,17 @@
+ 
+ r=load('review_module',HERE/'review.py');observation=load('observation_module',HERE/'observations.py')
+ config,owner=r.authenticate()
+-assert not config['execution_enabled'] and config['actual_terminal'] is None
+-assert config['expected_session'] is None and config['expected_launch'] is None and config['owner_manifest_sha256'] is None
+-policy=r.read(owner/'POLICY.json')
++assert not config['execution_enabled'] and config['actual_terminal'] is None and config['owner_manifest_sha256'] is not None
++assert (HERE/'TARGETS.json').read_bytes()==(ROOT/'artifacts/css-prioritary-selection-candidate-v3/TARGETS.json').read_bytes()
++for name in ['inputs.py','closure.py','review_scope.py']:assert (HERE/name).read_bytes()==(owner/name).read_bytes()
++policy=r.read(HERE/'OWNER-PREPARED-POLICY.json')
+ roles=r.read(owner/'SOURCE-ROLES.json')
+-consumed=r.consumed_map(owner,policy,roles,config['prepared_owner_manifest_sha256'])
+-assert isinstance(policy['head'],str) and len(policy['head'])==40
+-assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
+-assert len(policy['intermediate_consumed_inputs'])==480
+-assert set(policy['restored_context_claims'])=={'servo/components/style/properties/cascade.rs'}
++policy['current_binding']=config['current_binding']
++closure=load('saved_current_closure',HERE/'closure.py')
++policy['intermediate_consumed_inputs']=closure.external_inputs(ROOT,policy,roles)
++binder=load('saved_input_binder',HERE/'inputs.py')
++consumed=binder.bind_inputs(policy['owner_directory'],(HERE/'OWNER-PREPARED-FILES.json').read_bytes(),config['prepared_owner_manifest_sha256'],policy['intermediate_consumed_inputs'])
++assert len(roles)==3 and all(row['base_sha256']==row['candidate_sha256'] for row in roles.values())
+ policy['head']='e'*40
+ for settings in [policy['wpt'],*policy['wpt_lanes'].values()]:
+     settings['harness_revision']=policy['head'];settings['phase_revisions']={'original':policy['head'],'candidate':policy['head']}
+@@ -39,7 +41,7 @@
+ try:r.consumed_map(owner,bad_policy,roles,config['prepared_owner_manifest_sha256'])
+ except AssertionError:results.append('omitted consumed input rejected by independent closure reconstruction')
+ else:raise AssertionError('omitted consumed input accepted')
+-with tempfile.TemporaryDirectory(prefix='css-original77-review-',dir='/private/tmp') as scratch:
++with tempfile.TemporaryDirectory(prefix='css-published77-review-',dir='/private/tmp') as scratch:
+     scratch_path=Path(scratch);root=scratch_path/'root';root.mkdir();pair=scratch_path/'runtime';pair.mkdir()
+     (root/'testing/web-platform/tests/tools').mkdir(parents=True)
+     for relative in [policy['owner_directory']+'/assess.py','artifacts/css-minmax-relative-infinity-broader-browser-v5/assess.py',policy['wpt']['checks_helper']]:
+@@ -101,7 +103,7 @@
+     def record(name):inputs[name]=r.sha(pair/name);return r.read(pair/name)
+     ownership=SimpleNamespace(group_absent=lambda pgid:None)
+     def run(result):return observation.review(root,HERE,pair,policy,pre,result,build,record,inputs,ownership,lambda *args:r.validate_build_phase(*args,consumed_inputs=consumed))
+-    value=run(result);assert value['observation_complete'] and value['raw_counts']=={'FAIL':77};results.append('complete all77FAIL/12OK and genuine metadata/Zoom replay')
++    value=run(result);assert value['observation_complete'] and value['raw_counts']=={'FAIL':77};assert value['baseline_pass_callbacks']==[] and value['complete_signature_count']==89;assert len(value['target_states'])==24 and len(value['published_fix_case_states'])==8;results.append('complete all77FAIL/12OK and genuine metadata/Zoom replay')
+     original_digest=consumed[next(iter(consumed))]
+     consumed[next(iter(consumed))]='wrong-pin'
+     value=run(result);assert not value['observation_complete'] and value['raw_counts']=={'FAIL':77};results.append('wrong consumed-map digest rejected retaining all rows')
+@@ -125,6 +127,23 @@
+     value=run(failed);assert not value['observation_complete'] and not value['lanes']['ordinary']['resources_and_metadata_verified'];results.append('wrong manifest URL root rejected independently');config_file.write_bytes(saved_config)
+     assert r.summary_counts(value)=={'callbacks_passed':None,'callbacks_failed':None}
+     results.append('incomplete final summary preserves null counts')
++    states=observation.derive_baseline([],[],r.read(HERE/'TARGETS.json'),False,r.read(HERE/'PUBLISHED-CASES.json'))
++    assert states['baseline_pass_callbacks'] is None and all(not row['observed'] for row in states['target_states'])
++    rows=copy.deepcopy(all_rows)
++    for row in rows[:7]:row['status']='PASS'
++    states=observation.derive_baseline(rows,all_ends,r.read(HERE/'TARGETS.json'),True,r.read(HERE/'PUBLISHED-CASES.json'))
++    assert len(states['baseline_pass_callbacks'])==7 and states['complete_signature_count']==89
++    results.append('fresh PASS set derived without historical count; missing targets explicit')
++    states=observation.derive_baseline([all_rows[0],all_rows[0],{'action':'test_status'}],[],r.read(HERE/'TARGETS.json'),False,r.read(HERE/'PUBLISHED-CASES.json'))
++    assert states['baseline_pass_callbacks'] is None and len(states['ambiguous_callback_keys'])==1 and states['unkeyed_callback_count']==1
++    results.append('partial duplicate/unkeyed rows retained without selecting an ambiguous target')
++    mismatch={'repository':'root','before':{'raw_index':'a'},'after':{'raw_index':'b'},'changed_fields':['raw_index'],'verification_call':3}
++    r.validate_mismatch(mismatch,failed)
++    for changed,result_value in [(dict(mismatch,changed_fields=[]),failed),(mismatch,result)]:
++        try:r.validate_mismatch(changed,result_value)
++        except AssertionError:pass
++        else:raise AssertionError('invalid mismatch accepted')
++    results.append('actual mismatch schema retained; false fields/success rejected')
+     for path in HERE.glob('*.py'):compile(path.read_text(),str(path),'exec')
+ assert not scratch_path.exists()
+ print(json.dumps({'saved_owner_authenticated':True,'terminal_null':True,'cases':results,'owned_scratch_removed':True,'live_process_checks_mocked':True,'current_state_verifier_not_run':True}))

@@ -1,0 +1,151 @@
+--- artifacts/css-prioritary-selection-original-terminal-review-v2/review.py
++++ artifacts/css-prioritary-published-original-terminal-review-v1/review.py
+@@ -63,35 +63,56 @@
+     return binding.bind_inputs(str(here.relative_to(ROOT)), (here / "FILES.json").read_bytes(), manifest_sha256, external)
+ 
+ 
+-def authenticate():
++def authenticate(manifest=None):
+     config = read(HERE / "POLICY.json")
+     for name, expected in read(HERE / "REFERENCES.json").items():
+         assert sha(ROOT / name) == expected, name
+     owner = ROOT / config["owner_directory"]
+-    digest = config["owner_manifest_sha256"]
+-    if digest is None:
+-        assert not config["execution_enabled"] and config["actual_terminal"] is None
+-        digest = config["prepared_owner_manifest_sha256"]
+-    assert sha(owner / "FILES.json") == digest
+-    for name, pin in read(owner / "FILES.json").items():
+-        assert sha(owner / name) == (pin["sha256"] if isinstance(pin, dict) else pin)
++    for name, expected in read(HERE / "OWNER-CORE.json").items():
++        assert sha(owner / name) == expected, name
++    assert sha(HERE / "OWNER-PREPARED-FILES.json") == config["prepared_owner_manifest_sha256"]
++    manifest = manifest or config["owner_manifest_sha256"]
++    if manifest is not None:
++        assert sha(owner / "FILES.json") == manifest
++        for name, pin in read(owner / "FILES.json").items():
++            assert not Path(name).is_absolute() and '..' not in Path(name).parts
++            assert sha(owner / name) == pin["sha256"]
+     return config, owner
++
++
++def validate_mismatch(value, result):
++    if value is None:
++        return
++    assert result["success"] is False
++    assert value["repository"] in ("root", "nested")
++    assert type(value["verification_call"]) is int and value["verification_call"] > 0
++    before, after = value["before"], value["after"]
++    changed = sorted(k for k in before.keys() | after.keys() if before.get(k) != after.get(k))
++    assert changed and value["changed_fields"] == changed
+ 
+ 
+ def main():
+     parser = argparse.ArgumentParser()
+     parser.add_argument("--verify", action="store_true")
++    parser.add_argument("--owner-manifest")
++    parser.add_argument("--terminal")
++    parser.add_argument("--terminal-sha256")
+     args = parser.parse_args()
+-    config, here = authenticate()
++    config, here = authenticate(args.owner_manifest if args.verify else None)
+     if not args.verify:
+         print("Saved owner payloads authenticated; no runtime or live state read")
+         return
+-    assert config["execution_enabled"] and config["actual_terminal"] is not None
+-    assert config["owner_manifest_sha256"] is not None
+-    terminal = config["actual_terminal"]
+-    assert config["expected_session"] is not None and terminal["session"] == config["expected_session"]
+-    assert terminal["exit"] in (0, 1) and terminal["terminal_chunk"]
+-    assert config["expected_launch"] and terminal["launch_chunk"] == config["expected_launch"]
++    assert config["execution_enabled"]
++    assert args.owner_manifest == config["owner_manifest_sha256"] and args.terminal and args.terminal_sha256
++    terminal_path = ROOT / args.terminal
++    assert args.terminal.startswith('artifacts/') and '..' not in Path(args.terminal).parts
++    assert terminal_path.is_file() and not terminal_path.is_symlink()
++    assert sha(terminal_path) == args.terminal_sha256
++    terminal = read(terminal_path)
++    assert type(terminal["session"]) is int and terminal["session"] == config["expected_session"]
++    assert terminal["launch_chunk"] == config["expected_launch"]
++    assert terminal["exit"] in (0, 1) and terminal["terminal_chunk"] and terminal["launch_chunk"]
++    config["owner_manifest_sha256"] = args.owner_manifest
+     assert not config["mutations_allowed"] and not config["epoch_publication_allowed"]
+     assert not any(os.environ.get(k) for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"))
+     pair = ROOT / config["runtime_directory"]
+@@ -106,14 +127,21 @@
+     assert result["success"] == (terminal["exit"] == 0)
+     assert result["restoration_verified"] and result["runtime_controls_unchanged"] and result["empty_staging_preserved"]
+     assert result["native_fix_acceptance"] is False and result["publication_errors"] == []
+-    assert result["provider_source_role"] == "clean-original"
++    assert result["provider_source_role"] == "published-color-image-original"
+     assert (result["error"] is None) == result["success"]
+     baseline = load("terminal_baseline", here / "baseline.py")
+     policy, ownership, roles = baseline.prepare(config["owner_manifest_sha256"])
+     consumed_inputs = consumed_map(here, policy, roles, config["owner_manifest_sha256"])
+-    assert policy["runtime_output"] == config["runtime_directory"] and set(roles) == {"servo/components/style/custom_properties.rs"}
+-    assert result["build_revision"] == policy["head"]
+-    assert roles["servo/components/style/custom_properties.rs"]["candidate_sha256"] == policy["committed_source_preimages"]["servo/components/style/custom_properties.rs"]
++    assert policy["runtime_output"] == config["runtime_directory"]
++    assert policy["owner_directory"] == config["owner_directory"]
++    assert policy["current_binding"] == config["current_binding"]
++    capture = baseline.current_capture(policy)
++    assert capture["full_current_state_verified"] and capture["sources_match_head"]
++    assert result["build_revision"] == policy["head"] == capture["checkpoint"]["head"]
++    assert set(roles) == set(capture["sources"]) == set(read(here / "SOURCE-ROLES.json"))
++    for name, role in roles.items():
++        assert role["base_sha256"] == role["candidate_sha256"] == capture["sources"][name]["owned_sha256"]
++    assert policy["source_context_pins"]["servo/components/style/values/generics/calc.rs"] == capture["epoch_payload_pins"]["servo/components/style/values/generics/calc.rs"]
+     state = load("terminal_state", ROOT / policy["state_helper"])
+     bundle = load("terminal_bundle", ROOT / policy["bundle_helper"])
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1")
+@@ -121,10 +149,11 @@
+     restoration = record("RESTORATION.json")
+     backup = record("BACKUP-CLEANUP.json")
+     inventory = record("BACKUPS.json")
+-    assert pre["controls"] == policy["controls"]
++    assert pre["controls"] == policy["controls"] == capture["controls"]
++    assert pre["snapshot"] == capture["snapshot"]
+     assert restoration["errors"] == [] and restoration["owned_processes"] == {}
+     assert set(restoration["sources"]) == set(roles) == set(pre["sources"])
+-    admission = read(ROOT / policy["source_equivalence"]["path"])
++    admission = capture
+     for name, role in roles.items():
+         assert pre["sources"][name] == dict(role, identity=admission["sources"][name]["identity"])
+     build = record("original-build/build-RESULT.json")
+@@ -138,7 +167,9 @@
+     assert record("original-build/WAKE-RESULT.json")["owned_group_absent"]
+     for name in ("build-PROCESS.json", "WAKE-PROCESS.json"):
+         ownership.group_absent(record("original-build/" + name)["pgid"])
+-    lane_review = load("original74_observation_review", HERE / "observations.py")
++    mismatch = record("INTERMEDIATE-INDEX-MISMATCH.json") if (pair / "INTERMEDIATE-INDEX-MISMATCH.json").exists() else None
++    validate_mismatch(mismatch, result)
++    lane_review = load("published_observation_review", HERE / "observations.py")
+     validate = lambda *args: validate_build_phase(*args, consumed_inputs=consumed_inputs)
+     observation = lane_review.review(ROOT, HERE, pair, policy, pre, result, build, record, inputs, ownership, validate)
+     with (HERE / "RAW-REPLAY.json").open("x") as stream:
+@@ -162,10 +193,12 @@
+     metadata_helper = load("terminal_metadata", ROOT / policy["wpt"]["metadata_helper"])
+     app = metadata_helper.application_metadata(ROOT / policy["wpt"]["application_ini"], policy["restored_application_revision"])
+     omit = {"identity", "entry_identity"}
+-    assert {k:v for k,v in app.items() if k not in omit} == {k:v for k,v in policy["prepared_application_metadata"].items() if k not in omit}
++    assert {k:v for k,v in app.items() if k not in omit} == {k:v for k,v in capture["application_metadata"].items() if k not in omit}
+     for name, path in [("root", ROOT), ("nested", ROOT / "artifacts/css-spec-lean")]:
+-        assert hashlib.sha256(state.h.git(path, env, "ls-files", "-v", "-z")).hexdigest() == policy["prepared_flag_hashes"][name]
++        assert hashlib.sha256(state.h.git(path, env, "ls-files", "-v", "-z")).hexdigest() == capture["flag_hashes"][name]
++    baseline.require_app_inventory(policy, record("APP-PRE.json"), record("EXTRA-PRE.json"))
+     epoch = read(CONTROL / "CURRENT-EPOCH.json")
++    baseline.require_role(policy, read(CONTROL / "ROLE.json"), epoch)
+     raw_index = record("RAW-INDEX-OBSERVATION.json")
+     assert raw_index["semantic_index_unchanged"] and not raw_index["canonical_updated"]
+     assert raw_index["before"] == epoch["raw_index_observation"]["current"] == pre["snapshot"]["index"]["raw_index"]
+@@ -195,7 +228,9 @@
+               "restoration_independently_verified": True, "source_identities": restoration["sources"],
+               "restored_application_metadata": app, "raw_index_observation": raw_index,
+               "snapshot": snapshot, "backup": backup, "backup_deleted_by_reviewer": False,
+-              "canonical_updated": False, "native_acceptance": False}
++              "canonical_updated": False, "native_acceptance": False,
++              "intermediate_index_mismatch": mismatch, "current_capture": config["current_binding"],
++              "terminal_receipt": {"path": args.terminal, "sha256": args.terminal_sha256}}
+     with output.open("x") as stream:
+         json.dump(report, stream, indent=2, sort_keys=True)
+         stream.write("\n")

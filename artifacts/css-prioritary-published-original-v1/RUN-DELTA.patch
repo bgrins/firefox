@@ -1,0 +1,70 @@
+--- a/run.py
++++ b/run.py
+@@ -44,7 +44,7 @@
+     closure = load('owner_consumed_closure', str((HERE / 'closure.py').relative_to(ROOT)))
+     closure.require_epoch_coverage(original, policy)
+     consumed_inputs = input_binding.bind_inputs(str(HERE.relative_to(ROOT)), (HERE / 'FILES.json').read_bytes(), sys.argv[2], policy['intermediate_consumed_inputs'])
+-    assert original_before == read(ROOT / policy["restoration_binding"]["directory"] / "ROOT-REVIEW.json")["snapshot"]
++    assert original_before == baseline.current_capture(policy)["snapshot"]
+     output = ROOT / policy['runtime_output']
+     assert output.parent == ROOT / 'artifacts' and not output.exists() and not output.is_symlink()
+     output.mkdir()
+@@ -73,6 +73,7 @@
+     app = ROOT / policy['bundle_path']
+     app_before = bundle.scan(app)
+     extra_before = {name: bundle.entry(ROOT / name) for name in policy['extra_backup_paths']}
++    baseline.require_app_inventory(policy, app_before, extra_before)
+     assert all(record['kind'] == 'file' for record in extra_before.values())
+     assert all(bundle.entry(ROOT / name)['kind'] == 'file' and bundle.entry(ROOT / name)['nlink'] == 1 for name in policy['rebuilt_binaries'])
+     assert all(name not in original['installed_identities'] for name in policy['rebuilt_binaries'])
+@@ -97,7 +98,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'prioritary-selection-original77-v3'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'prioritary-published-original77-v1'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+@@ -116,7 +117,9 @@
+         for record in accepted.values():
+             if record['path'] not in roles:
+                 ownership.claim(ROOT, record['path'], record['owned_sha256'], record['identity'])
++    verification_calls = [0]
+     def candidate_verify():
++        verification_calls[0] += 1
+         stable_controls()
+         local = copy.deepcopy(epoch)
+         for name, record in roles.items():
+@@ -134,7 +137,11 @@
+         assert all(index[key] == epoch['semantic_index'][key] for key in ('head', 'entries', 'cached_diff'))
+         local['semantic_index'] = state.h.semantic_index(index)
+         local['raw_index_observation']['current'] = index['raw_index']
+-        verified = intermediate.verify_intermediate(state.h, ROOT, env, local, consumed_inputs)
++        def record_index_mismatch(value):
++            state.save(output / 'INTERMEDIATE-INDEX-MISMATCH.json',
++                       dict(value, verification_call=verification_calls[0]))
++        verified = intermediate.verify_intermediate(
++            state.h, ROOT, env, local, consumed_inputs, record_index_mismatch)
+         assert verified['nested_index'] == before['nested_index']
+         for name, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]:
+             assert state.h.git(path, env, 'ls-files', '-v', '-z') == flags[name]
+@@ -143,7 +150,7 @@
+         stable_controls()
+         for name in roles:
+             touched.append(name)
+-            ownership.write_owned(ROOT, claims[name], candidates[name])
++            assert bases[name] == candidates[name] and sha(ROOT / name) == roles[name]["base_sha256"]
+         build = output / 'original-build'
+         build.mkdir()
+         command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'build', 'binaries', '-j2']
+@@ -170,7 +177,8 @@
+                 stable_controls()
+                 for name in reversed(touched):
+                     try:
+-                        ownership.write_owned(ROOT, claims[name], bases[name])
++                        if sha(ROOT / name) != roles[name]["base_sha256"]:
++                            ownership.write_owned(ROOT, claims[name], bases[name])
+                     except BaseException as exc:
+                         restoration_errors.append(name + ': ' + repr(exc))
+                 app_after = bundle.scan(app)

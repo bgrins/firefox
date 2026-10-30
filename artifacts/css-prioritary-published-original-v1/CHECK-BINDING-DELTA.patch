@@ -1,0 +1,14 @@
+--- a/check.py
++++ b/check.py
+@@ -24,6 +24,11 @@
+ def validate_capture(policy, capture, roles):
+     assert capture['full_current_state_verified'] is True and capture['source_transition_lock_absent'] is True
+     assert capture['published_image_ancestor_verified'] is True and capture['sources_match_head'] is True
++    prepared = policy['prepared_binding']
++    directory = ROOT / prepared['directory']
++    assert sha(directory / 'FILES.json') == prepared['manifest_sha256'] == capture['prepared_manifest_sha256']
++    for name, row in read(directory / 'FILES.json').items():
++        assert sha(directory / name) == row['sha256'] and (directory / name).stat().st_size == row['bytes']
+     checkpoint = capture['checkpoint']
+     receipt = capture['checkpoint_receipt']
+     assert sha(ROOT / receipt['path']) == receipt['sha256']

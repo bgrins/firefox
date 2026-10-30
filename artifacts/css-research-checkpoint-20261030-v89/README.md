@@ -1,0 +1,17 @@
+# Published CSS baseline research checkpoint V89, disabled
+
+This research-only checkpoint selects 261 new regular files (9,275,388 bytes), plus nine self files, from six explicitly listed package closures and exact completed receipts. It includes the prepared and executed published-source original77 owner, its current capture and activation, all regular frozen runtime files, the terminal reviewer and actual replay/restoration outputs, the forced-lane comparison, failure matrix, roadmap V116, untracked audit V24 and V88 postcommit receipts. Runtime tool symlinks, binaries, unrelated untracked files, historical recursive references and the unfinished published-candidate draft are excluded. No V88 selected or self payload is selected again.
+
+The fresh baseline records64 PASS/13 FAIL and12 OK endings;24 repair targets split12 PASS/12 FAIL. The failure matrix distinguishes twelve selected-declaration targets from the existing expected-FAIL test51. Eleven failing targets have PASS counterparts in the historical partial V4 experiment; Appearance was unexecuted there. The new published-base selection proposal still requires complete native candidate validation. This checkpoint records no native fix, accepted-fix increment or application rebuild. It preserves the four published native fixes and their existing source/application role distinction.
+
+The signer and capture helper reuse executed V88. `capture_current.py` is byte-identical. `RUN-DELTA.patch` changes only the disabled execution gate, version labels and commit subject. The private-index construction, exact staged blobs/tree/parent checks, signature verification, failure preservation, lock ownership and canonical epoch-update tail remain unchanged except the temporary prefix and commit message. Full current-state verification checks native/application identities, all archived research payloads, index and canonical controls. No reduced intermediate guard, unsigned fallback, push or automatic retry is introduced.
+
+Actual read-only capture59246/18f7d4/057051/0 verifies full current state at signed HEAD42cc9997e71cabd8afbcceb3ef6bc73675413f70 and epoch88e7542fb13bd05fba7334630ed7caf828b540f1833f06d037bea34f808f56b7. Staged and tracked modified path sets are empty, the transition lock is absent and canonical controls remained unchanged. The signed V88 receipt authenticates this HEAD/epoch; --check independently verifies the Git signature. Saved check03eb70/0 authenticated all261 selected bodies and six closures, checked zero V88 selection/self overlap and exact V88 publication-tail equality, rejected six wrong receipt/current-state bindings and disabled execution, and removed its scratch. It performed no Git, signing or current-state verification. The initial/final live checks and signing are root-owned. Firefox commit/reviewer skills were read; the existing approved No bug research convention and exact style-system reviewer group are retained.
+
+Root already ran the read-only capture:
+
+```
+python3 -I -S -B artifacts/css-research-checkpoint-20261030-v89/capture_current.py
+```
+
+After saved checks, review and sealing, root runs `commit.py --check`. Only root may preserve disabled preimages, enable EXECUTION_ENABLED, reseal and execute `--run` once. Result/signature/signing output is created after the commit and cannot be included in that same checkpoint. Preparation performs no Git, native, application, index or canonical-control mutation.

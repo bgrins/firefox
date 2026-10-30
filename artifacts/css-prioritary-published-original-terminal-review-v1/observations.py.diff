@@ -1,0 +1,39 @@
+--- artifacts/css-prioritary-selection-original-terminal-review-v2/observations.py
++++ artifacts/css-prioritary-published-original-terminal-review-v1/observations.py
+@@ -23,6 +23,29 @@
+ def counts(rows):
+     return {status:sum(row.get('status')==status for row in rows) for status in sorted({row.get('status') for row in rows if isinstance(row.get('status'),str)})}
+ 
++
++
++def derive_baseline(rows, endings, targets, complete, published_cases):
++    keyed = [row for row in rows if isinstance(row.get('test'), str) and isinstance(row.get('subtest'), str)]
++    keys = [(row['test'], row['subtest']) for row in keyed]
++    ambiguous = {key for key in keys if keys.count(key) != 1}
++    if complete:
++        assert len(keys) == len(rows) and not ambiguous
++    wanted = [(page, name) for page, names in targets.items() for name in names]
++    assert len(wanted) == len(set(wanted)) == 24
++    by_key = {key:row for key,row in zip(keys,keyed) if key not in ambiguous}
++    target_states = [{'test':page, 'subtest':name, 'observed':(page,name) in keys, 'ambiguous':(page,name) in ambiguous,
++                      'row':by_key.get((page,name))} for page,name in wanted]
++    if complete:
++        assert len(rows) == 77 and len(endings) == 12 and set(wanted) <= set(keys)
++    published = [(page,name) for page,names in published_cases.items() for name in names]
++    assert len(published) == len(set(published)) == 8
++    if complete:
++        assert set(published) <= set(keys)
++    published_states = [{'test':page, 'subtest':name, 'observed':(page,name) in keys, 'ambiguous':(page,name) in ambiguous,
++                         'row':by_key.get((page,name))} for page,name in published]
++    return {'ambiguous_callback_keys':[{'test':page,'subtest':name} for page,name in sorted(ambiguous)], 'unkeyed_callback_count':len(rows)-len(keyed), 'published_fix_case_states':published_states, 'baseline_pass_callbacks': sorted([{'test':row['test'], 'subtest':row['subtest']} for row in rows if row['status']=='PASS'], key=lambda row:(row['test'],row['subtest'])) if complete else None,
++            'target_states':target_states, 'complete_signature_count':len(rows)+len(endings) if complete else None}
+ 
+ def review(root,here,pair,policy,pre,result,build,record,inputs,ownership,validate_build_phase):
+     owner=root/policy['owner_directory']
+@@ -159,4 +182,5 @@
+     if not result['success']:
+         assert result['phase'] is None
+         assert record('FAILURE-TRACEBACK.json')['error']==result['error']
+-    return {'lanes':lanes,'browser_executed':True if any(lane['browser_executed'] is True for lane in lanes.values()) else None if any(lane['wpt_process_started'] for lane in lanes.values()) else False,'observation_complete':complete,'build_exit':build['exit'],'raw_rows':all_rows,'raw_endings':all_ends,'raw_counts':counts(all_rows),'outcomes':outcome,'errors':errors,'native_acceptance':False,'zoom_target_correctness':None}
++    derived=derive_baseline(all_rows,all_ends,read(here/'TARGETS.json'),complete,read(here/'PUBLISHED-CASES.json'))
++    return dict(derived, **{'lanes':lanes,'browser_executed':True if any(lane['browser_executed'] is True for lane in lanes.values()) else None if any(lane['wpt_process_started'] for lane in lanes.values()) else False,'observation_complete':complete,'build_exit':build['exit'],'raw_rows':all_rows,'raw_endings':all_ends,'raw_counts':counts(all_rows),'outcomes':outcome,'errors':errors,'native_acceptance':False,'zoom_target_correctness':None})

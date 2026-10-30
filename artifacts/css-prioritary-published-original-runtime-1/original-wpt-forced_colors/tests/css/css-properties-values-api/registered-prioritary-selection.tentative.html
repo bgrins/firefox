@@ -1,0 +1,116 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered dependency selection through variable winners and rollback</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#dependency-cycles">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#cascade-sort">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/__research__/zoom/record.js"></script>
+<body>
+<pre id="observations" hidden></pre>
+<script>
+window.prioritaryObservations = [];
+for (const kind of ["winning-variable", "fallback-revert", "fallback-revert-layer",
+  "fallback-revert-rule", "active-cycle", "font-family-ordering", "writing-mode-ordering", "zoom-observation"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => { frame.onload = resolve; });
+    frame.srcdoc = "<!doctype html><body><div id='parent'><div class='target'></div><div id='reference'></div></div>";
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    win.CSS.registerProperty({name: "--actual", syntax: "<length>", inherits: false, initialValue: "0px"});
+    const target = doc.querySelector(".target");
+    const reference = doc.getElementById("reference");
+    const initial = win.getComputedStyle(target).getPropertyValue("--actual").trim();
+    const sheet = doc.createElement("style");
+    doc.head.append(sheet);
+    const row = {kind, initial, phases: [], diagnosticOnly: kind === "zoom-observation"};
+    window.prioritaryObservations.push(row);
+    for (const phase of [0, 1]) {
+      const parentFont = phase === 0 ? 11 : 17;
+      const size = phase === 0 ? 20 : 30;
+      const line = phase === 0 ? 10 : 15;
+      let expected = `${size * 2}px`;
+      let expectedFont = `${size}px`;
+      let value = "2em";
+      let rules;
+      switch (kind) {
+        case "winning-variable":
+          rules = `.target { font-size:var(--actual) } .target { --size:${size}px; font-size:var(--size) }`;
+          break;
+        case "fallback-revert":
+          rules = ".target { font-size:var(--actual) } .target { font-size:var(--missing,revert) }";
+          expected = `${parentFont * 2}px`;
+          expectedFont = `${parentFont}px`;
+          break;
+        case "fallback-revert-layer":
+          rules = `@layer lower,upper; @layer lower { .target { font-size:${size}px } }
+            @layer upper { .target { font-size:var(--actual) } .target { font-size:var(--missing,revert-layer) } }`;
+          break;
+        case "fallback-revert-rule":
+          rules = `.target { font-size:var(--actual) } .target { font-size:${size}px }
+            .target { font-size:var(--missing,revert-rule) }`;
+          break;
+        case "active-cycle":
+          rules = ".target { font-size:var(--actual) }";
+          expected = "0px";
+          expectedFont = `${parentFont}px`;
+          break;
+        case "font-family-ordering":
+          value = "1em";
+          rules = `.target { font-size:${size}px; font-family:var(--actual) }`;
+          expected = `${size}px`;
+          break;
+        case "writing-mode-ordering":
+          value = "1lh";
+          rules = `.target { font-size:${size}px; line-height:${line}px; writing-mode:var(--actual) }`;
+          expected = `${line}px`;
+          break;
+        case "zoom-observation":
+          value = "1em";
+          rules = `.target { font-size:${size}px; zoom:calc(var(--actual) / 1px) }`;
+          expected = null;
+          expectedFont = null;
+          break;
+      }
+      sheet.textContent = `#parent { font-size:${parentFont}px; line-height:19px; font-family:monospace; writing-mode:horizontal-tb }
+        .target { --actual:${value} }
+        #reference { font-size:${size}px; width:${size * 2}px; line-height:${line}px; zoom:1 }
+        ${rules}`;
+      const samples = [win.getComputedStyle(target).getPropertyValue("--actual").trim()];
+      for (let index = 0; index < 3; index++) {
+        await new Promise(resolve => win.requestAnimationFrame(resolve));
+        samples.push(win.getComputedStyle(target).getPropertyValue("--actual").trim());
+      }
+      const actual = win.getComputedStyle(target);
+      const control = win.getComputedStyle(reference);
+      row.phases.push({phase, value, samples, expected, expectedFont, font:actual.fontSize,
+        line:actual.lineHeight, family:actual.fontFamily, writingMode:actual.writingMode, zoom:actual.zoom,
+        referenceFont:control.fontSize, referenceWidth:control.width, size,
+        keywordSupported: !kind.startsWith("fallback-") || win.CSS.supports("font-size", kind.slice(9)),
+        zoomSyntaxSupported: win.CSS.supports("zoom", "calc(20px / 1px)")});
+      document.getElementById("observations").textContent = JSON.stringify(window.prioritaryObservations);
+    }
+    if (row.diagnosticOnly) await window.capturePrioritaryZoom(row);
+    const diagnostic = JSON.stringify(row);
+    assert_equals(initial, "0px", `Registration calibration: ${diagnostic}`);
+    for (const phase of row.phases) {
+      assert_true(phase.keywordSupported, `Rollback syntax: ${diagnostic}`);
+      assert_equals(phase.referenceFont, `${phase.size}px`, `Literal font calibration: ${diagnostic}`);
+      assert_equals(phase.referenceWidth, `${phase.size * 2}px`, `Literal length calibration: ${diagnostic}`);
+      if (row.diagnosticOnly) {
+        assert_true(phase.zoomSyntaxSupported, `Zoom syntax calibration: ${diagnostic}`);
+        assert_equals(phase.samples.length, 4, `Diagnostic collection only: ${diagnostic}`);
+        continue;
+      }
+      assert_equals(phase.font, phase.expectedFont, `Effective font size: ${diagnostic}`);
+      if (kind === "font-family-ordering") assert_equals(phase.family, "monospace", diagnostic);
+      if (kind === "writing-mode-ordering") assert_equals(phase.writingMode, "horizontal-tb", diagnostic);
+      for (const sample of phase.samples) assert_equals(sample, phase.expected, diagnostic);
+    }
+  }, `Prioritary selection preservation: ${kind}`);
+}
+</script>
