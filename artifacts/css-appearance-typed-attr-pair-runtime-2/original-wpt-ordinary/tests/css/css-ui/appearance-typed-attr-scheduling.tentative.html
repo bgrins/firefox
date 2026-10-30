@@ -1,0 +1,71 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Typed attribute values during font dependency computation</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<link rel="help" href="https://drafts.csswg.org/css-ui-4/#appearance-switching">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<pre id="observations" hidden></pre>
+<script>
+window.appearanceAttrObservations = [];
+for (const mode of ["variable-length", "literal-length", "missing-attribute", "font-family-literal-attribute"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    frame.srcdoc = '<!doctype html><style></style><button id="target">Target</button><div id="reference"></div><div id="attr-reference"></div>';
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    document.body.append(frame);
+    t.add_cleanup(() => frame.remove());
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    const target = doc.getElementById("target");
+    const reference = doc.getElementById("reference");
+    const attrReference = doc.getElementById("attr-reference");
+    const family = mode === "font-family-literal-attribute";
+    assert_true(win.CSS.supports("appearance", "attr(data-length type(<length>), auto)"), "typed attr syntax");
+    assert_true(win.CSS.supports("font-family", "attr(data-font type(<custom-ident>), serif)"), "typed family syntax");
+    win.CSS.registerProperty({name: "--len", syntax: "<length>", inherits: false, initialValue: "0px"});
+    const row = {mode, initial: win.getComputedStyle(target).getPropertyValue("--len"), phases: []};
+    for (const size of [20, 30]) {
+      const expectedAppearance = mode === "missing-attribute" ? "auto" : "none";
+      if (mode === "variable-length") target.setAttribute("data-length", "var(--len)");
+      if (mode === "literal-length") target.setAttribute("data-length", `${size}px`);
+      target.setAttribute("data-font", "monospace");
+      attrReference.setAttribute("data-length", "var(--len)");
+      doc.querySelector("style").textContent = `
+        #target { --len: 1em; font-size: ${size}px;
+          appearance: ${family ? "none" : "attr(data-length type(<length>), auto)"};
+          font-family: ${family ? "attr(data-font type(<custom-ident>), serif)" : "serif"}; }
+        #reference { width: ${size}px; appearance: ${expectedAppearance}; font-family: monospace; }
+        #attr-reference { --len: ${size}px; width: attr(data-length type(<length>), 0px); }`;
+      const samples = [win.getComputedStyle(target).getPropertyValue("--len")];
+      for (let i = 0; i < 3; ++i) {
+        await new Promise(resolve => win.requestAnimationFrame(resolve));
+        samples.push(win.getComputedStyle(target).getPropertyValue("--len"));
+      }
+      const computed = win.getComputedStyle(target);
+      const control = win.getComputedStyle(reference);
+      row.phases.push({size, samples, appearance: computed.appearance,
+        fontSize: computed.fontSize, fontFamily: computed.fontFamily,
+        referenceAppearance: control.appearance, referenceFamily: control.fontFamily,
+        referenceWidth: control.width, attrReferenceWidth: win.getComputedStyle(attrReference).width});
+    }
+    window.appearanceAttrObservations.push(row);
+    document.getElementById("observations").textContent = JSON.stringify(window.appearanceAttrObservations);
+    const diagnostic = JSON.stringify(row);
+    assert_equals(row.initial, "0px", diagnostic);
+    for (const phase of row.phases) {
+      const px = `${phase.size}px`;
+      assert_equals(phase.referenceWidth, px, diagnostic);
+      assert_equals(phase.attrReferenceWidth, px, diagnostic);
+      assert_equals(phase.referenceAppearance, mode === "missing-attribute" ? "auto" : "none", diagnostic);
+      assert_equals(phase.referenceFamily, "monospace", diagnostic);
+      assert_equals(phase.fontSize, px, diagnostic);
+      for (const sample of phase.samples) assert_equals(sample, px, diagnostic);
+      assert_equals(phase.appearance, mode === "missing-attribute" ? "auto" : "none", diagnostic);
+      assert_equals(phase.fontFamily, family ? "monospace" : "serif", diagnostic);
+    }
+  }, `Typed attribute scheduling: ${mode}`);
+}
+</script>

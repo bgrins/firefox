@@ -1,0 +1,65 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -960,6 +960,15 @@
+         );
+         loop {
+             let decl = decls.longhand_declarations[index as usize];
++            if self.longhand_is_eligible(context.included_cascade_flags, longhand_id, decl.priority)
++                && let PropertyDeclaration::WithVariables(value) = decl.decl
++            {
++                Self::prepare_literal_priority_attributes(
++                    context,
++                    &value.value.variable_value,
++                    attr_provider,
++                );
++            }
+             self.apply_one_longhand(
+                 context,
+                 longhand_id,
+@@ -982,6 +991,46 @@
+             index = decl.next_index;
+             if index == 0 {
+                 return;
++            }
++        }
++    }
++
++    fn prepare_literal_priority_attributes(
++        context: &mut computed::Context,
++        value: &VariableValue,
++        attribute_tracker: &mut AttributeTracker,
++    ) {
++        for reference in &value.references.refs {
++            if !reference.is_attr_with_type() {
++                continue;
++            }
++            let Some(namespace) = reference.attribute_data.namespace() else {
++                continue;
++            };
++            if context
++                .builder
++                .substitution_functions
++                .contains_attr(&reference.name, namespace)
++            {
++                continue;
++            }
++            let Ok(parsed) = get_attr_value_for_cycle_resolution(
++                &reference.name,
++                &reference.attribute_data,
++                &value.url_data,
++                attribute_tracker,
++            ) else {
++                continue;
++            };
++            if parsed
++                .as_universal()
++                .is_some_and(|value| !value.has_references())
++            {
++                context.builder.substitution_functions.insert_attr(
++                    &reference.name,
++                    namespace,
++                    parsed,
++                );
+             }
+         }
+     }

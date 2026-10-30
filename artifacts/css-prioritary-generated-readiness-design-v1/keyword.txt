@@ -1,0 +1,55 @@
+ 563: pub struct KeywordInfo {
+ 564:     /// The keyword used
+ 565:     pub kw: FontSizeKeyword,
+ 566:     /// A factor to be multiplied by the computed size of the keyword
+ 567:     #[css(skip)]
+ 568:     pub factor: f32,
+ 569:     /// An additional fixed offset to add to the kw * factor in the case of
+ 570:     /// `calc()`.
+ 571:     #[css(skip)]
+ 572:     pub offset: CSSPixelLength,
+ 573: }
+ 574: 
+ 575: impl KeywordInfo {
+ 576:     /// KeywordInfo value for font-size: medium
+ 577:     pub fn medium() -> Self {
+ 578:         Self::new(FontSizeKeyword::Medium)
+ 579:     }
+ 580: 
+ 581:     /// KeywordInfo value for font-size: none
+ 582:     pub fn none() -> Self {
+ 583:         Self::new(FontSizeKeyword::None)
+ 584:     }
+ 585: 
+ 586:     fn new(kw: FontSizeKeyword) -> Self {
+ 587:         KeywordInfo {
+ 588:             kw,
+ 589:             factor: 1.,
+ 590:             offset: CSSPixelLength::new(0.),
+ 591:         }
+ 592:     }
+ 593: 
+ 594:     /// Computes the final size for this font-size keyword, accounting for
+ 595:     /// text-zoom.
+ 596:     fn to_computed_value(&self, context: &Context) -> CSSPixelLength {
+ 597:         debug_assert_ne!(self.kw, FontSizeKeyword::None);
+ 598:         #[cfg(feature = "gecko")]
+ 599:         debug_assert_ne!(self.kw, FontSizeKeyword::Math);
+ 600:         let base = context.maybe_zoom_text(self.kw.to_length(context).0);
+ 601:         let zoom_factor = context.style().effective_zoom.value();
+ 602:         CSSPixelLength::new(base.px() * self.factor * zoom_factor)
+ 603:             + context.maybe_zoom_text(self.offset)
+ 604:     }
+ 605: 
+ 606:     /// Given a parent keyword info (self), apply an additional factor/offset to
+ 607:     /// it.
+ 608:     fn compose(self, factor: f32) -> Self {
+ 609:         if self.kw == FontSizeKeyword::None {
+ 610:             return self;
+ 611:         }
+ 612:         KeywordInfo {
+ 613:             kw: self.kw,
+ 614:             factor: self.factor * factor,
+ 615:             offset: self.offset * factor,
+ 616:         }
+ 617:     }

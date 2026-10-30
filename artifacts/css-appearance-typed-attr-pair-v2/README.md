@@ -1,0 +1,17 @@
+# Portable typed-attribute paired observation
+
+This disabled owner reuses the executed publication-pair v2 lifecycle for exactly four callbacks on one ordinary WPT page. The sealed fixture is copied unchanged, with no preferences, Mozilla callbacks, Zoom capture, custom transport or instrumented source role. Both builds use the same signed research HEAD. The saved fresh capture authenticates signed V93 HEAD `0217759e518c6c234b50f74250bd31ae3c4c26be` and its current state; no outcome is predicted.
+
+One owned application backup spans the published original build and selected-declaration candidate build. Only the candidate cascade differs; provider and registered-value bytes preserve the published color/image fixes. All three source identities and the original application/extras are restored. The restored application remains the historical build described by the fresh capture, not either experimental build.
+
+The candidate independently replays its local original raw records and build/source/binary/application metadata. Complete original FAILs remain observations. The observation gate requires all four candidate callbacks PASS and exact preservation of original PASS and page-ending signatures. Role-specific BuildID/revision values are authenticated before comparison. A false gate does not discard completed observations or bypass restoration. Native acceptance remains false.
+
+The earlier 28 publication cases and five Mozilla diagnostics remain separately pinned evidence: publication gate true, diagnostic and combined gates false. The earlier 77-case evidence is also retained as a prerequisite. None is rerun or counted as a result of this four-case pair. Conditional native tracing will require a separately identified source role and is not part of this owner.
+
+Full initial/final archive, semantic index, root/nested flags, installed source identities, canonical controls, metadata absences, application/extras inventories, process cleanup and strict intermediate diagnostic checks are inherited. The 27 GiB post-backup/start floor, 15 GiB running floor, two build jobs and 1,800-second build cap remain. Execution remeasures disk. Incomplete lanes preserve available raw evidence; owned backups are removed only after complete observation and verified restoration.
+
+Both execution gates remain false. Root authenticates the final manifest and uses `python3 -I -S -B artifacts/css-appearance-typed-attr-pair-v2/run.py --check MANIFEST_SHA`; only a subsequently activated exact manifest may be passed to `--run ACTIVE_MANIFEST_SHA`. Saved checks cover the exact roster, staged input bytes, complete FAIL retention, nonempty differences, metadata/role/revision/platform/setup/ending and full-signature negatives. The saved checker also exercises both build roles and local original raw replay, including six altered build/source/metadata/raw negatives. No native or browser execution has occurred from this package.
+
+This successor retains all execution and restoration helpers byte-for-byte from sealed portable pair v1. Only owner/runtime paths, current HEAD/capture/receipt and corresponding saved-check literals change. Both gates remain disabled pending root activation; no intervening checkpoint is part of this pair.
+
+Fresh capture `46955/80faf2/9e40a9/0` is pinned with its root terminal receipt. It authenticates current V93 controls and source/application identities independently of the historical v1 capture.

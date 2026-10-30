@@ -1,0 +1,9 @@
+# Installed release portable observation
+
+Root executes `python3 -I -S -B artifacts/css-appearance-typed-attr-installed-release-v1/run.py --run` after the pinned native-pair live restoration. Output is exclusively created at css-appearance-typed-attr-installed-release-runtime-1. The exact existing four-case staged config/resources are read-only. No app/build/source/index/canonical mutation is requested.
+
+The installed Firefox 158 binary runs under standard WPT automation with explicit stable channel (excluding unittest-features), no feature override or font installation, a new empty run-info directory and a fresh owned temporary/profile root. This is a harness-configured installed release, not untouched default-profile behavior. Before/after critical app bytes and identities include Firefox, XUL, Info.plist, application.ini and platform.ini. Raw BuildID must join that installed application; branch build metadata is not reused.
+
+The runner samples user.js and prefs.js from its owned temporary tree while the process runs and saves every observed distinct body. These are actual sampled profile preferences, not a claim that every transient write was captured. Profile input hashes are also retained. Existing process-group cleanup and 180-second watchdog are reused; only the exact owned temporary identity is removed after group absence. Raw callback FAILs remain complete observations. Syntax/registration/independent typed-width failures require capability triage and are not automatically the same scheduling bug. No native acceptance is reported.
+
+This compact script was syntax checked only; actual launch is root-owned. An unavailable app/fixture/profile prerequisite or incomplete report is a failed observation and retains available evidence. Root launched session62591/434c4b after reviewing the final code; terminal and outcomes remain pending at sealing.

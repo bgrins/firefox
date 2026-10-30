@@ -1,0 +1,96 @@
+ 902:     pub fn to_computed_value_against(
+ 903:         &self,
+ 904:         context: &Context,
+ 905:         base_size: FontBaseSize,
+ 906:         line_height_base: LineHeightBase,
+ 907:     ) -> computed::FontSize {
+ 908:         let compose_keyword = |factor| {
+ 909:             context
+ 910:                 .style()
+ 911:                 .get_parent_font()
+ 912:                 .slow_clone_font_size()
+ 913:                 .keyword_info
+ 914:                 .compose(factor)
+ 915:         };
+ 916:         let mut info = KeywordInfo::none();
+ 917:         let size =
+ 918:             match *self {
+ 919:                 FontSize::Length(LengthPercentage::Length(ref l)) => {
+ 920:                     if l.length_unit() == LengthUnit::Em {
+ 921:                         // If the parent font was keyword-derived, this is
+ 922:                         // too. Tack the em unit onto the factor
+ 923:                         info = compose_keyword(l.unitless_value());
+ 924:                     }
+ 925:                     let result =
+ 926:                         l.to_computed_value_with_base_size(context, base_size, line_height_base);
+ 927:                     if l.should_zoom_text() {
+ 928:                         context.maybe_zoom_text(result)
+ 929:                     } else {
+ 930:                         result
+ 931:                     }
+ 932:                 },
+ 933:                 FontSize::Length(LengthPercentage::Percentage(pc)) => {
+ 934:                     // If the parent font was keyword-derived, this is too.
+ 935:                     // Tack the % onto the factor
+ 936:                     info = compose_keyword(pc.get());
+ 937:                     (base_size.resolve(context).computed_size() * pc.get()).normalized()
+ 938:                 },
+ 939:                 FontSize::Length(LengthPercentage::Calc(ref calc)) => {
+ 940:                     let calc = calc.to_computed_value_zoomed(context, base_size, line_height_base);
+ 941:                     calc.resolve(base_size.resolve(context).computed_size())
+ 942:                 },
+ 943:                 FontSize::Keyword(i) => {
+ 944:                     if i.kw.is_math() {
+ 945:                         // Scaling is done in recompute_math_font_size_if_needed().
+ 946:                         info = compose_keyword(1.);
+ 947:                         // i.kw will always be FontSizeKeyword::Math here. But writing it this
+ 948:                         // allows this code to compile for servo where the Math variant is cfg'd out.
+ 949:                         info.kw = i.kw;
+ 950:                         NoCalcLength::from_em(1.).to_computed_value_with_base_size(
+ 951:                             context,
+ 952:                             base_size,
+ 953:                             line_height_base,
+ 954:                         )
+ 955:                     } else {
+ 956:                         // As a specified keyword, this is keyword derived
+ 957:                         info = i;
+ 958:                         i.to_computed_value(context).clamp_to_non_negative()
+ 959:                     }
+ 960:                 },
+ 961:                 FontSize::Smaller => {
+ 962:                     info = compose_keyword(1. / LARGER_FONT_SIZE_RATIO);
+ 963:                     NoCalcLength::from_em(1. / LARGER_FONT_SIZE_RATIO)
+ 964:                         .to_computed_value_with_base_size(context, base_size, line_height_base)
+ 965:                 },
+ 966:                 FontSize::Larger => {
+ 967:                     info = compose_keyword(LARGER_FONT_SIZE_RATIO);
+ 968:                     NoCalcLength::from_em(LARGER_FONT_SIZE_RATIO).to_computed_value_with_base_size(
+ 969:                         context,
+ 970:                         base_size,
+ 971:                         line_height_base,
+ 972:                     )
+ 973:                 },
+ 974:                 FontSize::System(_) => {
+ 975:                     #[cfg(feature = "servo")]
+ 976:                     {
+ 977:                         unreachable!()
+ 978:                     }
+ 979:                     #[cfg(feature = "gecko")]
+ 980:                     {
+ 981:                         context
+ 982:                             .cached_system_font
+ 983:                             .as_ref()
+ 984:                             .unwrap()
+ 985:                             .font_size
+ 986:                             .computed_size()
+ 987:                             .zoom(context.builder.effective_zoom)
+ 988:                     }
+ 989:                 },
+ 990:             };
+ 991:         let size = NonNegative(Self::quantize_font_size(size));
+ 992:         computed::FontSize {
+ 993:             computed_size: size,
+ 994:             used_size: size,
+ 995:             keyword_info: info,
+ 996:         }
+ 997:     }

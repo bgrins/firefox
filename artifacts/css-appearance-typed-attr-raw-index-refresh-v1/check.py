@@ -1,0 +1,48 @@
+import copy
+import importlib.util
+import json
+from pathlib import Path
+import sys
+
+assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+sys.dont_write_bytecode=True
+HERE=Path(__file__).resolve().parent
+spec=importlib.util.spec_from_file_location('refresh',HERE/'run.py')
+m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+p=m.read(HERE/'POLICY.json')
+assert not p['execution_enabled']
+pending = any(not p.get(k) for k in ('reviewer', 'review', 'live_audit', 'live_audit_terminal', 'runtime_manifest_sha256', 'owner_terminal', 'live_audit_process'))
+if pending:
+ try:m.saved(p)
+ except AssertionError:pass
+ else:raise AssertionError('pending admission accepted')
+ runtime=m.ROOT/p['runtime']
+ pre=m.read(runtime/'PAIR-PRE.json');post=m.read(runtime/'POST.json');raw=m.read(runtime/'RAW-INDEX-OBSERVATION.json')
+else:
+ owner,review,pre,post,raw=m.saved(p)
+epoch={'semantic_index':{k:v for k,v in pre['snapshot']['index'].items() if k!='raw_index'},'raw_index_observation':{'current':raw['before'],'sentinel':'retained'},'pins':{'sentinel':'unchanged'},'counts':{'sentinel':1}}
+updated=m.derive(epoch,pre['snapshot'],post,raw)
+expected=copy.deepcopy(epoch);expected['raw_index_observation']['current']=raw['after']
+assert updated==expected and epoch['raw_index_observation']['current']==raw['before']
+negative=0
+for key,value in [('before','wrong'),('after','wrong'),('semantic_index_unchanged',False),('canonical_updated',True)]:
+ changed=copy.deepcopy(raw);changed[key]=value
+ try:m.derive(epoch,pre['snapshot'],post,changed)
+ except AssertionError:negative+=1
+ else:raise AssertionError(key)
+changed=copy.deepcopy(post);changed['index']['entries']='wrong'
+try:m.derive(epoch,pre['snapshot'],changed,raw)
+except AssertionError:negative+=1
+else:raise AssertionError('semantic mutation admitted')
+for key in ['review','reviewer','live_audit','live_audit_terminal','runtime_manifest_sha256','owner_terminal','live_audit_process']:
+ changed=copy.deepcopy(p);changed[key]=None
+ try:m.saved(changed)
+ except (AssertionError,TypeError,RuntimeError):negative+=1
+ else:raise AssertionError(key)
+assert m.derive.__code__.co_code == m.load('prior_refresh',m.ROOT/'artifacts/css-prioritary-publication-raw-index-refresh-v1/run.py').derive.__code__.co_code
+prior=(m.ROOT/'artifacts/css-prioritary-publication-raw-index-refresh-v1/run.py').read_text()
+current=(HERE/'run.py').read_text()
+assert prior[prior.index('    def check_controls(body):'):]==current[current.index('    def check_controls(body):'):]
+assert prior[prior.index('def main():'):].replace('published pair raw observation refresh', 'portable typed-attribute pair raw observation refresh') == current[current.index('def main():'):]
+assert prior[prior.index('def derive('):prior.index('def saved(')] == current[current.index('def derive('):current.index('def saved(')]
+print(json.dumps({'saved_restoration_authenticated':not pending,'pending_admission':pending,'raw_before':raw['before'],'raw_after':raw['after'],'negative_checks':negative,'only_changed_field':'raw_index_observation.current','live_state_read':False,'publication_executed':False}))

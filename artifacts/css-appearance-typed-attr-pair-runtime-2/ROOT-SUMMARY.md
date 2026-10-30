@@ -1,0 +1,7 @@
+# Portable typed-attribute pair
+
+Both uninstrumented source roles built successfully at signed HEAD 0217759e518c. Original: 3 PASS / 1 FAIL; candidate: 1 PASS / 3 FAIL. Both page endings are OK. The unchanged variable-length failure produces appearance auto instead of none. Candidate regressions are literal-length appearance auto and literal font-family serif instead of monospace. Missing attribute stays PASS. All recorded failure diagnostics retain both phases and correct registered length, font size and independent width controls. The candidate is not accepted.
+
+The saved outcome review is ../css-appearance-typed-attr-pair-outcome-review-v1/README.md. It independently joins role metadata and exact raw signatures. ROOT-LIVE-RESTORATION.json separately records root's actual post-run verification: source identities, binary hashes, application and extras, flags, semantic index and canonical controls restored; six owned process groups absent; two temporary roots removed. The 1,008,605,176-byte backup was removed. The restored application is the historical pre-experiment application, not a newly installed branch build. Raw index bytes changed with semantic contents unchanged; canonical raw observation still needs the separate refresh.
+
+Actual owner: session42251, launch10b492, terminal56f6f9, exit0. Actual independent live audit: session81926, launchd8ca3c, terminalb4aa21, exit0. No native fix or accepted-count increment. These branch binaries do not establish installed release behavior.

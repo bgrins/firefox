@@ -1,0 +1,71 @@
+ 480:     // Note: using the above technique with an enum hits a rust bug when |structs| is in a different crate.
+ 481:     % for side in SIDES:
+ 482:     { const DETAIL: u32 = [0][(structs::Side::eSide${side.name} as usize != ${side.index}) as usize]; let _ = DETAIL; }
+ 483:     % endfor
+ 484: }
+ 485: 
+ 486: 
+ 487: <%self:impl_trait style_struct_name="Border">
+ 488: </%self:impl_trait>
+ 489: 
+ 490: <%self:impl_trait style_struct_name="Margin">
+ 491:     ${impl_physical_sides("margin", ["margin-top", "margin-right", "margin-bottom", "margin-left"])}
+ 492: </%self:impl_trait>
+ 493: <%self:impl_trait style_struct_name="Padding"></%self:impl_trait>
+ 494: <%self:impl_trait style_struct_name="Page"></%self:impl_trait>
+ 495: 
+ 496: <%self:impl_trait style_struct_name="Position">
+ 497:     ${impl_physical_sides("inset", ["top", "right", "bottom", "left"])}
+ 498:     pub fn set_computed_justify_items(&mut self, v: values::specified::JustifyItems) {
+ 499:         debug_assert_ne!(v, values::specified::JustifyItems::legacy());
+ 500:         self.mJustifyItems.computed = v;
+ 501:     }
+ 502: </%self:impl_trait>
+ 503: 
+ 504: <%self:impl_trait style_struct_name="Outline">
+ 505: </%self:impl_trait>
+ 506: 
+ 507: <% skip_font_longhands = """font-size -x-lang""" %>
+ 508: <%self:impl_trait style_struct_name="Font"
+ 509:     skip_longhands="${skip_font_longhands}">
+ 510: 
+ 511:     pub fn unzoom_fonts(&mut self, device: &Device) {
+ 512:         use crate::values::generics::NonNegative;
+ 513:         self.mSize = NonNegative(device.unzoom_text(self.mSize.0));
+ 514:         self.mScriptUnconstrainedSize = NonNegative(device.unzoom_text(self.mScriptUnconstrainedSize.0));
+ 515:         self.mFont.size = NonNegative(device.unzoom_text(self.mFont.size.0));
+ 516:     }
+ 517: 
+ 518:     pub fn copy_font_size_from(&mut self, other: &Self) {
+ 519:         self.mScriptUnconstrainedSize = other.mScriptUnconstrainedSize;
+ 520: 
+ 521:         self.mSize = other.mScriptUnconstrainedSize;
+ 522:         // NOTE: Intentionally not copying from mFont.size. The cascade process
+ 523:         // recomputes the used size as needed.
+ 524:         self.mFont.size = other.mSize;
+ 525:         self.mFontSizeKeyword = other.mFontSizeKeyword;
+ 526: 
+ 527:         // TODO(emilio): Should we really copy over these two?
+ 528:         self.mFontSizeFactor = other.mFontSizeFactor;
+ 529:         self.mFontSizeOffset = other.mFontSizeOffset;
+ 530:     }
+ 531: 
+ 532:     pub fn reset_font_size(&mut self, other: &Self) {
+ 533:         self.copy_font_size_from(other)
+ 534:     }
+ 535: 
+ 536:     pub fn font_size_equals(&self, other: &Self) -> bool {
+ 537:         self.mSize == other.mSize
+ 538:     }
+ 539: 
+ 540:     pub fn set_font_size(&mut self, v: FontSize) {
+ 541:         let computed_size = v.computed_size;
+ 542:         self.mScriptUnconstrainedSize = computed_size;
+ 543: 
+ 544:         // These two may be changed from Cascade::fixup_font_stuff.
+ 545:         self.mSize = computed_size;
+ 546:         // NOTE: Intentionally not copying from used_size. The cascade process
+ 547:         // recomputes the used size as needed.
+ 548:         self.mFont.size = computed_size;
+ 549: 
+ 550:         self.mFontSizeKeyword = v.keyword_info.kw;

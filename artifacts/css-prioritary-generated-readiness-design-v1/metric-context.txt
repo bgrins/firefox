@@ -1,0 +1,45 @@
+ 435:     }
+ 436: 
+ 437:     /// Whether the style is for the root element.
+ 438:     pub fn is_root_element(&self) -> bool {
+ 439:         self.builder.is_root_element
+ 440:     }
+ 441: 
+ 442:     /// Queries font metrics.
+ 443:     pub fn query_font_metrics(
+ 444:         &self,
+ 445:         base_size: FontBaseSize,
+ 446:         orientation: FontMetricsOrientation,
+ 447:         mut flags: QueryFontMetricsFlags,
+ 448:     ) -> FontMetrics {
+ 449:         if self.for_non_inherited_property {
+ 450:             self.rule_cache_conditions.borrow_mut().set_uncacheable();
+ 451:         }
+ 452:         self.builder.add_flags(match base_size {
+ 453:             FontBaseSize::CurrentStyle => ComputedValueFlags::DEPENDS_ON_SELF_FONT_METRICS,
+ 454:             FontBaseSize::InheritedStyle => ComputedValueFlags::DEPENDS_ON_INHERITED_FONT_METRICS,
+ 455:         });
+ 456:         let size = base_size.resolve(self).used_size();
+ 457:         let style = self.style();
+ 458: 
+ 459:         let (wm, font) = match base_size {
+ 460:             FontBaseSize::CurrentStyle => (style.writing_mode, style.get_font()),
+ 461:             // This is only used for font-size computation.
+ 462:             FontBaseSize::InheritedStyle => {
+ 463:                 (*style.inherited_writing_mode(), style.get_parent_font())
+ 464:             },
+ 465:         };
+ 466: 
+ 467:         let vertical = match orientation {
+ 468:             FontMetricsOrientation::MatchContextPreferHorizontal => {
+ 469:                 wm.is_vertical() && wm.is_upright()
+ 470:             },
+ 471:             FontMetricsOrientation::MatchContextPreferVertical => wm.is_text_vertical(),
+ 472:             FontMetricsOrientation::Horizontal => false,
+ 473:         };
+ 474:         if !self.in_media_query {
+ 475:             flags |= QueryFontMetricsFlags::USE_USER_FONT_SET
+ 476:         }
+ 477:         self.device()
+ 478:             .query_font_metrics(vertical, font, size, flags, /* track_changes = */ true)
+ 479:     }
