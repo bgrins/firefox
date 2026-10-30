@@ -1,0 +1,20 @@
+--- artifacts/css-hypot-finite-scale-acceptance-publisher-v3/commit.py
++++ artifacts/css-pow-special-value-acceptance-publisher-v1/commit.py
+@@ -27,6 +27,9 @@
+ assert git('symbolic-ref','HEAD').decode().strip() == 'refs/heads/stylo-bloom-verification-2'
+ before=a.verify_current(h,ROOT,ENV,epoch);parent=git('rev-parse','HEAD').decode().strip()
+ assert git('config','--get','commit.gpgsign').strip()==b'true'
++if item['id']=='native-fix':
++ deletion=load('pow_native_deletion',str((HERE/'deletion.py').relative_to(ROOT)))
++ deletion.verify(ROOT,inputs,epoch,item,parent)
+ item['expected_head']=parent;item['execution_enabled']=True
+ bound=HERE/(item['id']+'-item.json')
+ if bound.exists(): assert json.loads(bound.read_text())==item
+@@ -57,6 +60,7 @@
+ assert git('rev-parse',commit+'^{tree}').decode().strip()==tree
+ with (HERE/(item['id']+'-signature.log')).open('w') as f:
+  subprocess.run(GIT+['-c','gpg.ssh.allowedSignersFile='+str(ROOT/'artifacts/css-local-signing-20261027-v1/allowed-signers'),'verify-commit',commit],cwd=ROOT,env=ENV,stdout=f,stderr=subprocess.STDOUT,check=True)
++if item['id']=='native-fix': deletion.verify(ROOT,inputs,epoch,item,parent,commit)
+ state=h.index_state(ROOT,ENV);assert not git('diff','--cached','--name-only')
+ assert h.index_state(ROOT/'artifacts/css-spec-lean',ENV)==before['nested_index']
+ current=copy.deepcopy(epoch);current['semantic_index']=h.semantic_index(state);current['raw_index_observation']['current']=state['raw_index']

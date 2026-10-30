@@ -1,5 +1,10 @@
 # CSS verification bugfix commits
 
+Fix 150: Handle CSS pow exceptional values consistently
+
+Native: `2d18f8b4a4d7ac7f29b1f8b4b1f3ded57e792e72`. Research and validation checkpoint: `9ae9588e3ffd3d061ef0edd9348439d28ae882ba`. Exact three-path payload: calc implementation, 24-case WPT and deletion of twelve obsolete expected-FAIL annotations. Eighteen targets repaired; 129 control signatures and two endings preserved. Historical fixes 149 and 145 remain intact with explicit current source supersession. Shared-branch validation includes the held provider. Scoped abstract and binary32 classification models do not prove native powf or full CSS conformance.
+
+
 Fix 149: Avoid intermediate overflow and underflow in hypot()
 
 Native: `36b693fee75e828f87b0c34df156caac903810c8`. Research and validation checkpoint: `8f86612a97c87b56e5bbae58ec09f851200c63b7`. Exact two-path source/WPT payload; sixteen targets repaired, all thirty new-page callbacks PASS, 211 control signatures and four endings preserved. Twelve existing pow failures remain unchanged. Historical fix 145 source/commit attribution remains unchanged with explicit current full-file supersession. Shared-branch validation includes the held provider. CSS precision/range is implementation-defined; this numerical robustness fix has no settled strict-conformance claim. No clean-upstream execution or universal IEEE/native proof is claimed.

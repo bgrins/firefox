@@ -1,0 +1,65 @@
+--- artifacts/css-hypot-finite-scale-acceptance-publisher-v3/init.py
++++ artifacts/css-pow-special-value-acceptance-publisher-v1/init.py
+@@ -16,8 +16,8 @@
+ sha = lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+ assert sha(ROOT/inputs['research_checkpoint']['final_check']) == inputs['research_checkpoint']['final_check_sha256']
+ assert checkpoint['head'] == inputs['initial_head'] and checkpoint['signature_verified'] and checkpoint['runtime_epoch_synchronized']
+-assert checkpoint['pending_hypot_native_payload_preserved'] is True
+-assert checkpoint['accepted_fixes']==147 and checkpoint['tracked_fixes']==148
++assert checkpoint['pending_pow_native_payload_preserved'] is True
++assert checkpoint['accepted_fixes']==148 and checkpoint['tracked_fixes']==149
+ assert checkpoint['final_validation']==inputs['expected_final_validation']
+ for name,pin in inputs['research_commit_payloads'].items():
+     body=subprocess.check_output(['git','show',inputs['initial_head']+':'+name],cwd=ROOT,env=dict(os.environ,GIT_OPTIONAL_LOCKS='0'))
+@@ -26,24 +26,24 @@
+ for name,pin in inputs['references'].items(): assert sha(ROOT/name) == pin
+ assert sha(HERE/'commit.py') == inputs['commit_helper_sha256']
+ import importlib.util
+-spec=importlib.util.spec_from_file_location('hypot_acceptance_evidence',HERE/'evidence.py')
++spec=importlib.util.spec_from_file_location('pow_acceptance_evidence',HERE/'evidence.py')
+ evidence=importlib.util.module_from_spec(spec);spec.loader.exec_module(evidence)
+-assert evidence.verify(ROOT,inputs)['targets_pass']==16
++assert evidence.verify(ROOT,inputs)['targets_pass']==18
+ runtime = ROOT/'artifacts/css-registered-number-native-runtime-v1'
+ controls = {n:(runtime/n).read_bytes() for n in ('CURRENT-EPOCH.json','ROLE.json','OWNED.json')}
+ assert sha(runtime/'CURRENT-EPOCH.json') == inputs['initial_epoch']
+ epoch = json.loads(controls['CURRENT-EPOCH.json'])
+ assert epoch['semantic_index']['head'] == inputs['initial_head']
+-assert epoch['hypot_finite_scale_transition']['role'] == 'candidate'
+-assert epoch['hypot_finite_scale_transition']['compiled'] and not epoch['hypot_finite_scale_transition']['accepted']
+-assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs',*inputs['native_source_paths']])
++assert epoch['pow_special_value_transition']['role'] == 'candidate'
++assert epoch['pow_special_value_transition']['compiled'] and not epoch['pow_special_value_transition']['accepted']
++assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs',*inputs['native_source_paths'], *inputs['deleted_preimages']])
+ assert epoch['staged_working'] == {}
+ for marker, expected in inputs['preserved_accepted_markers'].items(): assert epoch[marker] == expected
+ superseded=inputs['accepted_source_supersession']
+-assert superseded['fix']==145 and superseded['path']=='servo/components/style/values/generics/calc.rs'
+-assert epoch['hypot_finite_scale_transition']['supersedes_source_pin']==superseded
+-assert inputs['preserved_accepted_markers']['accepted_round_context_quotient']['files'][superseded['path']]==superseded['sha256']
+-historical_commit=inputs['preserved_accepted_markers']['accepted_round_context_quotient']['native_commit']
++assert superseded['fix']==149 and superseded['path']=='servo/components/style/values/generics/calc.rs'
++assert epoch['pow_special_value_transition']['supersedes_source_pin']==superseded
++assert inputs['preserved_accepted_markers']['accepted_hypot_finite_scale']['files'][superseded['path']]==superseded['sha256']
++historical_commit=inputs['preserved_accepted_markers']['accepted_hypot_finite_scale']['native_commit']
+ for revision in (historical_commit,inputs['initial_head']):
+     body=subprocess.check_output(['git','show',revision+':'+superseded['path']],cwd=ROOT,env=dict(os.environ,GIT_OPTIONAL_LOCKS='0'))
+     assert hashlib.sha256(body).hexdigest()==superseded['sha256']
+@@ -55,6 +55,8 @@
+     st=(ROOT/path).lstat()
+     assert [st.st_dev,st.st_ino] == item['identity'] and sha(ROOT/path) == expected
+     assert epoch['pins'][path] == expected and epoch['installed_identities'][path] == item['identity']
++import runpy
++runpy.run_path(str(HERE/'deletion.py'))['verify'](ROOT,inputs,epoch,json.loads((HERE/'native-selection.json').read_bytes()),inputs['initial_head'])
+ assert not os.path.lexists(ROOT/inputs['retired_path'])
+ assert not (runtime/'SOURCE-TRANSITION.lock').exists()
+ audit=json.loads((ROOT/inputs['untracked_audit']).read_bytes())
+@@ -64,7 +66,7 @@
+ untracked=sorted(p.decode() for p in raw.split(b'\0') if p)
+ assert set(untracked)==set(audit['paths'])|landing
+ assert len(audit['paths'])==563 and len(untracked)==564
+-assert landing=={'testing/web-platform/tests/css/css-values/hypot-finite-scale.html'}
++assert landing=={'testing/web-platform/tests/css/css-values/pow-special-value-context.html'}
+ with (HERE/'INITIAL-UNTRACKED.json').open('x') as stream:json.dump({'paths':untracked,'audit_sha256':sha(ROOT/inputs['untracked_audit']),'only_added':sorted(landing)},stream,indent=2)
+ for n,b in controls.items():
+     with (HERE/('PRE-'+n)).open('xb') as stream: stream.write(b)

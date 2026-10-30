@@ -1,5 +1,10 @@
 # CSS and Stylo verification plan
 
+After the verified standalone signed native commit, pow repair 150 brings accepted native fixes to 149 across tracked IDs through 150, excluding held fix 120. The exact three-path payload is generic calc, the 24-case WPT and deletion of twelve obsolete expected-FAIL annotations. Original and final runs complete 147 callbacks: all 18 targets improve, all 24 authored callbacks pass, and 129 control plus two ending signatures remain unchanged. Final installed execution has no failures or unexpected results. Historical Hypot 149 and round 145 source/commit metadata remain unchanged; current calc b291d6e9 explicitly supersedes b7a6ac85. Shared-branch validation retains the held provider. Abstract guard/folding, binary32 classification and scalar checks support bounded claims; they do not establish native powf correctness, correct rounding, full CSS conformance, clean-upstream execution or canonical coverage credit.
+
+Earlier entries retain their historical state.
+
+
 After the verified standalone signed native commit, hypot repair 149 brings accepted native fixes to 148 across tracked IDs through 149, excluding held fix 120. The exact payload is generic calc and the 30-case WPT. Fresh corrected original and final runs each complete 227 callbacks: 16 failures are repaired, all 30 new callbacks pass, and 211 control plus four ending signatures remain unchanged, including 12 known pow failures. Historical fix 145 source and commit metadata remain unchanged; current full-file calc pin b7a6ac85 explicitly supersedes df7e6932. Shared-branch validation retains the held provider. CSS numeric precision and range are implementation-defined, so this is a numerical robustness repair without a settled strict-conformance claim. Scalar checks and scoped Lean magnitude models do not establish universal IEEE/native refinement, n-ary correct rounding, clean-upstream execution or a canonical coverage increment.
 
 Earlier entries retain their historical state.

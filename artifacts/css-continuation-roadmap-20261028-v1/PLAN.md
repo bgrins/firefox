@@ -1,3 +1,11 @@
+Current continuation after validated pow repair 150
+
+After the verified standalone signed native commit, pow repair 150 brings accepted native fixes to 149 across tracked IDs through 150, excluding held fix 120. The exact three-path payload is generic calc, the 24-case WPT and deletion of twelve obsolete expected-FAIL annotations. Original and final runs complete 147 callbacks: all 18 targets improve, all 24 authored callbacks pass, and 129 control plus two ending signatures remain unchanged. Final installed execution has no failures or unexpected results. Historical Hypot 149 and round 145 source/commit metadata remain unchanged; current calc b291d6e9 explicitly supersedes b7a6ac85. Shared-branch validation retains the held provider. Abstract guard/folding, binary32 classification and scalar checks support bounded claims; they do not establish native powf correctness, correct rounding, full CSS conformance, clean-upstream execution or canonical coverage credit.
+
+Next: Preserve the exact pow source/WPT and removed metadata in future restoration and build lineage. Contextual easing remains unaccepted despite its successful 315-case comparison and isolated Servo checks; its fixed-association ownership model does not establish native refinement. Future discovery requires separate evidence and deduplication; no additional bug or proof credit is granted here.
+
+Earlier roadmap follows unchanged.
+
 ## 2026-10-29: pow exceptional-value final validation complete; native acceptance pending
 
 The exact pow candidate source and proposal-v3 24-case WPT completed reversible
