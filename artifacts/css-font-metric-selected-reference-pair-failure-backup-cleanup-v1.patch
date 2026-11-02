@@ -1,0 +1,26 @@
+--- artifacts/css-hyphenation-ownership-native-failure-backup-cleanup-v1.py
++++ artifacts/css-font-metric-selected-reference-pair-failure-backup-cleanup-v1.py
+@@ -8,11 +8,11 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ assert len(sys.argv) == 2
+ ROOT = Path(__file__).resolve().parent.parent
+-RUNTIME = ROOT / 'artifacts/css-hyphenation-ownership-native-pair-runtime-1'
+-OWNER = ROOT / 'artifacts/css-hyphenation-ownership-native-pair-v1'
++RUNTIME = ROOT / 'artifacts/css-font-metric-selected-reference-pair-runtime-1'
++OWNER = ROOT / 'artifacts/css-font-metric-selected-reference-pair-v1'
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+ read = lambda path: json.loads(path.read_bytes())
+-assert sha((OWNER / 'FILES.json').read_bytes()) == '1a5490029693ea49aa591b0902f2d4a185d71a3954ee88edf0cc4b89d4d369d2'
++assert sha((OWNER / 'FILES.json').read_bytes()) == 'f213f8160c1c142a0964a99e46ebb483a27b29f5169cda74afb83b185c2dc464'
+ for name, record in read(OWNER / 'FILES.json').items():
+     assert sha((OWNER / name).read_bytes()) == record['sha256']
+ report_path = RUNTIME / 'ROOT-LIVE-RESTORATION.json'
+@@ -20,7 +20,7 @@
+ report = read(report_path)
+ assert report['independent_live_restoration_verified'] and report['retained_backup_inventory_verified']
+ assert report['backup_removed'] is False and report['native_acceptance'] is False
+-assert report['audit_script_sha256'] == sha((ROOT / 'artifacts/css-hyphenation-ownership-native-failure-audit-v1.py').read_bytes())
++assert report['audit_script_sha256'] == sha((ROOT / 'artifacts/css-font-metric-selected-reference-pair-failure-audit-v1.py').read_bytes())
+ for name, digest in report['failure_pins'].items():
+     assert sha((RUNTIME / name).read_bytes()) == digest
+ policy = read(OWNER / 'POLICY.json')

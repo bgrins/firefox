@@ -1,0 +1,30 @@
+--- artifacts/css-font-metric-selected-reference-pair-v1/comparison.py
++++ artifacts/css-font-metric-selected-reference-diagnostic-run-v1/comparison.py
+@@ -97,3 +97,27 @@
+     if any(row['status']!='PASS' for row in candidate['rows']):errors.append('candidate publication callback remains non-PASS')
+     result={'publication_observation_gate':not errors,'errors':errors,'all_signatures_equal':before==after,'original_signatures':before,'candidate_signatures':after,'differences':[{'identity':identity,'original':old.get(identity),'candidate':new.get(identity)} for identity in sorted(set(old)|set(new)) if old.get(identity)!=new.get(identity)],'native_acceptance':False}
+     return json.loads(json.dumps(result))
++
++
++def historical(root, policy, lane):
++    binding = policy['historical_original']
++    ownership = load('diagnostic_historical_ownership', root / policy['ownership_helper'])
++    for key in ('owner', 'runtime'):
++        item = binding[key]
++        ownership.authenticate(root / item['directory'], item['manifest_sha256'])
++    here, output = root / binding['owner']['directory'], root / binding['runtime']['directory']
++    old_policy = read(here / 'POLICY.json')
++    assert old_policy['head'] == policy['head'] and lane == 'typedattr'
++    assert old_policy['wpt_lanes'][lane] == policy['wpt_lanes'][lane]
++    old_comparison = load('diagnostic_historical_comparison', here / 'comparison.py')
++    return here, output, old_policy, old_comparison
++
++
++def historical_build(root, policy, lane):
++    here, output, old_policy, old_comparison = historical(root, policy, lane)
++    return old_comparison.build_binding(root, here, output, old_policy, 'original')
++
++
++def historical_replay(root, policy, lane, assessor, checks):
++    here, output, old_policy, old_comparison = historical(root, policy, lane)
++    return old_comparison.replay_original(root, here, output, old_policy, lane, assessor, checks)

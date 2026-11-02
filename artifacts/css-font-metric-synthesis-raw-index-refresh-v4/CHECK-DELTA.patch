@@ -1,0 +1,24 @@
+--- artifacts/css-font-metric-synthesis-raw-index-refresh-v3/check.py
++++ artifacts/css-font-metric-synthesis-raw-index-refresh-v4/check.py
+@@ -11,6 +11,12 @@
+ m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+ p=m.read(HERE/'POLICY.json')
+ assert not p['execution_enabled']
++if p['pending_runtime_binding']:
++ try:m.saved(p)
++ except AssertionError as exc:assert str(exc)=='Completed paired runtime binding is pending'
++ else:raise AssertionError('pending runtime admitted')
++ print(json.dumps({'pending_runtime_rejected':True,'execution_disabled':True,'live_state_read':False}))
++ raise SystemExit(0)
+ owner,review,pre,post,raw=m.saved(p)
+ epoch={'semantic_index':{k:v for k,v in pre['snapshot']['index'].items() if k!='raw_index'},'raw_index_observation':{'current':raw['before'],'sentinel':'retained'},'pins':{'sentinel':'unchanged'},'counts':{'sentinel':1}}
+ updated=m.derive(epoch,pre['snapshot'],post,raw)
+@@ -26,7 +32,7 @@
+ try:m.derive(epoch,pre['snapshot'],changed,raw)
+ except AssertionError:negative+=1
+ else:raise AssertionError('semantic mutation admitted')
+-for key in ['live_audit','audit_terminal','cleanup','runtime_manifest_sha256']:
++for key in ['live_audit','audit_terminal','cleanup','runtime_manifest_sha256','owner_terminal']:
+  changed=copy.deepcopy(p);changed[key]=None
+  try:m.saved(changed)
+  except (AssertionError,TypeError,RuntimeError):negative+=1

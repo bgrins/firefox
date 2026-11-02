@@ -1,0 +1,15 @@
+--- artifacts/css-font-metric-selected-reference-pair-v1/closure.py
++++ artifacts/css-font-metric-computed-size-pair-v1/closure.py
+@@ -9,8 +9,11 @@
+         assert not Path(path).is_absolute() and '..' not in Path(path).parts
+         assert path not in result or result[path] == pin
+         result[path] = pin
+-    for key in ('typecheck_binding', 'source_binding', 'capture_owner', 'capture_source_owner', 'predecessor_binding'):
++    for key in ('typecheck_binding', 'source_binding', 'capture_owner', 'capture_source_owner', 'predecessor_binding', 'native_owner_binding'):
+         binding = policy[key]
++        if binding is None:
++            assert key in ('capture_owner', 'native_owner_binding') and not policy['execution_enabled'] and policy['activation_pending']
++            continue
+         path = root / binding['directory'] / 'FILES.json'
+         assert hashlib.sha256(path.read_bytes()).hexdigest() == binding['manifest_sha256']
+         add(str(path.relative_to(root)), binding['manifest_sha256'])

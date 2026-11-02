@@ -1,0 +1,162 @@
+import copy
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import sys
+
+assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ROOT = Path(__file__).resolve().parent.parent
+OWNER = ROOT / 'artifacts/css-font-metric-computed-size-pair-v1'
+RUNTIME = ROOT / 'artifacts/css-font-metric-computed-size-pair-runtime-1'
+CANONICAL = ROOT / 'artifacts/css-registered-number-native-runtime-v1'
+sha = lambda body: hashlib.sha256(body).hexdigest()
+read = lambda path: json.loads(path.read_bytes())
+
+
+def load(name, path):
+    spec = importlib.util.spec_from_file_location(name, ROOT / path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+FAILURE_PINS = {'RESULT.json': '990cc224000b0df4579b1040f998200c09de01f959faa94554943a4d77b83e2d', 'ROOT-OWNER-TERMINAL.json': '2749ae0f3a4c5967e5a4126b9fc845bf984774fd913f658cab34b283f8a6a4bb', 'FAILURE-TRACEBACK.json': 'f9fda22095effd053e4e427d4909fbd3da51ddc33eb14d322a7e59bd4a92c673', 'BACKUPS.json': 'fc04294df53e30cee668f5e3e0951fd1e6818403088eaf51a34fa678f41deb52', 'BACKUP-CLEANUP.json': '6f12623f10ab4b3112d092f8e7e99d9254934b9a3cc26281a9d1ea20afb656d5', 'RESTORATION.json': '5d8bf5e5ed3ada7b8ec4cc7d0586bc7ba4eb89f354ac734130264db67207baa5', 'POST.json': '79f567a6b201347d09dbd7defb89f7da46f0597f1227864d085f22dd08b67773', 'PAIR-PRE.json': '631c811119549b1554721a034e99ae7831cfb0acd4653935415a03aa7d53da11', 'COMPARISON.json': '0d54feb82fcf70faa05ed391a890568ca0432898ad5a60e843a7a5dc7d767062', 'original-OUTCOMES.json': '1b2205db8e15b0f55e37e312d67e6952a0c31f61080cdff22ec84cc7d6ab4654', 'original-DIAGNOSTIC-sizeforms.json': '3d345d412f58133539ccf9971d8d78330d3b452f5ea74a3d5684f0d88902474e', 'original-wpt-metric/RESULT.json': 'dbef1486fff5aacaabeeaba010da75b340d83bb0095fa8add9ef7e7099b6735c', 'original-wpt-metric/ASSESSMENT.json': '532376d57e322e07548e93b319dce3e903229b2124f1d9272846ae2bbdd89c52', 'original-wpt-metric/raw.jsonl': '907c39d4f9160e938329ca10a5e75c443c9a53622a9deee1e44aef8815b9866f', 'original-wpt-metric/BEHAVIOR-COMPARISON.json': '38e0b9de817f645c4bec37c0d4a3e58baecccb040f5718dc069a72c7385a0bed', 'original-wpt-phase/RESULT.json': '4d9bc9314f55529d9c44c18b63a1209a4e3189b402bc64059137595fe64b611f', 'original-wpt-phase/ASSESSMENT.json': '8f50ae75d6ac1f3057c4038f8e8f57a56e4d62a71746de6ec1426c0ac683a9be', 'original-wpt-phase/raw.jsonl': 'df59e4a4c46f5b1427d79326e59de5f9e463e7a45d8873d1ec80cb825a13a642', 'original-wpt-phase/BEHAVIOR-COMPARISON.json': '38e0b9de817f645c4bec37c0d4a3e58baecccb040f5718dc069a72c7385a0bed', 'original-wpt-typedattr/RESULT.json': '411cd8e9d98567731a9e41ad4cb348b7b57911437a238dbda965fd87c4edc475', 'original-wpt-typedattr/ASSESSMENT.json': '93714270c29d1e13dddb640187544b09d9044e9df55c51e9ac6813b00a91589f', 'original-wpt-typedattr/raw.jsonl': 'e3b1691c98609a625230d32eff3a56f507d73f3be6071223ce07271510835727', 'original-wpt-typedattr/BEHAVIOR-COMPARISON.json': '38e0b9de817f645c4bec37c0d4a3e58baecccb040f5718dc069a72c7385a0bed', 'original-wpt-sizeforms/RESULT.json': '3dbc5bb96276e9a24f8fbd29f41176ac1229bbef3b846ccba1519f03cb230645', 'original-wpt-sizeforms/ASSESSMENT.json': 'c42fca32d80d4605d04a7e1d131c7a4596a2132d17aa3bd70ee21c21ed8ded86', 'original-wpt-sizeforms/raw.jsonl': '22eaaea800536b7247355a44607ffb3cbf60291b333eb5175e8503ba6c0a8113', 'original-wpt-sizeforms/BEHAVIOR-COMPARISON.json': '38e0b9de817f645c4bec37c0d4a3e58baecccb040f5718dc069a72c7385a0bed', 'candidate-wpt-metric/RESULT.json': 'b57cefb57899fbedfe7c0aaab31a93e2921e659d1912e1ae4dd45fd4b8b04952', 'candidate-wpt-metric/ASSESSMENT.json': 'bdda1acb1f6b59a23c632b6046ba677fce89f2f3812fb85998debaf463e16abf', 'candidate-wpt-metric/raw.jsonl': 'e0b435705488bd0082e68afad5e9e2e7c2723467ab63b6f1cd0b90d65daf0498', 'candidate-wpt-metric/BEHAVIOR-COMPARISON.json': 'ccfa3309532ae75e141957f81a72bbeb61f595fb9ed3965dc8f0e84285916b3c', 'candidate-wpt-phase/RESULT.json': 'be655c89e09c2cbde3b0f073710a23a770fb75e1459df558cb5f045ff9a06bf7', 'candidate-wpt-phase/ASSESSMENT.json': '79d6cc34fc96acaef779f5064e5feb82a444e3c0fb087df65747a316475cbe5a', 'candidate-wpt-phase/raw.jsonl': 'da5034867d5f86805b69d641362f7b995f88153e8fc2c2084ccef00aa76cbf56', 'candidate-wpt-phase/BEHAVIOR-COMPARISON.json': 'e6b3fa7e8d9586fe1989f807fe89dc862101980af0f42e343a4bcd58ab54bcbf', 'candidate-wpt-typedattr/RESULT.json': '68694abf237f6f531a56ae11a3ce6a21cfd58b182e008952ccc1892f5ce67bea', 'candidate-wpt-typedattr/ASSESSMENT.json': '3f96a6e8bce71b01a3126d44b7563626795b0ee93ab4f712a04de383541f5617', 'candidate-wpt-typedattr/raw.jsonl': '32b8aaa2802409e8893dc6e7ea2345146992f82afba3d49f25673cab0cf1167f', 'candidate-wpt-typedattr/BEHAVIOR-COMPARISON.json': '9c193d7709356b0867e87f25c581a04a392135db13cc07620f41351bc6d03e5e', 'candidate-wpt-sizeforms/RESULT.json': '56fb62ba929d12fa76f1b23c3cca25a98a771d35421807e04b0bb07f822d6767', 'candidate-wpt-sizeforms/ASSESSMENT.json': '547c5e7264922d4b2f7e5a8e56f6ef4a688832c4c2bc4a77e4f62a86cbf97aae', 'candidate-wpt-sizeforms/raw.jsonl': 'bda89e5b53f1e71506422c8c8ad3d98854bbe851912be76ee72f1a94569ebb9c', 'candidate-wpt-sizeforms/BEHAVIOR-COMPARISON.json': '68773033fc9ee3f67779719da00f28edaa96ee9c62cc5410028a1821b69daeca'}
+assert FAILURE_PINS, 'Actual terminal evidence is pending'
+assert sha((OWNER / 'FILES.json').read_bytes()) == 'bbcc1d5fbc7bde467171a8eb7f92bc5bc587824bd82035a7e025c69ae132f3bc'
+baseline = load('paired_live_baseline', 'artifacts/css-font-metric-computed-size-pair-v1/baseline.py')
+policy, ownership, roles = baseline.prepare(sha((OWNER / 'FILES.json').read_bytes()))
+ENV = baseline.environment()
+capture = baseline.current_capture(policy)
+result = read(RUNTIME / 'RESULT.json')
+for name, digest in FAILURE_PINS.items():
+    assert sha((RUNTIME / name).read_bytes()) == digest
+terminal = read(RUNTIME / 'ROOT-OWNER-TERMINAL.json')
+assert terminal['session'] == 49654 and terminal['launch'] == '11e22b'
+assert terminal['terminal'] and terminal['exit'] == 1
+assert terminal['result_sha256'] == FAILURE_PINS['RESULT.json']
+trace = read(RUNTIME / 'FAILURE-TRACEBACK.json')
+assert trace['error'] == result['error'] and trace['traceback']
+assert set(result['phase']) == {'original'} and result['error'] and result['publication_errors'] == []
+assert set(result['phase']['original']) == set(policy['lane_order'])
+assert policy['diagnostic_lane_order'] == ['sizeforms'] and policy['lane_order'] == ['metric','phase','typedattr']
+assert not (RUNTIME / 'candidate-OUTCOMES.json').exists()
+assert not (RUNTIME / 'DIAGNOSTIC-COMPARISON.json').exists()
+assert not (RUNTIME / 'candidate-DIAGNOSTIC-sizeforms.json').exists()
+comparison = read(RUNTIME / 'COMPARISON.json')
+assert comparison['publication_observation_gate'] is True and comparison['native_acceptance'] is False
+assert comparison['all24_signatures_equal'] is False and set(comparison['lanes']) == set(policy['lane_order'])
+for lane in policy['lane_order']:
+    assert comparison['lanes'][lane] == read(RUNTIME / ('candidate-wpt-' + lane) / 'BEHAVIOR-COMPARISON.json')
+original_outcomes = read(RUNTIME / 'original-OUTCOMES.json')
+assert original_outcomes['callbacks_passed'] == 6 and original_outcomes['callbacks_failed'] == 15
+assert len(original_outcomes['rows']) == 21 and len(original_outcomes['endings']) == 3
+assert original_outcomes['lanes'] == result['phase']['original']
+assert set(original_outcomes['diagnostics']) == {'sizeforms'}
+for role_name in ('original','candidate'):
+    build = RUNTIME / (role_name + '-build')
+    built = read(build / 'build-RESULT.json')
+    assert built['exit'] == 0 and built['stop_reason'] is None and built['error'] is None
+    assert built['cleanup_errors'] == [] and built['owned_group_absent']
+    command = read(build / 'COMMAND.json')
+    assert command['owner_manifest'] == sha((OWNER / 'FILES.json').read_bytes())
+    assert command['source_role'] == role_name
+    assert command['source_sha256'] == {name:row['base_sha256' if role_name == 'original' else 'candidate_sha256'] for name,row in roles.items()}
+    for lane in policy['lane_order'] + policy['diagnostic_lane_order']:
+        phase = RUNTIME / (role_name + '-wpt-' + lane)
+        outcome, assessment = read(phase / 'RESULT.json'), read(phase / 'ASSESSMENT.json')
+        assert outcome['preservation_verified'] and outcome['execution_error'] is None
+        if role_name == 'original':
+            descriptor = (result['phase']['original'] if lane in policy['lane_order'] else original_outcomes['diagnostics'])[lane]
+            for key, filename in [('assessment_sha256','ASSESSMENT.json'),('raw_sha256','raw.jsonl'),('result_sha256','RESULT.json'),('behavior_sha256','BEHAVIOR-COMPARISON.json')]:
+                assert sha((phase / filename).read_bytes()) == descriptor[key]
+        if role_name == 'candidate' and lane == 'sizeforms':
+            assert outcome['success'] is False and assessment['complete'] is False
+            assert assessment['rows'] == [] and len(assessment['ends']) == 1 and assessment['ends'][0]['status'] == 'CRASH'
+            events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
+            assert any(row.get('action') == 'test_end' and row.get('status') == 'CRASH' for row in events)
+        else:
+            assert outcome['success'] and assessment['complete'] and assessment['errors'] == []
+            assert len(assessment['rows']) == policy['wpt_lanes'][lane]['expected_subtest_count'] and len(assessment['ends']) == 1
+            if role_name == 'candidate': assert all(row['status'] == 'PASS' for row in assessment['rows'])
+            if role_name == 'original' and lane == 'sizeforms': assert all(row['status'] == 'FAIL' for row in assessment['rows'])
+
+assert result['success'] is False and result['restoration_verified'] and result['runtime_controls_unchanged']
+assert result['empty_staging_preserved'] and not result['native_fix_acceptance']
+assert not (CANONICAL / 'SOURCE-TRANSITION.lock').exists()
+ownership.quiescent(CANONICAL)
+ownership.quiescent(ROOT / 'artifacts/css-page-selector-native-runtime-v1')
+absent_groups = []
+for role in ('original', 'candidate'):
+    build = RUNTIME / (role + '-build')
+    for process_file, cleanup_file in [('build-PROCESS.json', 'build-GROUP-CLEANUP.json'),
+                                       ('WAKE-PROCESS.json', 'wake-GROUP-CLEANUP.json')]:
+        group = read(build / process_file)['pgid']
+        assert read(build / cleanup_file)['owned_group_absent']
+        ownership.group_absent(group)
+        absent_groups.append(group)
+    for lane in policy['lane_order'] + policy['diagnostic_lane_order']:
+        phase = RUNTIME / (role + '-wpt-' + lane)
+        cleanup = read(phase / 'CLEANUP.json')
+        assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
+        group = read(phase / 'PROCESS.json')['pgid']
+        ownership.group_absent(group)
+        absent_groups.append(group)
+        temporary = Path(read(phase / 'COMMAND.json')['temporary_root'])
+        assert not temporary.exists() and not temporary.is_symlink()
+assert len(absent_groups) == len(set(absent_groups)) == 12
+for name, digest in policy['controls'].items():
+    assert sha((CANONICAL / name).read_bytes()) == digest
+baseline.metadata_guard(policy)
+for name in policy['preserved_absent_metadata'] + policy['preserved_absent_resources']:
+    assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()
+state = load('paired_live_state', 'artifacts/css-registered-number-native-runtime-v1/state.py')
+epoch = read(CANONICAL / 'CURRENT-EPOCH.json')
+index = state.h.index_state(ROOT, ENV)
+assert state.h.semantic_index(index) == epoch['semantic_index']
+adjusted = copy.deepcopy(epoch)
+adjusted['raw_index_observation']['current'] = index['raw_index']
+observed = state.a.verify_current(state.h, ROOT, ENV, adjusted)
+expected = copy.deepcopy(capture['snapshot'])
+expected['index']['raw_index'] = index['raw_index']
+assert observed == expected == read(RUNTIME / 'POST.json')
+for label, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]:
+    assert sha(state.h.git(path, ENV, 'ls-files', '-v', '-z')) == capture['flag_hashes'][label]
+for name, role in roles.items():
+    assert sha((ROOT / name).read_bytes()) == role['base_sha256']
+    claim = read(RUNTIME / 'PAIR-PRE.json')['sources'][name]
+    assert [(ROOT / name).stat().st_dev, (ROOT / name).stat().st_ino] == claim['identity']
+bundle = load('paired_live_bundle', policy['bundle_helper'])
+assert bundle.semantic(bundle.scan(ROOT / policy['bundle_path'])) == bundle.semantic(read(RUNTIME / 'APP-PRE.json'))
+extras = {name: bundle.entry(ROOT / name) for name in policy['extra_backup_paths']}
+assert bundle.semantic(extras) == bundle.semantic(read(RUNTIME / 'EXTRA-PRE.json'))
+assert all(sha((ROOT / name).read_bytes()) == digest for name, digest in capture['binaries'].items())
+metadata = load('paired_live_metadata', policy['wpt']['metadata_helper'])
+application = metadata.application_metadata(ROOT / policy['wpt']['application_ini'], policy['restored_application_revision'])
+semantic_metadata = lambda row: {key: value for key, value in row.items() if key not in ('entry_identity', 'identity')}
+assert semantic_metadata(application) == semantic_metadata(capture['application_metadata'])
+cleanup = read(RUNTIME / 'BACKUP-CLEANUP.json')
+assert cleanup['removed'] is False and cleanup['retained_after_failure'] is True
+assert cleanup['verified_original_restoration'] is True
+backups = read(RUNTIME / 'BACKUPS.json')
+assert cleanup['owned_backup_bytes'] == backups['bytes'] == 1008605176
+assert not (RUNTIME / 'backups').is_symlink()
+assert bundle.scan(RUNTIME / 'backups') == backups['owned_inventory']
+assert not read(RUNTIME / 'RESTORATION.json')['errors']
+assert not read(RUNTIME / 'RESTORATION.json')['owned_processes']
+assert not (CANONICAL / 'SOURCE-TRANSITION.lock').exists()
+output = RUNTIME / 'ROOT-LIVE-RESTORATION.json'
+with output.open('x') as stream:
+    json.dump({'independent_live_restoration_verified': True, 'snapshot': observed,
+               'application_and_extras_semantically_restored': True,
+               'source_and_binary_hashes_restored': True, 'flags_restored': True,
+               'controls_unchanged': True, 'backup_removed': False, 'retained_backup_inventory_verified': True,
+               'backup_inventory_sha256': FAILURE_PINS['BACKUPS.json'],
+               'owner_terminal': terminal, 'failure_pins': FAILURE_PINS,
+               'independently_absent_process_groups': absent_groups,
+               'restored_application_metadata': application,
+               'owner_result_sha256': sha((RUNTIME / 'RESULT.json').read_bytes()),
+               'audit_script_sha256': sha(Path(__file__).read_bytes()),
+               'native_acceptance': False}, stream, indent=2)
+    stream.write('\n')
+print('Independent live source, application, controls, index and flags audit passed')

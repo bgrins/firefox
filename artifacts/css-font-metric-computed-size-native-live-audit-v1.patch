@@ -1,0 +1,33 @@
+--- artifacts/css-font-metric-dynamic-native-live-audit-v1.py
++++ artifacts/css-font-metric-computed-size-native-live-audit-v1.py
+@@ -7,8 +7,8 @@
+ 
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ ROOT = Path(__file__).resolve().parent.parent
+-OWNER = ROOT / 'artifacts/css-font-metric-dynamic-native-typecheck-v1'
+-RUNTIME = ROOT / 'artifacts/css-font-metric-dynamic-native-typecheck-runtime-1'
++OWNER = ROOT / 'artifacts/css-font-metric-computed-size-native-typecheck-v1'
++RUNTIME = ROOT / 'artifacts/css-font-metric-computed-size-native-typecheck-runtime-1'
+ CANONICAL = ROOT / 'artifacts/css-registered-number-native-runtime-v1'
+ sha = lambda body: hashlib.sha256(body).hexdigest()
+ read = lambda path: json.loads(path.read_bytes())
+@@ -21,8 +21,8 @@
+     return module
+ 
+ 
+-assert sha((OWNER / 'FILES.json').read_bytes()) == 'c57d03af29547778f0bbcb095293f0ea2081f9e54d30a5dbf11013a5fceda4a4'
+-baseline = load('paired_live_baseline', 'artifacts/css-font-metric-dynamic-native-typecheck-v1/baseline.py')
++assert sha((OWNER / 'FILES.json').read_bytes()) == '9f52f3e563187ce94eb459fed2423b74bc4d355a73bdf10db0f819e3a9be3d82'
++baseline = load('paired_live_baseline', 'artifacts/css-font-metric-computed-size-native-typecheck-v1/baseline.py')
+ policy, ownership, roles = baseline.prepare(sha((OWNER / 'FILES.json').read_bytes()))
+ ENV = baseline.environment()
+ capture = baseline.current_capture(policy)
+@@ -43,7 +43,7 @@
+ typecheck = read(OWNER / 'TYPECHECK.json')
+ for name, pin in typecheck['required_input_hashes'].items():
+     assert sha((ROOT / name).read_bytes()) == pin
+-assessor = load('ownership_live_assessor', 'artifacts/css-font-metric-dynamic-native-typecheck-v1/assess.py')
++assessor = load('ownership_live_assessor', 'artifacts/css-font-metric-computed-size-native-typecheck-v1/assess.py')
+ inner = read(build / 'build-RESULT.json')
+ assert inner['exit'] == 0 and inner['owned_group_absent'] and inner['cleanup_errors'] == []
+ assert inner['error'] is None and inner['stop_reason'] is None

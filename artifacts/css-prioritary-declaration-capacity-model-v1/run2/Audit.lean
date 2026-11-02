@@ -1,0 +1,17 @@
+import Capacity
+#print axioms DeclarationCapacity.build_vector
+#print axioms DeclarationCapacity.build_chain
+#print axioms DeclarationCapacity.admitted_complete
+#print axioms DeclarationCapacity.fresh_builder_complete
+#print axioms DeclarationCapacity.unrelated_projection
+#print axioms DeclarationCapacity.unrelated_admission
+#print axioms DeclarationCapacity.projection_append
+#print axioms DeclarationCapacity.admitted_append
+#print axioms DeclarationCapacity.sole_target_projection
+#print axioms DeclarationCapacity.sole_target_admission
+#print axioms DeclarationCapacity.sole_target_lost
+#print axioms DeclarationCapacity.early_target_preserved
+#print axioms DeclarationCapacity.widened_bound_repairs_old_boundary
+#print axioms DeclarationCapacity.widened_bound_still_finite
+#print axioms DeclarationCapacity.zero_first_index_is_representable
+#print axioms DeclarationCapacity.fresh_link_not_end_marker

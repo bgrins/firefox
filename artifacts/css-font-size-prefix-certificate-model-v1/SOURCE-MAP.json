@@ -1,0 +1,15 @@
+{
+  "source_path": "artifacts/css-font-metric-computed-size-producer-v1/candidate/servo/components/style/properties/cascade.rs",
+  "sha256": "f0d21abeca15883f01c0fa06df860a17192deb33bb42f8b1cc062fc7bec22819",
+  "owner_manifest_sha256": "ef479500b28aa414dc5093cdba2c89cf48fed81a93397594edfc0a3eb9c65828",
+  "checker": "fn size_input_prefix_is_stable(\n    declarations: &Declarations,\n    id: PrioritaryPropertyId,\n    flags: RuleCascadeFlags,\n    mut revert: Option<(CascadePriority, RevertKind)>,\n) -> bool {\n    let mut index = declarations.prioritary_positions[id as usize].most_important;\n    if index == DeclarationIndex::MAX {\n        return true;\n    }\n    loop {\n        let entry = declarations.longhand_declarations[index as usize];\n        if entry\n            .priority\n            .flags()\n            .intersects(RuleCascadeFlags::APPEARANCE_BASE)\n        {\n            return false;\n        }\n        if (entry.priority.flags() - flags).is_empty()\n            && !revert.is_some_and(|(priority, kind)| {\n                !priority.allows_when_reverted(&entry.priority, kind)\n            })\n        {\n            if matches!(entry.decl, PropertyDeclaration::WithVariables(_)) {\n                return false;\n            }\n            if let Some(kind) = entry\n                .decl\n                .get_css_wide_keyword()\n                .and_then(|k| k.revert_kind())\n            {\n                revert = Some((entry.priority, kind));\n            } else {\n                return true;\n            }\n        }\n        if entry.next_index == 0 {\n            return true;\n        }\n        index = entry.next_index;\n    }\n}\n",
+  "correspondence": {
+    "APPEARANCE_BASE intersection before eligibility": "Declaration.needsBase checked before eligible",
+    "other flags subset test": "Declaration.otherFlags is the unchanged conjunction of all non-base flag requirements",
+    "initial revert and allows_when_reverted": "state and arbitrary fixed allows relation",
+    "WithVariables rejection": "eligible Declaration.dynamic rejected",
+    "static revert_kind and priority update": "staticEvaluation.next.rollback with next state",
+    "first non-revert or exhaustion": "nonrollback true / empty-list true",
+    "next_index chain": "finite list in linked order; representation validity remains external"
+  }
+}

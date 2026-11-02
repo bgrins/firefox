@@ -1,0 +1,29 @@
+--- artifacts/css-font-metric-selected-reference-pair-v1/run.py
++++ artifacts/css-font-metric-selected-reference-diagnostic-run-v1/run.py
+@@ -104,7 +104,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'selected-reference-pair21-v1'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'selected-reference-diagnostic4-v1'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+@@ -156,7 +156,7 @@
+     try:
+         phases = load('publication_pair_phases', str((HERE / 'phases.py').relative_to(ROOT)))
+         phase_result = {}
+-        for role in ('original', 'candidate'):
++        for role in ('candidate',):
+             active_role[0] = role
+             stable_controls()
+             if role == 'candidate':
+@@ -227,7 +227,7 @@
+         assert state.h.git(path, env, 'ls-files', '-v', '-z') == flags[name]
+     state.save(output / 'POST.json', after)
+     state.save(output / 'RAW-INDEX-OBSERVATION.json', {'before': original_before['index']['raw_index'], 'after': index['raw_index'], 'semantic_index_unchanged': True, 'canonical_updated': False})
+-    success = failure is None and not errors and phase_result is not None and set(phase_result) == {'original', 'candidate'}
++    success = failure is None and not errors and phase_result is not None and set(phase_result) == {'candidate'}
+     if success:
+         assert bundle.scan(backups) == backup_snapshot
+         shutil.rmtree(backups)

@@ -1,0 +1,66 @@
+2610:             // zoom affecting canvas).
+2611:             inherited_style.effective_zoom.inverted().unwrap_or(computed::Zoom::ONE)
+2612:         } else {
+2613:             specified
+2614:         }
+2615:     }
+2616: 
+2617:     /// The computed value flags of our parent.
+2618:     #[inline]
+2619:     pub fn get_parent_flags(&self) -> ComputedValueFlags {
+2620:         self.inherited_style.flags
+2621:     }
+2622: 
+2623:     /// Calculate the line height, given the currently resolved line-height and font.
+2624:     pub fn calc_line_height(
+2625:         &self,
+2626:         device: &Device,
+2627:         line_height_base: LineHeightBase,
+2628:         writing_mode: WritingMode,
+2629:     ) -> computed::NonNegativeLength {
+2630:         use crate::computed_value_flags::ComputedValueFlags;
+2631:         let (font, flag) = match line_height_base {
+2632:             LineHeightBase::CurrentStyle => (
+2633:                 self.get_font(),
+2634:                 ComputedValueFlags::DEPENDS_ON_SELF_FONT_METRICS,
+2635:             ),
+2636:             LineHeightBase::InheritedStyle => (
+2637:                 self.get_parent_font(),
+2638:                 ComputedValueFlags::DEPENDS_ON_INHERITED_FONT_METRICS,
+2639:             ),
+2640:         };
+2641:         let line_height = font.get_line_height();
+2642:         if matches!(line_height, computed::LineHeight::Normal) {
+2643:             self.add_flags(flag);
+2644:         }
+2645:         let lh = device.calc_line_height(font, writing_mode, None);
+2646:         if line_height_base == LineHeightBase::InheritedStyle {
+2647:             // Apply our own zoom if our style source is the parent style.
+2648:             computed::NonNegativeLength::new(self.effective_zoom_for_inheritance.zoom(lh.px()))
+2649:         } else {
+2650:             lh
+2651:         }
+2652:     }
+2653: 
+2654:     /// And access to inherited style structs.
+2655:     % for style_struct in data.active_style_structs():
+2656:         /// Gets our inherited `${style_struct.name}`.  We don't name these
+2657:         /// accessors `inherited_${style_struct.name_lower}` because we already
+2658:         /// have things like "box" vs "inherited_box" as struct names.  Do the
+2659:         /// next-best thing and call them `parent_${style_struct.name_lower}`
+2660:         /// instead.
+2661:         pub fn get_parent_${style_struct.name_lower}(&self) -> &style_structs::${style_struct.name} {
+2662:             self.inherited_style.get_${style_struct.name_lower}()
+2663:         }
+2664:     % endfor
+2665: }
+2666: 
+2667: /// A per-longhand function that performs the CSS cascade for that longhand.
+2668: pub type CascadePropertyFn =
+2669:     unsafe extern "Rust" fn(
+2670:         declaration: &PropertyDeclaration,
+2671:         context: &mut computed::Context,
+2672:     );
+2673: 
+2674: /// A per-longhand array of functions to perform the CSS cascade on each of
+2675: /// them, effectively doing virtual dispatch.

@@ -1,0 +1,13 @@
+# Computed-size paired observation raw refresh v9
+
+Disabled, bound to the actual failed full pair and independently restored state. Owner terminal49654/11e22b/e5ea0c/1 retains both successful builds, original core6PASS15FAIL versus candidate21PASS, and a true core comparison. The separate sizeforms diagnostic records original4FAIL versus candidate zero callbacks and CRASH; the pair result remains failed. Neither core success nor this metadata refresh accepts a native fix.
+
+Root independent audit36931/8c6ea1/c26b10/0 verified source/application/extras, flags/index/controls and all12 owned groups absent. Root cleanup1c6f61/0 verified and removed the retained1,008,605,176-byte backup. The original failure cleanup receipt remains intact. Frozen runtime FILES11a60277cec247fe9ec982301e03e8af602b27c2c949f358844feb499f2ddae2 is authenticated with its listed payloads; no live verification is claimed by the saved checker.
+
+The saved adapter reuses executed refreshv4 role-specific build and full raw assessment replay, now covering all four lanes and the actual diagnostic-only crash. Full original FAILs and candidate crash data remain authenticated; the core comparison and incomplete diagnostic are separate. Immutable unsigned V112 validates the real signed V106 receipt through actual refresh8, and that restored snapshot must equal this pair's pre-snapshot. V112 is not treated as a signed commit.
+
+The canonical transformation changes only `raw_index_observation.current`, from pair-before2d436e94 to pair-after3b2984a8 (full hashes in POLICY). If raw bytes have subsequently changed, the executed fresh-raw admission still requires every semantic-index field and the full restored snapshot to match except those raw bytes. `derive`, `admit_current_raw` and the write/rollback tail are unchanged from v8. The main changes only its operation label and checks temporary roots for both roles. Current source identities, app/extras, metadata absences, flags, process groups, signed HEAD and transition-lock guards remain enforced.
+
+Saved checker7d7c52/0 passes actual replay, raw-only transformation and14 negative checks. `check.py` is byte-identical to executed v4. `CHECK-PREPARATION.json` retains the earlier honest pending scaffold record; it is not the final admission result. No browser/build rerun or live/canonical operation was performed by this preparation.
+
+Root command after authenticating FILES: `python3 -I -S -B artifacts/css-font-metric-synthesis-raw-index-refresh-v9/run.py --check MANIFEST_SHA`. For execution, root changes only POLICY.execution_enabled from false to true, regenerates FILES, then invokes the same driver with `--run ACTIVE_MANIFEST_SHA`. All actual execution and current-state checks remain root-owned.

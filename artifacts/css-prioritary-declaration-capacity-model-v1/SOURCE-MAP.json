@@ -1,0 +1,51 @@
+{
+  "source": "artifacts/css-font-metric-synthesis-producer-v1/base/servo/components/style/properties/cascade.rs",
+  "source_sha256": "5b7204f81c999516c617ac05ab619258eb18a05d628845cc1c424f8256013573",
+  "exact_extracted_body": "BUILDER.txt",
+  "extracted_body_sha256": "ee38718f9092c5159727aee1f42165c9bc530504ea8a31082ea7e9df9f8751e4",
+  "source_candidate": "artifacts/css-prioritary-declaration-capacity-probe-v1/candidate.patch",
+  "mappings": [
+    {
+      "native": "Declarations.longhand_declarations",
+      "model": "Builder.vector",
+      "scope": "Append-only full longhand vector in caller order, including unrelated properties. Payload property/value are opaque natural tags."
+    },
+    {
+      "native": "note_declaration calls note_prioritary_property before longhand_declarations.push",
+      "model": "note uses s.vector.length then appends d",
+      "scope": "Absolute vector position, not count of declarations for target."
+    },
+    {
+      "native": "new_index >= DeclarationIndex::MAX causes return",
+      "model": "Admission exactly d.property = target and s.vector.length < sentinel",
+      "scope": "Return suppresses chain update; unconditional vector push still occurs."
+    },
+    {
+      "native": "prioritary_positions[target].most_important / least_important and previous-tail next_index",
+      "model": "Builder.chain stores the finite ordered sequence obtained by those links",
+      "scope": "Logical chain abstraction. Appending an admitted index models setting an empty head or the previous tail link, then recording new tail. A refinement of concrete indexed memory updates is not proved."
+    },
+    {
+      "native": "head sentinel MAX, next_index initialized 0",
+      "model": "headIndex / linkedEdges",
+      "scope": "Different roles: index0 can be a valid head; a later index is nonzero. Assumes valid append order when interpreting wire links."
+    },
+    {
+      "native": "type DeclarationIndex = u16 versus proposed u32",
+      "model": "u16Sentinel=65535, u32Sentinel=4294967295",
+      "scope": "Both finite. Natural arithmetic avoids overflow; actual cast, allocation, pointer access and platform bounds remain external."
+    }
+  ],
+  "unproved_native_correspondence": [
+    "Exact linked-memory/state invariant across builder mutations and traversal",
+    "Caller completeness/order/property mapping and relation to CSS cascade",
+    "Machine integers, casts, allocation limits, valid storage/lifetimes",
+    "Actual browser reachability and observed layout/computed values"
+  ],
+  "not_claimed": [
+    "Native Stylo compilation",
+    "Browser result",
+    "Unbounded capacity of u32",
+    "New accepted fix or canonical proof coverage"
+  ]
+}

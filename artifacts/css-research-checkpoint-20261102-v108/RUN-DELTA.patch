@@ -1,0 +1,29 @@
+--- artifacts/css-research-checkpoint-20261102-v107/commit.py
++++ artifacts/css-research-checkpoint-20261102-v108/commit.py
+@@ -15,7 +15,7 @@
+ BINDINGS = json.loads((HERE / 'BINDINGS.json').read_bytes())
+ HEAD = BINDINGS['head']
+ EPOCH = BINDINGS['epoch_sha256']
+-EXECUTION_ENABLED = True
++EXECUTION_ENABLED = False
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+@@ -167,7 +167,7 @@
+         assert file.stat().st_size == record['bytes'] and sha(file.read_bytes()) == record['sha256'], path
+     tracked = set(git('ls-files', '-z').decode().split('\0'))
+     skipped = [path for path in selected if path in tracked]
+-    assert not skipped, 'V107 must not reselect already committed payloads'
++    assert not skipped, 'V108 must not reselect already committed payloads'
+     for path in skipped:
+         del selected[path]
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+@@ -191,7 +191,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v107-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v108-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)

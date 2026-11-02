@@ -1,0 +1,10 @@
+import Prefix
+#print axioms SizePrefix.ungated_eligibility
+#print axioms SizePrefix.certificate_implies_reached_agreement
+#print axioms SizePrefix.checked_prefix_preserves_selection_and_reads
+#print axioms SizePrefix.skipped_higher_gate_rejected
+#print axioms SizePrefix.lower_unreached_gate_allowed
+#print axioms SizePrefix.rollback_prefix_preserves_exact_reads
+#print axioms SizePrefix.dynamic_eligible_rejected
+#print axioms SizePrefix.dynamic_rollback_skipped_allowed
+#print axioms SizePrefix.unchecked_higher_gate_changes_selection

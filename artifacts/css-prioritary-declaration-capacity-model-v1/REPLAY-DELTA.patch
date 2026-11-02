@@ -1,0 +1,71 @@
+--- artifacts/css-variable-substitution-resumption-model-v1/replay.py
++++ artifacts/css-prioritary-declaration-capacity-model-v1/replay.py
+@@ -17,44 +17,34 @@
+ assert len(sys.argv) == 2 and Path(sys.argv[1]).name == sys.argv[1]
+ output = HERE / sys.argv[1]
+ output.mkdir()
+-names = re.findall(r"^theorem (\w+)", (HERE / "Substitution.lean").read_text(), re.M)
++names = re.findall(r"^theorem (\w+)", (HERE / "Capacity.lean").read_text(), re.M)
+ false_cases = {
+-    "PendingAlwaysFinishesByRank": "(match tick (fun _ => none) (run (rank (start fallback) + 1) (fun _ => none) (start fallback)) with | .done _ => true | _ => false) = true",
+-    "PendingIsInvalid": "run 20 (fun _ => none) (start fallback) = ⟨.value none, [], []⟩",
+-    "LeftRereadAfterRightPause": "(run 6 env pausedRight).reads = [\"left\", \"left\", \"right\"]",
+-    "LostSavedLeft": "(run 6 env pausedRight).control = .value (some [30])",
+-    "RepeatedPendingConsumesRead": "(run 20 leftOnly pausedRight).reads = [\"left\", \"right\"]",
+-    "FallbackLosesNegativeRead": "(run 10 env (start fallback)).reads = [\"right\"]",
+-    "AliasUsesStalePartialValue": "(run 4 (CompletedPrefix.complete env \"alias\" (some [30])) ⟨.await \"alias\" none, [.right [20]], [\"left\"]⟩).control = .value (some [20])",
+-    "UnusedFallbackRead": "(run 10 env (start (.fallback \"left\" (.reference \"unknown\")))).reads = [\"left\", \"unknown\"]",
++    "SolePropertyCountSuffices": "(build 3 0 empty (List.replicate 3 color ++ [font])).chain = [3]",
++    "SentinelIndexAdmitted": "(build 1 0 empty [color, font]).chain = [1]",
++    "UnrelatedInsertionPreservesProjection": "(build 2 0 empty [color, color, font]).chain.length = (build 2 0 empty [font]).chain.length",
++    "GuardDropsFullVectorEntry": "(build 1 0 empty [color, font]).vector = [color]",
++    "ZeroHeadMeansAbsent": "headIndex 3 (build 3 0 empty [font]).chain = 3",
++    "LateOverflowDeletesEarlyTarget": "(build 1 0 empty (font :: List.replicate 3 color)).chain = []",
+ }
+-
+ 
+ 
+ records = []
+ (output / "TOOLCHAIN.txt").write_bytes(subprocess.check_output([str(LEAN), "--version"]))
+-with tempfile.TemporaryDirectory(prefix="css-substitution-resumption-lean-") as temporary:
++with tempfile.TemporaryDirectory(prefix="css-declaration-capacity-lean-") as temporary:
+     scratch = Path(temporary)
+     (output / "SCRATCH.json").write_text(json.dumps({"path": str(scratch)}) + "\n")
+     env = dict(os.environ, LEAN_PATH=str(scratch))
+-    pins = json.loads((HERE / "IMPORT-PINS.json").read_text())
+-    for name, record in pins.items():
+-        original = ROOT / record["path"]
+-        assert sha(original) == record["sha256"]
+-        target = scratch / name
+-        target.parent.mkdir(parents=True, exist_ok=True)
+-        shutil.copyfile(original, target)
+-    shutil.copyfile(HERE / "Substitution.lean", scratch / "Substitution.lean")
+-    (scratch / "Audit.lean").write_text("import Substitution\n" + "".join(
+-        "#print axioms SubstitutionResumption." + name + "\n" for name in names))
++    shutil.copyfile(HERE / "Capacity.lean", scratch / "Capacity.lean")
++    (scratch / "Audit.lean").write_text("import Capacity\n" + "".join(
++        "#print axioms DeclarationCapacity." + name + "\n" for name in names))
+     for name, claim in false_cases.items():
+         (scratch / (name + ".lean")).write_text(
+-            "import Substitution\nopen SelectedDeclaration PreparationStability SubstitutionResumption\nexample : " + claim + " := by decide\n")
++            "import Capacity\nopen DeclarationCapacity\nexample : " + claim + " := by decide\n")
+     for source in scratch.rglob("*.lean"):
+         target = output / source.relative_to(scratch)
+         target.parent.mkdir(parents=True, exist_ok=True)
+         shutil.copyfile(source, target)
+-    for name, expected in [(name, True) for name in ["CssSemantics/Variables", "CssSemantics/FiniteGraph", "CssSemantics/VariablesGraph", "CssSemantics/VariablesRank", "CssSemantics/VariablesBase", "Demand", "Selection", "Stability", "Prefix", "CompletedPrefix", "Substitution", "Audit"]] + [(n, False) for n in false_cases]:
++    for name, expected in [(name, True) for name in ["Capacity", "Audit"]] + [(n, False) for n in false_cases]:
+         result = subprocess.run([str(LEAN), "-o", name + ".olean", name + ".lean"],
+                                 cwd=scratch, env=env, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, timeout=60)
+@@ -76,8 +66,8 @@
+ assert not scratch.exists()
+ (output / "CHECK.json").write_text(json.dumps({
+     "success": True, "audited_theorems": names, "false_controls_rejected": len(false_cases),
+-    "source_sha256": sha(HERE / "Substitution.lean"), "lean_sha256": sha(LEAN),
++    "source_sha256": sha(HERE / "Capacity.lean"), "lean_sha256": sha(LEAN),
+     "scratch_removed": True, "canonical_coverage_increment": 0,
+-    "native_refinement_proved": False, "native_scheduling_refinement_proved": False, "cycle_policy_or_convergence_proved": False,
++    "native_refinement_proved": False, "native_link_memory_refinement_proved": False, "unbounded_capacity_proved": False,
+ }, indent=2, sort_keys=True) + "\n")
+ print(f"{len(names)} theorems audited; {len(false_cases)} false controls rejected")

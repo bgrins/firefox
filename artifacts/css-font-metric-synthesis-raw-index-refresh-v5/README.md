@@ -1,0 +1,7 @@
+# Diagnostic failure raw refresh v5 — disabled
+
+The actual diagnostic owner exited 1 in 31469/7d42b5/d0cca4 after a successful candidate build and typed-attribute CRASH before any callback. Existing historical-original replay remains separate from the new candidate metadata. Root independently verified restoration in 48796/394982/0eca7d/0, all three process groups absent, then removed the retained 1,008,605,176-byte backup after exact inventory verification. The frozen 51-payload runtime and actual audit/cleanup receipts are bound.
+
+The executed v4 derive, fresh-raw admission and canonical writer/rollback tail are unchanged except operation label. The preflight checks only the executed candidate temporary root. Saved admission validates the existing V106→refresh4 transition through immutable V107 code and requires its full snapshot to equal this diagnostic preimage. The signed receipt remains the real V106 receipt; epoch b780 is explicitly an intervening raw-only refresh, not a newly signed state. The next checkpoint must verify both transitions.
+
+Saved 490a51/0 passes actual build/CRASH/historical comparison/restoration joins and 15 negative controls. Root reviewed the delta in d2d281. Execution is disabled. Root runs `run.py --check MANIFEST`, enables only POLICY.execution_enabled, reseals, then `run.py --run ACTIVE_MANIFEST`. No signing, browser repair, native acceptance or fix increment is inferred.

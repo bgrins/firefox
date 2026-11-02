@@ -1,0 +1,50 @@
+ 330: 
+ 331: /// A generic value for the `line-height` property.
+ 332: #[derive(
+ 333:     Animate,
+ 334:     Clone,
+ 335:     ComputeSquaredDistance,
+ 336:     Copy,
+ 337:     Debug,
+ 338:     Deserialize,
+ 339:     MallocSizeOf,
+ 340:     PartialEq,
+ 341:     Serialize,
+ 342:     SpecifiedValueInfo,
+ 343:     ToAnimatedValue,
+ 344:     ToCss,
+ 345:     ToShmem,
+ 346:     ToTyped,
+ 347: )]
+ 348: #[repr(C, u8)]
+ 349: pub enum GenericLineHeight<N, L> {
+ 350:     /// `normal`
+ 351:     Normal,
+ 352:     /// `<number>`
+ 353:     Number(N),
+ 354:     /// `<length-percentage>`
+ 355:     Length(L),
+ 356: }
+ 357: 
+ 358: pub use self::GenericLineHeight as LineHeight;
+ 359: 
+ 360: impl<N, L> ToAnimatedZero for LineHeight<N, L> {
+ 361:     #[inline]
+ 362:     fn to_animated_zero(&self) -> Result<Self, ()> {
+ 363:         Err(())
+ 364:     }
+ 365: }
+ 366: 
+ 367: impl<N, L> LineHeight<N, L> {
+ 368:     /// Returns `normal`.
+ 369:     #[inline]
+ 370:     pub fn normal() -> Self {
+ 371:         LineHeight::Normal
+ 372:     }
+ 373: 
+ 374:     /// Returns whether the value is `normal`.
+ 375:     #[inline]
+ 376:     pub fn is_normal(&self) -> bool {
+ 377:         matches!(self, Self::Normal)
+ 378:     }
+ 379: }

@@ -1,0 +1,20 @@
+--- artifacts/css-research-checkpoint-20261102-v111/commit.py
++++ artifacts/css-research-checkpoint-20261102-v112/commit.py
+@@ -178,7 +178,7 @@
+         assert file.stat().st_size == record['bytes'] and sha(file.read_bytes()) == record['sha256'], path
+     tracked = set(git('ls-files', '-z').decode().split('\0'))
+     skipped = [path for path in selected if path in tracked]
+-    assert not skipped, 'V111 must not reselect already committed payloads'
++    assert not skipped, 'V112 must not reselect already committed payloads'
+     for path in skipped:
+         del selected[path]
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+@@ -202,7 +202,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v111-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v112-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)

@@ -1,0 +1,19 @@
+--- artifacts/css-appearance-typed-attr-pair-v2/phases.py
++++ artifacts/css-font-metric-selected-reference-pair-v1/phases.py
+@@ -29,12 +29,12 @@
+         assert metadata==read(phase/'APPLICATION-METADATA-POST.json')==build['application_metadata']
+         assert metadata['revision']==metadata['build_revision']==policy['head'] and metadata['source_role']==role
+         assert build['binaries']==read(phase/'BINARY-PINS.json') and verify()==initial
+-    assert len(rows)==len({(row['test'],row['subtest']) for row in rows})==4
+-    assert len(endings)==len({row['test'] for row in endings})==1
++    assert len(rows)==len({(row['test'],row['subtest']) for row in rows})==21
++    assert len(endings)==len({row['test'] for row in endings})==3
+     assert all(value['zoom_observation_sha256'] is None for value in results.values())
+     if role=='candidate':
+-        assert sum(len(value['candidate_signatures']) for value in behaviors.values())==5
+-        wpt.save(output/'COMPARISON.json',{'lanes':behaviors,'publication_observation_gate':all(value['publication_observation_gate'] for value in behaviors.values()),'all5_signatures_equal':all(value['all_signatures_equal'] for value in behaviors.values()),'native_acceptance':False})
++        assert sum(len(value['candidate_signatures']) for value in behaviors.values())==24
++        wpt.save(output/'COMPARISON.json',{'lanes':behaviors,'publication_observation_gate':all(value['publication_observation_gate'] for value in behaviors.values()),'all24_signatures_equal':all(value['all_signatures_equal'] for value in behaviors.values()),'native_acceptance':False})
+     for lane in policy['diagnostic_lane_order']:
+         phase = output / (role + '-wpt-' + lane)
+         record = wpt.run(root, here, phase, role, policy, env, verify, owned, cancelled, original=output / ('original-wpt-' + lane) if role == 'candidate' else None, lane=lane)

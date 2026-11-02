@@ -1,0 +1,61 @@
+--- artifacts/css-selected-reference-resumption-model-v1/replay.py
++++ artifacts/css-font-size-prefix-certificate-model-v1/replay.py
+@@ -17,20 +17,19 @@
+ assert len(sys.argv) == 2 and Path(sys.argv[1]).name == sys.argv[1]
+ output = HERE / sys.argv[1]
+ output.mkdir()
+-names = re.findall(r"^theorem (\w+)", (HERE / "Resumption.lean").read_text(), re.M)
++names = re.findall(r"^theorem (\w+)", (HERE / "Prefix.lean").read_text(), re.M)
+ false_cases = {
+-    "ScheduledIsReady": "(publish scheduled).values = [some 700]",
+-    "UnsupportedIsInvalid": "takeValue unsupported = some 0",
+-    "PrematureDefaultIsFinal": "prerequisite.value Nat.mul = 20",
+-    "RollbackReadDiscarded": "(resumedScan Nat.mul rollbackEligible rollbackPlan 0 [0, 1, 2, 3]).reads = [\"size\", \"scale\"]",
+-    "CompletionPublishesTwice": "(publish (publish completedPublication)).values = [some 700, some 700]",
++    "HigherGateAccepted": "certificate false allow 0 [winner 8 true, winner 20] = true",
++    "LowerGateRejected": "certificate false allow 0 [winner 20, winner 8 true] = false",
++    "DynamicAccepted": "certificate false allow 0 [winner 20 false true] = true",
++    "RollbackReadLost": "(scan (eligible false allow) (evaluate oldDynamic) 0 [rollback, winner 8, winner 20]).reads = [20]",
+ }
+ 
+ 
+ 
+ records = []
+ (output / "TOOLCHAIN.txt").write_bytes(subprocess.check_output([str(LEAN), "--version"]))
+-with tempfile.TemporaryDirectory(prefix="css-selected-resumption-lean-") as temporary:
++with tempfile.TemporaryDirectory(prefix="css-size-prefix-lean-") as temporary:
+     scratch = Path(temporary)
+     (output / "SCRATCH.json").write_text(json.dumps({"path": str(scratch)}) + "\n")
+     env = dict(os.environ, LEAN_PATH=str(scratch))
+@@ -41,17 +40,17 @@
+         target = scratch / name
+         target.parent.mkdir(parents=True, exist_ok=True)
+         shutil.copyfile(original, target)
+-    shutil.copyfile(HERE / "Resumption.lean", scratch / "Resumption.lean")
+-    (scratch / "Audit.lean").write_text("import Resumption\n" + "".join(
+-        "#print axioms SelectedResumption." + name + "\n" for name in names))
++    shutil.copyfile(HERE / "Prefix.lean", scratch / "Prefix.lean")
++    (scratch / "Audit.lean").write_text("import Prefix\n" + "".join(
++        "#print axioms SizePrefix." + name + "\n" for name in names))
+     for name, claim in false_cases.items():
+         (scratch / (name + ".lean")).write_text(
+-            "import Resumption\nopen SelectedDeclaration PreparationStability SelectedResumption\nexample : " + claim + " := by decide\n")
++            "import Prefix\nopen SelectedDeclaration PreparationStability SizePrefix\nexample : " + claim + " := by decide\n")
+     for source in scratch.rglob("*.lean"):
+         target = output / source.relative_to(scratch)
+         target.parent.mkdir(parents=True, exist_ok=True)
+         shutil.copyfile(source, target)
+-    for name, expected in [(name, True) for name in ["CssSemantics/Variables", "CssSemantics/FiniteGraph", "CssSemantics/VariablesGraph", "CssSemantics/VariablesRank", "CssSemantics/VariablesBase", "Demand", "Selection", "Stability", "Resumption", "Audit"]] + [(n, False) for n in false_cases]:
++    for name, expected in [(name, True) for name in ["CssSemantics/Variables", "CssSemantics/FiniteGraph", "CssSemantics/VariablesGraph", "CssSemantics/VariablesRank", "CssSemantics/VariablesBase", "Demand", "Selection", "Stability", "Prefix", "Audit"]] + [(n, False) for n in false_cases]:
+         result = subprocess.run([str(LEAN), "-o", name + ".olean", name + ".lean"],
+                                 cwd=scratch, env=env, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, timeout=60)
+@@ -73,7 +72,7 @@
+ assert not scratch.exists()
+ (output / "CHECK.json").write_text(json.dumps({
+     "success": True, "audited_theorems": names, "false_controls_rejected": len(false_cases),
+-    "source_sha256": sha(HERE / "Resumption.lean"), "lean_sha256": sha(LEAN),
++    "source_sha256": sha(HERE / "Prefix.lean"), "lean_sha256": sha(LEAN),
+     "scratch_removed": True, "canonical_coverage_increment": 0,
+     "native_refinement_proved": False, "native_scheduling_refinement_proved": False, "cycle_policy_or_convergence_proved": False,
+ }, indent=2, sort_keys=True) + "\n")

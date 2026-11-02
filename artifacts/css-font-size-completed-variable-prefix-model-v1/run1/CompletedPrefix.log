@@ -1,0 +1,30 @@
+CompletedPrefix.lean:41:22: error: Type mismatch: After simplification, term
+  done
+ has type
+  ∃ a, old name = some a ∧ { tokens := a, reads := [name] } = r
+but is expected to have type
+  { tokens := value, reads := [name] } = r
+CompletedPrefix.lean:47:27: error: Type mismatch: After simplification, term
+  done
+ has type
+  (match old name with
+    | none => none
+    | some (some tokens) => some { tokens := some tokens, reads := [name] }
+    | some none => Option.map (fun r => { tokens := r.tokens, reads := name :: r.reads }) (resolve old expression)) =
+    some r
+but is expected to have type
+  { tokens := some tokens, reads := [name] } = r
+CompletedPrefix.lean:79:22: error: Type mismatch: After simplification, term
+  congrArg (Option.map Resolution.tokens) done
+ has type
+  @Eq (Option (List T)) (some tokens) r.tokens
+but is expected to have type
+  @Eq (Option (List T)) (VariableExpr.substitute (projected env) (VariableExpr.literal tokens)) r.tokens
+CompletedPrefix.lean:154:37: warning: This simp argument is unused:
+  dynamicCertificate
+
+Hint: Omit it from the simp argument list.
+  [apply] simp_all
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+CompletedPrefix.lean:186:2: error: No goals to be solved

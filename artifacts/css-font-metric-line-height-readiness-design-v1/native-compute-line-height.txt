@@ -1,0 +1,101 @@
+2595:       margin.IStart(cbWM) += availMarginSpace;
+2596:     }
+2597:   } else if (isAutoEndMargin) {
+2598:     margin.IEnd(cbWM) += availMarginSpace;
+2599:   }
+2600:   SetComputedLogicalMargin(cbWM, margin);
+2601: 
+2602:   if (isAutoStartMargin || isAutoEndMargin) {
+2603:     // Update the UsedMargin property if we were tracking it already.
+2604:     nsMargin* propValue = mFrame->GetProperty(nsIFrame::UsedMarginProperty());
+2605:     if (propValue) {
+2606:       *propValue = margin.GetPhysicalMargin(cbWM);
+2607:     }
+2608:   }
+2609: }
+2610: 
+2611: static inline nscoord ComputeLineHeight(const StyleLineHeight& aLh,
+2612:                                         const nsFont& aFont, nsAtom* aLanguage,
+2613:                                         bool aExplicitLanguage,
+2614:                                         nsPresContext* aPresContext,
+2615:                                         bool aIsVertical,
+2616:                                         float aFontSizeInflation) {
+2617:   if (aLh.IsLength()) {
+2618:     nscoord result = aLh.AsLength().ToAppUnits();
+2619:     if (aFontSizeInflation != 1.0f) {
+2620:       result = NSToCoordRound(static_cast<float>(result) * aFontSizeInflation);
+2621:     }
+2622:     return result;
+2623:   }
+2624: 
+2625:   if (aLh.IsNumber()) {
+2626:     // For factor units the computed value of the line-height property
+2627:     // is found by multiplying the factor by the font's computed size
+2628:     // (adjusted for min-size prefs and text zoom).
+2629:     return aFont.size.ScaledBy(aLh.AsNumber() * aFontSizeInflation)
+2630:         .ToAppUnits();
+2631:   }
+2632: 
+2633:   MOZ_ASSERT(aLh.IsNormal());
+2634: 
+2635:   auto size = aFont.size;
+2636:   size.ScaleBy(aFontSizeInflation);
+2637: 
+2638:   if (aPresContext) {
+2639:     nsFont font = aFont;
+2640:     font.size = size;
+2641:     nsFontMetrics::Params params;
+2642:     params.language = aLanguage;
+2643:     params.explicitLanguage = aExplicitLanguage;
+2644:     params.orientation =
+2645:         aIsVertical ? nsFontMetrics::eVertical : nsFontMetrics::eHorizontal;
+2646:     params.userFontSet = aPresContext->GetUserFontSet();
+2647:     params.textPerf = aPresContext->GetTextPerfMetrics();
+2648:     params.featureValueLookup = aPresContext->GetFontFeatureValuesLookup();
+2649:     RefPtr<nsFontMetrics> fm = aPresContext->GetMetricsFor(font, params);
+2650:     // For "normal" we use the font's normal line height (em height + leading).
+2651:     // If both internal leading and  external leading specified by font itself
+2652:     // are zeros, we compensate for this by creating extra (external) leading.
+2653:     // This is necessary because without this compensation, normal line height
+2654:     // might look too tight.
+2655:     return fm->CalcNormalLineHeight();
+2656:   }
+2657:   // If we don't have a pres context, use a 1.2em fallback.
+2658:   size.ScaleBy(nsFontMetrics::kNormalLineHeightFactor);
+2659:   return size.ToAppUnits();
+2660: }
+2661: 
+2662: nscoord ReflowInput::GetLineHeight() const {
+2663:   if (mLineHeight != NS_UNCONSTRAINEDSIZE) {
+2664:     return mLineHeight;
+2665:   }
+2666:   mLineHeight = CalcLineHeight(*mFrame->Style(), mFrame->PresContext(),
+2667:                                mFrame->GetContent(),
+2668:                                nsLayoutUtils::FontSizeInflationFor(mFrame));
+2669:   return mLineHeight;
+2670: }
+2671: 
+2672: void ReflowInput::SetLineHeight(nscoord aLineHeight) {
+2673:   MOZ_ASSERT(aLineHeight >= 0, "aLineHeight must be >= 0!");
+2674: 
+2675:   if (mLineHeight != aLineHeight) {
+2676:     mLineHeight = aLineHeight;
+2677:     // Setting used line height can change a frame's block-size if mFrame's
+2678:     // block-size behaves as auto.
+2679:     InitResizeFlags(mFrame->PresContext(), mFrame->Type());
+2680:   }
+2681: }
+2682: 
+2683: /* static */
+2684: nscoord ReflowInput::CalcLineHeight(const ComputedStyle& aStyle,
+2685:                                     nsPresContext* aPresContext,
+2686:                                     const nsIContent* aContent,
+2687:                                     float aFontSizeInflation) {
+2688:   const StyleLineHeight& lh = aStyle.StyleFont()->mLineHeight;
+2689:   WritingMode wm(&aStyle);
+2690:   const bool vertical = wm.IsVertical() && !wm.IsSideways();
+2691:   return CalcLineHeight(lh, *aStyle.StyleFont(), aPresContext, vertical,
+2692:                         aContent, aFontSizeInflation);
+2693: }
+2694: 
+2695: nscoord ReflowInput::CalcLineHeight(const StyleLineHeight& aLh,

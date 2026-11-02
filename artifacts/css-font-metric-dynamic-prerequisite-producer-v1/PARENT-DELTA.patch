@@ -1,0 +1,162 @@
+--- artifacts/css-font-metric-ordinary-ownership-v1/candidate/servo/components/style/properties/cascade.rs
++++ artifacts/css-font-metric-dynamic-prerequisite-producer-v1/candidate/servo/components/style/properties/cascade.rs
+@@ -989,6 +989,8 @@
+                 | Direction
+                 | WritingMode
+                 | TextOrientation
++                | Appearance
++                | FontFamily
+         ));
+         self.begin_font_preparation(context, declarations, id.to_longhand())
+     }
+@@ -1130,6 +1132,7 @@
+ enum ComputationStatus {
+     Ready,
+     Pending,
++    Prepare(LonghandId),
+ }
+ 
+ #[derive(Default)]
+@@ -1153,14 +1156,16 @@
+         }
+         self.active.insert(id);
+         for dependency in id.dependencies().iter() {
+-            if self.ensure_ordinary(dependency, apply) == ComputationStatus::Pending {
++            let status = self.ensure_ordinary(dependency, apply);
++            if status != ComputationStatus::Ready {
+                 self.suspend(id);
+-                return ComputationStatus::Pending;
+-            }
+-        }
+-        if apply(id) == ComputationStatus::Pending {
++                return status;
++            }
++        }
++        let status = apply(id);
++        if status != ComputationStatus::Ready {
+             self.suspend(id);
+-            return ComputationStatus::Pending;
++            return status;
+         }
+         self.finish(id);
+         ComputationStatus::Ready
+@@ -2249,6 +2254,7 @@
+                         attribute_tracker,
+                         id,
+                         &mut priority_completion,
++                        false,
+                     ),
+                     ComputationStatus::Ready,
+                 );
+@@ -2273,6 +2279,7 @@
+         attribute_tracker: &mut AttributeTracker,
+         id: PrioritaryPropertyId,
+         completion: &mut PriorityCompletion,
++        prepare_dynamic: bool,
+     ) -> ComputationStatus {
+         if completion.claimed.contains(id) || completion.active.contains(id) {
+             return ComputationStatus::Pending;
+@@ -2283,18 +2290,29 @@
+         completion.active.insert(id);
+         let deps = id.dependencies();
+         for dep in deps.iter() {
+-            if self.ensure_prioritary_property(
++            let status = self.ensure_prioritary_property(
+                 context,
+                 decls,
+                 cache,
+                 attribute_tracker,
+                 dep,
+                 completion,
+-            ) == ComputationStatus::Pending
+-            {
++                prepare_dynamic,
++            );
++            if status != ComputationStatus::Ready {
+                 completion.active.remove(id);
+-                return ComputationStatus::Pending;
+-            }
++                return status;
++            }
++        }
++        if prepare_dynamic
++            && matches!(
++                id,
++                PrioritaryPropertyId::Appearance | PrioritaryPropertyId::FontFamily
++            )
++            && priority_has_dynamic_declarations(decls, id)
++        {
++            completion.active.remove(id);
++            return ComputationStatus::Prepare(id.to_longhand());
+         }
+         self.apply_one_prioritary_property(context, decls, cache, id, attribute_tracker);
+         self.ensured_prioritary.insert(id);
+@@ -3224,6 +3242,8 @@
+                     | Direction
+                     | WritingMode
+                     | TextOrientation
++                    | Appearance
++                    | FontFamily
+             ) {
+                 return MetricActionProgress::Unsupported;
+             }
+@@ -3238,6 +3258,7 @@
+             {
+                 return MetricActionProgress::Invalidated;
+             }
++            let flags = self.computed_context.included_cascade_flags;
+             match self.metric_drain.poll(
+                 self.cascade,
+                 self.computed_context,
+@@ -3247,6 +3268,13 @@
+                 reference,
+             ) {
+                 MetricDrainStep::Published(id) => {
++                    if flags != self.computed_context.included_cascade_flags {
++                        self.cascade
++                            .refresh_priority_completion(self.computed_context);
++                        self.priority_completion.complete =
++                            self.cascade.completed_prioritary.clone();
++                        return MetricActionProgress::Invalidated;
++                    }
+                     self.cascade.completed_prioritary.insert(id);
+                     if id.to_longhand() == target_id.to_longhand() {
+                         assert!(self.priority_completion.complete.contains(id));
+@@ -3349,8 +3377,9 @@
+                 _ => None,
+             };
+             if let Some(id) = priority {
+-                if self.apply_prioritary_property(id, attr_tracker) == ComputationStatus::Pending {
+-                    return ComputationStatus::Pending;
++                let status = self.apply_prioritary_property(id, attr_tracker);
++                if status != ComputationStatus::Ready {
++                    return status;
+                 }
+             }
+             let value = self.var_info[index].publication.take_ready(true).unwrap();
+@@ -3429,6 +3458,7 @@
+                 attr_tracker,
+                 id,
+                 self.priority_completion,
++                true,
+             )
+         }
+     }
+@@ -4202,10 +4232,13 @@
+                             },
+                             PublicationDemand::Unresolved => return FrameStep::Pending(None),
+                         }
+-                        if context.publish_closed(self.index, attribute_tracker)
+-                            == ComputationStatus::Pending
+-                        {
+-                            return FrameStep::Pending(None);
++                        match context.publish_closed(self.index, attribute_tracker) {
++                            ComputationStatus::Ready => {},
++                            ComputationStatus::Pending => return FrameStep::Pending(None),
++                            ComputationStatus::Prepare(longhand) => {
++                                let id = PrioritaryPropertyId::from_longhand(longhand).unwrap();
++                                return FrameStep::Pending(Some(FontTarget::Metric(id)));
++                            },
+                         }
+                         return FrameStep::Complete(VisitResult::Complete);
+                     },

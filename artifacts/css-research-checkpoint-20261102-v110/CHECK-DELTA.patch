@@ -1,0 +1,101 @@
+--- artifacts/css-research-checkpoint-20261102-v109/check.py
++++ artifacts/css-research-checkpoint-20261102-v110/check.py
+@@ -50,22 +50,22 @@
+         assert not Path(name).is_absolute() and '..' not in Path(name).parts
+         full = str((Path(path).parent / name))
+         assert selected[full]['sha256'] == (record['sha256'] if isinstance(record, dict) else record)
+-old = (ROOT / 'artifacts/css-research-checkpoint-20261102-v108/commit.py').read_text()
++old = (ROOT / 'artifacts/css-research-checkpoint-20261102-v109/commit.py').read_text()
+ new = (HERE / 'commit.py').read_text()
+ marker = "    controls = {name: (RUNTIME / name).read_bytes()"
+-assert old[old.index(marker):].replace('v108', 'v109').replace('V108', 'V109') == new[new.index(marker):]
++assert old[old.index(marker):].replace('v109', 'v110').replace('V109', 'V110').replace('No bug - Record selected-reference paired browser observations. r?#firefox-style-system-reviewers','No bug - Record font dependency preparation and native validation. r?#firefox-style-system-reviewers') == new[new.index(marker):]
+ 
+ if bindings['pending_current_admission']:
+     if bindings.get('completed_pair_runtime_frozen'):
+-        assert 'artifacts/css-font-metric-selected-reference-diagnostic-runtime-1/FILES.json' in bindings['completed_packages']
++        assert 'artifacts/css-font-metric-ordinary-ownership-native-typecheck-runtime-1/FILES.json' in bindings['completed_packages']
+     else:
+         assert 'artifacts/css-font-metric-selected-reference-diagnostic-root-run-v1.log' not in selected
+-        assert not any(path.startswith('artifacts/css-font-metric-selected-reference-diagnostic-runtime-1/') for path in selected)
++        assert not any(path.startswith('artifacts/css-font-metric-ordinary-ownership-native-typecheck-runtime-1/') for path in selected)
+     assert bindings['current_capture_sha256'] is None
+     if bindings['refresh_binding']:
+         receipt = json.loads((ROOT / bindings['prior_receipt']).read_bytes())
+         refreshed = m.validate_refresh(receipt)
+-        frozen = json.loads((ROOT / 'artifacts/css-font-metric-selected-reference-diagnostic-runtime-1/POST.json').read_bytes())
++        frozen = json.loads((ROOT / 'artifacts/css-font-metric-ordinary-ownership-native-typecheck-runtime-1/POST.json').read_bytes())
+         frozen['index']['raw_index'] = refreshed['index']['raw_index']
+         assert refreshed == frozen
+         assert bindings['controls']['CURRENT-EPOCH.json'] == bindings['epoch_sha256']
+@@ -95,28 +95,37 @@
+     sys.argv = saved_argv
+     m.git = original_git
+ if bindings['pending_current_admission']:
+-    print(json.dumps({'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'pending_admission_rejected':True, 'disabled_execution_rejected':True, 'exact_v108_signing_tail':True}))
++    print(json.dumps({'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'pending_admission_rejected':True, 'disabled_execution_rejected':True, 'exact_v109_signing_tail':True}))
+     raise SystemExit(0)
+ current = json.loads((ROOT / bindings['current_capture']).read_bytes())
+ receipt = json.loads((ROOT / bindings['prior_receipt']).read_bytes())
+ directory = ROOT / bindings['refresh_binding']['directory']
+ refresh = json.loads((directory / 'RESULT.json').read_bytes())
+ negatives = 0
+-with tempfile.TemporaryDirectory(prefix='css-research-v109-check-') as temporary:
++with tempfile.TemporaryDirectory(prefix='css-research-v110-check-') as temporary:
+     scratch=Path(temporary);(scratch/'refresh').mkdir()
+     for name in ['PRE-CURRENT-EPOCH.json','EPOCH.json','PRE.json','POST.json']:
+         (scratch/'refresh'/name).write_bytes((directory/name).read_bytes())
+-    parent_directory = ROOT / bindings['refresh_parent']['directory']
+-    parent_bindings = json.loads((parent_directory / 'BINDINGS.json').read_bytes())
+-    parent_refresh_directory = ROOT / parent_bindings['refresh_binding']['directory']
+-    parent_refresh = json.loads((parent_refresh_directory / 'RESULT.json').read_bytes())
+-    scratch_parent = scratch / bindings['refresh_parent']['directory']
+-    scratch_parent.mkdir(parents=True)
+-    (scratch_parent / 'commit.py').write_bytes((parent_directory / 'commit.py').read_bytes())
+-    scratch_prior = scratch / parent_bindings['refresh_binding']['directory']
+-    scratch_prior.mkdir(parents=True)
+-    for name in ['PRE-CURRENT-EPOCH.json','EPOCH.json','PRE.json','POST.json']:
+-        (scratch_prior/name).write_bytes((parent_refresh_directory/name).read_bytes())
++    def stage_parent(relative, receipt_bytes):
++        parent_directory = ROOT / relative
++        pb = json.loads((parent_directory / 'BINDINGS.json').read_bytes())
++        parent_refresh_directory = ROOT / pb['refresh_binding']['directory']
++        pf = json.loads((parent_refresh_directory / 'RESULT.json').read_bytes())
++        target = scratch / relative
++        target.mkdir(parents=True, exist_ok=True)
++        (target / 'commit.py').write_bytes((parent_directory / 'commit.py').read_bytes())
++        prior = scratch / pb['refresh_binding']['directory']
++        prior.mkdir(parents=True, exist_ok=True)
++        for name in ['PRE-CURRENT-EPOCH.json','EPOCH.json','PRE.json','POST.json']:
++            (prior/name).write_bytes((parent_refresh_directory/name).read_bytes())
++        pb.update(prior_receipt='receipt.json',prior_receipt_sha256=sha(receipt_bytes))
++        pf['signed_commit_receipt']={'path':'receipt.json','sha256':sha(receipt_bytes)}
++        pfb=json.dumps(pf).encode();(prior/'RESULT.json').write_bytes(pfb)
++        pb['refresh_binding']['result_sha256']=sha(pfb)
++        if pb.get('refresh_parent'):
++            pb['refresh_parent']['bindings_sha256']=stage_parent(pb['refresh_parent']['directory'],receipt_bytes)
++        pbb=json.dumps(pb).encode();(target/'BINDINGS.json').write_bytes(pbb)
++        return sha(pbb)
+     for label,target,field,value in [('unsigned','receipt','signature_verified',False),('wrong_head','receipt','head','0'*40),('fix_increment','receipt','accepted_fix_increment',1),('incomplete','current','full_current_state_verified',False),('tracked_dirt','current','tracked_modified_paths',['servo/example.rs']),('staged_dirt','current','staged_paths',['artifacts/example']),('refresh_field','refresh','updated_only','semantic_index'),('refresh_acceptance','refresh','native_fix_acceptance',True)]:
+         r,c,f=copy.deepcopy(receipt),copy.deepcopy(current),copy.deepcopy(refresh)
+         {'receipt':r,'current':c,'refresh':f}[target][field]=value
+@@ -125,17 +134,11 @@
+         cb,fb=json.dumps(c).encode(),json.dumps(f).encode()
+         (scratch/'receipt.json').write_bytes(rb);(scratch/'current.json').write_bytes(cb);(scratch/'refresh/RESULT.json').write_bytes(fb)
+         b=copy.deepcopy(bindings);b.update(prior_receipt='receipt.json',prior_receipt_sha256=sha(rb),current_capture='current.json',current_capture_sha256=sha(cb),refresh_binding={'directory':'refresh','result_sha256':sha(fb)})
+-        pb,pf=copy.deepcopy(parent_bindings),copy.deepcopy(parent_refresh)
+-        pb.update(prior_receipt='receipt.json',prior_receipt_sha256=sha(rb))
+-        pf['signed_commit_receipt']={'path':'receipt.json','sha256':sha(rb)}
+-        pfb=json.dumps(pf).encode();(scratch_prior/'RESULT.json').write_bytes(pfb)
+-        pb['refresh_binding']['result_sha256']=sha(pfb)
+-        pbb=json.dumps(pb).encode();(scratch_parent/'BINDINGS.json').write_bytes(pbb)
+-        b['refresh_parent']['bindings_sha256']=sha(pbb)
++        b['refresh_parent']['bindings_sha256']=stage_parent(bindings['refresh_parent']['directory'],rb)
+         m.ROOT,m.BINDINGS=scratch,b
+         try:m.saved_admission()
+         except AssertionError:negatives+=1
+         else:raise AssertionError('accepted '+label)
+     m.ROOT,m.BINDINGS=ROOT,bindings
+ assert not scratch.exists()
+-print(json.dumps({'selected':len(selected),'bytes':sum(x['bytes'] for x in selected.values()),'closures':len(bindings['completed_packages']),'binding_negatives':negatives,'disabled_execution_rejected':True,'exact_v108_signing_tail':True,'scratch_removed':True}))
++print(json.dumps({'selected':len(selected),'bytes':sum(x['bytes'] for x in selected.values()),'closures':len(bindings['completed_packages']),'binding_negatives':negatives,'disabled_execution_rejected':True,'exact_v109_signing_tail':True,'scratch_removed':True}))

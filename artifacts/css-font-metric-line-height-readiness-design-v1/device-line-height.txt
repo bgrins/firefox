@@ -1,0 +1,61 @@
+  65:             root_font_metrics_ex: AtomicU32::new(FONT_MEDIUM_EX_PX.to_bits()),
+  66:             root_font_metrics_cap: AtomicU32::new(FONT_MEDIUM_CAP_PX.to_bits()),
+  67:             root_font_metrics_ch: AtomicU32::new(FONT_MEDIUM_CH_PX.to_bits()),
+  68:             root_font_metrics_ic: AtomicU32::new(FONT_MEDIUM_IC_PX.to_bits()),
+  69:             used_root_font_size: AtomicBool::new(false),
+  70:             used_root_line_height: AtomicBool::new(false),
+  71:             used_root_font_metrics: RwLock::new(false),
+  72:             used_font_metrics: AtomicBool::new(false),
+  73:             used_viewport_size: AtomicBool::new(false),
+  74:             used_dynamic_viewport_size: AtomicBool::new(false),
+  75:             environment: CssEnvironment,
+  76:             submit_string: submit_str.to_string().into(),
+  77:             // This gets updated when we see the <body>, so it doesn't really
+  78:             // matter which color-scheme we look at here.
+  79:             body_text_color: RwLock::new(AbsoluteColor::from_nscolor(prefs.mLightColors.mDefault)),
+  80:             extra: ExtraDeviceData { document },
+  81:         }
+  82:     }
+  83: 
+  84:     /// Returns the computed line-height for the font in a given computed values instance.
+  85:     ///
+  86:     /// If you pass down an element, then the used line-height is returned.
+  87:     pub fn calc_line_height(
+  88:         &self,
+  89:         font: &crate::properties::style_structs::Font,
+  90:         writing_mode: WritingMode,
+  91:         element: Option<GeckoElement>,
+  92:     ) -> NonNegativeLength {
+  93:         let pres_context = self.pres_context();
+  94:         let line_height = font.get_line_height();
+  95:         let au = Au(unsafe {
+  96:             bindings::Gecko_CalcLineHeight(
+  97:                 line_height,
+  98:                 pres_context.map_or(std::ptr::null(), |pc| pc),
+  99:                 writing_mode.is_text_vertical(),
+ 100:                 &**font,
+ 101:                 element.map_or(std::ptr::null(), |e| e.0),
+ 102:             )
+ 103:         });
+ 104:         NonNegativeLength::new(au.to_f32_px())
+ 105:     }
+ 106: 
+ 107:     /// Whether any animation name may be referenced from the style of any
+ 108:     /// element.
+ 109:     pub fn animation_name_may_be_referenced(&self, name: &KeyframesName) -> bool {
+ 110:         let pc = match self.pres_context() {
+ 111:             Some(pc) => pc,
+ 112:             None => return false,
+ 113:         };
+ 114: 
+ 115:         unsafe {
+ 116:             bindings::Gecko_AnimationNameMayBeReferencedFromStyle(pc, name.as_atom().as_ptr())
+ 117:         }
+ 118:     }
+ 119: 
+ 120:     /// The quirks mode of the document.
+ 121:     pub fn quirks_mode(&self) -> QuirksMode {
+ 122:         self.document().mCompatMode.into()
+ 123:     }
+ 124: 
+ 125:     /// Gets the base size given a generic font family and a language.

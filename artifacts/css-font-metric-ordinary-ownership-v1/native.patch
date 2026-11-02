@@ -1,0 +1,2501 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -9,11 +9,13 @@
+ use crate::computed_value_flags::ComputedValueFlags;
+ use crate::context::TreeCountingCaches;
+ use crate::custom_properties::{
+-    ComputedCustomProperties, ComputedSubstitutionFunctions, Name, NonCustomReferenceMap,
+-    ReferenceFlags, References, SingleNonCustomReference, SubstitutionFunctionKind, VariableValue,
+-    get_attr_value_for_cycle_resolution, handle_invalid_at_computed_value_time,
+-    invalid_custom_value_depends_on_color_scheme, prepare_custom_value,
+-    remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
++    ComputedCustomProperties, ComputedSubstitutionFunctions,
++    ComputedValue as ComputedPropertyValue, FontDependencyDemand, Name, NonCustomReferenceMap,
++    PreparedCustomValue, ReferenceFlags, References, SingleNonCustomReference,
++    SubstitutionFunctionKind, VariableValue, get_attr_value_for_cycle_resolution,
++    handle_invalid_at_computed_value_time, invalid_custom_value_depends_on_color_scheme,
++    prepare_custom_value, remove_and_insert_initial_value,
++    substitute_references_if_needed_and_apply,
+ };
+ use crate::dom::{AttributeTracker, DummyElementContext, ElementContext, TElement};
+ #[cfg(feature = "gecko")]
+@@ -815,6 +817,521 @@
+ 
+ type NonCustomPropertyReferences = NonCustomReferenceMap<Vec<(LonghandId, Arc<UnparsedValue>)>>;
+ 
++fn priority_has_dynamic_declarations(decls: &Declarations, id: PrioritaryPropertyId) -> bool {
++    let mut index = decls.prioritary_positions[id as usize].most_important;
++    if index == DeclarationIndex::MAX {
++        return false;
++    }
++    loop {
++        let entry = &decls.longhand_declarations[index as usize];
++        if matches!(entry.decl, PropertyDeclaration::WithVariables(..)) {
++            return true;
++        }
++        index = entry.next_index;
++        if index == 0 {
++            return false;
++        }
++    }
++}
++
++fn next_unprepared_font_input(
++    decls: &Declarations,
++    completed: &LonghandIdSet,
++) -> Option<LonghandId> {
++    decls.longhand_declarations.iter().find_map(|entry| {
++        let PropertyDeclarationId::Longhand(id) = entry.decl.id() else {
++            return None;
++        };
++        if completed.contains(id) {
++            return None;
++        }
++        matches!(
++            id.name(),
++            "font-feature-settings"
++                | "font-language-override"
++                | "font-palette"
++                | "font-synthesis-position"
++                | "font-synthesis-small-caps"
++                | "font-synthesis-style"
++                | "font-synthesis-weight"
++                | "font-variant-alternates"
++                | "font-variant-east-asian"
++                | "font-variant-ligatures"
++                | "font-variant-numeric"
++                | "font-variation-settings"
++                | "font-variant-caps"
++                | "font-kerning"
++                | "font-variant-emoji"
++                | "font-variant-position"
++                | "font-optical-sizing"
++                | "math-style"
++                | "math-shift"
++                | "-moz-osx-font-smoothing"
++                | "-moz-math-variant"
++        )
++        .then_some(id)
++    })
++}
++
++#[derive(Clone, Copy, Debug)]
++enum FontTarget {
++    Metric(PrioritaryPropertyId),
++    Synthesis(LonghandId),
++}
++
++impl FontTarget {
++    fn same_as(self, other: Self) -> bool {
++        match (self, other) {
++            (Self::Metric(left), Self::Metric(right)) => left.to_longhand() == right.to_longhand(),
++            (Self::Synthesis(left), Self::Synthesis(right)) => left == right,
++            _ => false,
++        }
++    }
++}
++
++fn is_synthesis_longhand(id: LonghandId) -> bool {
++    matches!(
++        id,
++        LonghandId::FontSynthesisWeight
++            | LonghandId::FontSynthesisStyle
++            | LonghandId::FontSynthesisSmallCaps
++            | LonghandId::FontSynthesisPosition
++    )
++}
++
++fn next_font_declaration(
++    declarations: &Declarations,
++    longhand: LonghandId,
++    start: usize,
++) -> Option<usize> {
++    declarations
++        .longhand_declarations
++        .iter()
++        .enumerate()
++        .skip(start)
++        .find_map(|(index, entry)| {
++            (entry.decl.id() == PropertyDeclarationId::Longhand(longhand)).then_some(index)
++        })
++}
++
++struct PreparedMetricDeclaration {
++    declaration: PropertyDeclaration,
++    priority: CascadePriority,
++}
++
++struct MetricPreparation<'a, 'b> {
++    longhand: LonghandId,
++    declarations: &'a Declarations<'b>,
++    cursor: Option<usize>,
++    flags: RuleCascadeFlags,
++    initial_revert: Option<(CascadePriority, RevertKind)>,
++    revert: Option<(CascadePriority, RevertKind)>,
++    waiting: Option<Arc<UnparsedValue>>,
++    prepared: SmallVec<[PreparedMetricDeclaration; 2]>,
++    complete: bool,
++}
++
++enum MetricPreparationStep {
++    Prerequisites(&'static PrioritaryPropertyIdSet),
++    References(LonghandId, Arc<UnparsedValue>),
++    Complete,
++    Invalidated,
++}
++
++impl MetricPreparation<'_, '_> {
++    fn retain(&mut self, declaration: PropertyDeclaration, priority: CascadePriority) {
++        debug_assert!(!matches!(
++            declaration,
++            PropertyDeclaration::WithVariables(..)
++        ));
++        let revert = declaration
++            .get_css_wide_keyword()
++            .and_then(|keyword| keyword.revert_kind());
++        self.prepared.push(PreparedMetricDeclaration {
++            declaration,
++            priority,
++        });
++        if let Some(revert) = revert {
++            self.revert = Some((priority, revert));
++            self.advance();
++        } else {
++            self.complete = true;
++        }
++    }
++
++    fn advance(&mut self) {
++        let index = self
++            .cursor
++            .expect("advancing an exhausted declaration cursor");
++        if PrioritaryPropertyId::from_longhand(self.longhand).is_none() {
++            self.cursor = next_font_declaration(self.declarations, self.longhand, index + 1);
++            return;
++        }
++        let next = self.declarations.longhand_declarations[index].next_index;
++        self.cursor = (next != 0).then_some(next as usize);
++    }
++}
++
++impl Cascade<'_> {
++    fn begin_metric_preparation<'a, 'b>(
++        &self,
++        context: &computed::Context,
++        declarations: &'a Declarations<'b>,
++        id: PrioritaryPropertyId,
++    ) -> MetricPreparation<'a, 'b> {
++        use PrioritaryPropertyId::*;
++        assert!(matches!(
++            id,
++            FontWeight
++                | FontWidth
++                | FontStyle
++                | FontSizeAdjust
++                | Direction
++                | WritingMode
++                | TextOrientation
++        ));
++        self.begin_font_preparation(context, declarations, id.to_longhand())
++    }
++
++    fn begin_font_preparation<'a, 'b>(
++        &self,
++        context: &computed::Context,
++        declarations: &'a Declarations<'b>,
++        longhand: LonghandId,
++    ) -> MetricPreparation<'a, 'b> {
++        let cursor = if let Some(id) = PrioritaryPropertyId::from_longhand(longhand) {
++            let index = declarations.prioritary_positions[id as usize].most_important;
++            (index != DeclarationIndex::MAX).then_some(index as usize)
++        } else {
++            assert!(is_synthesis_longhand(longhand));
++            next_font_declaration(declarations, longhand, 0)
++        };
++        let initial_revert = self.reverted.longhands.get(&longhand).copied();
++        MetricPreparation {
++            longhand,
++            declarations,
++            cursor,
++            flags: context.included_cascade_flags,
++            initial_revert,
++            revert: initial_revert,
++            waiting: None,
++            prepared: SmallVec::new(),
++            complete: false,
++        }
++    }
++
++    // `completed` is supplied by the readiness scheduler, not the existing early-set ensured bit.
++    fn resume_metric_preparation(
++        &self,
++        context: &mut computed::Context,
++        cache: &mut ShorthandsWithPropertyReferencesCache,
++        attribute_tracker: &mut AttributeTracker,
++        state: &mut MetricPreparation,
++        completed: &PrioritaryPropertyIdSet,
++        mut resolved_reference: Option<Arc<UnparsedValue>>,
++    ) -> MetricPreparationStep {
++        let longhand = state.longhand;
++        let priority = PrioritaryPropertyId::from_longhand(longhand);
++        if priority.is_some_and(|id| self.ensured_prioritary.contains(id))
++            || state.flags != context.included_cascade_flags
++            || self.seen.longhands.contains(longhand)
++            || self.reverted.longhands.get(&longhand).copied() != state.initial_revert
++        {
++            return MetricPreparationStep::Invalidated;
++        }
++        if let Some(id) = priority {
++            let prerequisites = id.dependencies();
++            if !completed.contains_all(prerequisites) {
++                return MetricPreparationStep::Prerequisites(prerequisites);
++            }
++        }
++        loop {
++            if state.complete {
++                return MetricPreparationStep::Complete;
++            }
++            let Some(index) = state.cursor else {
++                state.complete = true;
++                continue;
++            };
++            let entry = state.declarations.longhand_declarations[index];
++            if let Some(value) = state.waiting.as_ref() {
++                let Some(resolved) = resolved_reference.take() else {
++                    return MetricPreparationStep::References(longhand, value.clone());
++                };
++                if !std::ptr::eq(value.as_ref(), resolved.as_ref()) {
++                    return MetricPreparationStep::Invalidated;
++                }
++                let declaration = self
++                    .substitute_variables_if_needed(context, cache, entry.decl, attribute_tracker)
++                    .into_owned();
++                state.waiting = None;
++                resolved_reference = None;
++                state.retain(declaration, entry.priority);
++                continue;
++            }
++            if !(entry.priority.flags() - state.flags).is_empty()
++                || state.revert.is_some_and(|(priority, kind)| {
++                    !priority.allows_when_reverted(&entry.priority, kind)
++                })
++            {
++                state.advance();
++                continue;
++            }
++            if let PropertyDeclaration::WithVariables(value) = entry.decl {
++                state.waiting = Some(value.value.clone());
++                resolved_reference = None;
++                continue;
++            }
++            state.retain(entry.decl.clone(), entry.priority);
++        }
++    }
++
++    fn publish_prepared_metric<'a, 'b>(
++        &mut self,
++        context: &mut computed::Context,
++        cache: &mut ShorthandsWithPropertyReferencesCache,
++        attribute_tracker: &mut AttributeTracker,
++        state: MetricPreparation<'a, 'b>,
++        completed: &PrioritaryPropertyIdSet,
++    ) -> Result<(), MetricPreparation<'a, 'b>> {
++        let longhand = state.longhand;
++        let priority = PrioritaryPropertyId::from_longhand(longhand);
++        if priority.is_some_and(|id| self.ensured_prioritary.contains(id))
++            || !state.complete
++            || state.waiting.is_some()
++            || priority.is_some_and(|id| !completed.contains_all(id.dependencies()))
++            || state.flags != context.included_cascade_flags
++            || self.seen.longhands.contains(longhand)
++            || self.reverted.longhands.get(&longhand).copied() != state.initial_revert
++        {
++            return Err(state);
++        }
++        for entry in state.prepared {
++            self.apply_one_longhand(
++                context,
++                longhand,
++                &entry.declaration,
++                entry.priority,
++                cache,
++                attribute_tracker,
++            );
++        }
++        if let Some(id) = priority {
++            if self.seen.longhands.contains(longhand) {
++                self.did_apply_prioritary_property(context, id);
++            }
++            self.ensured_prioritary.insert(id);
++        }
++        Ok(())
++    }
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++enum ComputationStatus {
++    Ready,
++    Pending,
++}
++
++#[derive(Default)]
++struct PriorityCompletion {
++    active: PrioritaryPropertyIdSet,
++    complete: PrioritaryPropertyIdSet,
++    claimed: PrioritaryPropertyIdSet,
++}
++
++impl PriorityCompletion {
++    fn ensure_ordinary(
++        &mut self,
++        id: PrioritaryPropertyId,
++        apply: &mut impl FnMut(PrioritaryPropertyId) -> ComputationStatus,
++    ) -> ComputationStatus {
++        if self.complete.contains(id) {
++            return ComputationStatus::Ready;
++        }
++        if self.active.contains(id) || self.claimed.contains(id) {
++            return ComputationStatus::Pending;
++        }
++        self.active.insert(id);
++        for dependency in id.dependencies().iter() {
++            if self.ensure_ordinary(dependency, apply) == ComputationStatus::Pending {
++                self.suspend(id);
++                return ComputationStatus::Pending;
++            }
++        }
++        if apply(id) == ComputationStatus::Pending {
++            self.suspend(id);
++            return ComputationStatus::Pending;
++        }
++        self.finish(id);
++        ComputationStatus::Ready
++    }
++
++    fn finish(&mut self, id: PrioritaryPropertyId) {
++        assert!(self.active.contains(id));
++        self.active.remove(id);
++        self.complete.insert(id);
++    }
++
++    fn suspend(&mut self, id: PrioritaryPropertyId) {
++        self.active.remove(id);
++    }
++}
++
++struct MetricDrain<'a, 'b> {
++    declarations: &'a Declarations<'b>,
++    continuations: Vec<(PrioritaryPropertyId, MetricPreparation<'a, 'b>)>,
++    complete: PrioritaryPropertyIdSet,
++    requested: PrioritaryPropertyIdSet,
++    cursor: usize,
++}
++
++enum MetricDrainStep {
++    Prerequisite(PrioritaryPropertyId),
++    References(LonghandId, Arc<UnparsedValue>),
++    Published(PrioritaryPropertyId),
++    Complete,
++    Invalidated(PrioritaryPropertyId),
++    WrongReply,
++}
++
++impl<'a, 'b> MetricDrain<'a, 'b> {
++    fn new(declarations: &'a Declarations<'b>) -> Self {
++        Self {
++            declarations,
++            continuations: Vec::new(),
++            complete: PrioritaryPropertyIdSet::default(),
++            requested: PrioritaryPropertyIdSet::default(),
++            cursor: 0,
++        }
++    }
++
++    fn request(
++        &mut self,
++        id: PrioritaryPropertyId,
++        completion: &mut PriorityCompletion,
++    ) -> Result<(), PrioritaryPropertyId> {
++        if self.requested.contains(id) {
++            return Ok(());
++        }
++        if completion.claimed.contains(id) || completion.active.contains(id) {
++            return Err(id);
++        }
++        self.requested.insert(id);
++        if completion.complete.contains(id) {
++            self.complete.insert(id);
++        } else {
++            completion.claimed.insert(id);
++        }
++        Ok(())
++    }
++
++    fn poll(
++        &mut self,
++        cascade: &mut Cascade,
++        context: &mut computed::Context,
++        cache: &mut ShorthandsWithPropertyReferencesCache,
++        attribute_tracker: &mut AttributeTracker,
++        completion: &mut PriorityCompletion,
++        mut reference: Option<(LonghandId, Arc<UnparsedValue>)>,
++    ) -> MetricDrainStep {
++        if let Some((longhand, value)) = reference.as_ref() {
++            let valid = self.continuations.iter().any(|(id, state)| {
++                id.to_longhand() == *longhand
++                    && state
++                        .waiting
++                        .as_ref()
++                        .is_some_and(|waiting| std::ptr::eq(waiting.as_ref(), value.as_ref()))
++            });
++            if !valid {
++                return MetricDrainStep::WrongReply;
++            }
++        }
++        let requested: Vec<_> = self.requested.iter().collect();
++        for offset in 0..requested.len() {
++            let position = (self.cursor + offset) % requested.len();
++            let id = requested[position];
++            if reference
++                .as_ref()
++                .is_some_and(|(longhand, _)| *longhand != id.to_longhand())
++            {
++                continue;
++            }
++            if self.complete.contains(id) {
++                continue;
++            }
++            self.cursor = (position + 1) % requested.len();
++            for dependency in id.dependencies().iter() {
++                if !completion.complete.contains(dependency) {
++                    if reference.is_some() {
++                        return MetricDrainStep::Invalidated(id);
++                    }
++                    return MetricDrainStep::Prerequisite(dependency);
++                }
++            }
++            let index = match self
++                .continuations
++                .iter()
++                .position(|(candidate, _)| candidate.to_longhand() == id.to_longhand())
++            {
++                Some(index) => index,
++                None => {
++                    self.continuations.push((
++                        id,
++                        cascade.begin_metric_preparation(context, self.declarations, id),
++                    ));
++                    self.continuations.len() - 1
++                },
++            };
++            let state = &mut self.continuations[index].1;
++            let resolved = match reference.take() {
++                Some((longhand, value)) if longhand == id.to_longhand() => Some(value),
++                Some(_) => return MetricDrainStep::Invalidated(id),
++                None => None,
++            };
++            match cascade.resume_metric_preparation(
++                context,
++                cache,
++                attribute_tracker,
++                state,
++                &completion.complete,
++                resolved,
++            ) {
++                MetricPreparationStep::Prerequisites(dependencies) => {
++                    let dependency = dependencies
++                        .iter()
++                        .find(|dependency| !completion.complete.contains(*dependency))
++                        .unwrap();
++                    return MetricDrainStep::Prerequisite(dependency);
++                },
++                MetricPreparationStep::References(longhand, value) => {
++                    return MetricDrainStep::References(longhand, value);
++                },
++                MetricPreparationStep::Invalidated => return MetricDrainStep::Invalidated(id),
++                MetricPreparationStep::Complete => {},
++            }
++            let (_, state) = self.continuations.remove(index);
++            if let Err(state) = cascade.publish_prepared_metric(
++                context,
++                cache,
++                attribute_tracker,
++                state,
++                &completion.complete,
++            ) {
++                self.continuations.push((id, state));
++                return MetricDrainStep::Invalidated(id);
++            }
++            self.complete.insert(id);
++            completion.complete.insert(id);
++            completion.claimed.remove(id);
++            return MetricDrainStep::Published(id);
++        }
++        if reference.is_some() {
++            return MetricDrainStep::WrongReply;
++        }
++        MetricDrainStep::Complete
++    }
++}
++
+ pub(crate) struct Cascade<'a> {
+     first_line_reparenting: FirstLineReparenting<'a>,
+     stylist: &'a Stylist,
+@@ -827,6 +1344,8 @@
+     references_from_non_custom_properties: NonCustomPropertyReferences,
+     /// Set of prioritary properties that have already been applied.
+     ensured_prioritary: PrioritaryPropertyIdSet,
++    completed_prioritary: PrioritaryPropertyIdSet,
++    priority_completion_flags: Option<RuleCascadeFlags>,
+ }
+ 
+ impl<'a> Cascade<'a> {
+@@ -845,6 +1364,8 @@
+             declarations_to_apply_unless_overridden: Default::default(),
+             may_have_custom_property_cycles: false,
+             ensured_prioritary: PrioritaryPropertyIdSet::default(),
++            completed_prioritary: PrioritaryPropertyIdSet::default(),
++            priority_completion_flags: None,
+             references_from_non_custom_properties: Default::default(),
+         }
+     }
+@@ -862,6 +1383,8 @@
+             declarations_to_apply_unless_overridden: Default::default(),
+             may_have_custom_property_cycles: false,
+             ensured_prioritary: PrioritaryPropertyIdSet::default(),
++            completed_prioritary: PrioritaryPropertyIdSet::default(),
++            priority_completion_flags: None,
+             references_from_non_custom_properties: Default::default(),
+         }
+     }
+@@ -1698,6 +2221,7 @@
+         shorthand_cache: &mut ShorthandsWithPropertyReferencesCache,
+         attribute_tracker: &mut AttributeTracker,
+     ) {
++        let mut priority_completion = PriorityCompletion::default();
+         if self.may_have_custom_property_cycles {
+             let stylist = self.stylist;
+             let seen = std::mem::take(&mut self.seen.custom);
+@@ -1711,17 +2235,22 @@
+                 decls,
+                 shorthand_cache,
+                 attribute_tracker,
++                &mut priority_completion,
+             );
+         }
+         // Apply any prioritary property that wasn't applied while resolving custom properties.
+         if decls.has_prioritary_properties {
+             for id in PrioritaryPropertyId::each() {
+-                self.ensure_prioritary_property(
+-                    context,
+-                    decls,
+-                    shorthand_cache,
+-                    attribute_tracker,
+-                    id,
++                assert_eq!(
++                    self.ensure_prioritary_property(
++                        context,
++                        decls,
++                        shorthand_cache,
++                        attribute_tracker,
++                        id,
++                        &mut priority_completion,
++                    ),
++                    ComputationStatus::Ready,
+                 );
+             }
+         }
+@@ -1729,6 +2258,13 @@
+     }
+ 
+     /// Applies a prioritary property and the prioritary properties it depends on.
++    fn refresh_priority_completion(&mut self, context: &computed::Context) {
++        if self.priority_completion_flags != Some(context.included_cascade_flags) {
++            self.completed_prioritary = PrioritaryPropertyIdSet::default();
++            self.priority_completion_flags = Some(context.included_cascade_flags);
++        }
++    }
++
+     fn ensure_prioritary_property(
+         &mut self,
+         context: &mut computed::Context,
+@@ -1736,18 +2272,41 @@
+         cache: &mut ShorthandsWithPropertyReferencesCache,
+         attribute_tracker: &mut AttributeTracker,
+         id: PrioritaryPropertyId,
+-    ) {
++        completion: &mut PriorityCompletion,
++    ) -> ComputationStatus {
++        if completion.claimed.contains(id) || completion.active.contains(id) {
++            return ComputationStatus::Pending;
++        }
+         if self.ensured_prioritary.contains(id) {
+-            return;
+-        }
++            return ComputationStatus::Ready;
++        }
++        completion.active.insert(id);
++        let deps = id.dependencies();
++        for dep in deps.iter() {
++            if self.ensure_prioritary_property(
++                context,
++                decls,
++                cache,
++                attribute_tracker,
++                dep,
++                completion,
++            ) == ComputationStatus::Pending
++            {
++                completion.active.remove(id);
++                return ComputationStatus::Pending;
++            }
++        }
++        self.apply_one_prioritary_property(context, decls, cache, id, attribute_tracker);
+         self.ensured_prioritary.insert(id);
+-        let deps = id.dependencies();
+-        if !self.ensured_prioritary.contains_all(deps) {
+-            for dep in deps.iter() {
+-                self.ensure_prioritary_property(context, decls, cache, attribute_tracker, dep);
+-            }
+-        }
+-        self.apply_one_prioritary_property(context, decls, cache, id, attribute_tracker);
++        completion.active.remove(id);
++        self.refresh_priority_completion(context);
++        if self.completed_prioritary.contains_all(deps)
++            && !priority_has_dynamic_declarations(decls, id)
++        {
++            self.completed_prioritary.insert(id);
++        }
++        completion.complete = self.completed_prioritary.clone();
++        ComputationStatus::Ready
+     }
+ 
+     /// Cascade a given custom property declaration.
+@@ -2172,6 +2731,7 @@
+     decls: &Declarations,
+     shorthand_cache: &mut ShorthandsWithPropertyReferencesCache,
+     attr_tracker: &mut AttributeTracker,
++    priority_completion: &mut PriorityCompletion,
+ ) {
+     // The cycle dependencies removal in this function is a variant
+     // of Tarjan's algorithm. It is mostly based on the pseudo-code
+@@ -2195,8 +2755,86 @@
+         }
+     }
+ 
++    enum ClosedValue {
++        Prepared(Name, PreparedCustomValue),
++        Substitute(VarType, Arc<ComputedPropertyValue>),
++        Prioritary(PrioritaryPropertyId),
++    }
++
++    enum NodePublication<T> {
++        SemanticOpen,
++        CycleUnsettled,
++        Pending(T),
++        Applying,
++        Complete,
++        CycleSettled,
++    }
++
++    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
++    enum NodeReadiness {
++        SemanticOpen,
++        ComputationPending,
++        Complete,
++        CycleSettled,
++    }
++
++    impl<T> NodePublication<T> {
++        fn readiness(&self) -> NodeReadiness {
++            match self {
++                Self::SemanticOpen => NodeReadiness::SemanticOpen,
++                Self::CycleUnsettled | Self::Pending(_) | Self::Applying => {
++                    NodeReadiness::ComputationPending
++                },
++                Self::Complete => NodeReadiness::Complete,
++                Self::CycleSettled => NodeReadiness::CycleSettled,
++            }
++        }
++
++        fn close(&mut self, value: T) {
++            assert!(matches!(self, Self::SemanticOpen));
++            *self = Self::Pending(value);
++        }
++
++        fn take_ready(&mut self, prerequisites_ready: bool) -> Option<T> {
++            if !prerequisites_ready {
++                return None;
++            }
++            assert!(matches!(self, Self::Pending(_)));
++            let Self::Pending(value) = std::mem::replace(self, Self::Applying) else {
++                unreachable!()
++            };
++            Some(value)
++        }
++
++        fn finish(&mut self) {
++            assert!(matches!(self, Self::Applying));
++            *self = Self::Complete;
++        }
++
++        fn begin_cycle(&mut self) {
++            assert!(matches!(self, Self::SemanticOpen));
++            *self = Self::CycleUnsettled;
++        }
++
++        fn settle_cycle(&mut self) {
++            assert!(matches!(self, Self::CycleUnsettled));
++            *self = Self::CycleSettled;
++        }
++
++        fn can_retire(&self) -> bool {
++            matches!(self, Self::Complete | Self::CycleSettled)
++        }
++    }
++
++    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
++    enum VisitResult {
++        SemanticOpen(usize),
++        ComputationPending(usize),
++        Complete,
++        CycleSettled,
++    }
++
+     /// Struct recording necessary information for each variable.
+-    #[derive(Debug)]
+     struct VarInfo {
+         /// The name of the variable. It will be taken when the corresponding variable is popped
+         /// from the stack, which serves as a mark for whether the variable is currently in the
+@@ -2206,6 +2844,7 @@
+         /// corresponds to a variable in the same strong connected component, which is known to be
+         /// accessible from this variable. It is not necessarily the root, though.
+         lowlink: usize,
++        publication: NodePublication<ClosedValue>,
+     }
+ 
+     #[derive(Debug, Default)]
+@@ -2235,6 +2874,16 @@
+         non_custom_index_map: NonCustomReferenceMap<usize>,
+         /// Information of each variable indexed by the order index.
+         var_info: SmallVec<[VarInfo; 5]>,
++        frames: Vec<TraversalFrame>,
++        frame_root: Option<VarType>,
++        frame_reply: Option<(VarType, VisitResult)>,
++        priority_completion: &'a mut PriorityCompletion,
++        metric_drain: MetricDrain<'a, 'd>,
++        metric_action: Option<MetricAction>,
++        metric_references: Option<MetricReferences>,
++        font_preparation: Option<MetricPreparation<'a, 'd>>,
++        completed_font_inputs: LonghandIdSet,
++        font_completion_flags: Option<RuleCascadeFlags>,
+         /// The stack of order index of visited variables. It contains
+         /// all unfinished strong connected components.
+         stack: SmallVec<[usize; 5]>,
+@@ -2256,11 +2905,477 @@
+ 
+     impl<'a, 'b: 'a, 'c, 'd> Context<'a, 'b, 'c, 'd> {
+         fn reset(&mut self) {
++            assert!(self.metric_action.is_none() && self.font_preparation.is_none());
++            assert!(self.metric_references.is_none());
++            assert!(
++                self.priority_completion.active.is_empty()
++                    && self.priority_completion.claimed.is_empty()
++            );
++            assert!(
++                self.frames.is_empty() && self.frame_root.is_none() && self.frame_reply.is_none()
++            );
++            assert!(self.stack.is_empty());
++            assert!(
++                self.var_info
++                    .iter()
++                    .all(|info| info.publication.can_retire())
++            );
+             self.count = 0;
+             self.index_map.clear();
+             self.non_custom_index_map = Default::default();
+             self.var_info.clear();
+             self.stack.clear();
++        }
++
++        fn poll_root(
++            &mut self,
++            var: VarType,
++            references: &NonCustomPropertyReferences,
++            attribute_tracker: &mut AttributeTracker,
++            publication_ready: &mut impl FnMut(
++                FontDependencyDemand,
++                &PrioritaryPropertyIdSet,
++                Option<LonghandId>,
++            ) -> PublicationDemand,
++        ) -> VisitResult {
++            if let Some(root) = &self.frame_root {
++                assert_eq!(*root, var);
++            } else {
++                assert!(self.frames.is_empty() && self.frame_reply.is_none());
++                self.frame_root = Some(var.clone());
++                match start_frame(var, self, attribute_tracker) {
++                    Ok(frame) => self.frames.push(frame),
++                    Err(result) => {
++                        self.frame_root = None;
++                        return result;
++                    },
++                }
++            }
++            if let Some(action) = &self.metric_action {
++                return VisitResult::ComputationPending(action.index);
++            }
++            let result = self.poll_frames(references, attribute_tracker, publication_ready, 0, 0);
++            if !matches!(result, VisitResult::ComputationPending(_)) {
++                self.frame_root = None;
++            }
++            result
++        }
++
++        fn poll_frames(
++            &mut self,
++            references: &NonCustomPropertyReferences,
++            attribute_tracker: &mut AttributeTracker,
++            publication_ready: &mut impl FnMut(
++                FontDependencyDemand,
++                &PrioritaryPropertyIdSet,
++                Option<LonghandId>,
++            ) -> PublicationDemand,
++            depth: usize,
++            semantic_floor: usize,
++        ) -> VisitResult {
++            loop {
++                assert!(self.frames.len() > depth);
++                let mut frame = self.frames.pop().expect("Active root owns a frame");
++                if let Some((target, _)) = &frame.waiting {
++                    if let Some((_, VisitResult::SemanticOpen(index))) = &self.frame_reply {
++                        if *index < semantic_floor {
++                            let index = *index;
++                            self.frames.push(frame);
++                            return VisitResult::ComputationPending(index);
++                        }
++                    }
++                    if let Some((target, result)) = self.frame_reply.take() {
++                        assert!(frame.receive(target, result, self));
++                    } else {
++                        let target = target.clone();
++                        self.frames.push(frame);
++                        match start_frame(target.clone(), self, attribute_tracker) {
++                            Ok(child) => self.frames.push(child),
++                            Err(VisitResult::ComputationPending(index)) => {
++                                return VisitResult::ComputationPending(index);
++                            },
++                            Err(VisitResult::SemanticOpen(index)) if index < semantic_floor => {
++                                return VisitResult::ComputationPending(index);
++                            },
++                            Err(result) => self.frame_reply = Some((target, result)),
++                        }
++                        continue;
++                    }
++                } else {
++                    assert!(self.frame_reply.is_none());
++                }
++                match frame.step(references, self, attribute_tracker, publication_ready) {
++                    FrameStep::Link(_) => self.frames.push(frame),
++                    FrameStep::Pending(prerequisite) => {
++                        let index = frame.index;
++                        if depth == 0 {
++                            self.metric_action = prerequisite.map(|prerequisite| MetricAction {
++                                identity: Arc::new(()),
++                                root: self.frame_root.as_ref().unwrap().clone(),
++                                owner: frame.var.clone(),
++                                index,
++                                prerequisite,
++                            });
++                        }
++                        self.frames.push(frame);
++                        return VisitResult::ComputationPending(index);
++                    },
++                    FrameStep::Complete(result) => {
++                        if self.frames.len() == depth {
++                            return result;
++                        }
++                        assert!(self.frame_reply.is_none());
++                        self.frame_reply = Some((frame.var, result));
++                    },
++                }
++            }
++        }
++
++        fn import_priority_completion(&mut self) {
++            if self.font_completion_flags != Some(self.computed_context.included_cascade_flags) {
++                self.completed_font_inputs = LonghandIdSet::default();
++                self.font_completion_flags = Some(self.computed_context.included_cascade_flags);
++            }
++            self.cascade
++                .refresh_priority_completion(self.computed_context);
++            self.priority_completion.complete = self.cascade.completed_prioritary.clone();
++        }
++
++        fn pending_metric_action(&self) -> Option<MetricAction> {
++            self.metric_action.clone()
++        }
++
++        fn metric_action_is_current(&self, action: &MetricAction, depth: usize) -> bool {
++            let Some(current) = &self.metric_action else {
++                return false;
++            };
++            std::ptr::eq(current.identity.as_ref(), action.identity.as_ref())
++                && current.root == action.root
++                && current.owner == action.owner
++                && current.index == action.index
++                && current.prerequisite.same_as(action.prerequisite)
++                && self.frame_root.as_ref() == Some(&action.root)
++                && depth > 0
++                && self.frames.get(depth - 1).is_some_and(|frame| {
++                    frame.index == action.index
++                        && frame.var == action.owner
++                        && matches!(frame.phase, FramePhase::Publish)
++                })
++                && matches!(
++                    self.var_info[action.index].publication,
++                    NodePublication::Pending(_)
++                )
++        }
++
++        fn drive_metric_action(
++            &mut self,
++            action: &MetricAction,
++            references: &NonCustomPropertyReferences,
++            attribute_tracker: &mut AttributeTracker,
++            publication_ready: &mut impl FnMut(
++                FontDependencyDemand,
++                &PrioritaryPropertyIdSet,
++                Option<LonghandId>,
++            ) -> PublicationDemand,
++        ) -> MetricActionProgress {
++            loop {
++                if let Some(state) = &self.metric_references {
++                    if !self.metric_action_is_current(action, state.depth)
++                        || !std::ptr::eq(state.action.identity.as_ref(), action.identity.as_ref())
++                        || state.flags != self.computed_context.included_cascade_flags
++                    {
++                        return MetricActionProgress::WrongAction;
++                    }
++                    if !self.resolve_metric_references(
++                        references,
++                        attribute_tracker,
++                        publication_ready,
++                    ) {
++                        let state = self.metric_references.as_ref().unwrap();
++                        return MetricActionProgress::References(
++                            state.longhand,
++                            state.value.clone(),
++                        );
++                    }
++                }
++                match self.perform_metric_action(action, attribute_tracker) {
++                    MetricActionProgress::References(longhand, value) => {
++                        assert!(self.metric_references.is_none());
++                        assert!(self.frame_reply.is_none());
++                        self.metric_references = Some(MetricReferences {
++                            action: action.clone(),
++                            longhand,
++                            walk: ReferenceWalk::new(&value.variable_value.references),
++                            value,
++                            reply: None,
++                            depth: self.frames.len(),
++                            semantic_floor: self.count,
++                            flags: self.computed_context.included_cascade_flags,
++                            complete: false,
++                        });
++                    },
++                    result => return result,
++                }
++            }
++        }
++
++        fn resolve_metric_references(
++            &mut self,
++            references: &NonCustomPropertyReferences,
++            attribute_tracker: &mut AttributeTracker,
++            publication_ready: &mut impl FnMut(
++                FontDependencyDemand,
++                &PrioritaryPropertyIdSet,
++                Option<LonghandId>,
++            ) -> PublicationDemand,
++        ) -> bool {
++            let mut state = self.metric_references.take().unwrap();
++            let complete = loop {
++                match state.walk.resume(
++                    &state.value.variable_value.url_data,
++                    Some(state.value.substitution_property_id(state.longhand)),
++                    self,
++                    attribute_tracker,
++                    state.reply.take(),
++                ) {
++                    ReferenceWalkStep::Complete => break true,
++                    ReferenceWalkStep::WrongReply => {
++                        unreachable!("Action owns its reference reply")
++                    },
++                    ReferenceWalkStep::Link(target) => {
++                        let result = if self.frames.len() > state.depth {
++                            assert_eq!(self.frames[state.depth].var, target);
++                            self.poll_frames(
++                                references,
++                                attribute_tracker,
++                                publication_ready,
++                                state.depth,
++                                state.semantic_floor,
++                            )
++                        } else {
++                            assert_eq!(self.frames.len(), state.depth);
++                            assert!(self.frame_reply.is_none());
++                            match start_frame(target.clone(), self, attribute_tracker) {
++                                Ok(frame) => {
++                                    self.frames.push(frame);
++                                    self.poll_frames(
++                                        references,
++                                        attribute_tracker,
++                                        publication_ready,
++                                        state.depth,
++                                        state.semantic_floor,
++                                    )
++                                },
++                                Err(result) => result,
++                            }
++                        };
++                        let reply = match result {
++                            VisitResult::Complete => ReferenceReadiness::Ready,
++                            VisitResult::CycleSettled => ReferenceReadiness::SemanticCycle,
++                            VisitResult::SemanticOpen(_) | VisitResult::ComputationPending(_) => {
++                                break false;
++                            },
++                        };
++                        state.reply = Some((target, reply));
++                    },
++                }
++            };
++            state.complete = complete;
++            self.metric_references = Some(state);
++            complete
++        }
++
++        fn perform_metric_action(
++            &mut self,
++            action: &MetricAction,
++            attribute_tracker: &mut AttributeTracker,
++        ) -> MetricActionProgress {
++            let depth = self
++                .metric_references
++                .as_ref()
++                .map_or(self.frames.len(), |state| state.depth);
++            if !self.metric_action_is_current(action, depth)
++                || self.frames.len() != depth
++                || self.metric_references.as_ref().is_some_and(|state| {
++                    !state.complete
++                        || !std::ptr::eq(state.action.identity.as_ref(), action.identity.as_ref())
++                        || state.flags != self.computed_context.included_cascade_flags
++                })
++            {
++                return MetricActionProgress::WrongAction;
++            }
++            let reference = self
++                .metric_references
++                .take()
++                .map(|state| (state.longhand, state.value));
++            let target_id = match action.prerequisite {
++                FontTarget::Metric(id) => id,
++                FontTarget::Synthesis(longhand) => {
++                    return self.perform_synthesis_action(longhand, attribute_tracker, reference);
++                },
++            };
++            use PrioritaryPropertyId::*;
++            if !matches!(
++                target_id,
++                FontWeight
++                    | FontWidth
++                    | FontStyle
++                    | FontSizeAdjust
++                    | Direction
++                    | WritingMode
++                    | TextOrientation
++            ) {
++                return MetricActionProgress::Unsupported;
++            }
++            if self.priority_completion.complete.contains(target_id) {
++                self.metric_action = None;
++                return MetricActionProgress::AlreadyComplete;
++            }
++            if self
++                .metric_drain
++                .request(target_id, &mut self.priority_completion)
++                .is_err()
++            {
++                return MetricActionProgress::Invalidated;
++            }
++            match self.metric_drain.poll(
++                self.cascade,
++                self.computed_context,
++                self.cache,
++                attribute_tracker,
++                &mut self.priority_completion,
++                reference,
++            ) {
++                MetricDrainStep::Published(id) => {
++                    self.cascade.completed_prioritary.insert(id);
++                    if id.to_longhand() == target_id.to_longhand() {
++                        assert!(self.priority_completion.complete.contains(id));
++                        self.metric_action = None;
++                    }
++                    MetricActionProgress::Published(FontTarget::Metric(id))
++                },
++                MetricDrainStep::Prerequisite(id) => {
++                    MetricActionProgress::GeneratedPrerequisite(id)
++                },
++                MetricDrainStep::References(id, value) => {
++                    MetricActionProgress::References(id, value)
++                },
++                MetricDrainStep::Invalidated(_)
++                | MetricDrainStep::WrongReply
++                | MetricDrainStep::Complete => MetricActionProgress::Invalidated,
++            }
++        }
++
++        fn perform_synthesis_action(
++            &mut self,
++            longhand: LonghandId,
++            attribute_tracker: &mut AttributeTracker,
++            reference: Option<(LonghandId, Arc<UnparsedValue>)>,
++        ) -> MetricActionProgress {
++            if !is_synthesis_longhand(longhand) {
++                return MetricActionProgress::Unsupported;
++            }
++            if self.completed_font_inputs.contains(longhand) {
++                self.metric_action = None;
++                return MetricActionProgress::AlreadyComplete;
++            }
++            let state = self.font_preparation.get_or_insert_with(|| {
++                self.cascade
++                    .begin_font_preparation(self.computed_context, self.decls, longhand)
++            });
++            if state.longhand != longhand
++                || reference.as_ref().is_some_and(|(id, _)| *id != longhand)
++            {
++                return MetricActionProgress::Invalidated;
++            }
++            match self.cascade.resume_metric_preparation(
++                self.computed_context,
++                self.cache,
++                attribute_tracker,
++                state,
++                &self.priority_completion.complete,
++                reference.map(|(_, value)| value),
++            ) {
++                MetricPreparationStep::References(id, value) => {
++                    return MetricActionProgress::References(id, value);
++                },
++                MetricPreparationStep::Prerequisites(_) | MetricPreparationStep::Invalidated => {
++                    return MetricActionProgress::Invalidated;
++                },
++                MetricPreparationStep::Complete => {},
++            }
++            let state = self.font_preparation.take().unwrap();
++            if let Err(state) = self.cascade.publish_prepared_metric(
++                self.computed_context,
++                self.cache,
++                attribute_tracker,
++                state,
++                &self.priority_completion.complete,
++            ) {
++                self.font_preparation = Some(state);
++                return MetricActionProgress::Invalidated;
++            }
++            self.completed_font_inputs.insert(longhand);
++            self.metric_action = None;
++            MetricActionProgress::Published(FontTarget::Synthesis(longhand))
++        }
++
++        fn visited(&self, var: &VarType) -> Option<VisitResult> {
++            let index = match var {
++                VarType::Custom(name) => self.index_map.var.get(name).copied(),
++                VarType::Attr(name, namespace) => self
++                    .index_map
++                    .attr
++                    .get(namespace)
++                    .and_then(|map| map.get(name))
++                    .copied(),
++                VarType::NonCustom(reference) => self.non_custom_index_map[*reference],
++            }?;
++            Some(match self.var_info[index].publication.readiness() {
++                NodeReadiness::SemanticOpen => VisitResult::SemanticOpen(index),
++                NodeReadiness::ComputationPending => VisitResult::ComputationPending(index),
++                NodeReadiness::Complete => VisitResult::Complete,
++                NodeReadiness::CycleSettled => VisitResult::CycleSettled,
++            })
++        }
++
++        fn publish_closed(
++            &mut self,
++            index: usize,
++            attr_tracker: &mut AttributeTracker,
++        ) -> ComputationStatus {
++            let priority = match &self.var_info[index].publication {
++                NodePublication::Pending(ClosedValue::Prioritary(id)) => Some(*id),
++                _ => None,
++            };
++            if let Some(id) = priority {
++                if self.apply_prioritary_property(id, attr_tracker) == ComputationStatus::Pending {
++                    return ComputationStatus::Pending;
++                }
++            }
++            let value = self.var_info[index].publication.take_ready(true).unwrap();
++            match value {
++                ClosedValue::Prepared(name, prepared) => {
++                    prepared.apply(&name, self.stylist, self.computed_context);
++                },
++                ClosedValue::Substitute(var, value) => {
++                    let name = match &var {
++                        VarType::Custom(name) | VarType::Attr(name, _) => name,
++                        VarType::NonCustom(_) => unreachable!(),
++                    };
++                    substitute_references_if_needed_and_apply(
++                        name,
++                        var.namespace(),
++                        &value,
++                        self.stylist,
++                        self.computed_context,
++                        attr_tracker,
++                    );
++                },
++                ClosedValue::Prioritary(_) => {},
++            }
++            self.var_info[index].publication.finish();
++            ComputationStatus::Ready
+         }
+ 
+         fn map(&self) -> &ComputedSubstitutionFunctions {
+@@ -2306,14 +3421,182 @@
+             &mut self,
+             id: PrioritaryPropertyId,
+             attr_tracker: &mut AttributeTracker,
+-        ) {
++        ) -> ComputationStatus {
+             self.cascade.ensure_prioritary_property(
+                 self.computed_context,
+                 self.decls,
+                 self.cache,
+                 attr_tracker,
+                 id,
+-            );
++                self.priority_completion,
++            )
++        }
++    }
++
++    #[derive(Clone, Copy, Eq, PartialEq)]
++    enum ReferenceReadiness {
++        Ready,
++        SemanticOpen,
++        SemanticCycle,
++        ComputationPending,
++    }
++
++    struct ReferenceWalk {
++        queued: SmallVec<[References; 5]>,
++        current: Option<(References, usize)>,
++        waiting: Option<VarType>,
++        flags: ReferenceFlags,
++    }
++
++    enum ReferenceWalkStep {
++        Link(VarType),
++        Complete,
++        WrongReply,
++    }
++
++    impl ReferenceWalk {
++        fn new(root: &References) -> Self {
++            let mut queued = SmallVec::new();
++            queued.push(root.clone());
++            Self {
++                queued,
++                current: None,
++                waiting: None,
++                flags: ReferenceFlags::empty(),
++            }
++        }
++
++        fn resume(
++            &mut self,
++            url_data: &UrlExtraData,
++            property_id: Option<PropertyIdRef>,
++            context: &mut Context,
++            attribute_tracker: &mut AttributeTracker,
++            mut reply: Option<(VarType, ReferenceReadiness)>,
++        ) -> ReferenceWalkStep {
++            if let Some((target, readiness)) = reply.as_ref() {
++                if self.waiting.as_ref() != Some(target) {
++                    return ReferenceWalkStep::WrongReply;
++                }
++                if *readiness == ReferenceReadiness::ComputationPending {
++                    return ReferenceWalkStep::Link(target.clone());
++                }
++            }
++            loop {
++                if self
++                    .current
++                    .as_ref()
++                    .is_some_and(|(refs, next)| *next == refs.refs.len())
++                {
++                    self.current = None;
++                }
++                if self.current.is_none() {
++                    let Some(refs) = self.queued.pop() else {
++                        return ReferenceWalkStep::Complete;
++                    };
++                    self.flags |= refs.flags;
++                    self.current = Some((refs, 0));
++                }
++                let (refs, cursor) = self.current.as_mut().unwrap();
++                let Some(next) = refs.refs.get(*cursor) else {
++                    continue;
++                };
++                if self.waiting.is_none() {
++                    if next.substitution_kind == SubstitutionFunctionKind::Env {
++                        let device = context.stylist.device();
++                        if device
++                            .environment()
++                            .get(&next.name, device, url_data)
++                            .is_none()
++                        {
++                            if let Some(fallback) = &next.fallback {
++                                self.queued.push(fallback.references.clone());
++                            }
++                        }
++                        *cursor += 1;
++                        continue;
++                    }
++                    let target = if next.substitution_kind == SubstitutionFunctionKind::Attr {
++                        if !next.is_attr_with_type() {
++                            if let Some(fallback) = &next.fallback {
++                                if !next
++                                    .attribute_data
++                                    .non_type_primary_is_valid(&next.name, attribute_tracker)
++                                {
++                                    self.queued.push(fallback.references.clone());
++                                }
++                            }
++                            *cursor += 1;
++                            continue;
++                        }
++                        let Some(namespace) = next.attribute_data.namespace() else {
++                            if let Some(fallback) = &next.fallback {
++                                self.queued.push(fallback.references.clone());
++                            }
++                            *cursor += 1;
++                            continue;
++                        };
++                        if !context.map().contains_attr(&next.name, namespace) {
++                            if let Ok(value) = get_attr_value_for_cycle_resolution(
++                                &next.name,
++                                &next.attribute_data,
++                                url_data,
++                                attribute_tracker,
++                            ) {
++                                context.map_mut().insert_attr(&next.name, namespace, value);
++                            }
++                        }
++                        VarType::Attr(next.name.clone(), namespace.clone())
++                    } else {
++                        VarType::Custom(next.name.clone())
++                    };
++                    self.waiting = Some(target.clone());
++                    return ReferenceWalkStep::Link(target);
++                }
++                let Some((_, readiness)) = reply.take() else {
++                    return ReferenceWalkStep::Link(self.waiting.as_ref().unwrap().clone());
++                };
++                debug_assert!(readiness != ReferenceReadiness::ComputationPending);
++                let resolved = match next.substitution_kind {
++                    SubstitutionFunctionKind::Var => {
++                        let registration =
++                            context.stylist.get_custom_property_registration(&next.name);
++                        context.map().get_var(registration, &next.name)
++                    },
++                    SubstitutionFunctionKind::Attr => next
++                        .attribute_data
++                        .namespace()
++                        .and_then(|namespace| context.map().get_attr(&next.name, namespace)),
++                    SubstitutionFunctionKind::Env => unreachable!(),
++                };
++                let mut primary_valid = false;
++                if let Some(resolved) = resolved {
++                    if let Some(value) = resolved.as_universal() {
++                        primary_valid = !value.has_references();
++                        self.flags |= value.references.flags;
++                    } else {
++                        primary_valid = true;
++                    }
++                    if primary_valid && next.is_attr_with_type() {
++                        let value = resolved.to_variable_value();
++                        primary_valid = next
++                            .attribute_data
++                            .parse_typed_value(
++                                &mut cssparser::Parser::new(&value.css),
++                                url_data,
++                                property_id,
++                            )
++                            .is_ok();
++                    }
++                }
++                if !primary_valid {
++                    if let Some(fallback) = &next.fallback {
++                        self.queued.push(fallback.references.clone());
++                    }
++                }
++                self.waiting = None;
++                *cursor += 1;
++            }
+         }
+     }
+ 
+@@ -2460,10 +3743,11 @@
+         attr_tracker: &mut AttributeTracker,
+     ) {
+         let next_index = match traverse(var, non_custom_references, context, attr_tracker) {
+-            Some(index) => index,
+-            // There is nothing to do if the next variable has been
+-            // fully resolved at this point.
+-            None => return,
++            VisitResult::SemanticOpen(index) => index,
++            VisitResult::Complete | VisitResult::CycleSettled => return,
++            VisitResult::ComputationPending(_) => {
++                unreachable!("Recursive traversal cannot resume a suspended publication")
++            },
+         };
+         let next_info = &context.var_info[next_index];
+         if next_index > index {
+@@ -2480,30 +3764,464 @@
+         }
+     }
+ 
+-    /// This function combines the traversal for cycle removal and value
+-    /// substitution. It returns either a signal None if this variable
+-    /// has been fully resolved (to either having no reference or being
+-    /// marked invalid), or the order index for the given name.
+-    ///
+-    /// When it returns, the variable corresponds to the name would be
+-    /// in one of the following states:
+-    /// * It is still in context.stack, which means it is part of an
+-    ///   potentially incomplete dependency circle.
+-    /// * It has been removed from the map.  It can be either that the
+-    ///   substitution failed, or it is inside a dependency circle.
+-    ///   When this function removes a variable from the map because
+-    ///   of dependency circle, it would put all variables in the same
+-    ///   strong connected component to the set together.
+-    /// * It doesn't have any reference, because either this variable
+-    ///   doesn't have reference at all in specified value, or it has
+-    ///   been completely resolved.
+-    /// * There is no such variable at all.
+-    fn traverse<'a, 'b, 'c, 'd>(
++    /// Separates semantic ancestry from completed map outcomes.
++    fn frame_font_demand(
++        registered: bool,
++        flags: ReferenceFlags,
++        is_root: bool,
++    ) -> FontDependencyDemand {
++        let mut demand = FontDependencyDemand::None;
++        if registered {
++            flags.for_each_non_custom_dependency(is_root, |dependency| {
++                demand = demand.join(dependency.font_demand);
++            });
++        }
++        demand
++    }
++
++    fn font_publication_demand(
++        demand: FontDependencyDemand,
++        complete: &PrioritaryPropertyIdSet,
++        unprepared_font_inputs: Option<LonghandId>,
++    ) -> PublicationDemand {
++        use PrioritaryPropertyId::*;
++        if demand == FontDependencyDemand::None {
++            return PublicationDemand::Ready;
++        }
++        if !complete.contains(FontSize) {
++            return PublicationDemand::Unresolved;
++        }
++        if demand >= FontDependencyDemand::FontMetrics {
++            for id in [FontWeight, FontWidth, FontStyle, FontSizeAdjust] {
++                if !complete.contains(id) {
++                    return PublicationDemand::Metric(id);
++                }
++            }
++        }
++        if demand == FontDependencyDemand::OrientedMetrics {
++            for id in [Direction, WritingMode, TextOrientation] {
++                if !complete.contains(id) {
++                    return PublicationDemand::Metric(id);
++                }
++            }
++        }
++        if demand >= FontDependencyDemand::FontMetrics
++            && let Some(id) = unprepared_font_inputs
++        {
++            return if is_synthesis_longhand(id) {
++                PublicationDemand::Synthesis(id)
++            } else {
++                PublicationDemand::Unresolved
++            };
++        }
++        PublicationDemand::Ready
++    }
++
++    fn preparation_needs_font_inputs(flags: ReferenceFlags, is_root: bool) -> bool {
++        flags.intersects(ReferenceFlags::ATTR)
++            && frame_font_demand(true, flags, is_root) != FontDependencyDemand::None
++    }
++
++    #[derive(Clone, Copy)]
++    enum PublicationDemand {
++        Ready,
++        Metric(PrioritaryPropertyId),
++        Synthesis(LonghandId),
++        Unresolved,
++    }
++
++    #[derive(Clone)]
++    struct MetricAction {
++        identity: Arc<()>,
++        root: VarType,
++        owner: VarType,
++        index: usize,
++        prerequisite: FontTarget,
++    }
++
++    struct MetricReferences {
++        action: MetricAction,
++        longhand: LonghandId,
++        value: Arc<UnparsedValue>,
++        walk: ReferenceWalk,
++        reply: Option<(VarType, ReferenceReadiness)>,
++        depth: usize,
++        semantic_floor: usize,
++        flags: RuleCascadeFlags,
++        complete: bool,
++    }
++
++    enum MetricActionProgress {
++        Published(FontTarget),
++        AlreadyComplete,
++        GeneratedPrerequisite(PrioritaryPropertyId),
++        References(LonghandId, Arc<UnparsedValue>),
++        Invalidated,
++        Unsupported,
++        WrongAction,
++    }
++
++    #[derive(Clone, Copy)]
++    enum FramePhase {
++        References,
++        Prepare,
++        Units,
++        PrioritySize,
++        PriorityReferences,
++        LateDefault,
++        Close,
++        Publish,
++    }
++
++    #[derive(Clone, Copy)]
++    enum LinkPurpose {
++        Reference,
++        Unit,
++        PrioritySize,
++        LateDefault,
++    }
++
++    struct TraversalFrame {
+         var: VarType,
+-        references_from_non_custom_properties: &NonCustomPropertyReferences,
++        index: usize,
++        lowlink: usize,
++        self_ref: bool,
++        registered: bool,
++        selected_dependency_eligible: bool,
++        value_non_custom_refs: ReferenceFlags,
++        value: Option<Arc<ComputedPropertyValue>>,
++        prepared_custom: Option<PreparedCustomValue>,
++        phase: FramePhase,
++        walk: Option<ReferenceWalk>,
++        unit_links: SmallVec<[SingleNonCustomReference; 3]>,
++        unit_cursor: usize,
++        priority_cursor: usize,
++        waiting: Option<(VarType, LinkPurpose)>,
++        reference_reply: Option<(VarType, ReferenceReadiness)>,
++    }
++
++    enum FrameStep {
++        Link(VarType),
++        Complete(VisitResult),
++        Pending(Option<FontTarget>),
++    }
++
++    impl TraversalFrame {
++        fn link(&mut self, target: VarType, purpose: LinkPurpose) -> FrameStep {
++            assert!(self.waiting.is_none());
++            self.waiting = Some((target.clone(), purpose));
++            FrameStep::Link(target)
++        }
++
++        fn receive(&mut self, target: VarType, result: VisitResult, context: &Context) -> bool {
++            let Some((waiting, purpose)) = self.waiting.as_ref() else {
++                return false;
++            };
++            if *waiting != target || matches!(result, VisitResult::ComputationPending(_)) {
++                return false;
++            }
++            if let VisitResult::SemanticOpen(next_index) = result {
++                let next = &context.var_info[next_index];
++                assert!(matches!(
++                    next.publication.readiness(),
++                    NodeReadiness::SemanticOpen
++                ));
++                if next_index > self.index {
++                    self.lowlink = cmp::min(self.lowlink, next.lowlink);
++                } else if next_index == self.index {
++                    self.self_ref = true;
++                } else if next.var.is_some() {
++                    self.lowlink = cmp::min(self.lowlink, next_index);
++                }
++            }
++            match purpose {
++                LinkPurpose::Reference => {
++                    assert!(self.reference_reply.is_none());
++                    self.reference_reply = Some((
++                        target,
++                        match result {
++                            VisitResult::SemanticOpen(_) => ReferenceReadiness::SemanticOpen,
++                            VisitResult::Complete => ReferenceReadiness::Ready,
++                            VisitResult::CycleSettled => ReferenceReadiness::SemanticCycle,
++                            VisitResult::ComputationPending(_) => unreachable!(),
++                        },
++                    ));
++                },
++                LinkPurpose::Unit => self.unit_cursor += 1,
++                LinkPurpose::PrioritySize | LinkPurpose::LateDefault => {},
++            }
++            self.waiting = None;
++            true
++        }
++
++        fn step(
++            &mut self,
++            references: &NonCustomPropertyReferences,
++            context: &mut Context,
++            attribute_tracker: &mut AttributeTracker,
++            publication_ready: &mut impl FnMut(
++                FontDependencyDemand,
++                &PrioritaryPropertyIdSet,
++                Option<LonghandId>,
++            ) -> PublicationDemand,
++        ) -> FrameStep {
++            assert!(self.waiting.is_none());
++            loop {
++                match self.phase {
++                    FramePhase::References => {
++                        let value = self.value.as_ref().unwrap();
++                        let name = match &self.var {
++                            VarType::Custom(name) | VarType::Attr(name, _) => name,
++                            VarType::NonCustom(_) => unreachable!(),
++                        };
++                        let walk = self
++                            .walk
++                            .get_or_insert_with(|| ReferenceWalk::new(&value.references));
++                        match walk.resume(
++                            &value.url_data,
++                            Some(PropertyIdRef::from(name)),
++                            context,
++                            attribute_tracker,
++                            self.reference_reply.take(),
++                        ) {
++                            ReferenceWalkStep::Link(target) => {
++                                return self.link(target, LinkPurpose::Reference);
++                            },
++                            ReferenceWalkStep::WrongReply => {
++                                unreachable!("Frame owns its reference reply")
++                            },
++                            ReferenceWalkStep::Complete => {},
++                        }
++                        self.value_non_custom_refs |= walk.flags;
++                        self.walk = None;
++                        self.phase = FramePhase::Prepare;
++                    },
++                    FramePhase::Prepare => {
++                        if let VarType::Custom(ref name) = self.var {
++                            if self.selected_dependency_eligible {
++                                let may_compute_color = self
++                                    .value_non_custom_refs
++                                    .intersects(ReferenceFlags::COLOR_SCHEME);
++                                if self.registered
++                                    && may_compute_color
++                                    && self.lowlink == self.index
++                                    && !self.self_ref
++                                    && context.stack.last() == Some(&self.index)
++                                {
++                                    if preparation_needs_font_inputs(
++                                        self.value_non_custom_refs,
++                                        context.computed_context.is_root_element(),
++                                    ) {
++                                        context.import_priority_completion();
++                                        let demand = frame_font_demand(
++                                            self.registered,
++                                            self.value_non_custom_refs,
++                                            context.computed_context.is_root_element(),
++                                        );
++                                        if !matches!(
++                                            publication_ready(
++                                                demand,
++                                                &context.priority_completion.complete,
++                                                next_unprepared_font_input(
++                                                    context.decls,
++                                                    &context.completed_font_inputs
++                                                )
++                                            ),
++                                            PublicationDemand::Ready
++                                        ) {
++                                            return FrameStep::Pending(None);
++                                        }
++                                    }
++                                    self.value_non_custom_refs
++                                        .remove(ReferenceFlags::COLOR_SCHEME);
++                                    let prepared = prepare_custom_value(
++                                        name,
++                                        self.value.as_ref().unwrap(),
++                                        context.stylist,
++                                        context.computed_context,
++                                        attribute_tracker,
++                                    );
++                                    if prepared.depends_on_color_scheme() {
++                                        self.value_non_custom_refs |= ReferenceFlags::COLOR_SCHEME;
++                                    }
++                                    self.prepared_custom = Some(prepared);
++                                } else {
++                                    self.value_non_custom_refs
++                                        .remove(ReferenceFlags::COLOR_SCHEME);
++                                }
++                            }
++                        }
++                        if self.registered && !self.value_non_custom_refs.is_empty() {
++                            self.value_non_custom_refs.for_each_non_custom(
++                                context.computed_context.is_root_element(),
++                                |reference| self.unit_links.push(reference),
++                            );
++                        }
++                        self.phase = FramePhase::Units;
++                    },
++                    FramePhase::Units => {
++                        if let Some(reference) = self.unit_links.get(self.unit_cursor) {
++                            return self.link(VarType::NonCustom(*reference), LinkPurpose::Unit);
++                        }
++                        self.phase = FramePhase::LateDefault;
++                    },
++                    FramePhase::PrioritySize => {
++                        self.phase = FramePhase::PriorityReferences;
++                        if self.var == VarType::NonCustom(SingleNonCustomReference::LhUnits) {
++                            return self.link(
++                                VarType::NonCustom(SingleNonCustomReference::FontUnits),
++                                LinkPurpose::PrioritySize,
++                            );
++                        }
++                    },
++                    FramePhase::PriorityReferences => {
++                        let VarType::NonCustom(reference) = self.var else {
++                            unreachable!()
++                        };
++                        let entry = references[reference]
++                            .as_ref()
++                            .and_then(|values| values.get(self.priority_cursor));
++                        let Some((longhand, value)) = entry else {
++                            self.phase = FramePhase::LateDefault;
++                            continue;
++                        };
++                        let walk = self.walk.get_or_insert_with(|| {
++                            ReferenceWalk::new(&value.variable_value.references)
++                        });
++                        match walk.resume(
++                            &value.variable_value.url_data,
++                            Some(value.substitution_property_id(*longhand)),
++                            context,
++                            attribute_tracker,
++                            self.reference_reply.take(),
++                        ) {
++                            ReferenceWalkStep::Link(target) => {
++                                return self.link(target, LinkPurpose::Reference);
++                            },
++                            ReferenceWalkStep::WrongReply => {
++                                unreachable!("Frame owns its reference reply")
++                            },
++                            ReferenceWalkStep::Complete => {},
++                        }
++                        self.walk = None;
++                        self.priority_cursor += 1;
++                    },
++                    FramePhase::LateDefault => {
++                        self.phase = FramePhase::Close;
++                        if let VarType::Custom(ref name) = self.var {
++                            let cyclic = self.self_ref
++                                || self.lowlink < self.index
++                                || context.stack.last() != Some(&self.index);
++                            if self.registered
++                                && self.selected_dependency_eligible
++                                && cyclic
++                                && !self
++                                    .value_non_custom_refs
++                                    .intersects(ReferenceFlags::COLOR_SCHEME)
++                                && invalid_custom_value_depends_on_color_scheme(
++                                    name,
++                                    context.stylist,
++                                    context.computed_context,
++                                )
++                            {
++                                return self.link(
++                                    VarType::NonCustom(SingleNonCustomReference::ColorScheme),
++                                    LinkPurpose::LateDefault,
++                                );
++                            }
++                        }
++                    },
++                    FramePhase::Close => {
++                        context.var_info[self.index].lowlink = self.lowlink;
++                        if self.lowlink != self.index {
++                            return FrameStep::Complete(VisitResult::SemanticOpen(self.index));
++                        }
++                        let mut in_loop = self.self_ref;
++                        let mut members = SmallVec::<[usize; 5]>::new();
++                        loop {
++                            let index = context.stack.pop().expect("Frame's SCC remains owned");
++                            let var = context.var_info[index].var.take().expect("Node pops once");
++                            if index != self.index {
++                                in_loop = true;
++                            }
++                            if in_loop {
++                                context.var_info[index].publication.begin_cycle();
++                                members.push(index);
++                                context.handle_loop(&var);
++                            }
++                            if index == self.index {
++                                assert_eq!(var, self.var);
++                                break;
++                            }
++                        }
++                        if in_loop {
++                            for index in members {
++                                context.var_info[index].publication.settle_cycle();
++                            }
++                            return FrameStep::Complete(VisitResult::CycleSettled);
++                        }
++                        let publication = match &self.var {
++                            VarType::Custom(name) | VarType::Attr(name, _) => {
++                                if let Some(prepared) = self.prepared_custom.take() {
++                                    ClosedValue::Prepared(name.clone(), prepared)
++                                } else {
++                                    ClosedValue::Substitute(
++                                        self.var.clone(),
++                                        self.value.take().unwrap(),
++                                    )
++                                }
++                            },
++                            VarType::NonCustom(reference) => {
++                                ClosedValue::Prioritary(reference.to_prioritary_id())
++                            },
++                        };
++                        context.var_info[self.index].publication.close(publication);
++                        self.phase = FramePhase::Publish;
++                    },
++                    FramePhase::Publish => {
++                        context.import_priority_completion();
++                        let demand = frame_font_demand(
++                            self.registered,
++                            self.value_non_custom_refs,
++                            context.computed_context.is_root_element(),
++                        );
++                        match publication_ready(
++                            demand,
++                            &context.priority_completion.complete,
++                            next_unprepared_font_input(
++                                context.decls,
++                                &context.completed_font_inputs,
++                            ),
++                        ) {
++                            PublicationDemand::Ready => {},
++                            PublicationDemand::Metric(id) => {
++                                return FrameStep::Pending(Some(FontTarget::Metric(id)));
++                            },
++                            PublicationDemand::Synthesis(id) => {
++                                return FrameStep::Pending(Some(FontTarget::Synthesis(id)));
++                            },
++                            PublicationDemand::Unresolved => return FrameStep::Pending(None),
++                        }
++                        if context.publish_closed(self.index, attribute_tracker)
++                            == ComputationStatus::Pending
++                        {
++                            return FrameStep::Pending(None);
++                        }
++                        return FrameStep::Complete(VisitResult::Complete);
++                    },
++                }
++            }
++        }
++    }
++
++    fn start_frame<'a, 'b, 'c, 'd>(
++        var: VarType,
+         context: &mut Context<'a, 'b, 'c, 'd>,
+         attribute_tracker: &mut AttributeTracker,
+-    ) -> Option<usize> {
++    ) -> Result<TraversalFrame, VisitResult> {
++        if let Some(result) = context.visited(&var) {
++            return Err(result);
++        }
+         // Some shortcut checks.
+         // The non-custom (font/line-height/color-scheme) dependencies of this value, carried out
+         // of the match so we can create the corresponding nodes once we've pushed this variable.
+@@ -2517,15 +4235,26 @@
+                     let registration = context.stylist.get_custom_property_registration(name);
+                     (
+                         registration,
+-                        map.get_var(registration, name)?.as_universal()?,
++                        match map
++                            .get_var(registration, name)
++                            .and_then(|value| value.as_universal())
++                        {
++                            Some(value) => value,
++                            None => return Err(VisitResult::Complete),
++                        },
+                         SubstitutionFunctionKind::Var,
+                     )
+                 } else {
+                     // `attr()` is always treated as unregistered.
+                     (
+                         PropertyDescriptors::unregistered(),
+-                        map.get_attr(name, var.namespace().unwrap())?
+-                            .as_universal()?,
++                        match map
++                            .get_attr(name, var.namespace().unwrap())
++                            .and_then(|value| value.as_universal())
++                        {
++                            Some(value) => value,
++                            None => return Err(VisitResult::Complete),
++                        },
+                         SubstitutionFunctionKind::Attr,
+                     )
+                 };
+@@ -2568,7 +4297,7 @@
+                             attribute_tracker,
+                         );
+                     }
+-                    return None;
++                    return Err(VisitResult::Complete);
+                 }
+ 
+                 // Has this variable been visited?
+@@ -2583,7 +4312,7 @@
+                 };
+                 match index_map.entry_ref(name) {
+                     EntryRef::Occupied(entry) => {
+-                        return Some(*entry.get());
++                        return Err(VisitResult::SemanticOpen(*entry.get()));
+                     },
+                     EntryRef::Vacant(entry) => {
+                         entry.insert(context.count);
+@@ -2596,7 +4325,7 @@
+             VarType::NonCustom(ref non_custom) => {
+                 let entry = &mut context.non_custom_index_map[*non_custom];
+                 if let Some(v) = entry {
+-                    return Some(*v);
++                    return Err(VisitResult::SemanticOpen(*v));
+                 }
+                 *entry = Some(context.count);
+                 None
+@@ -2610,6 +4339,162 @@
+         context.var_info.push(VarInfo {
+             var: Some(var.clone()),
+             lowlink: index,
++            publication: NodePublication::SemanticOpen,
++        });
++        context.stack.push(index);
++
++        let phase = if value.is_some() {
++            FramePhase::References
++        } else {
++            FramePhase::PrioritySize
++        };
++        Ok(TraversalFrame {
++            var,
++            index,
++            lowlink: index,
++            self_ref: false,
++            registered,
++            selected_dependency_eligible,
++            value_non_custom_refs,
++            value,
++            prepared_custom: None,
++            phase,
++            walk: None,
++            unit_links: SmallVec::new(),
++            unit_cursor: 0,
++            priority_cursor: 0,
++            waiting: None,
++            reference_reply: None,
++        })
++    }
++
++    fn traverse<'a, 'b, 'c, 'd>(
++        var: VarType,
++        references_from_non_custom_properties: &NonCustomPropertyReferences,
++        context: &mut Context<'a, 'b, 'c, 'd>,
++        attribute_tracker: &mut AttributeTracker,
++    ) -> VisitResult {
++        if let Some(result) = context.visited(&var) {
++            return result;
++        }
++        // Some shortcut checks.
++        // The non-custom (font/line-height/color-scheme) dependencies of this value, carried out
++        // of the match so we can create the corresponding nodes once we've pushed this variable.
++        let mut value_non_custom_refs = ReferenceFlags::empty();
++        let mut registered = false;
++        let mut selected_dependency_eligible = false;
++        let value = match var {
++            VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
++                let map = &context.computed_context.builder.substitution_functions;
++                let (registration, value, kind) = if matches!(var, VarType::Custom(..)) {
++                    let registration = context.stylist.get_custom_property_registration(name);
++                    (
++                        registration,
++                        match map
++                            .get_var(registration, name)
++                            .and_then(|value| value.as_universal())
++                        {
++                            Some(value) => value,
++                            None => return VisitResult::Complete,
++                        },
++                        SubstitutionFunctionKind::Var,
++                    )
++                } else {
++                    // `attr()` is always treated as unregistered.
++                    (
++                        PropertyDescriptors::unregistered(),
++                        match map
++                            .get_attr(name, var.namespace().unwrap())
++                            .and_then(|value| value.as_universal())
++                        {
++                            Some(value) => value,
++                            None => return VisitResult::Complete,
++                        },
++                        SubstitutionFunctionKind::Attr,
++                    )
++                };
++                let is_root = context.computed_context.is_root_element();
++                value_non_custom_refs = find_non_custom_references(registration, value, is_root);
++                registered = !registration.is_universal();
++                selected_dependency_eligible = registration.syntax.as_ref().is_some_and(|syntax| {
++                    syntax.dependent_types().intersects(
++                        crate::properties_and_values::syntax::data_type::DependentDataTypes::COLOR,
++                    ) || syntax.components.iter().any(|component| {
++                        use crate::properties_and_values::syntax::{
++                            ComponentName, data_type::DataType,
++                        };
++                        matches!(component.name(), ComponentName::DataType(DataType::Image))
++                    })
++                });
++                let has_dependency = value
++                    .references
++                    .flags
++                    .intersects(ReferenceFlags::ATTR | ReferenceFlags::VAR)
++                    || !value_non_custom_refs.is_empty();
++                // Nothing to resolve.
++                if !has_dependency {
++                    debug_assert!(
++                        !value.references.flags.intersects(ReferenceFlags::ENV),
++                        "Should've been handled earlier"
++                    );
++                    if kind == SubstitutionFunctionKind::Attr || registered {
++                        // We might still need to compute the value if this is not an universal
++                        // registration but we thought it had a dependency during the cascade and it
++                        // turned out not to. Note that if this was already computed we would've
++                        // bailed out in the as_universal() check.
++                        let value = value.clone();
++                        substitute_references_if_needed_and_apply(
++                            name,
++                            var.namespace(),
++                            &value,
++                            context.stylist,
++                            context.computed_context,
++                            attribute_tracker,
++                        );
++                    }
++                    return VisitResult::Complete;
++                }
++
++                // Has this variable been visited?
++                let index_map = if kind == SubstitutionFunctionKind::Var {
++                    &mut context.index_map.var
++                } else {
++                    context
++                        .index_map
++                        .attr
++                        .entry(var.namespace().unwrap().clone())
++                        .or_default()
++                };
++                match index_map.entry_ref(name) {
++                    EntryRef::Occupied(entry) => {
++                        return VisitResult::SemanticOpen(*entry.get());
++                    },
++                    EntryRef::Vacant(entry) => {
++                        entry.insert(context.count);
++                    },
++                }
++                // Hold a strong reference to the value so that we don't
++                // need to keep reference to context.map.
++                Some(value.clone())
++            },
++            VarType::NonCustom(ref non_custom) => {
++                let entry = &mut context.non_custom_index_map[*non_custom];
++                if let Some(v) = entry {
++                    return VisitResult::SemanticOpen(*v);
++                }
++                *entry = Some(context.count);
++                None
++            },
++        };
++
++        // Add new entry to the information table.
++        let index = context.count;
++        context.count += 1;
++        debug_assert_eq!(index, context.var_info.len());
++        context.var_info.push(VarInfo {
++            var: Some(var.clone()),
++            lowlink: index,
++            publication: NodePublication::SemanticOpen,
+         });
+         context.stack.push(index);
+ 
+@@ -2761,11 +4646,12 @@
+             //
+             // This cannot be removed from the map here, because otherwise the shortcut check at the
+             // beginning of this function would return the wrong value.
+-            return Some(index);
++            return VisitResult::SemanticOpen(index);
+         }
+ 
+         // This is the root of a strong-connected component.
+         let mut in_loop = self_ref;
++        let mut cycle_members = SmallVec::<[usize; 5]>::new();
+         loop {
+             let var_index = context
+                 .stack
+@@ -2783,6 +4669,8 @@
+                 in_loop = true;
+             }
+             if in_loop {
++                context.var_info[var_index].publication.begin_cycle();
++                cycle_members.push(var_index);
+                 context.handle_loop(&var_name);
+             }
+             if var_index == index {
+@@ -2792,33 +4680,33 @@
+         }
+ 
+         if in_loop {
+-            return None;
+-        }
+-
+-        // Not in a loop, apply the value.
+-        match var {
++            for member in cycle_members {
++                context.var_info[member].publication.settle_cycle();
++            }
++            return VisitResult::CycleSettled;
++        }
++
++        let publication = match var {
+             VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
+                 if let Some(prepared) = prepared_custom {
+-                    prepared.apply(name, context.stylist, context.computed_context);
+-                } else if let Some(ref v) = value {
+-                    // We know we're not in a loop now, perform substitution.
+-                    // TODO(emilio): Merge with the cycle detection loop instead?
+-                    substitute_references_if_needed_and_apply(
+-                        name,
+-                        var.namespace(),
+-                        v,
+-                        context.stylist,
+-                        context.computed_context,
+-                        attribute_tracker,
+-                    );
++                    ClosedValue::Prepared(name.clone(), prepared)
++                } else {
++                    ClosedValue::Substitute(
++                        var,
++                        value.expect("Custom and attr nodes retain their value"),
++                    )
+                 }
+             },
+             VarType::NonCustom(non_custom) => {
+-                context.apply_prioritary_property(non_custom.to_prioritary_id(), attribute_tracker);
++                ClosedValue::Prioritary(non_custom.to_prioritary_id())
+             },
+-        }
+-        // All resolved, so return the signal value.
+-        None
++        };
++        context.var_info[index].publication.close(publication);
++        assert_eq!(
++            context.publish_closed(index, attribute_tracker),
++            ComputationStatus::Ready
++        );
++        VisitResult::Complete
+     }
+ 
+     let mut context = Context {
+@@ -2827,6 +4715,16 @@
+         non_custom_index_map: NonCustomReferenceMap::default(),
+         stack: SmallVec::new(),
+         var_info: SmallVec::new(),
++        frames: Vec::new(),
++        frame_root: None,
++        frame_reply: None,
++        priority_completion,
++        metric_drain: MetricDrain::new(decls),
++        metric_action: None,
++        metric_references: None,
++        font_preparation: None,
++        completed_font_inputs: LonghandIdSet::default(),
++        font_completion_flags: None,
+         stylist,
+         computed_context: &mut *computed_context,
+         cascade: &mut *cascade,
+@@ -2839,12 +4737,44 @@
+             context.reset();
+         }
+         first = false;
+-        traverse(
+-            var,
+-            references_from_non_custom_properties,
+-            &mut context,
+-            attr_tracker,
+-        );
++        let use_retained_frames = true;
++        let result = if use_retained_frames {
++            loop {
++                let result = context.poll_root(
++                    var.clone(),
++                    references_from_non_custom_properties,
++                    attr_tracker,
++                    &mut font_publication_demand,
++                );
++                if !matches!(result, VisitResult::ComputationPending(_)) {
++                    break result;
++                }
++                let Some(action) = context.pending_metric_action() else {
++                    break result;
++                };
++                match context.drive_metric_action(
++                    &action,
++                    references_from_non_custom_properties,
++                    attr_tracker,
++                    &mut font_publication_demand,
++                ) {
++                    MetricActionProgress::Published(_) | MetricActionProgress::AlreadyComplete => {
++                    },
++                    _ => break result,
++                }
++            }
++        } else {
++            traverse(
++                var,
++                references_from_non_custom_properties,
++                &mut context,
++                attr_tracker,
++            )
++        };
++        assert!(matches!(
++            result,
++            VisitResult::Complete | VisitResult::CycleSettled
++        ));
+     };
+     // Note that `seen` doesn't contain names inherited from our parent, but
+     // those can't have variable references (since we inherit the computed
+@@ -2862,4 +4792,15 @@
+             run_one(VarType::Attr((*attr).clone(), (*namespace).clone()));
+         }
+     }
++    assert!(context.stack.is_empty());
++    assert!(
++        context.priority_completion.active.is_empty()
++            && context.priority_completion.claimed.is_empty()
++    );
++    assert!(
++        context
++            .var_info
++            .iter()
++            .all(|info| info.publication.can_retire())
++    );
+ }
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -522,10 +522,10 @@
+ 
+ /// Set of flags to references this custom property makes.
+ #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, MallocSizeOf, ToShmem)]
+-pub struct ReferenceFlags(u8);
++pub struct ReferenceFlags(u16);
+ 
+ bitflags! {
+-    impl ReferenceFlags : u8 {
++    impl ReferenceFlags : u16 {
+         /// At least one custom property depends on font-relative units.
+         const FONT_UNITS = 1 << 0;
+         /// At least one custom property depends on root element's font-relative units.
+@@ -536,10 +536,14 @@
+         const ROOT_LH_UNITS = 1 << 3;
+         /// The value depends on the used color-scheme (e.g. a registered `<color>` property).
+         const COLOR_SCHEME = 1 << 4;
++        const FONT_METRICS = 1 << 8;
++        const ROOT_FONT_METRICS = 1 << 9;
++        const FONT_ORIENTATION = 1 << 10;
++        const ROOT_FONT_ORIENTATION = 1 << 11;
+         /// All dependencies not depending on the root element.
+-        const NON_ROOT_DEPENDENCIES = Self::FONT_UNITS.0 | Self::LH_UNITS.0;
++        const NON_ROOT_DEPENDENCIES = Self::FONT_UNITS.0 | Self::LH_UNITS.0 | Self::FONT_METRICS.0 | Self::FONT_ORIENTATION.0;
+         /// All dependencies depending on the root element.
+-        const ROOT_DEPENDENCIES = Self::ROOT_FONT_UNITS.0 | Self::ROOT_LH_UNITS.0;
++        const ROOT_DEPENDENCIES = Self::ROOT_FONT_UNITS.0 | Self::ROOT_LH_UNITS.0 | Self::ROOT_FONT_METRICS.0 | Self::ROOT_FONT_ORIENTATION.0;
+         /// All non-custom dependencies
+         const NON_CUSTOM = Self::NON_ROOT_DEPENDENCIES.0 | Self::ROOT_DEPENDENCIES.0;
+         /// At least one attr() reference.
+@@ -576,6 +580,10 @@
+                 Self::COLOR_SCHEME => SingleNonCustomReference::ColorScheme,
+                 Self::ROOT_FONT_UNITS
+                 | Self::ROOT_LH_UNITS
++                | Self::FONT_METRICS
++                | Self::ROOT_FONT_METRICS
++                | Self::FONT_ORIENTATION
++                | Self::ROOT_FONT_ORIENTATION
+                 | Self::VAR
+                 | Self::ENV
+                 | Self::ATTR => continue,
+@@ -585,35 +593,104 @@
+         }
+     }
+ 
++    /// Iterate semantic cycle edges with their requested font inputs.
++    pub fn for_each_non_custom_dependency<F>(self, is_root_element: bool, mut f: F)
++    where
++        F: FnMut(NonCustomDependency),
++    {
++        let metrics = self.intersects(Self::FONT_METRICS)
++            || (is_root_element && self.intersects(Self::ROOT_FONT_METRICS));
++        let orientation = self.intersects(Self::FONT_ORIENTATION)
++            || (is_root_element && self.intersects(Self::ROOT_FONT_ORIENTATION));
++        self.for_each_non_custom(is_root_element, |reference| {
++            let font_demand = match reference {
++                SingleNonCustomReference::FontUnits if orientation => {
++                    FontDependencyDemand::OrientedMetrics
++                },
++                SingleNonCustomReference::FontUnits if metrics => FontDependencyDemand::FontMetrics,
++                SingleNonCustomReference::FontUnits => FontDependencyDemand::ComputedSize,
++                SingleNonCustomReference::LhUnits => FontDependencyDemand::OrientedMetrics,
++                SingleNonCustomReference::ColorScheme => FontDependencyDemand::None,
++            };
++            f(NonCustomDependency {
++                reference,
++                font_demand,
++            });
++        });
++    }
++
+     fn from_unit(value: &CowRcStr) -> Self {
+         // For registered properties, any reference to font-relative dimensions
+         // make it dependent on font-related properties.
+         // TODO(dshin): When we unit algebra gets implemented and handled -
+         // Is it valid to say that `calc(1em / 2em * 3px)` triggers this?
+         if value.eq_ignore_ascii_case(NoCalcLength::LH) {
+-            return Self::FONT_UNITS | Self::LH_UNITS;
+-        }
+-        if value.eq_ignore_ascii_case(NoCalcLength::EM)
+-            || value.eq_ignore_ascii_case(NoCalcLength::EX)
++            return Self::FONT_UNITS | Self::LH_UNITS | Self::FONT_METRICS | Self::FONT_ORIENTATION;
++        }
++        if value.eq_ignore_ascii_case(NoCalcLength::EM) {
++            return Self::FONT_UNITS;
++        }
++        if value.eq_ignore_ascii_case(NoCalcLength::EX)
+             || value.eq_ignore_ascii_case(NoCalcLength::CAP)
+-            || value.eq_ignore_ascii_case(NoCalcLength::CH)
++        {
++            return Self::FONT_UNITS | Self::FONT_METRICS;
++        }
++        if value.eq_ignore_ascii_case(NoCalcLength::CH)
+             || value.eq_ignore_ascii_case(NoCalcLength::IC)
+         {
+-            return Self::FONT_UNITS;
++            return Self::FONT_UNITS | Self::FONT_METRICS | Self::FONT_ORIENTATION;
+         }
+         if value.eq_ignore_ascii_case(NoCalcLength::RLH) {
+-            return Self::ROOT_FONT_UNITS | Self::ROOT_LH_UNITS;
+-        }
+-        if value.eq_ignore_ascii_case(NoCalcLength::REM)
+-            || value.eq_ignore_ascii_case(NoCalcLength::REX)
+-            || value.eq_ignore_ascii_case(NoCalcLength::RCH)
++            return Self::ROOT_FONT_UNITS
++                | Self::ROOT_LH_UNITS
++                | Self::ROOT_FONT_METRICS
++                | Self::ROOT_FONT_ORIENTATION;
++        }
++        if value.eq_ignore_ascii_case(NoCalcLength::REM) {
++            return Self::ROOT_FONT_UNITS;
++        }
++        if value.eq_ignore_ascii_case(NoCalcLength::REX)
+             || value.eq_ignore_ascii_case(NoCalcLength::RCAP)
++        {
++            return Self::ROOT_FONT_UNITS | Self::ROOT_FONT_METRICS;
++        }
++        if value.eq_ignore_ascii_case(NoCalcLength::RCH)
+             || value.eq_ignore_ascii_case(NoCalcLength::RIC)
+         {
+-            return Self::ROOT_FONT_UNITS;
++            return Self::ROOT_FONT_UNITS | Self::ROOT_FONT_METRICS | Self::ROOT_FONT_ORIENTATION;
+         }
+         Self::empty()
+     }
++}
++
++/// Requested computation inputs, separate from semantic cycle identity.
++#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
++pub enum FontDependencyDemand {
++    /// No font inputs.
++    #[default]
++    None,
++    /// The computed font size.
++    ComputedSize,
++    /// Computed size and current font metrics.
++    FontMetrics,
++    /// Font metrics and writing-mode-dependent orientation.
++    OrientedMetrics,
++}
++
++impl FontDependencyDemand {
++    /// Preserve the stronger requested input set.
++    pub fn join(self, other: Self) -> Self {
++        if self >= other { self } else { other }
++    }
++}
++
++/// A semantic cycle edge and its separate computation demand.
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub struct NonCustomDependency {
++    /// The existing cycle identity.
++    pub reference: SingleNonCustomReference,
++    /// Requested inputs, not evidence that they are ready.
++    pub font_demand: FontDependencyDemand,
+ }
+ 
+ /// A non-custom reference that participates in cycle resolution.

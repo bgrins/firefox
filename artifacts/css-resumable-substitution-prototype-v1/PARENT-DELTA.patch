@@ -1,0 +1,510 @@
+--- artifacts/css-font-metric-computed-size-producer-v1/candidate/servo/components/style/custom_properties.rs
++++ artifacts/css-resumable-substitution-prototype-v1/candidate/servo/components/style/custom_properties.rs
+@@ -2510,3 +2510,507 @@
+         attr_taint,
+     })
+ }
++
++#[derive(Clone, Copy, Debug, PartialEq)]
++pub(crate) enum SubstitutionLookupKind {
++    Variable,
++    Environment,
++    RawAttribute,
++    TypedAttribute,
++}
++
++#[derive(Clone)]
++pub(crate) struct SubstitutionLookup {
++    pub identity: Arc<()>,
++    pub kind: SubstitutionLookupKind,
++    pub name: Name,
++    pub namespace: Option<Namespace>,
++    pub url_data: UrlExtraData,
++}
++
++pub(crate) enum SubstitutionLookupValue {
++    Pending,
++    Invalid,
++    Value(VariableValue, bool),
++    Expand(VariableValue, bool),
++    Attribute(Option<String>),
++}
++
++pub(crate) struct SubstitutionLookupReply {
++    pub identity: Arc<()>,
++    pub value: SubstitutionLookupValue,
++}
++
++pub(crate) enum SubstitutionPoll {
++    Lookup(SubstitutionLookup),
++    Complete(Result<SubstitutionResult<'static>, ()>),
++    WrongReply,
++    Finished,
++}
++
++struct SubstitutionChunk {
++    value: Arc<VariableValue>,
++    start: usize,
++    end: usize,
++    first: TokenSerializationType,
++    last: TokenSerializationType,
++    references: Vec<SubstitutionFunctionReference>,
++    next: usize,
++    position: usize,
++    next_token: TokenSerializationType,
++    output: ComputedValue,
++    tainted: bool,
++    waiting: bool,
++    root: bool,
++}
++
++impl SubstitutionChunk {
++    fn whole(value: VariableValue, root: bool) -> Self {
++        let end = value.css.len();
++        let first = value.first_token_type;
++        let last = value.last_token_type;
++        let references = value.references.refs.clone();
++        Self::new(Arc::new(value), 0, end, first, last, references, root)
++    }
++
++    fn new(
++        value: Arc<VariableValue>,
++        start: usize,
++        end: usize,
++        first: TokenSerializationType,
++        last: TokenSerializationType,
++        references: Vec<SubstitutionFunctionReference>,
++        root: bool,
++    ) -> Self {
++        let output = ComputedValue::empty(&value.url_data);
++        Self {
++            value,
++            start,
++            end,
++            first,
++            last,
++            references,
++            next: 0,
++            position: start,
++            next_token: first,
++            output,
++            tainted: false,
++            waiting: false,
++            root,
++        }
++    }
++}
++
++enum SubstitutionReferenceStage {
++    Start,
++    Lookup(SubstitutionLookupKind),
++    Alias(bool),
++    Fallback,
++}
++
++struct SubstitutionReferenceFrame {
++    value: Arc<VariableValue>,
++    reference: SubstitutionFunctionReference,
++    stage: SubstitutionReferenceStage,
++    raw_attribute: Option<String>,
++}
++
++enum SubstitutionFrame {
++    Chunk(SubstitutionChunk),
++    Reference(SubstitutionReferenceFrame),
++}
++
++pub(crate) struct ResumableSubstitution<'a> {
++    frames: Vec<SubstitutionFrame>,
++    seen: Vec<Name>,
++    returned: Option<Result<Substitution<'static>, ()>>,
++    request: Option<SubstitutionLookup>,
++    lookup_value: Option<SubstitutionLookupValue>,
++    property_id: Option<PropertyIdRef<'a>>,
++    in_container_query: bool,
++    taint: AttrTaint,
++    finished: bool,
++}
++
++impl<'a> ResumableSubstitution<'a> {
++    pub(crate) fn new(
++        value: VariableValue,
++        property_id: Option<PropertyIdRef<'a>>,
++        in_container_query: bool,
++    ) -> Self {
++        Self {
++            frames: vec![SubstitutionFrame::Chunk(SubstitutionChunk::whole(
++                value, true,
++            ))],
++            seen: Vec::new(),
++            returned: None,
++            request: None,
++            lookup_value: None,
++            property_id,
++            in_container_query,
++            taint: AttrTaint::default(),
++            finished: false,
++        }
++    }
++
++    fn request(&mut self, frame: &mut SubstitutionReferenceFrame, kind: SubstitutionLookupKind) {
++        let namespace = frame.reference.attribute_data.namespace().cloned();
++        self.request = Some(SubstitutionLookup {
++            identity: Arc::new(()),
++            kind,
++            name: frame.reference.name.clone(),
++            namespace,
++            url_data: frame.value.url_data.clone(),
++        });
++        frame.stage = SubstitutionReferenceStage::Lookup(kind);
++    }
++
++    fn invalid_primary(&mut self, mut frame: SubstitutionReferenceFrame) {
++        let Some(fallback) = frame.reference.fallback.as_ref() else {
++            self.returned = Some(Err(()));
++            return;
++        };
++        let child = SubstitutionChunk::new(
++            frame.value.clone(),
++            fallback.start.get(),
++            frame.reference.end - 1,
++            fallback.first_token_type,
++            fallback.last_token_type,
++            fallback.references.refs.clone(),
++            false,
++        );
++        frame.stage = SubstitutionReferenceStage::Fallback;
++        self.frames.push(SubstitutionFrame::Reference(frame));
++        self.frames.push(SubstitutionFrame::Chunk(child));
++    }
++
++    fn attribute_value(
++        &self,
++        frame: &SubstitutionReferenceFrame,
++        text: &str,
++    ) -> Option<Substitution<'static>> {
++        let reference = &frame.reference;
++        let mut parser = Parser::new(text);
++        match &reference.attribute_data.kind {
++            AttributeType::Unit(unit) => {
++                let mut css = String::from(parse_attr_number(&mut parser).ok()?);
++                css.push_str(unit.as_ref());
++                let serialization = match unit {
++                    AttrUnit::Number => TokenSerializationType::Number,
++                    AttrUnit::Percentage => TokenSerializationType::Percentage,
++                    _ => TokenSerializationType::Dimension,
++                };
++                let value =
++                    ComputedValue::new(css, &frame.value.url_data, serialization, serialization);
++                Some(Substitution::from_value(value, true))
++            },
++            AttributeType::Type(_) => {
++                let value = reference
++                    .attribute_data
++                    .parse_typed_value(&mut parser, &frame.value.url_data, self.property_id)
++                    .ok()?;
++                Some(Substitution::from_value(value.to_variable_value(), true))
++            },
++            AttributeType::RawString | AttributeType::None => Some(Substitution::new(
++                Cow::Owned(quoted_css_string(text)),
++                TokenSerializationType::Nothing,
++                TokenSerializationType::Nothing,
++                true,
++            )),
++            AttributeType::Invalid => None,
++        }
++    }
++
++    pub(crate) fn poll(&mut self, reply: Option<SubstitutionLookupReply>) -> SubstitutionPoll {
++        if self.finished {
++            return SubstitutionPoll::Finished;
++        }
++        if let Some(reply) = reply {
++            let Some(request) = self.request.as_ref() else {
++                return SubstitutionPoll::WrongReply;
++            };
++            if !std::ptr::eq(request.identity.as_ref(), reply.identity.as_ref()) {
++                return SubstitutionPoll::WrongReply;
++            }
++            if matches!(reply.value, SubstitutionLookupValue::Pending) {
++                return SubstitutionPoll::Lookup(request.clone());
++            }
++            let shape_matches = match (&request.kind, &reply.value) {
++                (SubstitutionLookupKind::RawAttribute, SubstitutionLookupValue::Attribute(_)) => {
++                    true
++                },
++                (SubstitutionLookupKind::RawAttribute, _) => false,
++                (SubstitutionLookupKind::Variable, SubstitutionLookupValue::Expand(..)) => true,
++                (SubstitutionLookupKind::Variable, SubstitutionLookupValue::Value(value, _)) => {
++                    !value.has_references()
++                },
++                (_, SubstitutionLookupValue::Invalid | SubstitutionLookupValue::Value(..)) => true,
++                _ => false,
++            };
++            if !shape_matches {
++                return SubstitutionPoll::WrongReply;
++            }
++            self.request = None;
++            self.lookup_value = Some(reply.value);
++        }
++        if let Some(request) = self.request.as_ref() {
++            return SubstitutionPoll::Lookup(request.clone());
++        }
++        loop {
++            let Some(frame) = self.frames.pop() else {
++                self.finished = true;
++                let result = self.returned.take().expect("root substitution completed");
++                return SubstitutionPoll::Complete(result.map(|value| SubstitutionResult {
++                    css: value.css,
++                    attr_taint: std::mem::take(&mut self.taint),
++                }));
++            };
++            match frame {
++                SubstitutionFrame::Chunk(mut chunk) => {
++                    if chunk.waiting {
++                        let result = self.returned.take().expect("reference completed");
++                        let Ok(substitution) = result else {
++                            self.returned = Some(Err(()));
++                            continue;
++                        };
++                        let reference = &chunk.references[chunk.next];
++                        if reference.start == chunk.start && reference.end == chunk.end {
++                            if chunk.root && substitution.attr_tainted {
++                                self.taint.push(chunk.start, substitution.css.len());
++                            }
++                            self.returned = Some(Ok(substitution));
++                            continue;
++                        }
++                        if chunk
++                            .output
++                            .push(
++                                &substitution.css,
++                                substitution.first_token_type,
++                                substitution.last_token_type,
++                                (chunk.root && substitution.attr_tainted)
++                                    .then_some(&mut self.taint),
++                            )
++                            .is_err()
++                        {
++                            self.returned = Some(Err(()));
++                            continue;
++                        }
++                        chunk.tainted |= substitution.attr_tainted;
++                        chunk.next_token = reference.next_token_type;
++                        chunk.position = reference.end;
++                        chunk.next += 1;
++                        chunk.waiting = false;
++                    }
++                    if chunk.start == chunk.end {
++                        self.returned = Some(Ok(Substitution::default()));
++                        continue;
++                    }
++                    if chunk.references.is_empty() {
++                        self.returned = Some(Ok(Substitution::new(
++                            Cow::Owned(chunk.value.css[chunk.start..chunk.end].to_owned()),
++                            chunk.first,
++                            chunk.last,
++                            false,
++                        )));
++                        continue;
++                    }
++                    if let Some(reference) = chunk.references.get(chunk.next).cloned() {
++                        if reference.start != chunk.position
++                            && chunk
++                                .output
++                                .push(
++                                    &chunk.value.css[chunk.position..reference.start],
++                                    chunk.next_token,
++                                    reference.prev_token_type,
++                                    None,
++                                )
++                                .is_err()
++                        {
++                            self.returned = Some(Err(()));
++                            continue;
++                        }
++                        let child = SubstitutionReferenceFrame {
++                            value: chunk.value.clone(),
++                            reference,
++                            stage: SubstitutionReferenceStage::Start,
++                            raw_attribute: None,
++                        };
++                        chunk.waiting = true;
++                        self.frames.push(SubstitutionFrame::Chunk(chunk));
++                        self.frames.push(SubstitutionFrame::Reference(child));
++                        continue;
++                    }
++                    if chunk.position != chunk.end
++                        && chunk
++                            .output
++                            .push(
++                                &chunk.value.css[chunk.position..chunk.end],
++                                chunk.next_token,
++                                chunk.last,
++                                None,
++                            )
++                            .is_err()
++                    {
++                        self.returned = Some(Err(()));
++                    } else {
++                        self.returned =
++                            Some(Ok(Substitution::from_value(chunk.output, chunk.tainted)));
++                    }
++                },
++                SubstitutionFrame::Reference(mut frame) => {
++                    match frame.stage {
++                        SubstitutionReferenceStage::Start => {
++                            let kind = match frame.reference.substitution_kind {
++                                SubstitutionFunctionKind::Var => SubstitutionLookupKind::Variable,
++                                SubstitutionFunctionKind::Env => {
++                                    SubstitutionLookupKind::Environment
++                                },
++                                SubstitutionFunctionKind::Attr => {
++                                    SubstitutionLookupKind::RawAttribute
++                                },
++                            };
++                            self.request(&mut frame, kind);
++                        },
++                        SubstitutionReferenceStage::Alias(tainted) => {
++                            assert_eq!(self.seen.pop().as_ref(), Some(&frame.reference.name));
++                            match self.returned.take().expect("alias completed") {
++                                Ok(mut value) => {
++                                    value.attr_tainted |= tainted;
++                                    self.returned = Some(Ok(value));
++                                },
++                                Err(()) => self.invalid_primary(frame),
++                            }
++                            continue;
++                        },
++                        SubstitutionReferenceStage::Fallback => continue,
++                        SubstitutionReferenceStage::Lookup(kind) => {
++                            match self.lookup_value.take().expect("reply consumed once") {
++                                SubstitutionLookupValue::Pending => unreachable!(),
++                                SubstitutionLookupValue::Invalid => {
++                                    self.invalid_primary(frame);
++                                    continue;
++                                },
++                                SubstitutionLookupValue::Attribute(raw) => {
++                                    frame.raw_attribute = raw;
++                                    if let Some(raw) = frame.raw_attribute.as_ref() {
++                                        if frame.reference.is_attr_with_type()
++                                            && !self.in_container_query
++                                        {
++                                            self.request(
++                                                &mut frame,
++                                                SubstitutionLookupKind::TypedAttribute,
++                                            );
++                                        } else {
++                                            match self.attribute_value(&frame, raw) {
++                                                Some(value) => self.returned = Some(Ok(value)),
++                                                None => self.invalid_primary(frame),
++                                            }
++                                            continue;
++                                        }
++                                    } else if frame.reference.fallback.is_none()
++                                        && frame.reference.attribute_data.kind
++                                            == AttributeType::None
++                                    {
++                                        self.returned = Some(Ok(Substitution::new(
++                                            Cow::Owned(quoted_css_string("")),
++                                            TokenSerializationType::Nothing,
++                                            TokenSerializationType::Nothing,
++                                            true,
++                                        )));
++                                        continue;
++                                    } else {
++                                        self.invalid_primary(frame);
++                                        continue;
++                                    }
++                                },
++                                SubstitutionLookupValue::Value(value, tainted)
++                                | SubstitutionLookupValue::Expand(value, tainted) => {
++                                    if kind == SubstitutionLookupKind::TypedAttribute {
++                                        match self.attribute_value(&frame, &value.css) {
++                                            Some(value) => self.returned = Some(Ok(value)),
++                                            None => self.invalid_primary(frame),
++                                        }
++                                    } else if kind == SubstitutionLookupKind::Variable
++                                        && value.has_references()
++                                    {
++                                        if self.seen.contains(&frame.reference.name) {
++                                            self.invalid_primary(frame);
++                                        } else {
++                                            self.seen.push(frame.reference.name.clone());
++                                            frame.stage =
++                                                SubstitutionReferenceStage::Alias(tainted);
++                                            self.frames.push(SubstitutionFrame::Reference(frame));
++                                            self.frames.push(SubstitutionFrame::Chunk(
++                                                SubstitutionChunk::whole(value, false),
++                                            ));
++                                        }
++                                    } else {
++                                        self.returned =
++                                            Some(Ok(Substitution::from_value(value, tainted)));
++                                    }
++                                    continue;
++                                },
++                            }
++                        },
++                    }
++                    self.frames.push(SubstitutionFrame::Reference(frame));
++                    if let Some(request) = self.request.as_ref() {
++                        return SubstitutionPoll::Lookup(request.clone());
++                    }
++                },
++            }
++        }
++    }
++}
++
++impl SubstitutionLookup {
++    pub(crate) fn read_current(
++        &self,
++        functions: &ComputedSubstitutionFunctions,
++        stylist: &Stylist,
++        tracker: &mut AttributeTracker,
++    ) -> SubstitutionLookupReply {
++        let value = match self.kind {
++            SubstitutionLookupKind::RawAttribute => {
++                let raw = self.namespace.as_ref().and_then(|namespace| {
++                    LocalName::with_name(&self.name, |name| tracker.query(name, namespace))
++                });
++                SubstitutionLookupValue::Attribute(raw.map(|value| value.to_string()))
++            },
++            SubstitutionLookupKind::Environment => {
++                let device = stylist.device();
++                match device.environment().get(&self.name, device, &self.url_data) {
++                    Some(value) => SubstitutionLookupValue::Value(value, false),
++                    None => SubstitutionLookupValue::Invalid,
++                }
++            },
++            SubstitutionLookupKind::Variable | SubstitutionLookupKind::TypedAttribute => {
++                let resolved = if self.kind == SubstitutionLookupKind::Variable {
++                    functions.get_var(
++                        stylist.get_custom_property_registration(&self.name),
++                        &self.name,
++                    )
++                } else {
++                    self.namespace
++                        .as_ref()
++                        .and_then(|namespace| functions.get_attr(&self.name, namespace))
++                };
++                match resolved {
++                    None => SubstitutionLookupValue::Invalid,
++                    Some(value) => {
++                        let owned = value.to_variable_value();
++                        if self.kind == SubstitutionLookupKind::Variable && owned.has_references() {
++                            SubstitutionLookupValue::Expand(owned, value.attr_tainted)
++                        } else {
++                            SubstitutionLookupValue::Value(owned, value.attr_tainted)
++                        }
++                    },
++                }
++            },
++        };
++        SubstitutionLookupReply {
++            identity: self.identity.clone(),
++            value,
++        }
++    }
++}

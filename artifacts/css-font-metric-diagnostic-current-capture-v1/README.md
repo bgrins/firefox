@@ -1,0 +1,5 @@
+# Fresh diagnostic capture after verified raw refresh
+
+The four-argument rich capture body is byte-identical to the executed synthesis capture. This adapter retains its original role, source, ancestry, metadata, app inventory, binary, index and flag checks. The only admission extension joins the real signed V106 receipt through the frozen V107 validate_refresh implementation to actual refresh4 epoch b780. The full live snapshot must equal the verified refresh snapshot and all current control hashes must match. The signed receipt is never modified or relabeled; failed V107 signing remains a failed attempt and supplies only its unchanged, pinned refresh-validation code and bindings.
+
+The capture output retains the original signed checkpoint and actual current controls separately. A future diagnostic owner must explicitly validate this refresh lineage rather than require the signed old epoch to equal the new raw-only epoch. No candidate source binding or execution is enabled by capture. Root alone invokes the existing four-argument capture command to a fresh output path; this adapter has not been executed.

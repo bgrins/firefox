@@ -1,0 +1,48 @@
+--- artifacts/css-research-checkpoint-20261102-v108/commit.py
++++ artifacts/css-research-checkpoint-20261102-v109/commit.py
+@@ -89,8 +89,16 @@
+     assert not result['native_fix_acceptance']
+     assert result['head'] == receipt['head'] == HEAD
+     assert result['signed_commit_receipt'] == {'path': BINDINGS['prior_receipt'], 'sha256': BINDINGS['prior_receipt_sha256']}
++    parent_binding = BINDINGS['refresh_parent']
++    parent_dir = ROOT / parent_binding['directory']
++    assert sha((parent_dir / 'commit.py').read_bytes()) == parent_binding['driver_sha256']
++    assert sha((parent_dir / 'BINDINGS.json').read_bytes()) == parent_binding['bindings_sha256']
++    parent = load('previous_verified_raw_refresh', str((parent_dir / 'commit.py').relative_to(ROOT)))
++    assert parent.BINDINGS['prior_receipt'] == BINDINGS['prior_receipt']
++    assert parent.BINDINGS['prior_receipt_sha256'] == BINDINGS['prior_receipt_sha256']
++    previous = parent.validate_refresh(receipt)
+     old_body, new_body = (directory / 'PRE-CURRENT-EPOCH.json').read_bytes(), (directory / 'EPOCH.json').read_bytes()
+-    assert sha(old_body) == result['old_epoch_sha256'] == receipt['epoch_sha256']
++    assert sha(old_body) == result['old_epoch_sha256'] == parent.BINDINGS['epoch_sha256']
+     assert sha(new_body) == result['epoch_sha256'] == EPOCH
+     old, new = json.loads(old_body), json.loads(new_body)
+     assert old['raw_index_observation']['current'] == result['before']
+@@ -101,6 +109,9 @@
+     pre, post = json.loads((directory / 'PRE.json').read_bytes()), json.loads((directory / 'POST.json').read_bytes())
+     assert pre == post and post['index']['raw_index'] == result['after']
+     assert {k:v for k,v in post['index'].items() if k != 'raw_index'} == new['semantic_index']
++    projected_previous = copy.deepcopy(previous)
++    projected_previous['index']['raw_index'] = result['after']
++    assert projected_previous == post
+     return post
+ 
+ 
+@@ -167,7 +178,7 @@
+         assert file.stat().st_size == record['bytes'] and sha(file.read_bytes()) == record['sha256'], path
+     tracked = set(git('ls-files', '-z').decode().split('\0'))
+     skipped = [path for path in selected if path in tracked]
+-    assert not skipped, 'V108 must not reselect already committed payloads'
++    assert not skipped, 'V109 must not reselect already committed payloads'
+     for path in skipped:
+         del selected[path]
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+@@ -191,7 +202,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v108-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v109-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)

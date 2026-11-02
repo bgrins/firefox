@@ -1,0 +1,139 @@
+--- artifacts/css-font-metric-selected-reference-pair-v1/check.py
++++ artifacts/css-font-metric-computed-size-pair-v1/check.py
+@@ -24,29 +24,32 @@
+ 
+ def validate_policy(policy):
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-font-metric-selected-reference-pair-runtime-1'
++    assert policy['runtime_output'] == 'artifacts/css-font-metric-computed-size-pair-runtime-1'
+     assert policy['head'] == '70d9abdf9784cf84732aed747cbec87fe0589d95'
+     admission = load('admission')
+     source = admission.authenticate(ROOT, policy['source_binding'])
+-    assert source == ROOT / 'artifacts/css-font-metric-selected-reference-producer-v1'
+-    native = ROOT / 'artifacts/css-font-metric-synthesis-native-typecheck-v5'
+-    old = read(native / 'POLICY.json')
+-    for name in ('image_commit','nowrap_commit','language_commit','ownership_commit','ownership_helper','phase_helper','process_helper','state_helper','bundle_helper','bundle_path','extra_backup_paths','rebuilt_binaries','source_context_pins','restored_application_revision','timeout_seconds','metadata_current_pins','preserved_absent_metadata','required_typecheck_inputs','typecheck_binding','predecessor_binding','capture_owner','capture_source_owner'):
++    assert source == ROOT / 'artifacts/css-font-metric-computed-size-producer-v1'
++    predecessor = ROOT / 'artifacts/css-font-metric-selected-reference-pair-v1'
++    old = read(predecessor / 'POLICY.json')
++    for name in ('image_commit','nowrap_commit','language_commit','ownership_commit','ownership_helper','phase_helper','process_helper','state_helper','bundle_helper','bundle_path','extra_backup_paths','rebuilt_binaries','source_context_pins','restored_application_revision','timeout_seconds','metadata_current_pins','preserved_absent_metadata','required_typecheck_inputs','typecheck_binding','predecessor_binding','capture_source_owner'):
+         assert policy[name] == old[name], name
+     extra = 'testing/web-platform/meta/css/css-properties-values-api/registered-font-metric-phase-dependencies.tentative.html.ini'
+-    assert set(policy['preserved_absent_resources']) == set(old['preserved_absent_resources']) | {extra}
++    assert policy['preserved_absent_resources'] == old['preserved_absent_resources']
+     assert type(policy['execution_enabled']) is bool and policy['execution_enabled'] == policy['candidate_execution_enabled']
+     assert policy['resource_policy']['start_after_backups_bytes'] == 27 * 1024**3
+     assert policy['resource_policy']['running_stop_bytes'] == 15 * 1024**3
+-    assert policy['lane_order'] == ['metric','phase','typedattr'] and policy['diagnostic_lane_order'] == []
+-    assert set(policy['wpt_lanes']) == set(policy['suite_bindings']) == set(policy['lane_order'])
++    assert policy['lane_order'] == ['metric','phase','typedattr'] and policy['diagnostic_lane_order'] == ['sizeforms']
++    assert set(policy['wpt_lanes']) == set(policy['suite_bindings']) == set(policy['lane_order'] + policy['diagnostic_lane_order'])
+     roles = read(HERE / 'SOURCE-ROLES.json')
+-    assert roles == read(native / 'SOURCE-ROLES.json') and len(roles) == 2
++    assert len(roles) == 2 and set(roles) == set(read(predecessor / 'SOURCE-ROLES.json'))
++    for name,row in roles.items():
++        assert row['base_capture'] == read(predecessor / 'SOURCE-ROLES.json')[name]['base_capture']
++        assert row['candidate_capture'] == str((source / 'candidate' / name).relative_to(ROOT))
+     assert policy['committed_source_preimages'] == {name:row['base_sha256'] for name,row in roles.items()}
+     for row in roles.values():
+         for kind in ('base','candidate'):
+             assert sha(ROOT / row[kind + '_capture']) == row[kind + '_sha256']
+-    suites = {'metric':'css-registered-font-metric-demand-probe-v2','phase':'css-font-metric-phase-probe-v1','typedattr':'css-appearance-typed-attr-scheduling-probe-v1'}
++    suites = {'metric':'css-registered-font-metric-demand-probe-v2','phase':'css-font-metric-phase-probe-v1','typedattr':'css-appearance-typed-attr-scheduling-probe-v1','sizeforms':'css-font-size-form-typed-attr-probe-v1'}
+     base = read(ROOT / 'artifacts/css-font-metric-demand-native-original-v1/POLICY.json')['wpt']
+     for lane, dirname in suites.items():
+         suite = admission.authenticate(ROOT, policy['suite_bindings'][lane])
+@@ -59,30 +62,42 @@
+         expected['metadata'] = {'portable':{},'mozilla':{}}
+         assert policy['wpt_lanes'][lane] == expected
+     assert policy['wpt'] == policy['wpt_lanes']['metric']
+-    assert sum(s['expected_subtest_count'] for s in policy['wpt_lanes'].values()) == 21
+-    assert sum(s['expected_page_count'] for s in policy['wpt_lanes'].values()) == 3
+-    compile_binding = policy['compile_prerequisite']
+-    runtime = ROOT / compile_binding['directory']
+-    assert runtime == ROOT / 'artifacts/css-font-metric-synthesis-native-typecheck-runtime-3'
+-    assert sha(runtime / 'FILES.json') == compile_binding['manifest_sha256']
+-    inventory = read(runtime / 'FILES.json')
+-    for name in ('RESULT.json','candidate-check/COMMAND.json','ROOT-LIVE-RESTORATION.json','ROOT-AUDIT-TERMINAL.json'):
+-        assert sha(runtime / name) == inventory[name]['sha256']
+-    result, command = read(runtime / 'RESULT.json'), read(runtime / 'candidate-check/COMMAND.json')
+-    assert result['success'] and result['restoration_verified'] and not result['native_fix_acceptance']
+-    assert result['phase']['cargo']['success'] and result['phase']['cargo']['errors'] == []
+-    assert command['source_role'] == 'candidate' and command['owner_manifest'] == sha(native / 'FILES.json')
+-    assert command['source_sha256'] == {name:row['candidate_sha256'] for name,row in roles.items()}
+-    live = read(runtime / 'ROOT-LIVE-RESTORATION.json')
+-    assert live['restoration_independently_verified'] and live['native_typecheck_success'] and live['result_sha256'] == sha(runtime / 'RESULT.json')
+-    terminal = read(runtime / 'ROOT-AUDIT-TERMINAL.json')
+-    assert terminal['exit'] == 0 and terminal['audit_sha256'] == sha(runtime / 'ROOT-LIVE-RESTORATION.json')
+-    for name in ('baseline.py','admission.py','inputs.py','intermediate.py','review_scope.py'):
+-        assert (HERE / name).read_bytes() == (native / name).read_bytes()
++    assert sum(policy['wpt_lanes'][lane]['expected_subtest_count'] for lane in policy['lane_order']) == 21
++    assert sum(policy['wpt_lanes'][lane]['expected_page_count'] for lane in policy['lane_order']) == 3
++    assert policy['wpt_lanes']['sizeforms']['expected_subtest_count'] == 4
++    assert policy['wpt_lanes']['sizeforms']['expected_page_count'] == 1
++    if policy['compile_prerequisite'] is None:
++        assert policy['native_owner_binding'] is None and not policy['execution_enabled'] and policy['activation_pending']
++    else:
++        compile_binding = policy['compile_prerequisite']
++        native = admission.authenticate(ROOT, policy['native_owner_binding'])
++        assert native == ROOT / 'artifacts/css-font-metric-computed-size-native-typecheck-v1'
++        assert read(native / 'SOURCE-ROLES.json') == roles
++        runtime = ROOT / compile_binding['directory']
++        assert runtime == ROOT / 'artifacts/css-font-metric-computed-size-native-typecheck-runtime-1'
++        assert sha(runtime / 'FILES.json') == compile_binding['manifest_sha256']
++        inventory = read(runtime / 'FILES.json')
++        for name in ('RESULT.json','candidate-check/COMMAND.json','ROOT-LIVE-RESTORATION.json','ROOT-AUDIT-TERMINAL.json'):
++            assert sha(runtime / name) == inventory[name]['sha256']
++        result, command = read(runtime / 'RESULT.json'), read(runtime / 'candidate-check/COMMAND.json')
++        assert result['success'] and result['restoration_verified'] and not result['native_fix_acceptance']
++        assert result['phase']['cargo']['success'] and result['phase']['cargo']['errors'] == []
++        assert command['source_role'] == 'candidate' and command['owner_manifest'] == sha(native / 'FILES.json')
++        assert command['source_sha256'] == {name:row['candidate_sha256'] for name,row in roles.items()}
++        live = read(runtime / 'ROOT-LIVE-RESTORATION.json')
++        assert live['independent_live_restoration_verified'] and live['owner_result_sha256'] == sha(runtime / 'RESULT.json')
++        assert all(live[name] is True for name in ('application_and_extras_semantically_restored','source_and_binary_hashes_restored','flags_restored','controls_unchanged','backup_removed'))
++        assert len(live['independently_absent_process_groups']) == 2 and not live['native_acceptance']
++        terminal = read(runtime / 'ROOT-AUDIT-TERMINAL.json')
++        assert terminal['exit'] == 0 and terminal['audit_sha256'] == sha(runtime / 'ROOT-LIVE-RESTORATION.json')
++    for name in ('baseline.py','admission.py'):
++        assert (HERE / name).read_bytes() == (ROOT / 'artifacts/css-font-metric-dynamic-native-typecheck-v1' / name).read_bytes()
++    for name in ('inputs.py','intermediate.py','review_scope.py','phases.py'):
++        assert (HERE / name).read_bytes() == (predecessor / name).read_bytes()
+     paired = ROOT / 'artifacts/css-appearance-typed-attr-pair-v2'
+     for name in ('comparison.py','assess.py'):
+         assert (HERE / name).read_bytes() == (paired / name).read_bytes()
+-    assert (HERE / 'run.py').read_text() == (paired / 'run.py').read_text().replace('appearance-typed-attr-pair4-v1','selected-reference-pair21-v1')
++    assert (HERE / 'run.py').read_text() == (paired / 'run.py').read_text().replace('appearance-typed-attr-pair4-v1','computed-size-pair21-v1')
+     assert (HERE / 'wpt.py').read_bytes() == (ROOT / 'artifacts/css-font-metric-demand-native-original-v1/wpt.py').read_bytes()
+     for path,pin in policy['references'].items():
+         assert sha(ROOT / path) == pin, path
+@@ -93,8 +108,11 @@
+             assert pin is not None and sha(ROOT / path) == pin, path
+     if policy['current_binding'] is None:
+         assert policy['controls'] is None and policy['accepted_current_payloads'] == {}
++        assert policy['capture_owner'] is None and policy['refresh_lineage'] is None
+         assert not policy['execution_enabled'] and policy['activation_pending']
+     else:
++        assert policy['compile_prerequisite'] is not None and policy['refresh_lineage'] is not None
++        assert policy['current_binding']['path'] == 'artifacts/css-font-metric-computed-size-pair-current-v1.json'
+         capture = admission.validate_current(ROOT,policy,roles)
+         assert capture['checkpoint_receipt']['sha256'] == '526b97af7108c7d4d1d014b2ec48299d8e7f6a6f7fb4cc7fec8411aa274a46a9'
+     return len(external)
+@@ -176,7 +194,7 @@
+     finally:
+         shutil.rmtree(directory)
+     assert not directory.exists()
+-    return len(policy['lane_order'])
++    return len(policy['lane_order'] + policy['diagnostic_lane_order'])
+ 
+ 
+ def replay_checks(policy):
+@@ -238,7 +256,7 @@
+     finally:
+         shutil.rmtree(directory)
+     assert not directory.exists()
+-    return {'original_lanes_replayed': 3, 'build_positives': 2, 'build_and_replay_negatives': 6, 'scratch_removed': True}
++    return {'original_lanes_replayed': 4, 'build_positives': 2, 'build_and_replay_negatives': 6, 'scratch_removed': True}
+ 
+ 
+ if __name__ == '__main__':

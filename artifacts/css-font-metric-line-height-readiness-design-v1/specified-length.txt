@@ -1,0 +1,176 @@
+ 680:     fn font_relative_to_computed_value(
+ 681:         &self,
+ 682:         context: &Context,
+ 683:         base_size: FontBaseSize,
+ 684:         line_height_base: LineHeightBase,
+ 685:     ) -> computed::Length {
+ 686:         let (reference_size, length) =
+ 687:             self.reference_font_size_and_length(context, base_size, line_height_base);
+ 688:         (reference_size * length).finite()
+ 689:     }
+ 690: 
+ 691:     fn reference_font_size_and_length(
+ 692:         &self,
+ 693:         context: &Context,
+ 694:         base_size: FontBaseSize,
+ 695:         line_height_base: LineHeightBase,
+ 696:     ) -> (computed::Length, CSSFloat) {
+ 697:         fn query_font_metrics(
+ 698:             context: &Context,
+ 699:             base_size: FontBaseSize,
+ 700:             orientation: FontMetricsOrientation,
+ 701:             flags: QueryFontMetricsFlags,
+ 702:         ) -> FontMetrics {
+ 703:             context.query_font_metrics(base_size, orientation, flags)
+ 704:         }
+ 705: 
+ 706:         fn ex_size(
+ 707:             context: &Context,
+ 708:             base_size: FontBaseSize,
+ 709:             reference_font_size: &FontSize,
+ 710:         ) -> computed::Length {
+ 711:             let metrics = query_font_metrics(
+ 712:                 context,
+ 713:                 base_size,
+ 714:                 FontMetricsOrientation::Horizontal,
+ 715:                 QueryFontMetricsFlags::empty(),
+ 716:             );
+ 717:             metrics.x_height_or_default(reference_font_size.used_size())
+ 718:         }
+ 719: 
+ 720:         fn ch_size(
+ 721:             context: &Context,
+ 722:             base_size: FontBaseSize,
+ 723:             reference_font_size: &FontSize,
+ 724:         ) -> computed::Length {
+ 725:             let metrics = query_font_metrics(
+ 726:                 context,
+ 727:                 base_size,
+ 728:                 FontMetricsOrientation::MatchContextPreferHorizontal,
+ 729:                 QueryFontMetricsFlags::NEEDS_CH,
+ 730:             );
+ 731:             metrics.zero_advance_measure_or_default(
+ 732:                 reference_font_size.used_size(),
+ 733:                 context.style().writing_mode.is_upright(),
+ 734:             )
+ 735:         }
+ 736: 
+ 737:         fn cap_size(context: &Context, base_size: FontBaseSize) -> computed::Length {
+ 738:             let metrics = query_font_metrics(
+ 739:                 context,
+ 740:                 base_size,
+ 741:                 FontMetricsOrientation::Horizontal,
+ 742:                 QueryFontMetricsFlags::empty(),
+ 743:             );
+ 744:             metrics.cap_height_or_default()
+ 745:         }
+ 746: 
+ 747:         fn ic_size(
+ 748:             context: &Context,
+ 749:             base_size: FontBaseSize,
+ 750:             reference_font_size: &FontSize,
+ 751:         ) -> computed::Length {
+ 752:             let metrics = query_font_metrics(
+ 753:                 context,
+ 754:                 base_size,
+ 755:                 FontMetricsOrientation::MatchContextPreferVertical,
+ 756:                 QueryFontMetricsFlags::NEEDS_IC,
+ 757:             );
+ 758:             metrics.ic_width_or_default(reference_font_size.used_size())
+ 759:         }
+ 760: 
+ 761:         context
+ 762:             .builder
+ 763:             .add_flags(ComputedValueFlags::USES_FONT_OR_WM_RELATIVE_UNITS);
+ 764: 
+ 765:         let reference_font_size = base_size.resolve(context);
+ 766:         let length = self.value;
+ 767:         match self.unit {
+ 768:             LengthUnit::Em => {
+ 769:                 if context.for_non_inherited_property && base_size == FontBaseSize::CurrentStyle {
+ 770:                     context
+ 771:                         .rule_cache_conditions
+ 772:                         .borrow_mut()
+ 773:                         .set_font_size_dependency(reference_font_size.computed_size);
+ 774:                 }
+ 775: 
+ 776:                 (reference_font_size.computed_size(), length)
+ 777:             },
+ 778:             LengthUnit::Lh => {
+ 779:                 let reference_size = if context.in_media_query {
+ 780:                     context
+ 781:                         .device()
+ 782:                         .calc_line_height(
+ 783:                             context.default_style().get_font(),
+ 784:                             context.style().writing_mode,
+ 785:                             None,
+ 786:                         )
+ 787:                         .0
+ 788:                 } else {
+ 789:                     let line_height = context.builder.calc_line_height(
+ 790:                         context.device(),
+ 791:                         line_height_base,
+ 792:                         context.style().writing_mode,
+ 793:                     );
+ 794:                     if context.for_non_inherited_property
+ 795:                         && line_height_base == LineHeightBase::CurrentStyle
+ 796:                     {
+ 797:                         context
+ 798:                             .rule_cache_conditions
+ 799:                             .borrow_mut()
+ 800:                             .set_line_height_dependency(line_height)
+ 801:                     }
+ 802:                     line_height.0
+ 803:                 };
+ 804:                 (reference_size, length)
+ 805:             },
+ 806:             LengthUnit::Ex => (ex_size(context, base_size, &reference_font_size), length),
+ 807:             LengthUnit::Ch => (ch_size(context, base_size, &reference_font_size), length),
+ 808:             LengthUnit::Cap => (cap_size(context, base_size), length),
+ 809:             LengthUnit::Ic => (ic_size(context, base_size, &reference_font_size), length),
+ 810:             LengthUnit::Rex => {
+ 811:                 let reference_size = if context.builder.is_root_element || context.in_media_query {
+ 812:                     ex_size(context, base_size, &reference_font_size)
+ 813:                 } else {
+ 814:                     context
+ 815:                         .device()
+ 816:                         .root_font_metrics_ex()
+ 817:                         .zoom(context.builder.effective_zoom)
+ 818:                 };
+ 819:                 (reference_size, length)
+ 820:             },
+ 821:             LengthUnit::Rch => {
+ 822:                 let reference_size = if context.builder.is_root_element || context.in_media_query {
+ 823:                     ch_size(context, base_size, &reference_font_size)
+ 824:                 } else {
+ 825:                     context
+ 826:                         .device()
+ 827:                         .root_font_metrics_ch()
+ 828:                         .zoom(context.builder.effective_zoom)
+ 829:                 };
+ 830:                 (reference_size, length)
+ 831:             },
+ 832:             LengthUnit::Rcap => {
+ 833:                 let reference_size = if context.builder.is_root_element || context.in_media_query {
+ 834:                     cap_size(context, base_size)
+ 835:                 } else {
+ 836:                     context
+ 837:                         .device()
+ 838:                         .root_font_metrics_cap()
+ 839:                         .zoom(context.builder.effective_zoom)
+ 840:                 };
+ 841:                 (reference_size, length)
+ 842:             },
+ 843:             LengthUnit::Ric => {
+ 844:                 let reference_size = if context.builder.is_root_element || context.in_media_query {
+ 845:                     ic_size(context, base_size, &reference_font_size)
+ 846:                 } else {
+ 847:                     context
+ 848:                         .device()
+ 849:                         .root_font_metrics_ic()
+ 850:                         .zoom(context.builder.effective_zoom)
+ 851:                 };
+ 852:                 (reference_size, length)
+ 853:             },
+ 854:             LengthUnit::Rem => {
+ 855:                 let reference_size = if context.builder.is_root_element || context.in_media_query {

@@ -1,0 +1,56 @@
+ 545:             self.builder
+ 546:                 .add_flags(ComputedValueFlags::USES_ELEMENT_SCOPED_RANDOM);
+ 547:             self.rule_cache_conditions.borrow_mut().set_uncacheable();
+ 548:             self.element_context.random_seed().hash(&mut hasher);
+ 549:         }
+ 550: 
+ 551:         // Returns a float in the range [0, 1).
+ 552:         SmallRng::seed_from_u64(hasher.finish()).r#gen()
+ 553:     }
+ 554: 
+ 555:     /// Whether we're in a media or container query.
+ 556:     pub fn in_media_or_container_query(&self) -> bool {
+ 557:         self.in_media_query || self.in_container_query
+ 558:     }
+ 559: 
+ 560:     /// The default computed style we're getting our reset style from.
+ 561:     pub fn default_style(&self) -> &ComputedValues {
+ 562:         self.builder.default_style()
+ 563:     }
+ 564: 
+ 565:     /// The current style.
+ 566:     pub fn style(&self) -> &StyleBuilder<'a> {
+ 567:         &self.builder
+ 568:     }
+ 569: 
+ 570:     /// The current tree scope.
+ 571:     pub fn current_scope(&self) -> CascadeLevel {
+ 572:         self.scope
+ 573:     }
+ 574: 
+ 575:     /// Apply text-zoom if enabled.
+ 576:     pub fn maybe_zoom_text(&self, size: CSSPixelLength) -> CSSPixelLength {
+ 577:         if self
+ 578:             .style()
+ 579:             .get_font()
+ 580:             .get__x_text_scale()
+ 581:             .text_zoom_enabled()
+ 582:         {
+ 583:             self.device().zoom_text(size)
+ 584:         } else {
+ 585:             size
+ 586:         }
+ 587:     }
+ 588: }
+ 589: 
+ 590: /// An iterator over a slice of computed values
+ 591: #[derive(Clone)]
+ 592: pub struct ComputedVecIter<'a, 'cx, 'cx_a: 'cx, S: ToComputedValue + 'a> {
+ 593:     cx: &'cx Context<'cx_a>,
+ 594:     values: &'a [S],
+ 595: }
+ 596: 
+ 597: impl<'a, 'cx, 'cx_a: 'cx, S: ToComputedValue + 'a> ComputedVecIter<'a, 'cx, 'cx_a, S> {
+ 598:     /// Construct an iterator from a slice of specified values and a context
+ 599:     pub fn new(cx: &'cx Context<'cx_a>, values: &'a [S]) -> Self {
+ 600:         ComputedVecIter { cx, values }

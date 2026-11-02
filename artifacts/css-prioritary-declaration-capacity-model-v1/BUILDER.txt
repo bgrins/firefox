@@ -1,0 +1,80 @@
+/// We track the index only for prioritary properties. For other properties we can just iterate.
+type DeclarationIndex = u16;
+
+/// "Prioritary" properties are properties that other properties depend on in one way or another.
+///
+/// We keep track of their position in the declaration vector, in order to be able to cascade them
+/// separately in precise order.
+#[derive(Copy, Clone)]
+struct PrioritaryDeclarationPosition {
+    // DeclarationIndex::MAX signals no index.
+    most_important: DeclarationIndex,
+    least_important: DeclarationIndex,
+}
+
+impl Default for PrioritaryDeclarationPosition {
+    fn default() -> Self {
+        Self {
+            most_important: DeclarationIndex::MAX,
+            least_important: DeclarationIndex::MAX,
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+struct Declaration<'a> {
+    decl: &'a PropertyDeclaration,
+    priority: CascadePriority,
+    next_index: DeclarationIndex,
+}
+
+/// The set of property declarations from our rules.
+#[derive(Default)]
+pub(crate) struct Declarations<'a> {
+    /// Whether we have any prioritary property. This is just a minor optimization.
+    has_prioritary_properties: bool,
+    /// A list of all the applicable longhand declarations.
+    longhand_declarations: SmallVec<[Declaration<'a>; 64]>,
+    /// The prioritary property position data.
+    prioritary_positions: [PrioritaryDeclarationPosition; property_counts::PRIORITARY],
+}
+
+impl<'a> Declarations<'a> {
+    fn note_prioritary_property(&mut self, id: PrioritaryPropertyId) {
+        let new_index = self.longhand_declarations.len();
+        if new_index >= DeclarationIndex::MAX as usize {
+            // This prioritary property is past the amount of declarations we can track. Let's give
+            // up applying it to prevent getting confused.
+            return;
+        }
+
+        self.has_prioritary_properties = true;
+        let new_index = new_index as DeclarationIndex;
+        let position = &mut self.prioritary_positions[id as usize];
+        if position.most_important == DeclarationIndex::MAX {
+            // We still haven't seen this property, record the current position as the most
+            // prioritary index.
+            position.most_important = new_index;
+        } else {
+            // Let the previous item in the list know about us.
+            self.longhand_declarations[position.least_important as usize].next_index = new_index;
+        }
+        position.least_important = new_index;
+    }
+
+    fn note_declaration(
+        &mut self,
+        decl: &'a PropertyDeclaration,
+        priority: CascadePriority,
+        id: LonghandId,
+    ) {
+        if let Some(id) = PrioritaryPropertyId::from_longhand(id) {
+            self.note_prioritary_property(id);
+        }
+        self.longhand_declarations.push(Declaration {
+            decl,
+            priority,
+            next_index: 0,
+        });
+    }
+}

@@ -1,0 +1,52 @@
+1490: 
+1491:     #[inline]
+1492:     fn from_animated_value(animated: Self::AnimatedValue) -> Self {
+1493:         Self::from_percentage(animated.0)
+1494:     }
+1495: }
+1496: 
+1497: /// A computed value for the `line-height` property.
+1498: pub type LineHeight = generics::GenericLineHeight<NonNegativeNumber, NonNegativeLength>;
+1499: 
+1500: impl ToResolvedValue for LineHeight {
+1501:     type ResolvedValue = Self;
+1502: 
+1503:     fn to_resolved_value(self, context: &ResolvedContext) -> Self::ResolvedValue {
+1504:         #[cfg(feature = "gecko")]
+1505:         {
+1506:             // Resolve <number> to an absolute <length> based on font size.
+1507:             if matches!(self, Self::Normal) {
+1508:                 return self;
+1509:             }
+1510:             let wm = context.style.writing_mode;
+1511:             Self::Length(
+1512:                 context
+1513:                     .device
+1514:                     .calc_line_height(
+1515:                         context.style.get_font(),
+1516:                         wm,
+1517:                         Some(context.element_info.element),
+1518:                     )
+1519:                     .to_resolved_value(context),
+1520:             )
+1521:         }
+1522:         #[cfg(feature = "servo")]
+1523:         {
+1524:             if let LineHeight::Number(num) = &self {
+1525:                 let size = context
+1526:                     .style
+1527:                     .get_font()
+1528:                     .slow_clone_font_size()
+1529:                     .computed_size();
+1530:                 LineHeight::Length(NonNegativeLength::new(size.px() * num.0))
+1531:             } else {
+1532:                 self
+1533:             }
+1534:         }
+1535:     }
+1536: 
+1537:     #[inline]
+1538:     fn from_resolved_value(value: Self::ResolvedValue) -> Self {
+1539:         value
+1540:     }
+1541: }

@@ -1,0 +1,23 @@
+--- artifacts/css-font-metric-selected-reference-pair-v1/wpt.py
++++ artifacts/css-font-metric-selected-reference-diagnostic-run-v1/wpt.py
+@@ -108,7 +108,8 @@
+     assert expected and set(targets) <= set(expected)
+     assert all(set(names) <= set(expected[test]) for test, names in targets.items())
+     comparison = load('paired_comparison', here / 'comparison.py')
+-    builds = {name: comparison.build_binding(root, here, output.parent, policy, name) for name in (('original',) if role == 'original' else ('original', 'candidate'))}
++    assert role == 'candidate'
++    builds = {'original': comparison.historical_build(root, policy, lane), 'candidate': comparison.build_binding(root, here, output.parent, policy, 'candidate')}
+     phase_policy = comparison.phase_policy(settings, builds, policy['head'])
+     output.mkdir()
+     before = verify()
+@@ -161,8 +162,8 @@
+     assert all(sha(output / name) == digest for name, digest in staged.items())
+     events = [json.loads(line) for line in (output / 'raw.jsonl').read_text().splitlines()]
+     if role == 'candidate':
+-        assert original == output.parent / ('original-wpt-' + lane)
+-        replay = comparison.replay_original(root, here, output.parent, policy, lane, assessor, checks)
++        assert original == root / policy['historical_original']['runtime']['directory'] / ('original-wpt-' + lane)
++        replay = comparison.historical_replay(root, policy, lane, assessor, checks)
+     else:
+         assert original is None
+         replay = None

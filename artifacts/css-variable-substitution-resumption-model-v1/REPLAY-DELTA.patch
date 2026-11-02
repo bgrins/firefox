@@ -1,0 +1,68 @@
+--- artifacts/css-font-size-completed-variable-prefix-model-v1/replay.py
++++ artifacts/css-variable-substitution-resumption-model-v1/replay.py
+@@ -17,23 +17,23 @@
+ assert len(sys.argv) == 2 and Path(sys.argv[1]).name == sys.argv[1]
+ output = HERE / sys.argv[1]
+ output.mkdir()
+-names = re.findall(r"^theorem (\w+)", (HERE / "CompletedPrefix.lean").read_text(), re.M)
++names = re.findall(r"^theorem (\w+)", (HERE / "Substitution.lean").read_text(), re.M)
+ false_cases = {
+-    "InvalidBindingMayBecomeValue": "resolve invalid (fallback dynamic) = resolve (size 20) (fallback dynamic)",
+-    "UnusedFallbackMustComplete": "dynamicCertificate (size 20) (.fallback \"--size\" (.reference \"--unknown\")) = false",
+-    "PendingFallbackChosen": "resolve pending (fallback dynamic) = some ⟨some [.absolute 30], [\"--size\"]⟩",
+-    "FallbackAccepted": "literalReferenceCertificate (size 20) (fallback dynamic) = true",
+-    "DynamicRevertAccepted": "literalReferenceCertificate (fun _ => some (some [.revert 1])) (expr dynamic) = true",
+-    "CompletedBindingMayChange": "(scan (SizePrefix.eligible false allow) (evaluate (size 20) expr) 0 [dynamic]).finish = (scan (SizePrefix.eligible false allow) (evaluate (size 30) expr) 0 [dynamic]).finish",
+-    "HigherGateAccepted": "certificate false allow (size 20) expr 0 [literal 99 true, dynamic] = true",
+-    "RollbackReadsDiscarded": "(scan (SizePrefix.eligible false allow) (evaluate (size 20) expr) 0 [rollback, skipped, dynamic]).reads = [\"--size\"]",
++    "PendingAlwaysFinishesByRank": "(match tick (fun _ => none) (run (rank (start fallback) + 1) (fun _ => none) (start fallback)) with | .done _ => true | _ => false) = true",
++    "PendingIsInvalid": "run 20 (fun _ => none) (start fallback) = ⟨.value none, [], []⟩",
++    "LeftRereadAfterRightPause": "(run 6 env pausedRight).reads = [\"left\", \"left\", \"right\"]",
++    "LostSavedLeft": "(run 6 env pausedRight).control = .value (some [30])",
++    "RepeatedPendingConsumesRead": "(run 20 leftOnly pausedRight).reads = [\"left\", \"right\"]",
++    "FallbackLosesNegativeRead": "(run 10 env (start fallback)).reads = [\"right\"]",
++    "AliasUsesStalePartialValue": "(run 4 (CompletedPrefix.complete env \"alias\" (some [30])) ⟨.await \"alias\" none, [.right [20]], [\"left\"]⟩).control = .value (some [20])",
++    "UnusedFallbackRead": "(run 10 env (start (.fallback \"left\" (.reference \"unknown\")))).reads = [\"left\", \"unknown\"]",
+ }
+ 
+ 
+ 
+ records = []
+ (output / "TOOLCHAIN.txt").write_bytes(subprocess.check_output([str(LEAN), "--version"]))
+-with tempfile.TemporaryDirectory(prefix="css-completed-size-prefix-lean-") as temporary:
++with tempfile.TemporaryDirectory(prefix="css-substitution-resumption-lean-") as temporary:
+     scratch = Path(temporary)
+     (output / "SCRATCH.json").write_text(json.dumps({"path": str(scratch)}) + "\n")
+     env = dict(os.environ, LEAN_PATH=str(scratch))
+@@ -44,17 +44,17 @@
+         target = scratch / name
+         target.parent.mkdir(parents=True, exist_ok=True)
+         shutil.copyfile(original, target)
+-    shutil.copyfile(HERE / "CompletedPrefix.lean", scratch / "CompletedPrefix.lean")
+-    (scratch / "Audit.lean").write_text("import CompletedPrefix\n" + "".join(
+-        "#print axioms CompletedPrefix." + name + "\n" for name in names))
++    shutil.copyfile(HERE / "Substitution.lean", scratch / "Substitution.lean")
++    (scratch / "Audit.lean").write_text("import Substitution\n" + "".join(
++        "#print axioms SubstitutionResumption." + name + "\n" for name in names))
+     for name, claim in false_cases.items():
+         (scratch / (name + ".lean")).write_text(
+-            "import CompletedPrefix\nopen SelectedDeclaration PreparationStability CompletedPrefix\nexample : " + claim + " := by decide\n")
++            "import Substitution\nopen SelectedDeclaration PreparationStability SubstitutionResumption\nexample : " + claim + " := by decide\n")
+     for source in scratch.rglob("*.lean"):
+         target = output / source.relative_to(scratch)
+         target.parent.mkdir(parents=True, exist_ok=True)
+         shutil.copyfile(source, target)
+-    for name, expected in [(name, True) for name in ["CssSemantics/Variables", "CssSemantics/FiniteGraph", "CssSemantics/VariablesGraph", "CssSemantics/VariablesRank", "CssSemantics/VariablesBase", "Demand", "Selection", "Stability", "Prefix", "CompletedPrefix", "Audit"]] + [(n, False) for n in false_cases]:
++    for name, expected in [(name, True) for name in ["CssSemantics/Variables", "CssSemantics/FiniteGraph", "CssSemantics/VariablesGraph", "CssSemantics/VariablesRank", "CssSemantics/VariablesBase", "Demand", "Selection", "Stability", "Prefix", "CompletedPrefix", "Substitution", "Audit"]] + [(n, False) for n in false_cases]:
+         result = subprocess.run([str(LEAN), "-o", name + ".olean", name + ".lean"],
+                                 cwd=scratch, env=env, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, timeout=60)
+@@ -76,7 +76,7 @@
+ assert not scratch.exists()
+ (output / "CHECK.json").write_text(json.dumps({
+     "success": True, "audited_theorems": names, "false_controls_rejected": len(false_cases),
+-    "source_sha256": sha(HERE / "CompletedPrefix.lean"), "lean_sha256": sha(LEAN),
++    "source_sha256": sha(HERE / "Substitution.lean"), "lean_sha256": sha(LEAN),
+     "scratch_removed": True, "canonical_coverage_increment": 0,
+     "native_refinement_proved": False, "native_scheduling_refinement_proved": False, "cycle_policy_or_convergence_proved": False,
+ }, indent=2, sort_keys=True) + "\n")

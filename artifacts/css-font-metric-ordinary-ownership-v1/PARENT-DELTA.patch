@@ -1,0 +1,216 @@
+--- artifacts/css-font-metric-selected-reference-producer-v1/candidate/servo/components/style/properties/cascade.rs
++++ artifacts/css-font-metric-ordinary-ownership-v1/candidate/servo/components/style/properties/cascade.rs
+@@ -2221,6 +2221,7 @@
+         shorthand_cache: &mut ShorthandsWithPropertyReferencesCache,
+         attribute_tracker: &mut AttributeTracker,
+     ) {
++        let mut priority_completion = PriorityCompletion::default();
+         if self.may_have_custom_property_cycles {
+             let stylist = self.stylist;
+             let seen = std::mem::take(&mut self.seen.custom);
+@@ -2234,17 +2235,22 @@
+                 decls,
+                 shorthand_cache,
+                 attribute_tracker,
++                &mut priority_completion,
+             );
+         }
+         // Apply any prioritary property that wasn't applied while resolving custom properties.
+         if decls.has_prioritary_properties {
+             for id in PrioritaryPropertyId::each() {
+-                self.ensure_prioritary_property(
+-                    context,
+-                    decls,
+-                    shorthand_cache,
+-                    attribute_tracker,
+-                    id,
++                assert_eq!(
++                    self.ensure_prioritary_property(
++                        context,
++                        decls,
++                        shorthand_cache,
++                        attribute_tracker,
++                        id,
++                        &mut priority_completion,
++                    ),
++                    ComputationStatus::Ready,
+                 );
+             }
+         }
+@@ -2266,24 +2272,41 @@
+         cache: &mut ShorthandsWithPropertyReferencesCache,
+         attribute_tracker: &mut AttributeTracker,
+         id: PrioritaryPropertyId,
+-    ) {
++        completion: &mut PriorityCompletion,
++    ) -> ComputationStatus {
++        if completion.claimed.contains(id) || completion.active.contains(id) {
++            return ComputationStatus::Pending;
++        }
+         if self.ensured_prioritary.contains(id) {
+-            return;
+-        }
++            return ComputationStatus::Ready;
++        }
++        completion.active.insert(id);
++        let deps = id.dependencies();
++        for dep in deps.iter() {
++            if self.ensure_prioritary_property(
++                context,
++                decls,
++                cache,
++                attribute_tracker,
++                dep,
++                completion,
++            ) == ComputationStatus::Pending
++            {
++                completion.active.remove(id);
++                return ComputationStatus::Pending;
++            }
++        }
++        self.apply_one_prioritary_property(context, decls, cache, id, attribute_tracker);
+         self.ensured_prioritary.insert(id);
+-        let deps = id.dependencies();
+-        if !self.ensured_prioritary.contains_all(deps) {
+-            for dep in deps.iter() {
+-                self.ensure_prioritary_property(context, decls, cache, attribute_tracker, dep);
+-            }
+-        }
+-        self.apply_one_prioritary_property(context, decls, cache, id, attribute_tracker);
++        completion.active.remove(id);
+         self.refresh_priority_completion(context);
+         if self.completed_prioritary.contains_all(deps)
+             && !priority_has_dynamic_declarations(decls, id)
+         {
+             self.completed_prioritary.insert(id);
+         }
++        completion.complete = self.completed_prioritary.clone();
++        ComputationStatus::Ready
+     }
+ 
+     /// Cascade a given custom property declaration.
+@@ -2708,6 +2731,7 @@
+     decls: &Declarations,
+     shorthand_cache: &mut ShorthandsWithPropertyReferencesCache,
+     attr_tracker: &mut AttributeTracker,
++    priority_completion: &mut PriorityCompletion,
+ ) {
+     // The cycle dependencies removal in this function is a variant
+     // of Tarjan's algorithm. It is mostly based on the pseudo-code
+@@ -2853,7 +2877,7 @@
+         frames: Vec<TraversalFrame>,
+         frame_root: Option<VarType>,
+         frame_reply: Option<(VarType, VisitResult)>,
+-        priority_completion: PriorityCompletion,
++        priority_completion: &'a mut PriorityCompletion,
+         metric_drain: MetricDrain<'a, 'd>,
+         metric_action: Option<MetricAction>,
+         metric_references: Option<MetricReferences>,
+@@ -2883,6 +2907,10 @@
+         fn reset(&mut self) {
+             assert!(self.metric_action.is_none() && self.font_preparation.is_none());
+             assert!(self.metric_references.is_none());
++            assert!(
++                self.priority_completion.active.is_empty()
++                    && self.priority_completion.claimed.is_empty()
++            );
+             assert!(
+                 self.frames.is_empty() && self.frame_root.is_none() && self.frame_reply.is_none()
+             );
+@@ -3311,7 +3339,20 @@
+             })
+         }
+ 
+-        fn publish_closed(&mut self, index: usize, attr_tracker: &mut AttributeTracker) {
++        fn publish_closed(
++            &mut self,
++            index: usize,
++            attr_tracker: &mut AttributeTracker,
++        ) -> ComputationStatus {
++            let priority = match &self.var_info[index].publication {
++                NodePublication::Pending(ClosedValue::Prioritary(id)) => Some(*id),
++                _ => None,
++            };
++            if let Some(id) = priority {
++                if self.apply_prioritary_property(id, attr_tracker) == ComputationStatus::Pending {
++                    return ComputationStatus::Pending;
++                }
++            }
+             let value = self.var_info[index].publication.take_ready(true).unwrap();
+             match value {
+                 ClosedValue::Prepared(name, prepared) => {
+@@ -3331,9 +3372,10 @@
+                         attr_tracker,
+                     );
+                 },
+-                ClosedValue::Prioritary(id) => self.apply_prioritary_property(id, attr_tracker),
++                ClosedValue::Prioritary(_) => {},
+             }
+             self.var_info[index].publication.finish();
++            ComputationStatus::Ready
+         }
+ 
+         fn map(&self) -> &ComputedSubstitutionFunctions {
+@@ -3379,14 +3421,15 @@
+             &mut self,
+             id: PrioritaryPropertyId,
+             attr_tracker: &mut AttributeTracker,
+-        ) {
++        ) -> ComputationStatus {
+             self.cascade.ensure_prioritary_property(
+                 self.computed_context,
+                 self.decls,
+                 self.cache,
+                 attr_tracker,
+                 id,
+-            );
++                self.priority_completion,
++            )
+         }
+     }
+ 
+@@ -4159,7 +4202,11 @@
+                             },
+                             PublicationDemand::Unresolved => return FrameStep::Pending(None),
+                         }
+-                        context.publish_closed(self.index, attribute_tracker);
++                        if context.publish_closed(self.index, attribute_tracker)
++                            == ComputationStatus::Pending
++                        {
++                            return FrameStep::Pending(None);
++                        }
+                         return FrameStep::Complete(VisitResult::Complete);
+                     },
+                 }
+@@ -4655,7 +4702,10 @@
+             },
+         };
+         context.var_info[index].publication.close(publication);
+-        context.publish_closed(index, attribute_tracker);
++        assert_eq!(
++            context.publish_closed(index, attribute_tracker),
++            ComputationStatus::Ready
++        );
+         VisitResult::Complete
+     }
+ 
+@@ -4668,7 +4718,7 @@
+         frames: Vec::new(),
+         frame_root: None,
+         frame_reply: None,
+-        priority_completion: PriorityCompletion::default(),
++        priority_completion,
+         metric_drain: MetricDrain::new(decls),
+         metric_action: None,
+         metric_references: None,
+@@ -4744,6 +4794,10 @@
+     }
+     assert!(context.stack.is_empty());
+     assert!(
++        context.priority_completion.active.is_empty()
++            && context.priority_completion.claimed.is_empty()
++    );
++    assert!(
+         context
+             .var_info
+             .iter()

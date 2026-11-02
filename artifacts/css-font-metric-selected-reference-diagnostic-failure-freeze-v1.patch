@@ -1,0 +1,38 @@
+--- artifacts/css-font-metric-selected-reference-pair-failure-freeze-v1.py
++++ artifacts/css-font-metric-selected-reference-diagnostic-failure-freeze-v1.py
+@@ -6,13 +6,13 @@
+ 
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ ROOT = Path(__file__).resolve().parent.parent
+-RUNTIME = ROOT / 'artifacts/css-font-metric-selected-reference-pair-runtime-1'
++RUNTIME = ROOT / 'artifacts/css-font-metric-selected-reference-diagnostic-runtime-1'
+ read = lambda p: json.loads(p.read_bytes())
+ sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+ assert not (RUNTIME/'FILES.json').exists() and not (RUNTIME/'SYMLINKS.json').exists()
+ result = read(RUNTIME/'RESULT.json')
+ terminal = read(RUNTIME/'ROOT-OWNER-TERMINAL.json')
+-assert terminal['session'] == 37339 and terminal['launch'] == '69c55d'
++assert terminal['session'] == 31469 and terminal['launch'] == '7d42b5'
+ assert terminal['terminal'] and terminal['exit'] == 1 and terminal['result_sha256'] == sha(RUNTIME/'RESULT.json')
+ assert result['success'] is False and result['restoration_verified'] and not result['native_fix_acceptance']
+ audit = read(RUNTIME/'ROOT-LIVE-RESTORATION.json')
+@@ -20,16 +20,16 @@
+ assert audit_terminal['terminal'] and audit_terminal['exit'] == 0
+ assert audit_terminal['audit_sha256'] == sha(RUNTIME/'ROOT-LIVE-RESTORATION.json')
+ assert audit['independent_live_restoration_verified'] and audit['owner_result_sha256'] == sha(RUNTIME/'RESULT.json')
+-assert audit['audit_script_sha256'] == sha(ROOT/'artifacts/css-font-metric-selected-reference-pair-failure-audit-v1.py')
++assert audit['audit_script_sha256'] == sha(ROOT/'artifacts/css-font-metric-selected-reference-diagnostic-failure-audit-v1.py')
+ cleanup = read(RUNTIME/'ROOT-BACKUP-CLEANUP.json')
+ assert cleanup['removed'] and cleanup['inventory_verified_before_removal']
+ assert cleanup['owned_backup_bytes'] == 1008605176
+ assert cleanup['independent_restoration_report_sha256'] == sha(RUNTIME/'ROOT-LIVE-RESTORATION.json')
+ assert cleanup['historical_owner_cleanup_sha256'] == sha(RUNTIME/'BACKUP-CLEANUP.json')
+-assert cleanup['cleanup_script_sha256'] == sha(ROOT/'artifacts/css-font-metric-selected-reference-pair-failure-backup-cleanup-v1.py')
++assert cleanup['cleanup_script_sha256'] == sha(ROOT/'artifacts/css-font-metric-selected-reference-diagnostic-failure-backup-cleanup-v1.py')
+ assert read(RUNTIME/'BACKUP-CLEANUP.json')['retained_after_failure'] is True
+ assert not (RUNTIME/'backups').exists()
+-expected = {role+'-wpt-'+lane+'/tests/tools':str(ROOT/'testing/web-platform/tests/tools') for role in ('original','candidate') for lane in ('metric','phase','typedattr')}
++expected = {role+'-wpt-'+lane+'/tests/tools':str(ROOT/'testing/web-platform/tests/tools') for role in ('candidate',) for lane in audit['started_lanes']}
+ links = {}
+ paths = []
+ for directory, subdirs, files in os.walk(RUNTIME, followlinks=False):

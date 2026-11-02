@@ -1,0 +1,146 @@
+--- artifacts/css-hyphenation-ownership-native-pair-v1/run.py
++++ artifacts/css-font-metric-dynamic-native-typecheck-v1/run.py
+@@ -15,6 +15,7 @@
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+ RUNTIME = ROOT / 'artifacts/css-registered-number-native-runtime-v1'
++EXECUTION_ENABLED = False
+ read = lambda p: json.loads(p.read_bytes())
+ sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+ 
+@@ -34,15 +35,23 @@
+ 
+ def main():
+     assert len(sys.argv) == 3 and sys.argv[1] in ('--check', '--run')
++    assert EXECUTION_ENABLED, 'Unbound typecheck template; root admission required'
+     baseline = load('activation_baseline', str((HERE / 'baseline.py').relative_to(ROOT)))
+     policy, ownership, roles = baseline.prepare(sys.argv[2])
+     assert policy['wpt'] is not None
++    assert set(roles) == {'servo/components/style/properties/cascade.rs', 'servo/components/style/custom_properties.rs'}
++    typecheck = read(HERE / 'TYPECHECK.json')
++    assert typecheck['source_roles'] == roles
+     if sys.argv[1] == '--check':
+-        print('Authenticated paired recipe; no live guard')
++        print('Authenticated native typecheck recipe; no live guard')
+         return
+     assert policy['execution_enabled'] and policy['candidate_execution_enabled']
+     assert policy['activation_pending'] == []
+     baseline.require_ready(policy)
++    assert typecheck['execution_enabled'] is True
++    assert typecheck['current_binding'] is not None and typecheck['current_binding'] == policy['current_binding']
++    for name, digest in typecheck['required_input_hashes'].items():
++        assert sha(ROOT / name) == digest
+     state, env, controls, original, flags, original_verify = baseline.guard(policy, ownership, roles)
+     original_before = original_verify()
+     intermediate = load('owner_intermediate', str((HERE / 'intermediate.py').relative_to(ROOT)))
+@@ -75,7 +84,7 @@
+     bundle = load('activation_bundle', policy['bundle_helper'])
+     builder = load('activation_builder', policy['phase_helper'])
+     process_control = load('activation_process_control', policy['process_helper'])
+-    wpt = load('activation_wpt', str((HERE / 'wpt.py').relative_to(ROOT)))
++    assessor = load('typecheck_assessor', str((HERE / 'assess.py').relative_to(ROOT)))
+     app = ROOT / policy['bundle_path']
+     app_before = bundle.scan(app)
+     extra_before = {name: bundle.entry(ROOT / name) for name in policy['extra_backup_paths']}
+@@ -104,7 +113,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'hyphenation-ownership-native-pair-v1'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'font-metric-synthesis-native-typecheck-v1'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+@@ -124,7 +133,7 @@
+             if record['path'] not in roles:
+                 ownership.claim(ROOT, record['path'], record['owned_sha256'], record['identity'])
+     verification_calls = [0]
+-    active_role = ["original"]
++    active_role = ["candidate"]
+     def phase_verify():
+         verification_calls[0] += 1
+         stable_controls()
+@@ -154,34 +163,36 @@
+             assert state.h.git(path, env, 'ls-files', '-v', '-z') == flags[name]
+         return verified
+     try:
+-        phases = load('publication_pair_phases', str((HERE / 'phases.py').relative_to(ROOT)))
+-        phase_result = {}
+-        for role in ('original', 'candidate'):
+-            active_role[0] = role
+-            stable_controls()
+-            if role == 'candidate':
+-                for name in roles:
+-                    touched.append(name)
+-                    if bases[name] != candidates[name]:
+-                        ownership.write_owned(ROOT, claims[name], candidates[name])
+-            assert free() >= 27 * 1024**3
+-            build = output / (role + '-build')
+-            build.mkdir()
+-            command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'build', 'binaries', '-j2']
+-            state.save(build / 'COMMAND.json', {'command': command, 'source_sha256': {name: sha(ROOT / name) for name in roles}, 'owner_manifest': sys.argv[2], 'source_role': role})
+-            state.save(build / 'PREFLIGHT.json', {'free_bytes': free(), 'start_floor_bytes': 27 * 1024**3, 'running_stop_bytes': 15 * 1024**3, 'owned_backup_bytes': size, 'phase_helper_sha256': sha(ROOT / policy['phase_helper'])})
+-            deadline = time.monotonic() + policy['timeout_seconds']
++        stable_controls()
++        for name in roles:
++            touched.append(name)
++            if bases[name] != candidates[name]:
++                ownership.write_owned(ROOT, claims[name], candidates[name])
++        assert free() >= 27 * 1024**3
++        build = output / 'candidate-check'
++        build.mkdir()
++        command = typecheck['command']
++        assert command == ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'cargo', 'check', '-p', 'geckoservo', '-j', '2', '--message-format-json', '--locked', '--offline']
++        state.save(build / 'COMMAND.json', {'command': command, 'source_sha256': {name: sha(ROOT / name) for name in roles}, 'owner_manifest': sys.argv[2], 'source_role': 'candidate', 'required_input_hashes': typecheck['required_input_hashes']})
++        state.save(build / 'PREFLIGHT.json', {'free_bytes': free(), 'start_floor_bytes': 27 * 1024**3, 'running_stop_bytes': 15 * 1024**3, 'owned_backup_bytes': size, 'phase_helper_sha256': sha(ROOT / policy['phase_helper'])})
++        deadline = time.monotonic() + policy['timeout_seconds']
++        try:
+             builder.run(ROOT, ROOT / 'objdir-full.noindex', build, env, lambda: stopped[0] or time.monotonic() >= deadline, owned, process_control, command, errors)
+-            inner = read(build / 'build-RESULT.json')
+-            assert inner['exit'] == 0 and inner['owned_group_absent'] and inner['cleanup_errors'] == [] and inner['error'] is None and inner['stop_reason'] is None
+-            assert not owned and not errors
+-            binaries = {name: sha(ROOT / name) for name in policy['rebuilt_binaries']}
+-            verified = phase_verify()
+-            metadata_helper = load('paired_build_metadata', policy['wpt']['metadata_helper'])
+-            metadata = metadata_helper.application_metadata(ROOT / policy['wpt']['application_ini'], policy['head'])
+-            metadata.update(build_revision=metadata['revision'], harness_revision=policy['head'], source_role=role)
+-            state.save(build / 'RESULT.json', {'command_success': True, 'preservation_verified': True, 'snapshot': verified, 'binaries': binaries, 'native_sources': {name: row['base_sha256' if role == 'original' else 'candidate_sha256'] for name, row in roles.items()}, 'application_metadata': metadata, 'browser_build_performed': True, 'error': None})
+-            phase_result[role] = phases.run(ROOT, HERE, output, role, policy, env, phase_verify, owned, lambda: stopped[0])
++        finally:
++            if (build / 'build-RESULT.json').is_file() and (build / 'build.log').is_file():
++                inner = read(build / 'build-RESULT.json')
++                assessment = assessor.assess((build / 'build.log').read_bytes(), inner['exit'], ROOT, ROOT / 'objdir-full.noindex')
++                state.save(build / 'ASSESSMENT.json', assessment)
++                phase_result = {'cargo': assessment}
++                input_after = {name: sha(ROOT / name) if (ROOT / name).is_file() else None for name in typecheck['required_input_hashes']}
++                state.save(build / 'INPUTS-AFTER.json', input_after)
++        assert input_after == typecheck['required_input_hashes'], 'Build inputs changed during typecheck'
++        assert inner['exit'] == 0 and inner['owned_group_absent'] and inner['cleanup_errors'] == [] and inner['error'] is None and inner['stop_reason'] is None
++        assert not owned and not errors
++        assert assessment['success'], assessment['errors']
++        binaries = {name: sha(ROOT / name) for name in policy['rebuilt_binaries']}
++        verified = phase_verify()
++        state.save(build / 'RESULT.json', {'command_success': True, 'cargo_success': True, 'preservation_verified': True, 'snapshot': verified, 'binaries_after_check': binaries, 'native_sources': {name: row['candidate_sha256'] for name, row in roles.items()}, 'browser_build_performed': False, 'error': None})
+     except BaseException as exc:
+         failure = repr(exc)
+         state.save(output / 'FAILURE-TRACEBACK.json', {'error': failure, 'traceback': traceback.format_exc()})
+@@ -227,16 +238,16 @@
+         assert state.h.git(path, env, 'ls-files', '-v', '-z') == flags[name]
+     state.save(output / 'POST.json', after)
+     state.save(output / 'RAW-INDEX-OBSERVATION.json', {'before': original_before['index']['raw_index'], 'after': index['raw_index'], 'semantic_index_unchanged': True, 'canonical_updated': False})
+-    success = failure is None and not errors and phase_result is not None and set(phase_result) == {'original', 'candidate'}
++    success = failure is None and not errors and phase_result is not None and phase_result['cargo']['success']
+     if success:
+         assert bundle.scan(backups) == backup_snapshot
+         shutil.rmtree(backups)
+     state.save(output / 'BACKUP-CLEANUP.json', {'removed': success and not backups.exists(), 'verified_original_restoration': True, 'owned_backup_bytes': size, 'retained_after_failure': not success})
+     assert (lock.stat().st_dev, lock.stat().st_ino) == lock_identity
+     lock.unlink()
+-    state.save(output / 'RESULT.json', {'success': success, 'error': failure, 'publication_errors': errors, 'phase': phase_result, 'provider_source_role': policy['provider_source_role'], 'build_revision': policy['head'], 'restoration_verified': True, 'runtime_controls_unchanged': True, 'empty_staging_preserved': True, 'native_fix_acceptance': False, 'full_epoch_copies_saved': 0, 'success_scope': 'build, complete observation and restoration; callback PASS is separate'})
++    state.save(output / 'RESULT.json', {'success': success, 'error': failure, 'publication_errors': errors, 'phase': phase_result, 'provider_source_role': policy['provider_source_role'], 'build_revision': policy['head'], 'restoration_verified': True, 'runtime_controls_unchanged': True, 'empty_staging_preserved': True, 'native_fix_acceptance': False, 'full_epoch_copies_saved': 0, 'success_scope': 'Cargo typecheck and restoration only; no browser behavior or metric repair validation'})
+     assert success, failure
+-    print('Activation paired observation complete; original source and application restored', flush=True)
++    print('Native typecheck complete; original source and application restored', flush=True)
+ 
+ 
+ if __name__ == '__main__':

@@ -1,0 +1,73 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered size dependencies do not create a font metric cycle</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#dependency-cycles">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const mode of ["direct", "alias", "registered-alias", "fallback"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    frame.srcdoc = `<!doctype html><link rel="stylesheet" href="/fonts/ahem.css"><style>
+      @font-face { font-family: PhaseMetrics; font-weight: 400; src: url(/fonts/Ahem.ttf); }
+      @font-face { font-family: PhaseMetrics; font-weight: 700; src: url(/fonts/noto/noto-sans-v8-latin-regular.woff); }
+    </style><style id="phase-style"></style><body>`;
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    document.body.append(frame);
+    t.add_cleanup(() => frame.remove());
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    for (const weight of [400, 700]) {
+      const faces = await doc.fonts.load(`${weight} 20px PhaseMetrics`, "0");
+      assert_equals(faces.length, 1, "exact selected face");
+      assert_equals(faces[0].status, "loaded", "selected face loaded");
+    }
+    await doc.fonts.ready;
+    for (const name of ["--phase-size", "--phase-metric"]) {
+      win.CSS.registerProperty({name, syntax: "<length>", inherits: false, initialValue: "2px"});
+    }
+    if (mode === "registered-alias") {
+      win.CSS.registerProperty({name: "--phase-alias", syntax: "<length>", inherits: false, initialValue: "3px"});
+    }
+    for (const id of ["target", "reference", "normal-reference"]) {
+      const element = doc.createElement("div");
+      element.id = id;
+      doc.body.append(element);
+    }
+    const target = doc.getElementById("target");
+    const phaseStyle = doc.getElementById("phase-style");
+    const observations = [];
+    for (const size of [20, 30]) {
+      const length = mode.includes("alias") ? "var(--phase-alias)" : "var(--phase-size)";
+      const calculation = `calc(${length} / ${size}px * 700)`;
+      const weight = mode === "fallback" ? `var(--missing, ${calculation})` : calculation;
+      phaseStyle.textContent = `
+        div { font-family: PhaseMetrics; font-size: ${size}px; font-style: normal;
+          font-stretch: normal; font-size-adjust: none; font-synthesis: none;
+          writing-mode: horizontal-tb; text-orientation: mixed; width: 1ch; }
+        #target { --phase-size: 1em; --phase-alias: var(--phase-size); --phase-metric: 1ch;
+          font-weight: ${weight}; }
+        #reference { font-weight: 700; }
+        #normal-reference { font-weight: 400; }`;
+      const metric = win.getComputedStyle(target).getPropertyValue("--phase-metric");
+      const computed = win.getComputedStyle(target);
+      observations.push({size, metric, registeredSize: computed.getPropertyValue("--phase-size"),
+        weight: computed.fontWeight, fontSize: computed.fontSize, literal: computed.width,
+        reference: win.getComputedStyle(doc.getElementById("reference")).width,
+        normal: win.getComputedStyle(doc.getElementById("normal-reference")).width});
+    }
+    const diagnostic = JSON.stringify({mode, observations});
+    for (const row of observations) {
+      assert_greater_than(Math.abs(parseFloat(row.reference) - parseFloat(row.normal)), 1, diagnostic);
+      assert_equals(row.registeredSize, `${row.size}px`, diagnostic);
+      assert_equals(row.fontSize, `${row.size}px`, diagnostic);
+      assert_equals(row.weight, "700", diagnostic);
+      assert_approx_equals(parseFloat(row.literal), parseFloat(row.reference), 0.02, diagnostic);
+      assert_approx_equals(parseFloat(row.metric), parseFloat(row.reference), 0.02, diagnostic);
+    }
+  }, `Completed size before font metric readiness: ${mode}`);
+}
+</script>

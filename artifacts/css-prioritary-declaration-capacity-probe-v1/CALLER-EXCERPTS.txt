@@ -1,0 +1,96 @@
+350: 
+351:     let properties_to_apply = match cascade_mode {
+352:         CascadeMode::Visited { unvisited_context } => {
+353:             context.builder.substitution_functions =
+354:                 unvisited_context.builder.substitution_functions.clone();
+355:             context.builder.writing_mode = unvisited_context.builder.writing_mode;
+356:             context.builder.color_scheme = unvisited_context.builder.color_scheme;
+357:             // We never insert visited styles into the cache so we don't need to try looking it up.
+358:             // It also wouldn't be super-profitable, only a handful :visited properties are
+359:             // non-inherited.
+360:             using_cached_reset_properties = false;
+361:             // If we match the same rules when visited and unvisited, and we know there isn't any
+362:             // visited-dependent properties, we can avoid gathering the declarations, we know none
+363:             // would be relevant.
+364:             if unvisited_context.builder.rules.as_ref() != Some(rules)
+365:                 || unvisited_context
+366:                     .builder
+367:                     .flags()
+368:                     .intersects(ComputedValueFlags::USES_VISITED_DEPENDENT_PROPERTIES)
+369:             {
+370:                 iter_declarations(iter, &mut declarations, None, &mut attribute_tracker);
+371:             }
+372:             LonghandIdSet::visited_dependent()
+373:         },
+374:         CascadeMode::Unvisited { .. } => {
+375:             cascade.init_custom_properties(&mut context);
+376:             iter_declarations(
+377:                 iter,
+378:                 &mut declarations,
+379:                 Some((&mut cascade, &mut context)),
+380:                 &mut attribute_tracker,
+381:             );
+382:             // Detect cycles, remove properties participating in them, and resolve custom
+383:             // properties, applying prioritary properties (font-size, color-scheme, line-height)
+384:             // interleaved so that a custom property depending on `em`/`lh`/the used color-scheme is
+385:             // substituted once the prioritary property it needs has been applied.
+386:             cascade.apply_custom_and_prioritary_properties(
+387:                 &mut context,
+388:                 &declarations,
+389:                 &mut shorthand_cache,
+390:                 &mut attribute_tracker,
+391:             );
+392: 
+393:             using_cached_reset_properties =
+394:                 cascade.try_to_use_cached_reset_properties(&mut context, rule_cache, guards);
+395: 
+396:             if using_cached_reset_properties {
+397:                 LonghandIdSet::late_group_only_inherited()
+398:             } else {
+399:                 LonghandIdSet::late_group()
+400:             }
+401:         },
+402:     };
+403: 
+404:     cascade.apply_non_prioritary_properties(
+405:         &mut context,
+406:         &declarations.longhand_declarations,
+407:         &mut shorthand_cache,
+408:         properties_to_apply,
+409:         &mut attribute_tracker,
+410:     );
+
+1031:     fn apply_non_prioritary_properties(
+1032:         &mut self,
+1033:         context: &mut computed::Context,
+1034:         longhand_declarations: &[Declaration],
+1035:         shorthand_cache: &mut ShorthandsWithPropertyReferencesCache,
+1036:         properties_to_apply: &LonghandIdSet,
+1037:         attribute_tracker: &mut AttributeTracker,
+1038:     ) {
+1039:         debug_assert!(!properties_to_apply.contains_any(LonghandIdSet::prioritary_properties()));
+1040:         debug_assert!(self.declarations_to_apply_unless_overridden.is_empty());
+1041:         for declaration in longhand_declarations {
+1042:             let mut longhand_id = declaration.decl.id().as_longhand().unwrap();
+1043:             if !properties_to_apply.contains(longhand_id) {
+1044:                 continue;
+1045:             }
+1046:             debug_assert!(PrioritaryPropertyId::from_longhand(longhand_id).is_none());
+1047:             let is_logical = longhand_id.is_logical();
+1048:             if is_logical {
+1049:                 let wm = context.builder.writing_mode;
+1050:                 context
+1051:                     .rule_cache_conditions
+1052:                     .borrow_mut()
+1053:                     .set_writing_mode_dependency(wm);
+1054:                 longhand_id = longhand_id.to_physical(wm);
+1055:             }
+1056:             self.apply_one_longhand(
+1057:                 context,
+1058:                 longhand_id,
+1059:                 declaration.decl,
+1060:                 declaration.priority,
+1061:                 shorthand_cache,
+1062:                 attribute_tracker,
+1063:             );
+1064:         }

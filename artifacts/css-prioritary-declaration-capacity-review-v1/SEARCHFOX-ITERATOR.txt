@@ -1,0 +1,116 @@
+ 120: struct DeclarationIterator<'a> {
+ 121:     // Global to the iteration.
+ 122:     guards: &'a StylesheetGuards<'a>,
+ 123:     restriction: PropertyFlags,
+ 124:     // The rule we're iterating over.
+ 125:     current_rule_node: Option<&'a StrongRuleNode>,
+ 126:     // Per rule state.
+ 127:     declarations: DeclarationImportanceIterator<'a>,
+ 128:     priority: CascadePriority,
+ 129: }
+ 130: 
+ 131: impl<'a> DeclarationIterator<'a> {
+ 132:     #[inline]
+ 133:     fn new(
+ 134:         rule_node: &'a StrongRuleNode,
+ 135:         guards: &'a StylesheetGuards,
+ 136:         pseudo: Option<&PseudoElement>,
+ 137:     ) -> Self {
+ 138:         let restriction = pseudo.map_or(PropertyFlags::empty(), |p| p.property_restriction());
+ 139:         let mut iter = Self {
+ 140:             guards,
+ 141:             current_rule_node: Some(rule_node),
+ 142:             priority: CascadePriority::new(
+ 143:                 CascadeLevel::new(CascadeOrigin::UA),
+ 144:                 LayerOrder::root(),
+ 145:                 RuleCascadeFlags::empty(),
+ 146:             ),
+ 147:             declarations: DeclarationImportanceIterator::default(),
+ 148:             restriction,
+ 149:         };
+ 150:         iter.update_for_node(rule_node);
+ 151:         iter
+ 152:     }
+ 153: 
+ 154:     fn update_for_node(&mut self, node: &'a StrongRuleNode) {
+ 155:         self.priority = node.cascade_priority();
+ 156:         let guard = self.priority.cascade_level().origin().guard(self.guards);
+ 157:         self.declarations = match node.style_source() {
+ 158:             Some(source) => source.read(guard).declaration_importance_iter(),
+ 159:             None => DeclarationImportanceIterator::default(),
+ 160:         };
+ 161:     }
+ 162: }
+ 163: 
+ 164: impl<'a> Iterator for DeclarationIterator<'a> {
+ 165:     type Item = (&'a PropertyDeclaration, CascadePriority);
+ 166: 
+ 167:     #[inline]
+ 168:     fn next(&mut self) -> Option<Self::Item> {
+ 169:         loop {
+ 170:             if let Some((decl, importance)) = self.declarations.next_back() {
+ 171:                 if self.priority.cascade_level().is_important() != importance.important() {
+ 172:                     continue;
+ 173:                 }
+ 174: 
+ 175:                 if !self.restriction.is_empty() {
+ 176:                     // decl.id() is either a longhand or a custom
+ 177:                     // property.  Custom properties are always allowed, but
+ 178:                     // longhands are only allowed if they have our
+ 179:                     // restriction flag set.
+ 180:                     if let PropertyDeclarationId::Longhand(id) = decl.id()
+ 181:                         && !id.flags().contains(self.restriction)
+ 182:                         && self.priority.cascade_level().origin() != CascadeOrigin::UA
+ 183:                     {
+ 184:                         continue;
+ 185:                     }
+ 186:                 }
+ 187: 
+ 188:                 return Some((decl, self.priority));
+ 189:             }
+ 190: 
+ 191:             let next_node = self.current_rule_node.take()?.parent()?;
+ 192:             self.current_rule_node = Some(next_node);
+ 193:             self.update_for_node(next_node);
+ 194:         }
+ 195:     }
+ 196: }
+ 197: 
+ 198: fn cascade_rules<E>(
+ 199:     stylist: &Stylist,
+ 200:     pseudo: Option<&PseudoElement>,
+ 201:     rule_node: &StrongRuleNode,
+ 202:     guards: &StylesheetGuards,
+ 203:     parent_style: Option<&ComputedValues>,
+ 204:     layout_parent_style: Option<&ComputedValues>,
+ 205:     first_line_reparenting: FirstLineReparenting,
+ 206:     try_tactic: &PositionTryFallbacksTryTactic,
+ 207:     cascade_mode: CascadeMode,
+ 208:     cascade_input_flags: ComputedValueFlags,
+ 209:     included_cascade_flags: RuleCascadeFlags,
+ 210:     rule_cache: Option<&RuleCache>,
+ 211:     rule_cache_conditions: &mut RuleCacheConditions,
+ 212:     element: Option<E>,
+ 213:     tree_counting_caches: &mut TreeCountingCaches,
+ 214: ) -> Arc<ComputedValues>
+ 215: where
+ 216:     E: TElement,
+ 217: {
+ 218:     apply_declarations(
+ 219:         stylist,
+ 220:         pseudo,
+ 221:         rule_node,
+ 222:         guards,
+ 223:         DeclarationIterator::new(rule_node, guards, pseudo),
+ 224:         parent_style,
+ 225:         layout_parent_style,
+ 226:         first_line_reparenting,
+ 227:         try_tactic,
+ 228:         cascade_mode,
+ 229:         cascade_input_flags,
+ 230:         included_cascade_flags,
+ 231:         rule_cache,
+ 232:         rule_cache_conditions,
+ 233:         element,
+ 234:         tree_counting_caches,
+ 235:     )

@@ -1,0 +1,26 @@
+--- artifacts/css-font-metric-selected-reference-pair-failure-backup-cleanup-v1.py
++++ artifacts/css-font-metric-selected-reference-diagnostic-failure-backup-cleanup-v1.py
+@@ -8,11 +8,11 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ assert len(sys.argv) == 2
+ ROOT = Path(__file__).resolve().parent.parent
+-RUNTIME = ROOT / 'artifacts/css-font-metric-selected-reference-pair-runtime-1'
+-OWNER = ROOT / 'artifacts/css-font-metric-selected-reference-pair-v1'
++RUNTIME = ROOT / 'artifacts/css-font-metric-selected-reference-diagnostic-runtime-1'
++OWNER = ROOT / 'artifacts/css-font-metric-selected-reference-diagnostic-run-v1'
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+ read = lambda path: json.loads(path.read_bytes())
+-assert sha((OWNER / 'FILES.json').read_bytes()) == 'f213f8160c1c142a0964a99e46ebb483a27b29f5169cda74afb83b185c2dc464'
++assert sha((OWNER / 'FILES.json').read_bytes()) == '7841779ef2d8e52a4db12d39d2dc249f3b894a290dffee286604bcebfb0fc258'
+ for name, record in read(OWNER / 'FILES.json').items():
+     assert sha((OWNER / name).read_bytes()) == record['sha256']
+ report_path = RUNTIME / 'ROOT-LIVE-RESTORATION.json'
+@@ -20,7 +20,7 @@
+ report = read(report_path)
+ assert report['independent_live_restoration_verified'] and report['retained_backup_inventory_verified']
+ assert report['backup_removed'] is False and report['native_acceptance'] is False
+-assert report['audit_script_sha256'] == sha((ROOT / 'artifacts/css-font-metric-selected-reference-pair-failure-audit-v1.py').read_bytes())
++assert report['audit_script_sha256'] == sha((ROOT / 'artifacts/css-font-metric-selected-reference-diagnostic-failure-audit-v1.py').read_bytes())
+ for name, digest in report['failure_pins'].items():
+     assert sha((RUNTIME / name).read_bytes()) == digest
+ policy = read(OWNER / 'POLICY.json')

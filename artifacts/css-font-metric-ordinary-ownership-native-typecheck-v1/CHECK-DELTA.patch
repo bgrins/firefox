@@ -1,0 +1,31 @@
+--- artifacts/css-font-metric-synthesis-native-typecheck-v5/check.py
++++ artifacts/css-font-metric-ordinary-ownership-native-typecheck-v1/check.py
+@@ -7,8 +7,8 @@
+ import sys
+ 
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+-EXPECTED_HEAD = '51b900ed6b003702c79e8aafd77cddac614597ee'
+-EXPECTED_CHECKPOINT = '6a376e790fef30f4b87e9369de53d4f1a654e8d877600e8ac81e6d91bd3f40f0'
++EXPECTED_HEAD = '70d9abdf9784cf84732aed747cbec87fe0589d95'
++EXPECTED_CHECKPOINT = '526b97af7108c7d4d1d014b2ec48299d8e7f6a6f7fb4cc7fec8411aa274a46a9'
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+ read = lambda p: json.loads(p.read_bytes())
+@@ -31,7 +31,7 @@
+ 
+ def validate_policy(policy):
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-font-metric-synthesis-native-typecheck-runtime-3'
++    assert policy['runtime_output'] == 'artifacts/css-font-metric-ordinary-ownership-native-typecheck-runtime-1'
+     assert policy['head'] == EXPECTED_HEAD
+     assert policy['ownership_commit'] == '8870962db02b006791085b73f9e270942e145365'
+     admission = load('admission')
+@@ -44,7 +44,7 @@
+         assert policy[name] == old[name], name
+     assert policy['wpt_lanes'] == {} and policy['lane_order'] == policy['diagnostic_lane_order'] == []
+     admission.authenticate(ROOT, policy['source_binding'])
+-    assert policy['source_binding']['directory'] == 'artifacts/css-font-metric-selected-reference-producer-v1'
++    assert policy['source_binding']['directory'] == 'artifacts/css-font-metric-ordinary-ownership-v1'
+     typecheck = read(HERE / 'TYPECHECK.json')
+     prepared = read(template / 'TYPECHECK.json')
+     for name in ('command', 'required_input_hashes', 'fresh_input_revalidation_required'):

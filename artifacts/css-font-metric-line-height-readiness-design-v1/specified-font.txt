@@ -1,0 +1,141 @@
+1960: 
+1961: impl From<MozScriptSizeMultiplier> for f32 {
+1962:     fn from(v: MozScriptSizeMultiplier) -> f32 {
+1963:         v.0
+1964:     }
+1965: }
+1966: 
+1967: /// A specified value for the `line-height` property.
+1968: pub type LineHeight = GenericLineHeight<NonNegativeNumber, NonNegativeLengthPercentage>;
+1969: 
+1970: /// Parses a line height <number> value. Percentages in <number>-typed calc expressions
+1971: /// are allowed in the `line-height` property, relative to the computed value of 1em.
+1972: /// https://drafts.csswg.org/css-inline/#line-height-property
+1973: fn parse_line_height_number(
+1974:     context: &ParserContext,
+1975:     input: &mut Parser,
+1976: ) -> Result<NonNegativeNumber, ParseError> {
+1977:     parse_number_with_clamping_mode(
+1978:         context,
+1979:         input,
+1980:         AllowedNumericType::NonNegative,
+1981:         PercentageContext::allowed_with_hint(NumericBaseType::Length),
+1982:     )
+1983:     .map(NonNegative::<Number>)
+1984: }
+1985: 
+1986: impl Parse for LineHeight {
+1987:     fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
+1988:         if let Ok(v) = input.try_parse(|input| parse_line_height_number(context, input)) {
+1989:             return Ok(GenericLineHeight::Number(v));
+1990:         }
+1991:         if let Ok(v) = input.try_parse(|input| NonNegativeLengthPercentage::parse(context, input)) {
+1992:             return Ok(GenericLineHeight::Length(v));
+1993:         }
+1994:         let ident = input.expect_ident()?;
+1995:         match_ignore_ascii_case! { &ident,
+1996:             "normal" => Ok(GenericLineHeight::Normal),
+1997:             _ => Err(ParseError::custom(SelectorParseErrorKind::UnexpectedIdent)),
+1998:         }
+1999:     }
+2000: }
+2001: 
+2002: /// Resolves a line-height length into an absolute pixel value, properly applying text
+2003: /// scaling and ensuring any `lh` lengths are resolved against the inherited line-height.
+2004: fn resolve_line_height_length(context: &Context, length: NoCalcLength) -> CSSPixelLength {
+2005:     let result = length.to_computed_value_with_base_size(
+2006:         context,
+2007:         FontBaseSize::CurrentStyle,
+2008:         LineHeightBase::InheritedStyle,
+2009:     );
+2010:     if length.should_zoom_text() {
+2011:         context.maybe_zoom_text(result)
+2012:     } else {
+2013:         result
+2014:     }
+2015: }
+2016: 
+2017: /// Maps a line-height calc leaf into a resolved leaf. Percentages are replaced
+2018: /// with equivalent `em` lengths, and all lengths are resolved to absolute lengths.
+2019: fn map_line_height_leaf(context: &Context, leaf: &Leaf) -> Leaf {
+2020:     let length = match leaf {
+2021:         Leaf::Percentage(p) => NoCalcLength::from_em(p.get()),
+2022:         Leaf::Length(l) => *l,
+2023:         _ => return leaf.clone(),
+2024:     };
+2025:     Leaf::Length(NoCalcLength::from_px(
+2026:         resolve_line_height_length(context, length).px(),
+2027:     ))
+2028: }
+2029: 
+2030: impl ToComputedValue for LineHeight {
+2031:     type ComputedValue = computed::LineHeight;
+2032: 
+2033:     #[inline]
+2034:     fn to_computed_value(&self, context: &Context) -> Self::ComputedValue {
+2035:         match self {
+2036:             GenericLineHeight::Normal => GenericLineHeight::Normal,
+2037:             GenericLineHeight::Number(number) => {
+2038:                 let value = match number.as_calc() {
+2039:                     None => number.to_computed_value(context).0,
+2040:                     Some(calc) => {
+2041:                         let resolved = calc
+2042:                             .node
+2043:                             .resolve_map(|leaf| Ok(map_line_height_leaf(context, leaf)));
+2044:                         let value = match resolved {
+2045:                             Ok(Leaf::Number(n)) => n.get(),
+2046:                             _ => {
+2047:                                 debug_assert!(
+2048:                                     false,
+2049:                                     "Unexpected LineHeight number calc without resolved number"
+2050:                                 );
+2051:                                 f32::NAN
+2052:                             },
+2053:                         };
+2054:                         // The `NonNegative` clamping mode ensures that -infinity isn't produced
+2055:                         calc.clamping_mode
+2056:                             .clamp(crate::values::normalize(value).min(f32::MAX))
+2057:                     },
+2058:                 };
+2059:                 GenericLineHeight::Number(NonNegative(value))
+2060:             },
+2061:             GenericLineHeight::Length(non_negative_lp) => {
+2062:                 let result = match non_negative_lp.0 {
+2063:                     LengthPercentage::Length(ref length) => {
+2064:                         resolve_line_height_length(context, *length)
+2065:                     },
+2066:                     LengthPercentage::Percentage(ref p) => {
+2067:                         resolve_line_height_length(context, NoCalcLength::from_em(p.get()))
+2068:                     },
+2069:                     LengthPercentage::Calc(ref calc) => calc
+2070:                         .to_computed_value_zoomed(
+2071:                             context,
+2072:                             FontBaseSize::CurrentStyle,
+2073:                             LineHeightBase::InheritedStyle,
+2074:                         )
+2075:                         .resolve(FontBaseSize::CurrentStyle.resolve(context).computed_size()),
+2076:                 };
+2077:                 GenericLineHeight::Length(result.into())
+2078:             },
+2079:         }
+2080:     }
+2081: 
+2082:     #[inline]
+2083:     fn from_computed_value(computed: &Self::ComputedValue) -> Self {
+2084:         match *computed {
+2085:             GenericLineHeight::Normal => GenericLineHeight::Normal,
+2086:             GenericLineHeight::Number(ref number) => {
+2087:                 GenericLineHeight::Number(NonNegativeNumber::from_computed_value(number))
+2088:             },
+2089:             GenericLineHeight::Length(ref length) => {
+2090:                 GenericLineHeight::Length(NoCalcLength::from_computed_value(&length.0).into())
+2091:             },
+2092:         }
+2093:     }
+2094: }
+2095: 
+2096: /// Flags for the query_font_metrics() function.
+2097: #[repr(C)]
+2098: pub struct QueryFontMetricsFlags(u8);
+2099: 
+2100: bitflags! {

@@ -1,0 +1,32 @@
+--- artifacts/css-font-metric-selected-reference-diagnostic-v1/candidate/servo/components/style/properties/cascade.rs
++++ artifacts/css-font-metric-selected-reference-diagnostic-v2/candidate/servo/components/style/properties/cascade.rs
+@@ -2912,7 +2912,7 @@
+                     let _ = writeln!(
+                         out,
+                         "CSS_METRIC_PENDING progress_property={id:?} value={:p}",
+-                        Arc::as_ptr(value)
++                        value.as_ref() as *const _
+                     );
+                 },
+                 Some(MetricActionProgress::GeneratedPrerequisite(id)) => {
+@@ -2928,7 +2928,7 @@
+                 let _ = writeln!(
+                     out,
+                     "CSS_METRIC_PENDING action={:p} root={:?} owner={:?} index={} target={:?}",
+-                    Arc::as_ptr(&action.identity),
++                    action.identity.as_ref() as *const _,
+                     action.root,
+                     action.owner,
+                     action.index,
+@@ -3007,9 +3007,9 @@
+                 let _ = writeln!(
+                     out,
+                     "CSS_METRIC_PENDING references action={:p} property={:?} value={:p} depth={} floor={} complete={} flags_current={} cursor={:?} queued={} waiting={:?} reply_target={:?}",
+-                    Arc::as_ptr(&state.action.identity),
++                    state.action.identity.as_ref() as *const _,
+                     state.longhand,
+-                    Arc::as_ptr(&state.value),
++                    state.value.as_ref() as *const _,
+                     state.depth,
+                     state.semantic_floor,
+                     state.complete,

@@ -1,0 +1,53 @@
+--- artifacts/css-research-checkpoint-20261102-v111/check.py
++++ artifacts/css-research-checkpoint-20261102-v112/check.py
+@@ -50,22 +50,22 @@
+         assert not Path(name).is_absolute() and '..' not in Path(name).parts
+         full = str((Path(path).parent / name))
+         assert selected[full]['sha256'] == (record['sha256'] if isinstance(record, dict) else record)
+-old = (ROOT / 'artifacts/css-research-checkpoint-20261102-v110/commit.py').read_text()
++old = (ROOT / 'artifacts/css-research-checkpoint-20261102-v111/commit.py').read_text()
+ new = (HERE / 'commit.py').read_text()
+ marker = "    controls = {name: (RUNTIME / name).read_bytes()"
+-assert old[old.index(marker):].replace('v110', 'v111').replace('V110', 'V111').replace('No bug - Record selected-reference paired browser observations. r?#firefox-style-system-reviewers','No bug - Record font dependency preparation and native validation. r?#firefox-style-system-reviewers') == new[new.index(marker):]
++assert old[old.index(marker):].replace('v111', 'v112').replace('V111', 'V112').replace('No bug - Record selected-reference paired browser observations. r?#firefox-style-system-reviewers','No bug - Record font dependency preparation and native validation. r?#firefox-style-system-reviewers') == new[new.index(marker):]
+ 
+ if bindings['pending_current_admission']:
+     if bindings.get('completed_pair_runtime_frozen'):
+-        assert 'artifacts/css-font-metric-dynamic-native-typecheck-runtime-1/FILES.json' in bindings['completed_packages']
++        assert 'artifacts/css-font-metric-computed-size-native-typecheck-runtime-1/FILES.json' in bindings['completed_packages']
+     else:
+         assert 'artifacts/css-font-metric-selected-reference-diagnostic-root-run-v1.log' not in selected
+-        assert not any(path.startswith('artifacts/css-font-metric-dynamic-native-typecheck-runtime-1/') for path in selected)
++        assert not any(path.startswith('artifacts/css-font-metric-computed-size-native-typecheck-runtime-1/') for path in selected)
+     assert bindings['current_capture_sha256'] is None
+     if bindings['refresh_binding']:
+         receipt = json.loads((ROOT / bindings['prior_receipt']).read_bytes())
+         refreshed = m.validate_refresh(receipt)
+-        frozen = json.loads((ROOT / 'artifacts/css-font-metric-dynamic-native-typecheck-runtime-1/POST.json').read_bytes())
++        frozen = json.loads((ROOT / 'artifacts/css-font-metric-computed-size-native-typecheck-runtime-1/POST.json').read_bytes())
+         frozen['index']['raw_index'] = refreshed['index']['raw_index']
+         assert refreshed == frozen
+         assert bindings['controls']['CURRENT-EPOCH.json'] == bindings['epoch_sha256']
+@@ -95,14 +95,14 @@
+     sys.argv = saved_argv
+     m.git = original_git
+ if bindings['pending_current_admission']:
+-    print(json.dumps({'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'pending_admission_rejected':True, 'disabled_execution_rejected':True, 'exact_v110_signing_tail':True}))
++    print(json.dumps({'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'pending_admission_rejected':True, 'disabled_execution_rejected':True, 'exact_v111_signing_tail':True}))
+     raise SystemExit(0)
+ current = json.loads((ROOT / bindings['current_capture']).read_bytes())
+ receipt = json.loads((ROOT / bindings['prior_receipt']).read_bytes())
+ directory = ROOT / bindings['refresh_binding']['directory']
+ refresh = json.loads((directory / 'RESULT.json').read_bytes())
+ negatives = 0
+-with tempfile.TemporaryDirectory(prefix='css-research-v111-check-') as temporary:
++with tempfile.TemporaryDirectory(prefix='css-research-v112-check-') as temporary:
+     scratch=Path(temporary);(scratch/'refresh').mkdir()
+     for name in ['PRE-CURRENT-EPOCH.json','EPOCH.json','PRE.json','POST.json']:
+         (scratch/'refresh'/name).write_bytes((directory/name).read_bytes())
+@@ -141,4 +141,4 @@
+         else:raise AssertionError('accepted '+label)
+     m.ROOT,m.BINDINGS=ROOT,bindings
+ assert not scratch.exists()
+-print(json.dumps({'selected':len(selected),'bytes':sum(x['bytes'] for x in selected.values()),'closures':len(bindings['completed_packages']),'binding_negatives':negatives,'disabled_execution_rejected':True,'exact_v110_signing_tail':True,'scratch_removed':True}))
++print(json.dumps({'selected':len(selected),'bytes':sum(x['bytes'] for x in selected.values()),'closures':len(bindings['completed_packages']),'binding_negatives':negatives,'disabled_execution_rejected':True,'exact_v111_signing_tail':True,'scratch_removed':True}))

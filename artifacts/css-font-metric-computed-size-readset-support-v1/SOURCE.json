@@ -1,0 +1,105 @@
+{
+  "scope": "Exact local source bodies after Searchfox discovery; UA excerpts are not a native matched-rule trace.",
+  "excerpts": [
+    {
+      "path": "artifacts/css-font-metric-dynamic-prerequisite-producer-v1/candidate/servo/components/style/properties/cascade.rs",
+      "sha256": "c6c0cf395807fd83e99ed85cf4b1748fff7845eef0fc6ee09be734636a27cf9f",
+      "symbol": "fn did_apply_prioritary_property",
+      "text": "fn did_apply_prioritary_property(\n        &mut self,\n        context: &mut computed::Context,\n        id: PrioritaryPropertyId,\n    ) {\n        use crate::properties::PrioritaryPropertyId::*;\n        match id {\n            Appearance => {\n                if is_base_appearance(context) {\n                    context\n                        .style()\n                        .add_flags(ComputedValueFlags::IS_IN_APPEARANCE_BASE_SUBTREE);\n                    context\n                        .included_cascade_flags\n                        .insert(RuleCascadeFlags::APPEARANCE_BASE);\n                }\n            },\n            WritingMode | Direction | TextOrientation => {\n                context.builder.writing_mode =\n                    crate::logical_geometry::WritingMode::new(context.builder.get_inherited_box());\n            },\n            Zoom => {\n                context.builder.recompute_effective_zooms();\n                if !context.builder.effective_zoom_for_inheritance.is_one() {\n                    // NOTE(emilio): This is a bit of a hack, but matches the shipped WebKit and Blink\n                    // behavior for now. Ideally, in the future, we have a pass over all\n                    // implicitly-or-explicitly-inherited properties that can contain lengths and\n                    // re-compute them properly, see https://github.com/w3c/csswg-drafts/issues/9397.\n                    // TODO(emilio): we need to eagerly do this for line-height as well, probably.\n                    self.recompute_font_size_for_zoom_change(&mut context.builder);\n                }\n            },\n            XLang => {\n                #[cfg(feature = \"gecko\")]\n                self.recompute_initial_font_family_if_needed(&mut context.builder);\n                self.recompute_keyword_font_size_if_needed(context);\n            },\n            FontFamily => {\n                #[cfg(feature = \"gecko\")]\n                self.prioritize_user_fonts_if_needed(&mut context.builder);\n                self.recompute_keyword_font_size_if_needed(context);\n            },\n            FontSize => {\n                if self.seen.longhands.contains(LonghandId::MathDepth) {\n                    #[cfg(feature = \"gecko\")]\n                    Self::recompute_math_font_size_if_needed(context);\n                }\n                if self.seen.longhands.contains(LonghandId::XLang)\n                    || self.seen.longhands.contains(LonghandId::FontFamily)\n                {\n                    self.recompute_keyword_font_size_if_needed(context);\n                }\n                #[cfg(feature = \"gecko\")]\n                self.constrain_font_size_if_needed(&mut context.builder);\n            },\n            XTextScale => {\n                #[cfg(feature = \"gecko\")]\n                self.unzoom_fonts_if_needed(&mut context.builder);\n            },\n            MozMinFontSizeRatio => {\n                #[cfg(feature = \"gecko\")]\n                self.constrain_font_size_if_needed(&mut context.builder);\n            },\n            ColorScheme => {\n                context.builder.color_scheme =\n                    context.builder.get_inherited_ui().color_scheme_bits();\n            },\n            MozDefaultAppearance | MathDepth | FontWeight | FontWidth | FontStyle\n            | FontSizeAdjust | ForcedColorAdjust | LineHeight => {},\n        }\n    }"
+    },
+    {
+      "path": "artifacts/css-font-metric-dynamic-prerequisite-producer-v1/candidate/servo/components/style/properties/cascade.rs",
+      "sha256": "c6c0cf395807fd83e99ed85cf4b1748fff7845eef0fc6ee09be734636a27cf9f",
+      "symbol": "fn unzoom_fonts_if_needed",
+      "text": "fn unzoom_fonts_if_needed(&self, builder: &mut StyleBuilder) {\n        debug_assert!(self.seen.longhands.contains(LonghandId::XTextScale));\n\n        let parent_text_scale = *builder.get_parent_font().get__x_text_scale();\n        let text_scale = *builder.get_font().get__x_text_scale();\n        if parent_text_scale == text_scale {\n            return;\n        }\n        debug_assert_ne!(\n            parent_text_scale.text_zoom_enabled(),\n            text_scale.text_zoom_enabled(),\n            \"There's only one value that disables it\"\n        );\n        debug_assert!(\n            !text_scale.text_zoom_enabled(),\n            \"We only ever disable text zoom never enable it\"\n        );\n        let device = builder.device;\n        builder.mutate_font().unzoom_fonts(device);\n    }"
+    },
+    {
+      "path": "artifacts/css-font-metric-dynamic-prerequisite-producer-v1/candidate/servo/components/style/properties/cascade.rs",
+      "sha256": "c6c0cf395807fd83e99ed85cf4b1748fff7845eef0fc6ee09be734636a27cf9f",
+      "symbol": "fn recompute_initial_font_family_if_needed",
+      "text": "fn recompute_initial_font_family_if_needed(&self, builder: &mut StyleBuilder) {\n        use crate::gecko_bindings::bindings;\n        use crate::values::computed::font::FontFamily;\n\n        let default_font_type = {\n            let font = builder.get_font();\n\n            if !font.mFont.family.is_initial {\n                return;\n            }\n\n            let default_font_type = unsafe {\n                bindings::Gecko_nsStyleFont_ComputeFallbackFontTypeForLanguage(\n                    builder.device.document(),\n                    font.mLanguage.0.as_ptr(),\n                )\n            };\n\n            let initial_generic = font.mFont.family.families.single_generic();\n            debug_assert!(\n                initial_generic.is_some(),\n                \"Initial font should be just one generic font\"\n            );\n            if initial_generic == Some(default_font_type) {\n                return;\n            }\n\n            default_font_type\n        };\n\n        // NOTE: Leaves is_initial untouched.\n        builder.mutate_font().mFont.family.families =\n            FontFamily::generic(default_font_type).families.clone();\n    }"
+    },
+    {
+      "path": "artifacts/css-font-metric-dynamic-prerequisite-producer-v1/candidate/servo/components/style/properties/cascade.rs",
+      "sha256": "c6c0cf395807fd83e99ed85cf4b1748fff7845eef0fc6ee09be734636a27cf9f",
+      "symbol": "fn recompute_keyword_font_size_if_needed",
+      "text": "fn recompute_keyword_font_size_if_needed(&self, context: &mut computed::Context) {\n        use crate::values::computed::ToComputedValue;\n\n        if !self.seen.longhands.contains(LonghandId::XLang)\n            && !self.seen.longhands.contains(LonghandId::FontFamily)\n        {\n            return;\n        }\n\n        let new_size = {\n            let font = context.builder.get_font();\n            let info = font.slow_clone_font_size().keyword_info;\n            let new_size = match info.kw {\n                specified::FontSizeKeyword::None => return,\n                _ => {\n                    context.for_non_inherited_property = false;\n                    specified::FontSize::Keyword(info).to_computed_value(context)\n                },\n            };\n\n            #[cfg(feature = \"gecko\")]\n            if font.mScriptUnconstrainedSize == new_size.computed_size {\n                return;\n            }\n\n            new_size\n        };\n\n        context.builder.mutate_font().set_font_size(new_size);\n    }"
+    },
+    {
+      "path": "artifacts/css-font-metric-dynamic-prerequisite-producer-v1/candidate/servo/components/style/properties/cascade.rs",
+      "sha256": "c6c0cf395807fd83e99ed85cf4b1748fff7845eef0fc6ee09be734636a27cf9f",
+      "symbol": "fn constrain_font_size_if_needed",
+      "text": "fn constrain_font_size_if_needed(&self, builder: &mut StyleBuilder) {\n        use crate::gecko_bindings::bindings;\n        use crate::values::generics::NonNegative;\n\n        let min_font_size = {\n            let font = builder.get_font();\n            let min_font_size = unsafe {\n                bindings::Gecko_nsStyleFont_ComputeMinSize(&**font, builder.device.document())\n            };\n\n            if font.mFont.size.0 >= min_font_size {\n                return;\n            }\n\n            NonNegative(min_font_size)\n        };\n\n        builder.mutate_font().mFont.size = min_font_size;\n    }"
+    },
+    {
+      "path": "artifacts/css-font-metric-dynamic-prerequisite-producer-v1/candidate/servo/components/style/properties/cascade.rs",
+      "sha256": "c6c0cf395807fd83e99ed85cf4b1748fff7845eef0fc6ee09be734636a27cf9f",
+      "symbol": "fn refresh_priority_completion",
+      "text": "fn refresh_priority_completion(&mut self, context: &computed::Context) {\n        if self.priority_completion_flags != Some(context.included_cascade_flags) {\n            self.completed_prioritary = PrioritaryPropertyIdSet::default();\n            self.priority_completion_flags = Some(context.included_cascade_flags);\n        }\n    }"
+    },
+    {
+      "path": "artifacts/css-font-metric-dynamic-prerequisite-producer-v1/candidate/servo/components/style/properties/cascade.rs",
+      "sha256": "c6c0cf395807fd83e99ed85cf4b1748fff7845eef0fc6ee09be734636a27cf9f",
+      "symbol": "fn reset(&mut self)",
+      "text": "fn reset(&mut self) {\n            assert!(self.metric_action.is_none() && self.font_preparation.is_none());\n            assert!(self.metric_references.is_none());\n            assert!(\n                self.priority_completion.active.is_empty()\n                    && self.priority_completion.claimed.is_empty()\n            );\n            assert!(\n                self.frames.is_empty() && self.frame_root.is_none() && self.frame_reply.is_none()\n            );\n            assert!(self.stack.is_empty());\n            assert!(\n                self.var_info\n                    .iter()\n                    .all(|info| info.publication.can_retire())\n            );\n            self.count = 0;\n            self.index_map.clear();\n            self.non_custom_index_map = Default::default();\n            self.var_info.clear();\n            self.stack.clear();\n        }"
+    },
+    {
+      "path": "artifacts/css-font-metric-dynamic-prerequisite-producer-v1/candidate/servo/components/style/properties/cascade.rs",
+      "sha256": "c6c0cf395807fd83e99ed85cf4b1748fff7845eef0fc6ee09be734636a27cf9f",
+      "symbol": "fn publish_prepared_metric",
+      "text": "fn publish_prepared_metric<'a, 'b>(\n        &mut self,\n        context: &mut computed::Context,\n        cache: &mut ShorthandsWithPropertyReferencesCache,\n        attribute_tracker: &mut AttributeTracker,\n        state: MetricPreparation<'a, 'b>,\n        completed: &PrioritaryPropertyIdSet,\n    ) -> Result<(), MetricPreparation<'a, 'b>> {\n        let longhand = state.longhand;\n        let priority = PrioritaryPropertyId::from_longhand(longhand);\n        if priority.is_some_and(|id| self.ensured_prioritary.contains(id))\n            || !state.complete\n            || state.waiting.is_some()\n            || priority.is_some_and(|id| !completed.contains_all(id.dependencies()))\n            || state.flags != context.included_cascade_flags\n            || self.seen.longhands.contains(longhand)\n            || self.reverted.longhands.get(&longhand).copied() != state.initial_revert\n        {\n            return Err(state);\n        }\n        for entry in state.prepared {\n            self.apply_one_longhand(\n                context,\n                longhand,\n                &entry.declaration,\n                entry.priority,\n                cache,\n                attribute_tracker,\n            );\n        }\n        if let Some(id) = priority {\n            if self.seen.longhands.contains(longhand) {\n                self.did_apply_prioritary_property(context, id);\n            }\n            self.ensured_prioritary.insert(id);\n        }\n        Ok(())\n    }"
+    },
+    {
+      "path": "servo/components/style/properties/gecko.mako.rs",
+      "sha256": "dc1ed0998684fd252bd59eefe8b01dc9bdb7af02e93d61133adda2d0e3eba628",
+      "symbol": "pub fn set_font_size",
+      "text": "pub fn set_font_size(&mut self, v: FontSize) {\n        let computed_size = v.computed_size;\n        self.mScriptUnconstrainedSize = computed_size;\n\n        // These two may be changed from Cascade::fixup_font_stuff.\n        self.mSize = computed_size;\n        // NOTE: Intentionally not copying from used_size. The cascade process\n        // recomputes the used size as needed.\n        self.mFont.size = computed_size;\n\n        self.mFontSizeKeyword = v.keyword_info.kw;\n        self.mFontSizeFactor = v.keyword_info.factor;\n        self.mFontSizeOffset = v.keyword_info.offset;\n    }"
+    },
+    {
+      "path": "servo/components/style/values/computed/mod.rs",
+      "sha256": "557bcb142d276c32822f5484045e27a5186de1ded244dbd599986f8eba79ee6c",
+      "symbol": "pub fn maybe_zoom_text",
+      "text": "pub fn maybe_zoom_text(&self, size: CSSPixelLength) -> CSSPixelLength {\n        if self\n            .style()\n            .get_font()\n            .get__x_text_scale()\n            .text_zoom_enabled()\n        {\n            self.device().zoom_text(size)\n        } else {\n            size\n        }\n    }"
+    },
+    {
+      "path": "servo/components/style/values/specified/font.rs",
+      "sha256": "d7c1b9588947c48c939c5d66a69ea025afb48ef32bae37aa2a3c3f00af6cd461",
+      "symbol": "pub fn to_computed_value_against(",
+      "text": "pub fn to_computed_value_against(\n        &self,\n        context: &Context,\n        base_size: FontBaseSize,\n        line_height_base: LineHeightBase,\n    ) -> computed::FontSize {\n        let compose_keyword = |factor| {\n            context\n                .style()\n                .get_parent_font()\n                .slow_clone_font_size()\n                .keyword_info\n                .compose(factor)\n        };\n        let mut info = KeywordInfo::none();\n        let size =\n            match *self {\n                FontSize::Length(LengthPercentage::Length(ref l)) => {\n                    if l.length_unit() == LengthUnit::Em {\n                        // If the parent font was keyword-derived, this is\n                        // too. Tack the em unit onto the factor\n                        info = compose_keyword(l.unitless_value());\n                    }\n                    let result =\n                        l.to_computed_value_with_base_size(context, base_size, line_height_base);\n                    if l.should_zoom_text() {\n                        context.maybe_zoom_text(result)\n                    } else {\n                        result\n                    }\n                },\n                FontSize::Length(LengthPercentage::Percentage(pc)) => {\n                    // If the parent font was keyword-derived, this is too.\n                    // Tack the % onto the factor\n                    info = compose_keyword(pc.get());\n                    (base_size.resolve(context).computed_size() * pc.get()).normalized()\n                },\n                FontSize::Length(LengthPercentage::Calc(ref calc)) => {\n                    let calc = calc.to_computed_value_zoomed(context, base_size, line_height_base);\n                    calc.resolve(base_size.resolve(context).computed_size())\n                },\n                FontSize::Keyword(i) => {\n                    if i.kw.is_math() {\n                        // Scaling is done in recompute_math_font_size_if_needed().\n                        info = compose_keyword(1.);\n                        // i.kw will always be FontSizeKeyword::Math here. But writing it this\n                        // allows this code to compile for servo where the Math variant is cfg'd out.\n                        info.kw = i.kw;\n                        NoCalcLength::from_em(1.).to_computed_value_with_base_size(\n                            context,\n                            base_size,\n                            line_height_base,\n                        )\n                    } else {\n                        // As a specified keyword, this is keyword derived\n                        info = i;\n                        i.to_computed_value(context).clamp_to_non_negative()\n                    }\n                },\n                FontSize::Smaller => {\n                    info = compose_keyword(1. / LARGER_FONT_SIZE_RATIO);\n                    NoCalcLength::from_em(1. / LARGER_FONT_SIZE_RATIO)\n                        .to_computed_value_with_base_size(context, base_size, line_height_base)\n                },\n                FontSize::Larger => {\n                    info = compose_keyword(LARGER_FONT_SIZE_RATIO);\n                    NoCalcLength::from_em(LARGER_FONT_SIZE_RATIO).to_computed_value_with_base_size(\n                        context,\n                        base_size,\n                        line_height_base,\n                    )\n                },\n                FontSize::System(_) => {\n                    #[cfg(feature = \"servo\")]\n                    {\n                        unreachable!()\n                    }\n                    #[cfg(feature = \"gecko\")]\n                    {\n                        context\n                            .cached_system_font\n                            .as_ref()\n                            .unwrap()\n                            .font_size\n                            .computed_size()\n                            .zoom(context.builder.effective_zoom)\n                    }\n                },\n            };\n        let size = NonNegative(Self::quantize_font_size(size));\n        computed::FontSize {\n            computed_size: size,\n            used_size: size,\n            keyword_info: info,\n        }\n    }"
+    },
+    {
+      "path": "servo/components/style/values/specified/length.rs",
+      "sha256": "f4130679d2ab64a49ed54c2fbdc69af1dbb9139ffd90269514a41b7d7ecfd147",
+      "symbol": "pub fn should_zoom_text",
+      "text": "pub fn should_zoom_text(&self) -> bool {\n        !self.unit.is_font_relative() && self.unit != LengthUnit::ServoCharacterWidth\n    }"
+    },
+    {
+      "path": "layout/style/res/forms.css",
+      "sha256": "192799b6ac5c5c42da9ca3f02788aba52d8afbf94a2dea5a4128b270e8b766af",
+      "start": "/* Text-related properties for buttons:",
+      "end_exclusive": "input[type=\"color\"] {",
+      "text": "/* Text-related properties for buttons: these ones are not shared with\n   input[type=color] */\nbutton,\n::file-selector-button,\ninput:where([type=\"reset\"], [type=\"button\"], [type=\"submit\"]) {\n  color: ButtonText;\n  font: -moz-button;\n  white-space: pre;\n  text-align: center;\n  padding-inline: 4px;\n}\n\n"
+    },
+    {
+      "path": "layout/style/res/forms.css",
+      "sha256": "192799b6ac5c5c42da9ca3f02788aba52d8afbf94a2dea5a4128b270e8b766af",
+      "start": "  @appearance-base {",
+      "end_exclusive": "    input:not([type=\"file\"]",
+      "text": "  @appearance-base {\n    input,\n    textarea,\n    button,\n    ::file-selector-button,\n    select,\n    meter,\n    progress {\n      color: inherit;\n      font: inherit;\n      /* XXX: Redundant at least for <select> */\n      box-sizing: border-box;\n      background-color: transparent;\n    }\n\n"
+    },
+    {
+      "path": "servo/components/style/properties/data.py",
+      "sha256": "946b6ce730f8e79ea7ac4d7fc3c122b2922cdf37b38bf34d9ba9b02b84470d3d",
+      "start": "    # font-family potentially changes keyword font sizes",
+      "end_exclusive": "    # Affects all colors due to forced-colors mode.",
+      "text": "    # font-family potentially changes keyword font sizes, we want to apply text\n    # un-scaling after it.\n    \"-x-text-scale\": [\"font-family\"],\n"
+    },
+    {
+      "path": "servo/components/style/properties/longhands.toml",
+      "sha256": "36e1e5c382dd8f9abb5e3e5fe48338d96908859e0dfe4dbedec71208320201d9",
+      "start": "[-x-text-scale]",
+      "end_exclusive": "[accent-color]",
+      "text": "[-x-text-scale]\ntype = \"XTextScale\"\ninitial = \"computed::XTextScale::All\"\nstruct = \"font\"\nservo_pref = \"layout.unimplemented\"\nanimation_type = \"none\"\nenabled_in = \"\"\nhas_effect_on_gecko_scrollbars = false\nspec = \"Internal (not web-exposed)\"\naffects = \"layout\"\n\n"
+    }
+  ]
+}
