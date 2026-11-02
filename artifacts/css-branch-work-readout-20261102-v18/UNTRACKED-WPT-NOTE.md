@@ -1,0 +1,3 @@
+# Working-copy inventory transition
+
+The sealed November 2 audit found 50 WPT working copies, all with committed recovery copies. Root removed only two statically superseded syntax variants; the signed hyphenation commit then adopted three existing WPTs without rewriting them. Exactly 45 remain: 24 broader completed-associated, 12 pending, eight unresolved and one control. Root independently verified the exact remaining path set and 555 total untracked paths after publication. The accompanying delta maps the earlier saved classifications onto that current path set; it is not another content audit or a count of bugs. Archived recovery copies remain available.

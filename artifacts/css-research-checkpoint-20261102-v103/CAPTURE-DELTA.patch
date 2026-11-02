@@ -1,0 +1,25 @@
+--- artifacts/css-research-checkpoint-20261030-v100/capture_current.py
++++ artifacts/css-research-checkpoint-20261102-v103/capture_current.py
+@@ -23,11 +23,11 @@
+ assert sha(receipt_body) == bindings['prior_receipt_sha256']
+ receipt = json.loads(receipt_body)
+ assert set(receipt) == {'stage', 'commit', 'parent', 'signature_verified', 'files', 'epoch_sha256', 'accepted', 'accepted_fix_increment', 'app_rebuilt'}
+-assert receipt['stage'] == 'language' and receipt['signature_verified'] is True
++assert receipt['stage'] == 'ownership' and receipt['signature_verified'] is True
+ assert receipt['commit'] == bindings['head'] and receipt['epoch_sha256'] == bindings['epoch_sha256']
+ assert receipt['accepted'] is False and receipt['accepted_fix_increment'] == 0
+ assert receipt['app_rebuilt'] is False
+-assert receipt['files'] == ['dom/base/nsLineBreaker.cpp', 'testing/web-platform/tests/css/css-text/line-break/line-break-language-latin1-partitions.html', 'testing/web-platform/tests/css/css-text/line-break/line-break-language-text-partitions.html', 'testing/web-platform/tests/css/css-text/line-break/line-break-unknown-language-context.html']
++assert receipt['files'] == ['dom/base/nsLineBreaker.cpp', 'dom/base/nsLineBreaker.h', 'layout/generic/nsTextFrame.cpp', 'testing/web-platform/tests/css/css-text/hyphens/hyphenate-limit-chars-dynamic.html', 'testing/web-platform/tests/css/css-text/hyphens/hyphenate-limit-chars-inline-ownership.html', 'testing/web-platform/tests/css/css-text/hyphens/hyphenate-limit-chars-pseudo-ownership.html']
+ research_body = (ROOT / bindings['prior_research_receipt']).read_bytes()
+ assert sha(research_body) == bindings['prior_research_receipt_sha256']
+ research = json.loads(research_body)
+@@ -36,7 +36,7 @@
+ assert receipt['commit'] != receipt['parent']
+ assert git('rev-parse', bindings['head'] + '^').decode().strip() == receipt['parent']
+ assert git('diff-tree', '--no-commit-id', '--name-only', '-r', bindings['head']).decode().splitlines() == receipt['files']
+-for path, digest in {'dom/base/nsLineBreaker.cpp': 'a1ae4b3afd12908b882d3a6e34c4fd1d078c5b66dff9b06a75c31a6624ad4d9d', 'testing/web-platform/tests/css/css-text/line-break/line-break-language-latin1-partitions.html': '0b304a726d7ce7ebd6c9f080eb1de772b8eee7268115fb34244bd290b0da1d5b', 'testing/web-platform/tests/css/css-text/line-break/line-break-language-text-partitions.html': '66845fdb6776a311767e2dcbcc86d33163294dd3eb7101d7251185702d86e285', 'testing/web-platform/tests/css/css-text/line-break/line-break-unknown-language-context.html': 'b4283942b4656abe352395e8c38c931428492e26db814d5a9accef51b3d30967'}.items():
++for path, digest in {'dom/base/nsLineBreaker.cpp': '0eb8a512f37f65a2835ebfa21ebb935ce1f26396541d1a722c918f6ebaa7a7ac', 'dom/base/nsLineBreaker.h': '32d514122b1ca1a4bf8ee724a5465bb7f12205314cfc088f31241de408479d5d', 'layout/generic/nsTextFrame.cpp': 'ec44924925012a5c059b5bd6c43e609cc6ecb1838a1e73918518fcb7c17d4077', 'testing/web-platform/tests/css/css-text/hyphens/hyphenate-limit-chars-dynamic.html': '658527aa39d99627a5b132970f6afba6532966c5946561414b54929b81926409', 'testing/web-platform/tests/css/css-text/hyphens/hyphenate-limit-chars-inline-ownership.html': 'ebc8a0bddbd68c7562d778db8d96bec474122160f44d43649be3af4f0e85d8f3', 'testing/web-platform/tests/css/css-text/hyphens/hyphenate-limit-chars-pseudo-ownership.html': 'd45d51c987e7012c0139f62cb84f583b6c1e627c390ef40ef87f3af118ee71ad'}.items():
+     assert sha(git('show', bindings['head'] + ':' + path)) == digest
+ directory = ROOT / 'artifacts/css-registered-number-native-runtime-v1'
+ assert not (directory / 'SOURCE-TRANSITION.lock').exists()

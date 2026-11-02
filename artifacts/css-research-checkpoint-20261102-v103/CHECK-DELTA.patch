@@ -1,0 +1,41 @@
+--- artifacts/css-research-checkpoint-20261030-v100/check.py
++++ artifacts/css-research-checkpoint-20261102-v103/check.py
+@@ -38,7 +38,7 @@
+         raise AssertionError('Disabled draft execution accepted')
+     print(json.dumps({'preparation_only':True,'pending_admission_rejected':True,'disabled_run_rejected':True,'selected':len(selected)}))
+     raise SystemExit(0)
+-prior = ROOT / 'artifacts/css-research-checkpoint-20261030-v99'
++prior = ROOT / 'artifacts/css-research-checkpoint-20261102-v102'
+ previous = set(json.loads((prior / 'SELECTION.json').read_bytes()))
+ previous.update(str((prior / name).relative_to(ROOT)) for name in json.loads((prior / 'FILES.json').read_bytes()))
+ previous.add(str((prior / 'FILES.json').relative_to(ROOT)))
+@@ -54,11 +54,11 @@
+     for name, record in manifest.get('files', manifest).items():
+         assert not Path(name).is_absolute() and '..' not in Path(name).parts
+         full = str((Path(path).parent / name))
+-        assert selected[full]['sha256'] == record['sha256']
+-old = (ROOT / 'artifacts/css-research-checkpoint-20261030-v98/commit.py').read_text()
++        assert selected[full]['sha256'] == (record['sha256'] if isinstance(record, dict) else record)
++old = (ROOT / 'artifacts/css-research-checkpoint-20261030-v100/commit.py').read_text()
+ new = (HERE / 'commit.py').read_text()
+ marker = "    controls = {name: (RUNTIME / name).read_bytes()"
+-assert old[old.index(marker):].replace("prefix='css-research-v98-'", "prefix='css-research-v100-'").replace('No bug - Record signed nowrap publication and close validation evidence.', 'No bug - Record signed language publication and close validation evidence.') == new[new.index(marker):]
++assert old[old.index(marker):].replace("prefix='css-research-v100-'", "prefix='css-research-v103-'").replace('No bug - Record signed language publication and close validation evidence.', 'No bug - Record signed hyphenation publication and close validation evidence.') == new[new.index(marker):]
+ assert m.saved_admission()['index']['head'] == bindings['head']
+ original_git = m.git
+ m.git = lambda *a, **k: (_ for _ in ()).throw(AssertionError('Unexpected live Git invocation'))
+@@ -77,7 +77,7 @@
+ current = json.loads((ROOT / bindings['current_capture']).read_bytes())
+ receipt = json.loads((ROOT / bindings['prior_receipt']).read_bytes())
+ research = json.loads((ROOT / bindings['prior_research_receipt']).read_bytes())
+-with tempfile.TemporaryDirectory(prefix='css-research-v100-check-') as temporary:
++with tempfile.TemporaryDirectory(prefix='css-research-v103-check-') as temporary:
+     scratch = Path(temporary)
+     for label, target, field, value in [
+         ('unsigned_native', 'receipt', 'signature_verified', False),
+@@ -112,4 +112,4 @@
+             raise AssertionError('Accepted mutation: ' + label)
+     m.ROOT, m.BINDINGS = ROOT, bindings
+ assert not scratch.exists()
+-print(json.dumps({'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'binding_negatives':11, 'disabled_execution_rejected':True, 'exact_v98_publication_tail':True, 'scratch_removed':True}))
++print(json.dumps({'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'binding_negatives':11, 'disabled_execution_rejected':True, 'exact_v100_publication_tail':True, 'scratch_removed':True}))
