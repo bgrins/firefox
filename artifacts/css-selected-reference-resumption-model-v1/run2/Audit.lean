@@ -1,0 +1,18 @@
+import Resumption
+#print axioms SelectedResumption.compiled_task_executes
+#print axioms SelectedResumption.tick_preserves_completion
+#print axioms SelectedResumption.tick_decreases_remaining_actions
+#print axioms SelectedResumption.finite_pauses_preserve_completion
+#print axioms SelectedResumption.execution_produces_actual_steps
+#print axioms SelectedResumption.finite_task_progress
+#print axioms SelectedResumption.task_children_have_smaller_action_rank
+#print axioms SelectedResumption.pending_has_no_value
+#print axioms SelectedResumption.resume_retains_selection
+#print axioms SelectedResumption.completed_task_consumes_produced_value
+#print axioms SelectedResumption.executed_eq_direct
+#print axioms SelectedResumption.resumable_scan_refines_selection
+#print axioms SelectedResumption.stable_resumption_refines_selection
+#print axioms SelectedResumption.blocked_cannot_publish
+#print axioms SelectedResumption.completed_terminal_publishes_once
+#print axioms SelectedResumption.scheduling_is_not_completion
+#print axioms SelectedResumption.unsupported_stays_blocked_not_invalid

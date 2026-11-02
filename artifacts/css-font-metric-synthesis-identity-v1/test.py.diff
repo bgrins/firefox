@@ -1,0 +1,47 @@
+--- artifacts/css-font-metric-synthesis-producer-v1/test.py
++++ artifacts/css-font-metric-synthesis-identity-v1/test.py
+@@ -10,9 +10,9 @@
+  return s[a+1:i-1]
+ parts={
+  'staged':block('struct PreparedMetricDeclaration {','#[derive(Clone, Copy, Debug, Eq, PartialEq)]\nenum ComputationStatus'),
+- 'drain':Path('artifacts/css-font-metric-pending-integration-v1/PRIORITY-DRAIN.rs').read_text(),
+- 'target':block('#[derive(Clone, Copy, Debug, Eq, PartialEq)]\nenum FontTarget','struct PreparedMetricDeclaration'),
+- 'inventory':block('fn next_unprepared_font_input','#[derive(Clone, Copy, Debug, Eq, PartialEq)]\nenum FontTarget'),
++ 'drain':block('#[derive(Clone, Copy, Debug, Eq, PartialEq)]\nenum ComputationStatus', 'pub(crate) struct Cascade'),
++ 'target':block('#[derive(Clone, Copy, Debug)]\nenum FontTarget','struct PreparedMetricDeclaration'),
++ 'inventory':block('fn next_unprepared_font_input','#[derive(Clone, Copy, Debug)]\nenum FontTarget'),
+  'state':block('    enum NodePublication<T>','    #[derive(Clone, Copy, Debug, Eq, PartialEq)]\n    enum VisitResult'),
+  'action':block('    #[derive(Clone, Copy)]\n    enum PublicationDemand','    #[derive(Clone, Copy)]\n    enum FramePhase'),
+  'methods':block('        fn import_priority_completion','        fn visited('),
+@@ -52,6 +52,7 @@
+  'repeat_completed_synthesis':mutate('if completed.contains(id)', 'if false'),
+  'stale_synthesis_flags':mutate('self.completed_font_inputs = LonghandIdSet::default();','self.completed_font_inputs = self.completed_font_inputs.clone();'),
+ 
++ 'target_identity_collapsed':mutate('(Self::Metric(left), Self::Metric(right)) => left.to_longhand() == right.to_longhand(),', '(Self::Metric(left), Self::Metric(right)) => true,'),
+  'metric_collapsed':mutate('SingleNonCustomReference::FontUnits if metrics => FontDependencyDemand::FontMetrics','SingleNonCustomReference::FontUnits if metrics => FontDependencyDemand::ComputedSize'),
+  'root_leak':mutate('(is_root_element && self.intersects(Self::ROOT_FONT_ORIENTATION))','self.intersects(Self::ROOT_FONT_ORIENTATION)'),
+  'no_weight_wait':mutate('for id in [FontWeight, FontWidth, FontStyle, FontSizeAdjust]','for id in [FontWidth, FontStyle, FontSizeAdjust]'),
+@@ -62,6 +63,12 @@
+  'stale_flags':mutate('if self.priority_completion_flags != Some(context.included_cascade_flags)', 'if self.priority_completion_flags.is_none()'),
+  'dynamic_complete':mutate('&& !priority_has_dynamic_declarations(decls, id)','&& true'),
+ }
++compile_failures = {
++ 'priority_eq_derive':mutate('#[derive(Clone, Copy, Debug)]\nenum FontTarget', '#[derive(Clone, Copy, Debug, Eq, PartialEq)]\nenum FontTarget'),
++ 'priority_direct_comparison':mutate('candidate.to_longhand() == id.to_longhand()', '*candidate == id'),
++ 'priority_target_comparison':mutate('id.to_longhand() == target_id.to_longhand()', 'id == target_id'),
++}
++variants.update(compile_failures)
+ records={}
+ with tempfile.TemporaryDirectory(prefix='metric-action-') as directory:
+  scratch=Path(directory)
+@@ -80,6 +87,9 @@
+ report={'candidate_sha256':sha(s.encode()),'rustc_sha256':sha(Path(records['positive']['compile_command'][0]).read_bytes()),'bitflags_sha256':sha(bitflags.read_bytes()),'provider_sha256':sha(provider.encode()),'parts_sha256':{k:sha(v.encode()) for k,v in parts.items()},'scratch':str(scratch),'scratch_removed':not scratch.exists(),'records':records}
+ (H/'TEST-RESULT.json').write_text(json.dumps(report,indent=2)+'\n')
+ for name,row in records.items():
++ if name in compile_failures:
++  assert row['compile_exit'] != 0 and ('E0369' in row['compile_stderr'] or 'E0277' in row['compile_stderr']), (name,row)
++  continue
+  assert row['compile_exit']==0,(name,row['compile_stderr'])
+  assert (row['run_exit']==0)==(name=='positive'),(name,row)
+-print(json.dumps({'tests':14,'compiled_behavioral_mutants':len(variants)-1,'literal_action_executes_preparation_and_publication':True,'scratch_removed':not scratch.exists()}))
++print(json.dumps({'tests':15,'compiled_behavioral_mutants':len(variants)-len(compile_failures)-1,'trait_compile_fail_controls':len(compile_failures),'literal_action_executes_preparation_and_publication':True,'scratch_removed':not scratch.exists()}))

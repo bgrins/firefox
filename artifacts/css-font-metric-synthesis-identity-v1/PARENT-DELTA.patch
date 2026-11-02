@@ -1,0 +1,51 @@
+--- artifacts/css-font-metric-synthesis-producer-v1/candidate/servo/components/style/properties/cascade.rs
++++ artifacts/css-font-metric-synthesis-identity-v1/candidate/servo/components/style/properties/cascade.rs
+@@ -873,10 +873,20 @@
+     })
+ }
+ 
+-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++#[derive(Clone, Copy, Debug)]
+ enum FontTarget {
+     Metric(PrioritaryPropertyId),
+     Synthesis(LonghandId),
++}
++
++impl FontTarget {
++    fn same_as(self, other: Self) -> bool {
++        match (self, other) {
++            (Self::Metric(left), Self::Metric(right)) => left.to_longhand() == right.to_longhand(),
++            (Self::Synthesis(left), Self::Synthesis(right)) => left == right,
++            _ => false,
++        }
++    }
+ }
+ 
+ fn is_synthesis_longhand(id: LonghandId) -> bool {
+@@ -1261,7 +1271,7 @@
+             let index = match self
+                 .continuations
+                 .iter()
+-                .position(|(candidate, _)| *candidate == id)
++                .position(|(candidate, _)| candidate.to_longhand() == id.to_longhand())
+             {
+                 Some(index) => index,
+                 None => {
+@@ -2987,7 +2997,7 @@
+                 || current.root != action.root
+                 || current.owner != action.owner
+                 || current.index != action.index
+-                || current.prerequisite != action.prerequisite
++                || !current.prerequisite.same_as(action.prerequisite)
+                 || self.frame_root.as_ref() != Some(&action.root)
+                 || !self.frames.last().is_some_and(|frame| {
+                     frame.index == action.index
+@@ -3041,7 +3051,7 @@
+             ) {
+                 MetricDrainStep::Published(id) => {
+                     self.cascade.completed_prioritary.insert(id);
+-                    if id == target_id {
++                    if id.to_longhand() == target_id.to_longhand() {
+                         assert!(self.priority_completion.complete.contains(id));
+                         self.metric_action = None;
+                     }

@@ -1,0 +1,57 @@
+--- artifacts/css-font-metric-synthesis-producer-v1/Tests.rs
++++ artifacts/css-font-metric-synthesis-identity-v1/Tests.rs
+@@ -35,14 +35,14 @@
+     PublicationDemand::Metric(id)=>{
+      requested.push(id);c.frames.clear();c.enqueue_action(paused_frame(),Some(FontTarget::Metric(id)));
+      let action=c.pending_metric_action().unwrap();
+-     assert!(matches!(c.perform_metric_action(&action,t),MetricActionProgress::Published(FontTarget::Metric(done)) if done==id));
++     assert!(matches!(c.perform_metric_action(&action,t),MetricActionProgress::Published(FontTarget::Metric(done)) if done.to_longhand()==id.to_longhand()));
+      assert!(matches!(c.var_info[0].publication,NodePublication::Pending(())));
+     },
+     PublicationDemand::Synthesis(_)=>panic!("unexpected synthesis in priority-only fixture"),
+     PublicationDemand::Unresolved=>panic!("literal prerequisites must progress"),
+    }
+   }
+-  assert_eq!(requested,vec![PrioritaryPropertyId::FontWeight,PrioritaryPropertyId::FontWidth,PrioritaryPropertyId::FontStyle,PrioritaryPropertyId::FontSizeAdjust,PrioritaryPropertyId::Direction,PrioritaryPropertyId::WritingMode,PrioritaryPropertyId::TextOrientation]);
++  assert_eq!(requested.iter().map(|id: &PrioritaryPropertyId| id.to_longhand()).collect::<Vec<_>>(),vec![LonghandId::FontWeight,LonghandId::FontWidth,LonghandId::FontStyle,LonghandId::FontSizeAdjust,LonghandId::Direction,LonghandId::WritingMode,LonghandId::TextOrientation]);
+   assert_eq!(c.cascade.publications.len(),before+7);assert_eq!(c.cascade.substitutions.get(),0);
+   assert!(matches!(font_publication_demand(FontDependencyDemand::OrientedMetrics,&c.priority_completion.complete,Some(LonghandId::FontFeatureSettings)),PublicationDemand::Unresolved));
+  });
+@@ -68,7 +68,7 @@
+   complete_literal_appearance(c,t);c.priority_completion.complete.insert(PrioritaryPropertyId::FontSize);
+   assert!(matches!(font_publication_demand(FontDependencyDemand::FontMetrics,&c.priority_completion.complete,None),PublicationDemand::Metric(PrioritaryPropertyId::FontWeight)));
+   c.enqueue_action(paused_frame(),Some(FontTarget::Metric(PrioritaryPropertyId::FontWeight)));let action=c.pending_metric_action().unwrap();
+-  assert!(matches!(c.perform_metric_action(&action,t),MetricActionProgress::References(PrioritaryPropertyId::FontWeight,_)));
++  assert!(matches!(c.perform_metric_action(&action,t),MetricActionProgress::References(LonghandId::FontWeight,_)));
+   assert_eq!(c.cascade.substitutions.get(),0);assert!(!c.priority_completion.complete.contains(PrioritaryPropertyId::FontWeight));
+  });
+ }
+@@ -212,3 +212,28 @@
+   });
+  }
+ }
++
++#[test]
++fn private_target_identity_preserves_variant_and_property() {
++    let metrics = [PrioritaryPropertyId::FontWeight, PrioritaryPropertyId::FontWidth,
++        PrioritaryPropertyId::FontStyle, PrioritaryPropertyId::FontSizeAdjust,
++        PrioritaryPropertyId::Direction, PrioritaryPropertyId::WritingMode,
++        PrioritaryPropertyId::TextOrientation, PrioritaryPropertyId::Appearance,
++        PrioritaryPropertyId::FontSize, PrioritaryPropertyId::LineHeight,
++        PrioritaryPropertyId::ColorScheme];
++    for left in metrics {
++        for right in metrics {
++            assert_eq!(FontTarget::Metric(left).same_as(FontTarget::Metric(right)),
++                left.to_longhand() == right.to_longhand());
++            assert!(!FontTarget::Metric(left).same_as(FontTarget::Synthesis(right.to_longhand())));
++            assert!(!FontTarget::Synthesis(right.to_longhand()).same_as(FontTarget::Metric(left)));
++        }
++    }
++    let synthesis = [LonghandId::FontSynthesisWeight, LonghandId::FontSynthesisStyle,
++        LonghandId::FontSynthesisSmallCaps, LonghandId::FontSynthesisPosition];
++    for left in synthesis {
++        for right in synthesis {
++            assert_eq!(FontTarget::Synthesis(left).same_as(FontTarget::Synthesis(right)), left == right);
++        }
++    }
++}

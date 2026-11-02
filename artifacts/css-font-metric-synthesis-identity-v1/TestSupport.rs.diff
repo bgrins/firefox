@@ -1,0 +1,65 @@
+--- artifacts/css-font-metric-synthesis-producer-v1/TestSupport.rs
++++ artifacts/css-font-metric-synthesis-identity-v1/TestSupport.rs
+@@ -4,9 +4,10 @@
+ use std::sync::Arc;
+ 
+ type DeclarationIndex = u16;
+-type LonghandId = PrioritaryPropertyId;
+ #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+-pub enum PrioritaryPropertyId { FontWeight, FontWidth, FontStyle, FontSizeAdjust, Direction, WritingMode, TextOrientation, Appearance, FontSize, LineHeight, ColorScheme, FontSynthesisWeight, FontSynthesisStyle, FontSynthesisSmallCaps, FontSynthesisPosition, FontFeatureSettings }
++pub enum LonghandId { FontWeight, FontWidth, FontStyle, FontSizeAdjust, Direction, WritingMode, TextOrientation, Appearance, FontSize, LineHeight, ColorScheme, FontSynthesisWeight, FontSynthesisStyle, FontSynthesisSmallCaps, FontSynthesisPosition, FontFeatureSettings }
++#[derive(Clone, Copy, Debug)]
++pub enum PrioritaryPropertyId { FontWeight, FontWidth, FontStyle, FontSizeAdjust, Direction, WritingMode, TextOrientation, Appearance, FontSize, LineHeight, ColorScheme }
+ #[derive(Clone, Copy, Default)]
+ struct PrioritaryPropertyIdSet(u16);
+ impl PrioritaryPropertyIdSet {
+@@ -17,16 +18,17 @@
+     fn contains_all(&self, other: &Self) -> bool { self.0 & other.0 == other.0 }
+ }
+ impl PrioritaryPropertyId {
+-    fn to_longhand(self) -> Self { self }
+-    fn from_longhand(id:LonghandId)->Option<Self>{if (id as u8)<11{Some(id)}else{None}}
+-    fn name(self)->&'static str{match self {Self::FontSynthesisWeight=>"font-synthesis-weight",Self::FontSynthesisStyle=>"font-synthesis-style",Self::FontSynthesisSmallCaps=>"font-synthesis-small-caps",Self::FontSynthesisPosition=>"font-synthesis-position",Self::FontFeatureSettings=>"font-feature-settings",_=>"font-weight"}}
+-
+-    fn is_logical(self) -> bool {false}
++    fn to_longhand(self) -> LonghandId { match self { Self::FontWeight => LonghandId::FontWeight, Self::FontWidth => LonghandId::FontWidth, Self::FontStyle => LonghandId::FontStyle, Self::FontSizeAdjust => LonghandId::FontSizeAdjust, Self::Direction => LonghandId::Direction, Self::WritingMode => LonghandId::WritingMode, Self::TextOrientation => LonghandId::TextOrientation, Self::Appearance => LonghandId::Appearance, Self::FontSize => LonghandId::FontSize, Self::LineHeight => LonghandId::LineHeight, Self::ColorScheme => LonghandId::ColorScheme } }
++    fn from_longhand(id:LonghandId)->Option<Self>{match id {LonghandId::FontWeight => Some(Self::FontWeight), LonghandId::FontWidth => Some(Self::FontWidth), LonghandId::FontStyle => Some(Self::FontStyle), LonghandId::FontSizeAdjust => Some(Self::FontSizeAdjust), LonghandId::Direction => Some(Self::Direction), LonghandId::WritingMode => Some(Self::WritingMode), LonghandId::TextOrientation => Some(Self::TextOrientation), LonghandId::Appearance => Some(Self::Appearance), LonghandId::FontSize => Some(Self::FontSize), LonghandId::LineHeight => Some(Self::LineHeight), LonghandId::ColorScheme => Some(Self::ColorScheme), _=>None}}
+     fn dependencies(self) -> &'static PrioritaryPropertyIdSet {
+         static APPEARANCE: PrioritaryPropertyIdSet = PrioritaryPropertyIdSet(1 << 7);
+         static EMPTY: PrioritaryPropertyIdSet = PrioritaryPropertyIdSet(0);
+         if (self as u8) < 4 { &APPEARANCE } else { &EMPTY }
+     }
++}
++impl LonghandId {
++ fn name(self)->&'static str {match self {Self::FontSynthesisWeight=>"font-synthesis-weight",Self::FontSynthesisStyle=>"font-synthesis-style",Self::FontSynthesisSmallCaps=>"font-synthesis-small-caps",Self::FontSynthesisPosition=>"font-synthesis-position",Self::FontFeatureSettings=>"font-feature-settings",_=>"font-weight"}}
++ fn is_logical(self)->bool{false}
+ }
+ #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+ struct RuleCascadeFlags(u8);
+@@ -86,7 +88,7 @@
+     }
+     fn did_apply_prioritary_property(&mut self, _: &mut computed::Context, _: PrioritaryPropertyId) { self.fixups+=1; }
+ }
+-fn var(value: PropertyDeclaration) -> PropertyDeclaration { PropertyDeclaration::WithVariables(VariableDeclaration { value: Arc::new(UnparsedValue { result: Box::new(value) }), longhand: PrioritaryPropertyId::FontWeight }) }
++fn var(value: PropertyDeclaration) -> PropertyDeclaration { PropertyDeclaration::WithVariables(VariableDeclaration { value: Arc::new(UnparsedValue { result: Box::new(value) }), longhand: LonghandId::FontWeight }) }
+ fn declarations<'a>(values: &'a [PropertyDeclaration], priorities: &[CascadePriority]) -> Declarations<'a> {
+     Declarations { longhand_declarations: values.iter().enumerate().map(|(i,decl)|Declaration { decl, priority: priorities[i], next_index: if i+1==values.len(){0}else{(i+1)as DeclarationIndex} }).collect(), prioritary_positions: [DeclarationPosition { most_important: if values.is_empty(){DeclarationIndex::MAX}else{0} };11] }
+ }
+@@ -115,7 +117,7 @@
+ fn complete_literal_appearance(c:&mut Context,t:&mut AttributeTracker){
+  let cascade=&mut *c.cascade;let computed=&mut *c.computed_context;let cache=&mut *c.cache;
+  let result=c.priority_completion.ensure_ordinary(PrioritaryPropertyId::Appearance,&mut |id|{
+-  cascade.apply_one_longhand(computed,id,&PropertyDeclaration::Value(0),priority(2,2,2,0),cache,t);
++  cascade.apply_one_longhand(computed,id.to_longhand(),&PropertyDeclaration::Value(0),priority(2,2,2,0),cache,t);
+   cascade.did_apply_prioritary_property(computed,id);
+   ComputationStatus::Ready
+  });
+@@ -142,7 +144,7 @@
+ impl Context<'_,'_> {fn publish_closed(&mut self,index:usize,_:&mut AttributeTracker){self.var_info[index].publication.take_ready(true).unwrap();self.computed_context.computations.set(self.computed_context.computations.get()+1);self.var_info[index].publication.finish();}}
+ 
+ #[derive(Clone,Copy,PartialEq,Eq)]enum PropertyDeclarationId{Longhand(LonghandId)}
+-impl PropertyDeclaration {fn id(&self)->PropertyDeclarationId{PropertyDeclarationId::Longhand(match self{Self::Synthesis(id,_)|Self::SynthesisWide(id,_)=>*id,Self::WithVariables(v)=>v.longhand,_=>PrioritaryPropertyId::FontWeight})}}
++impl PropertyDeclaration {fn id(&self)->PropertyDeclarationId{PropertyDeclarationId::Longhand(match self{Self::Synthesis(id,_)|Self::SynthesisWide(id,_)=>*id,Self::WithVariables(v)=>v.longhand,_=>LonghandId::FontWeight})}}
+ type LonghandIdSet=LonghandSet;
+ fn synthesis_var(id:LonghandId,value:PropertyDeclaration)->PropertyDeclaration{PropertyDeclaration::WithVariables(VariableDeclaration{value:Arc::new(UnparsedValue{result:Box::new(value)}),longhand:id})}
+ 

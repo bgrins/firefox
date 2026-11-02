@@ -1,0 +1,20 @@
+--- artifacts/css-hyphenation-ownership-native-pair-v2/baseline.py
++++ artifacts/css-font-metric-synthesis-native-typecheck-v3/baseline.py
+@@ -51,7 +51,7 @@
+ 
+ def require_role(policy, role, epoch):
+     adapter = load('language_capture_role', policy['capture_owner']['directory'] + '/baseline.py')
+-    assert adapter.binding['language_commit'] == policy['language_commit']
++    assert adapter.binding['ownership_commit'] == policy['ownership_commit']
+     adapter.require_role(policy, role, epoch)
+ 
+ 
+@@ -81,6 +81,8 @@
+     assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['language_commit'], checkpoint['head'])
+     state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', policy['nowrap_commit'])
+     state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', policy['language_commit'])
++    assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['ownership_commit'], checkpoint['head'])
++    state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', policy['ownership_commit'])
+     metadata_guard(policy)
+     for name in policy['preserved_absent_metadata'] + policy['preserved_absent_resources']:
+         assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()

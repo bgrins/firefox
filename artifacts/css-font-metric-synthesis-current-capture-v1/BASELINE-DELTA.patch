@@ -1,0 +1,43 @@
+--- artifacts/css-hyphenation-ownership-current-capture-v1/baseline.py
++++ artifacts/css-font-metric-synthesis-current-capture-v1/baseline.py
+@@ -14,18 +14,18 @@
+ 
+ 
+ def require_role(policy, role, epoch):
+-    assert role['role'] == 'published-native' and role['variant'] == 'language'
+-    assert role['built'] is False and role['paired_head'] == binding['language_commit']
++    assert role['role'] == 'published-native' and role['variant'] == 'ownership'
++    assert role['built'] is False and role['paired_head'] == binding['ownership_commit']
+     assert role['pending_gtest_overlay_installed'] is False
+     assert 'last_build' not in role and 'last_install' not in role
+-    directory = 'artifacts/css-language-partition-publication-language-runtime-1'
++    directory = 'artifacts/css-hyphenation-ownership-publication-ownership-runtime-2'
+     assert role['last_transition'] == directory
+     receipt = core.read(ROOT / directory / 'COMMIT-RESULT.json')
+     install = core.read(ROOT / directory / 'INSTALL-RESULT.json')
+-    assert receipt['commit'] == binding['language_commit'] and receipt['signature_verified']
++    assert receipt['commit'] == binding['ownership_commit'] and receipt['signature_verified']
+     assert receipt['accepted_fix_increment'] == 0 and not receipt['app_rebuilt']
+     assert install['installed'] and not install['app_rebuilt']
+-    marker = epoch['language_partition_publication']['language']
++    marker = epoch['hyphenation_ownership_publication']['ownership']
+     assert marker['native_commit'] == receipt['commit']
+     assert marker['installation_manifest'] == install['manifest_sha256']
+     assert marker['files'][binding['source']] == binding['source_sha256']
+@@ -52,13 +52,15 @@
+ def observe(policy, ownership, roles, checkpoint):
+     result = core.observe(policy, ownership, roles, checkpoint)
+     state, env, controls, epoch, role, sources, flags, snapshot = result
+-    for commit in (binding['nowrap_commit'], binding['language_commit']):
++    for commit in (binding['nowrap_commit'], binding['language_commit'], binding['ownership_commit']):
+         assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', commit, checkpoint['head'])
+         state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', commit)
+     for name, pin in binding['source_preimages'].items():
+         assert epoch['pins'][name] == pin
+         ownership.claim(ROOT, name, pin, epoch['installed_identities'][name])
+         assert hashlib.sha256(state.h.git(ROOT, env, 'show', checkpoint['head'] + ':' + name)).hexdigest() == pin
++    for name, pin in binding['typecheck_required_inputs'].items():
++        assert core.sha(ROOT / name) == pin
+     return result
+ 
+ 
