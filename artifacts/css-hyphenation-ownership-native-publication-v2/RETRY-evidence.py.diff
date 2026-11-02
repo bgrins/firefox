@@ -1,0 +1,33 @@
+--- artifacts/css-hyphenation-ownership-native-publication-v1/evidence.py
++++ artifacts/css-hyphenation-ownership-native-publication-v2/evidence.py
+@@ -16,17 +16,17 @@
+ 
+ def verify(root, binding, stage):
+     assert binding is not None
+-    assert binding['owner_directory'] == 'artifacts/css-hyphenation-ownership-native-pair-v1'
+-    assert binding['owner_manifest_sha256'] == '1a5490029693ea49aa591b0902f2d4a185d71a3954ee88edf0cc4b89d4d369d2'
++    assert binding['owner_directory'] == 'artifacts/css-hyphenation-ownership-native-pair-v2'
++    assert binding['owner_manifest_sha256'] == '2f32e0d71998aea051caa46e144deb72ac49a1bc5d8e65b1e0da06cf023b4350'
+     here = root / binding['owner_directory']
+     baseline = load('nowrap_evidence_baseline', here / 'baseline.py')
+     policy, ownership, roles = baseline.prepare(binding['owner_manifest_sha256'])
+     admission = load('nowrap_evidence_admission', here / 'admission.py')
+     output = admission.authenticate(root, {'directory': binding['runtime_directory'], 'manifest_sha256': binding['runtime_manifest_sha256']})
+-    assert binding['runtime_directory'] == policy['runtime_output'] == 'artifacts/css-hyphenation-ownership-native-pair-runtime-1'
++    assert binding['runtime_directory'] == policy['runtime_output'] == 'artifacts/css-hyphenation-ownership-native-pair-runtime-2'
+     result = read(output / 'RESULT.json')
+     terminal = read(output / 'ROOT-OWNER-TERMINAL.json')
+-    assert terminal['session'] == 27391 and terminal['launch'] == '71c531'
++    assert terminal['session'] == 25179 and terminal['launch'] == '8b41d2'
+     assert terminal['terminal'] and terminal['exit'] == 0 and terminal['result_sha256'] == sha(output / 'RESULT.json')
+     assert result['success'] and result['restoration_verified'] and result['runtime_controls_unchanged']
+     assert result['empty_staging_preserved'] and not result['native_fix_acceptance']
+@@ -35,7 +35,7 @@
+     live_terminal = read(output / 'ROOT-LIVE-AUDIT-TERMINAL.json')
+     assert live_terminal['exit'] == 0 and live_terminal['terminal']
+     assert live_terminal['audit_sha256'] == sha(output / 'ROOT-LIVE-RESTORATION.json')
+-    assert live['audit_script_sha256'] == sha(root / 'artifacts/css-hyphenation-ownership-native-live-audit-v1.py')
++    assert live['audit_script_sha256'] == sha(root / 'artifacts/css-hyphenation-ownership-native-live-audit-v2.py')
+     assert live['owner_result_sha256'] == sha(output / 'RESULT.json')
+     for field in ('independent_live_restoration_verified', 'application_and_extras_semantically_restored', 'source_and_binary_hashes_restored', 'flags_restored', 'controls_unchanged', 'backup_removed'):
+         assert live[field] is True

@@ -1,0 +1,11 @@
+--- artifacts/css-font-metric-synthesis-native-typecheck-v1/assess.py
++++ artifacts/css-font-metric-synthesis-native-typecheck-v2/assess.py
+@@ -51,7 +51,7 @@
+             package = record.get('package_id', '')
+             parsed = urlsplit(package.removeprefix('path+'))
+             fragment = parsed.fragment
+-            valid_package = package.startswith('path+file:') and parsed.netloc == '' and unquote(parsed.path) == str(directory)
++            valid_package = package.startswith(('path+file:', 'file:')) and parsed.scheme == 'file' and parsed.netloc == '' and unquote(parsed.path) == str(directory)
+             valid_package &= bool(re.fullmatch(r'(?:' + name + r'@)?\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?', fragment))
+             filenames = record.get('filenames', [])
+             valid_files = isinstance(filenames, list) and bool(filenames)

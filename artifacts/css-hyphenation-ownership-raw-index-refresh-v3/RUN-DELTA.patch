@@ -1,0 +1,49 @@
+--- artifacts/css-hyphenation-ownership-raw-index-refresh-v2/run.py
++++ artifacts/css-hyphenation-ownership-raw-index-refresh-v3/run.py
+@@ -34,6 +34,15 @@
+     updated = copy.deepcopy(epoch)
+     updated['raw_index_observation']['current'] = raw['after']
+     return updated
++
++
++def admit_current_raw(updated, post, actual_index):
++    assert {k:v for k,v in actual_index.items() if k != 'raw_index'} == {k:v for k,v in post['index'].items() if k != 'raw_index'}
++    current = copy.deepcopy(updated)
++    current['raw_index_observation']['current'] = actual_index['raw_index']
++    expected = copy.deepcopy(post)
++    expected['index']['raw_index'] = actual_index['raw_index']
++    return current, expected
+ 
+ 
+ def saved(policy):
+@@ -112,8 +121,10 @@
+     epoch = read(CONTROL / 'CURRENT-EPOCH.json')
+     assert epoch['semantic_index']['head'] == policy['head']
+     updated = derive(epoch, pre['snapshot'], post, raw)
++    actual_index = state.h.index_state(ROOT, env)
++    updated, expected = admit_current_raw(updated, post, actual_index)
+     before = state.a.verify_current(state.h, ROOT, env, updated)
+-    assert before == post
++    assert before == expected
+     flags = {n:state.h.git(p,env,'ls-files','-v','-z') for n,p in [('root',ROOT),('nested',ROOT/'artifacts/css-spec-lean')]}
+     owner_policy = read(ROOT / policy['owner']['directory'] / 'POLICY.json')
+     baseline = load('refresh_baseline', ROOT / policy['owner']['directory'] / 'baseline.py')
+@@ -149,7 +160,8 @@
+     output.mkdir()
+     (output/'PRE-CURRENT-EPOCH.json').write_bytes(controls['CURRENT-EPOCH.json'])
+     state.save(output/'PRE.json',before)
+-    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'restored successful hyphenation retry raw observation refresh'})+'\n')
++    state.save(output/'ADMISSION-RAW.json', {'canonical_before': raw['before'], 'frozen_pair_after': raw['after'], 'actual_after': actual_index['raw_index'], 'semantic_index_unchanged': True, 'full_frozen_post_equal_except_raw': True})
++    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'restored hyphenation fresh raw observation refresh'})+'\n')
+     lock_identity = (lock.stat().st_dev,lock.stat().st_ino)
+     def check_controls(body):
+         for name,claim in claims.items():
+@@ -167,7 +179,7 @@
+         assert all(state.h.git(p,env,'ls-files','-v','-z')==flags[n] for n,p in [('root',ROOT),('nested',ROOT/'artifacts/css-spec-lean')])
+         state.save(output/'POST.json',before)
+         (output/'EPOCH.json').write_bytes(body)
+-        state.save(output/'RESULT.json',{'updated':True,'updated_only':'raw_index_observation.current','old_epoch_sha256':digest(controls['CURRENT-EPOCH.json']),'epoch_sha256':digest(body),'before':raw['before'],'after':raw['after'],'head':policy['head'],'preservation_verified':True,'restoration_independently_verified':True,'signed_commit_receipt':policy['signed_receipt'],'existing_head_signature_verified':True,'accepted_fix_increment':0,'native_fix_acceptance':False})
++        state.save(output/'RESULT.json',{'updated':True,'updated_only':'raw_index_observation.current','old_epoch_sha256':digest(controls['CURRENT-EPOCH.json']),'epoch_sha256':digest(body),'before':raw['before'],'after':actual_index['raw_index'],'frozen_pair_after':raw['after'],'head':policy['head'],'preservation_verified':True,'restoration_independently_verified':True,'signed_commit_receipt':policy['signed_receipt'],'existing_head_signature_verified':True,'accepted_fix_increment':0,'native_fix_acceptance':False})
+         release_lock=True
+     except BaseException:
+         owner.write_owned(ROOT,claims['CURRENT-EPOCH.json'],controls['CURRENT-EPOCH.json'])

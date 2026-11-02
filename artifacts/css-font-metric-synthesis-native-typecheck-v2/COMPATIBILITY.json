@@ -1,0 +1,57 @@
+{
+  "executed_cargo": false,
+  "manifests": {
+    "servo/ports/geckolib/Cargo.toml": {
+      "package": {
+        "name": "geckoservo",
+        "version": "0.0.1",
+        "authors": [
+          "The Servo Project Developers"
+        ],
+        "license": "MPL-2.0",
+        "edition": "2024"
+      },
+      "lib": {
+        "name": "geckoservo",
+        "path": "lib.rs"
+      },
+      "crate_type_override_absent": true
+    },
+    "servo/components/style/Cargo.toml": {
+      "package": {
+        "name": "style",
+        "version": "0.0.1",
+        "authors": [
+          "The Servo Project Developers"
+        ],
+        "license": "MPL-2.0",
+        "repository": "https://github.com/servo/stylo",
+        "edition": "2024",
+        "description": "The Stylo CSS engine",
+        "build": "build.rs",
+        "links": "servo_style_crate"
+      },
+      "lib": {
+        "name": "style",
+        "path": "lib.rs",
+        "doctest": false
+      },
+      "crate_type_override_absent": true
+    }
+  },
+  "routing": {
+    "cargo_return": "    rc = subprocess.run(\n        argv, env=env, cwd=command.working_directory, check=False\n    ).returncode\n    if rc == 101:\n        print(\n            f\"If cargo-{cargo_command} is not installed, install it using: \"\n            f\"cargo install cargo-{cargo_command}\"\n        )\n    if rc != 0 and not continue_on_error:\n        return rc\n    return 0\n",
+    "backend_and_dispatch": "    command_context.ensure_backend_current()\n\n    for crate in crates:\n        crate_info = crates_and_roots.get(crate, None)\n        package_args = []\n        if not crate_info:\n            # Not one of the top-level crates we know how to build directly, assume it's\n            # other crate in the gkrust workspace and target it explicitly via `-p`.\n            #\n            # gkrust's features and lib/bin targets don't apply to an individual crate,\n            # so pass the target explicitly instead of the automatically-computed\n            # arguments.\n            crate_info = crates_and_roots[\"gkrust\"]\n            package_args = [\"-p\", crate, \"--target={arch}\"]\n\n",
+    "format_invocation": "    invocation = replace(\n        invocation,\n        verbose=invocation.verbose or verbose,\n        json_output=message_format_json,\n        cargo_extra_flags=extra_flags or invocation.cargo_extra_flags,\n    )",
+    "format_argument": "    if invocation.json_output:\n        flags.append(\"--message-format=json\")",
+    "direct_log_descriptors": "            process = subprocess.Popen(argv, cwd=WORKTREE, env=env, stdout=log,\n                stderr=subprocess.STDOUT, start_new_session=True)\n"
+  },
+  "references": {
+    "servo/ports/geckolib/Cargo.toml": "6ff58d30e0b1394978fb128c01839a474e16163fc1fa77505b382935942a2e58",
+    "servo/components/style/Cargo.toml": "5421775e978794f47520e9d9120edf07692bc9e16b43b0fc5cff5525b7afe3c0",
+    "python/mozbuild/mozbuild/mach_commands.py": "4ac45f97bc166090bbc29fe02bec48c454be198e2fe9b731b312f6f20bf2c762",
+    "python/mozbuild/mozbuild/rust_commands.py": "11fc6bde0bbc76782b3711c739dc367155e6b68d6c7ce727fe54afe818b9be47",
+    "build/cargo/cargo-check.yaml": "5758d923c0e4226dbff6bb70253d1820bc69de7bb9ce3c97e5d011c147f4ce2b",
+    "artifacts/css-shadow-move-promotion-v1/phase.py": "3efbd1f65bdfd3e1815e4f42339bda10a06047dd936544de290a2ec888cc266a"
+  }
+}

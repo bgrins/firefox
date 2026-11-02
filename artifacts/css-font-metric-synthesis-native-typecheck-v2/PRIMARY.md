@@ -1,0 +1,5 @@
+# Cargo JSON compatibility references
+
+The [Cargo JSON message specification](https://doc.rust-lang.org/cargo/reference/external-tools.html#json-messages) describes newline-delimited objects on stdout and shows local file URL package IDs. Its compiler-artifact schema uses the manifest's library crate types, defaulting to lib. The [Cargo library target description](https://doc.rust-lang.org/cargo/reference/cargo-targets.html#library) places overrides in the lib table. The authenticated native manifests contain no crate-type override and explicitly set matching library names and lib.rs paths.
+
+The [package ID specification](https://doc.rust-lang.org/cargo/reference/pkgid-spec.html#example-specifications) explicitly lists both local file URL forms. These current primary references support admitting file and path+file local source IDs without weakening directory/manifest/target matching. They do not prove that the future configured Cargo process produces a complete stream, and this package has not run Cargo. The actual log and build-finished/library records remain required.

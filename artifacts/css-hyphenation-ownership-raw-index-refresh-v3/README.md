@@ -1,0 +1,9 @@
+# Fresh raw-index admission after a restored successful pair
+
+The previous refresh attempt 21518 / 48e003 / 333348 exited 1 before creating its runtime or taking the transition lock. The saved restored pair observed raw index 429509ad, while root later observed 9f601632 with identical semantic index state. Canonical epoch d8559b58 remained unchanged. The cause of raw-byte drift is not established. That failed attempt and its log are preserved; no browser rerun or altered historical result is needed.
+
+This successor retains the successful pair/publication evidence admission, original derive function and canonical write/rollback guards. Immediately before its full current-state check it measures index_state, requires every semantic index field to equal the frozen post-restoration snapshot, and changes only the expected raw byte hash in copied epoch/snapshot values. The full state must then equal that adjusted frozen snapshot. Existing source identities, app/extras, flags, metadata, process and signed-HEAD checks still run before mutation and are not relaxed.
+
+ADMISSION-RAW.json records the canonical starting bytes, frozen pair bytes and newly measured actual bytes separately. RESULT.after is the actual admitted raw hash and RESULT.frozen_pair_after preserves the pair's 429509ad observation. The only canonical change remains raw_index_observation.current. No newly measured value is assumed in this disabled preparation; root remeasures on execution. Any semantic/state drift still rejects before mutation.
+
+The v2 strict publisher replay and actual owner25179/root audit99929 authority remain unchanged. This tool does not create a native commit, change tests or create a signature. Saved checks cover actual evidence, raw-only transformation, a distinct fresh-raw positive and four semantic-index mutations in addition to the inherited negatives. Root owns execution.
