@@ -1,0 +1,366 @@
+--- artifacts/css-font-metric-synthesis-identity-v1/candidate/servo/components/style/properties/cascade.rs
++++ artifacts/css-font-metric-selected-reference-producer-v1/candidate/servo/components/style/properties/cascade.rs
+@@ -2856,6 +2856,7 @@
+         priority_completion: PriorityCompletion,
+         metric_drain: MetricDrain<'a, 'd>,
+         metric_action: Option<MetricAction>,
++        metric_references: Option<MetricReferences>,
+         font_preparation: Option<MetricPreparation<'a, 'd>>,
+         completed_font_inputs: LonghandIdSet,
+         font_completion_flags: Option<RuleCascadeFlags>,
+@@ -2881,6 +2882,7 @@
+     impl<'a, 'b: 'a, 'c, 'd> Context<'a, 'b, 'c, 'd> {
+         fn reset(&mut self) {
+             assert!(self.metric_action.is_none() && self.font_preparation.is_none());
++            assert!(self.metric_references.is_none());
+             assert!(
+                 self.frames.is_empty() && self.frame_root.is_none() && self.frame_reply.is_none()
+             );
+@@ -2924,9 +2926,36 @@
+             if let Some(action) = &self.metric_action {
+                 return VisitResult::ComputationPending(action.index);
+             }
++            let result = self.poll_frames(references, attribute_tracker, publication_ready, 0, 0);
++            if !matches!(result, VisitResult::ComputationPending(_)) {
++                self.frame_root = None;
++            }
++            result
++        }
++
++        fn poll_frames(
++            &mut self,
++            references: &NonCustomPropertyReferences,
++            attribute_tracker: &mut AttributeTracker,
++            publication_ready: &mut impl FnMut(
++                FontDependencyDemand,
++                &PrioritaryPropertyIdSet,
++                Option<LonghandId>,
++            ) -> PublicationDemand,
++            depth: usize,
++            semantic_floor: usize,
++        ) -> VisitResult {
+             loop {
++                assert!(self.frames.len() > depth);
+                 let mut frame = self.frames.pop().expect("Active root owns a frame");
+                 if let Some((target, _)) = &frame.waiting {
++                    if let Some((_, VisitResult::SemanticOpen(index))) = &self.frame_reply {
++                        if *index < semantic_floor {
++                            let index = *index;
++                            self.frames.push(frame);
++                            return VisitResult::ComputationPending(index);
++                        }
++                    }
+                     if let Some((target, result)) = self.frame_reply.take() {
+                         assert!(frame.receive(target, result, self));
+                     } else {
+@@ -2937,6 +2966,9 @@
+                             Err(VisitResult::ComputationPending(index)) => {
+                                 return VisitResult::ComputationPending(index);
+                             },
++                            Err(VisitResult::SemanticOpen(index)) if index < semantic_floor => {
++                                return VisitResult::ComputationPending(index);
++                            },
+                             Err(result) => self.frame_reply = Some((target, result)),
+                         }
+                         continue;
+@@ -2948,20 +2980,20 @@
+                     FrameStep::Link(_) => self.frames.push(frame),
+                     FrameStep::Pending(prerequisite) => {
+                         let index = frame.index;
+-                        self.metric_action = prerequisite.map(|prerequisite| MetricAction {
+-                            identity: Arc::new(()),
+-                            root: self.frame_root.as_ref().unwrap().clone(),
+-                            owner: frame.var.clone(),
+-                            index,
+-                            prerequisite,
+-                        });
++                        if depth == 0 {
++                            self.metric_action = prerequisite.map(|prerequisite| MetricAction {
++                                identity: Arc::new(()),
++                                root: self.frame_root.as_ref().unwrap().clone(),
++                                owner: frame.var.clone(),
++                                index,
++                                prerequisite,
++                            });
++                        }
+                         self.frames.push(frame);
+                         return VisitResult::ComputationPending(index);
+                     },
+                     FrameStep::Complete(result) => {
+-                        if self.frames.is_empty() {
+-                            assert_eq!(self.frame_root.as_ref(), Some(&frame.var));
+-                            self.frame_root = None;
++                        if self.frames.len() == depth {
+                             return result;
+                         }
+                         assert!(self.frame_reply.is_none());
+@@ -2985,36 +3017,173 @@
+             self.metric_action.clone()
+         }
+ 
++        fn metric_action_is_current(&self, action: &MetricAction, depth: usize) -> bool {
++            let Some(current) = &self.metric_action else {
++                return false;
++            };
++            std::ptr::eq(current.identity.as_ref(), action.identity.as_ref())
++                && current.root == action.root
++                && current.owner == action.owner
++                && current.index == action.index
++                && current.prerequisite.same_as(action.prerequisite)
++                && self.frame_root.as_ref() == Some(&action.root)
++                && depth > 0
++                && self.frames.get(depth - 1).is_some_and(|frame| {
++                    frame.index == action.index
++                        && frame.var == action.owner
++                        && matches!(frame.phase, FramePhase::Publish)
++                })
++                && matches!(
++                    self.var_info[action.index].publication,
++                    NodePublication::Pending(_)
++                )
++        }
++
++        fn drive_metric_action(
++            &mut self,
++            action: &MetricAction,
++            references: &NonCustomPropertyReferences,
++            attribute_tracker: &mut AttributeTracker,
++            publication_ready: &mut impl FnMut(
++                FontDependencyDemand,
++                &PrioritaryPropertyIdSet,
++                Option<LonghandId>,
++            ) -> PublicationDemand,
++        ) -> MetricActionProgress {
++            loop {
++                if let Some(state) = &self.metric_references {
++                    if !self.metric_action_is_current(action, state.depth)
++                        || !std::ptr::eq(state.action.identity.as_ref(), action.identity.as_ref())
++                        || state.flags != self.computed_context.included_cascade_flags
++                    {
++                        return MetricActionProgress::WrongAction;
++                    }
++                    if !self.resolve_metric_references(
++                        references,
++                        attribute_tracker,
++                        publication_ready,
++                    ) {
++                        let state = self.metric_references.as_ref().unwrap();
++                        return MetricActionProgress::References(
++                            state.longhand,
++                            state.value.clone(),
++                        );
++                    }
++                }
++                match self.perform_metric_action(action, attribute_tracker) {
++                    MetricActionProgress::References(longhand, value) => {
++                        assert!(self.metric_references.is_none());
++                        assert!(self.frame_reply.is_none());
++                        self.metric_references = Some(MetricReferences {
++                            action: action.clone(),
++                            longhand,
++                            walk: ReferenceWalk::new(&value.variable_value.references),
++                            value,
++                            reply: None,
++                            depth: self.frames.len(),
++                            semantic_floor: self.count,
++                            flags: self.computed_context.included_cascade_flags,
++                            complete: false,
++                        });
++                    },
++                    result => return result,
++                }
++            }
++        }
++
++        fn resolve_metric_references(
++            &mut self,
++            references: &NonCustomPropertyReferences,
++            attribute_tracker: &mut AttributeTracker,
++            publication_ready: &mut impl FnMut(
++                FontDependencyDemand,
++                &PrioritaryPropertyIdSet,
++                Option<LonghandId>,
++            ) -> PublicationDemand,
++        ) -> bool {
++            let mut state = self.metric_references.take().unwrap();
++            let complete = loop {
++                match state.walk.resume(
++                    &state.value.variable_value.url_data,
++                    Some(state.value.substitution_property_id(state.longhand)),
++                    self,
++                    attribute_tracker,
++                    state.reply.take(),
++                ) {
++                    ReferenceWalkStep::Complete => break true,
++                    ReferenceWalkStep::WrongReply => {
++                        unreachable!("Action owns its reference reply")
++                    },
++                    ReferenceWalkStep::Link(target) => {
++                        let result = if self.frames.len() > state.depth {
++                            assert_eq!(self.frames[state.depth].var, target);
++                            self.poll_frames(
++                                references,
++                                attribute_tracker,
++                                publication_ready,
++                                state.depth,
++                                state.semantic_floor,
++                            )
++                        } else {
++                            assert_eq!(self.frames.len(), state.depth);
++                            assert!(self.frame_reply.is_none());
++                            match start_frame(target.clone(), self, attribute_tracker) {
++                                Ok(frame) => {
++                                    self.frames.push(frame);
++                                    self.poll_frames(
++                                        references,
++                                        attribute_tracker,
++                                        publication_ready,
++                                        state.depth,
++                                        state.semantic_floor,
++                                    )
++                                },
++                                Err(result) => result,
++                            }
++                        };
++                        let reply = match result {
++                            VisitResult::Complete => ReferenceReadiness::Ready,
++                            VisitResult::CycleSettled => ReferenceReadiness::SemanticCycle,
++                            VisitResult::SemanticOpen(_) | VisitResult::ComputationPending(_) => {
++                                break false;
++                            },
++                        };
++                        state.reply = Some((target, reply));
++                    },
++                }
++            };
++            state.complete = complete;
++            self.metric_references = Some(state);
++            complete
++        }
++
+         fn perform_metric_action(
+             &mut self,
+             action: &MetricAction,
+             attribute_tracker: &mut AttributeTracker,
+         ) -> MetricActionProgress {
+-            let Some(current) = &self.metric_action else {
+-                return MetricActionProgress::WrongAction;
+-            };
+-            if !std::ptr::eq(current.identity.as_ref(), action.identity.as_ref())
+-                || current.root != action.root
+-                || current.owner != action.owner
+-                || current.index != action.index
+-                || !current.prerequisite.same_as(action.prerequisite)
+-                || self.frame_root.as_ref() != Some(&action.root)
+-                || !self.frames.last().is_some_and(|frame| {
+-                    frame.index == action.index
+-                        && frame.var == action.owner
+-                        && matches!(frame.phase, FramePhase::Publish)
++            let depth = self
++                .metric_references
++                .as_ref()
++                .map_or(self.frames.len(), |state| state.depth);
++            if !self.metric_action_is_current(action, depth)
++                || self.frames.len() != depth
++                || self.metric_references.as_ref().is_some_and(|state| {
++                    !state.complete
++                        || !std::ptr::eq(state.action.identity.as_ref(), action.identity.as_ref())
++                        || state.flags != self.computed_context.included_cascade_flags
+                 })
+-                || !matches!(
+-                    self.var_info[action.index].publication,
+-                    NodePublication::Pending(_)
+-                )
+             {
+                 return MetricActionProgress::WrongAction;
+             }
++            let reference = self
++                .metric_references
++                .take()
++                .map(|state| (state.longhand, state.value));
+             let target_id = match action.prerequisite {
+                 FontTarget::Metric(id) => id,
+                 FontTarget::Synthesis(longhand) => {
+-                    return self.perform_synthesis_action(longhand, attribute_tracker);
++                    return self.perform_synthesis_action(longhand, attribute_tracker, reference);
+                 },
+             };
+             use PrioritaryPropertyId::*;
+@@ -3047,7 +3216,7 @@
+                 self.cache,
+                 attribute_tracker,
+                 &mut self.priority_completion,
+-                None,
++                reference,
+             ) {
+                 MetricDrainStep::Published(id) => {
+                     self.cascade.completed_prioritary.insert(id);
+@@ -3073,6 +3242,7 @@
+             &mut self,
+             longhand: LonghandId,
+             attribute_tracker: &mut AttributeTracker,
++            reference: Option<(LonghandId, Arc<UnparsedValue>)>,
+         ) -> MetricActionProgress {
+             if !is_synthesis_longhand(longhand) {
+                 return MetricActionProgress::Unsupported;
+@@ -3085,7 +3255,9 @@
+                 self.cascade
+                     .begin_font_preparation(self.computed_context, self.decls, longhand)
+             });
+-            if state.longhand != longhand {
++            if state.longhand != longhand
++                || reference.as_ref().is_some_and(|(id, _)| *id != longhand)
++            {
+                 return MetricActionProgress::Invalidated;
+             }
+             match self.cascade.resume_metric_preparation(
+@@ -3094,7 +3266,7 @@
+                 attribute_tracker,
+                 state,
+                 &self.priority_completion.complete,
+-                None,
++                reference.map(|(_, value)| value),
+             ) {
+                 MetricPreparationStep::References(id, value) => {
+                     return MetricActionProgress::References(id, value);
+@@ -3622,6 +3794,18 @@
+         owner: VarType,
+         index: usize,
+         prerequisite: FontTarget,
++    }
++
++    struct MetricReferences {
++        action: MetricAction,
++        longhand: LonghandId,
++        value: Arc<UnparsedValue>,
++        walk: ReferenceWalk,
++        reply: Option<(VarType, ReferenceReadiness)>,
++        depth: usize,
++        semantic_floor: usize,
++        flags: RuleCascadeFlags,
++        complete: bool,
+     }
+ 
+     enum MetricActionProgress {
+@@ -4487,6 +4671,7 @@
+         priority_completion: PriorityCompletion::default(),
+         metric_drain: MetricDrain::new(decls),
+         metric_action: None,
++        metric_references: None,
+         font_preparation: None,
+         completed_font_inputs: LonghandIdSet::default(),
+         font_completion_flags: None,
+@@ -4517,7 +4702,12 @@
+                 let Some(action) = context.pending_metric_action() else {
+                     break result;
+                 };
+-                match context.perform_metric_action(&action, attr_tracker) {
++                match context.drive_metric_action(
++                    &action,
++                    references_from_non_custom_properties,
++                    attr_tracker,
++                    &mut font_publication_demand,
++                ) {
+                     MetricActionProgress::Published(_) | MetricActionProgress::AlreadyComplete => {
+                     },
+                     _ => break result,

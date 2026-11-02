@@ -1,0 +1,23 @@
+--- artifacts/css-font-metric-synthesis-raw-index-refresh-v2/run.py
++++ artifacts/css-font-metric-synthesis-raw-index-refresh-v3/run.py
+@@ -60,9 +60,9 @@
+     assert sha(ROOT / policy['audit_terminal']['path']) == policy['audit_terminal']['sha256']
+     terminal = read(ROOT / policy['audit_terminal']['path'])
+     assert terminal == read(runtime / 'ROOT-AUDIT-TERMINAL.json')
+-    assert (terminal['session_id'], terminal['launch_chunk'], terminal['terminal_chunk'], terminal['exit']) == (38746, 'd7e6cf', '0c4394', 0)
++    assert (terminal['audit_session'], terminal['launch_chunk'], terminal['terminal_chunk'], terminal['exit']) == (62513, 'aa3fb7', 'b7994c', 0)
+     assert terminal['audit_sha256'] == policy['live_audit']['sha256']
+-    assert (live['root_session'], live['launch_chunk'], live['terminal_chunk'], live['exit']) == (37936, 'e68e9c', '024ca1', 0)
++    assert (live['root_session'], live['launch_chunk'], live['terminal_chunk'], live['exit']) == (40238, 'dd9e05', 'e0aa1a', 0)
+     assert live['native_typecheck_success'] is True
+     for name in ('restoration_independently_verified', 'source_app_extras_flags_index_controls_verified', 'required_inputs_unchanged', 'source_transition_lock_absent', 'backup_removed_verified'):
+         assert live[name] is True
+@@ -85,7 +85,7 @@
+     assert assessment['success'] is True and assessment['build_finished'] == [{'reason':'build-finished','success':True}]
+     assert assessment['errors'] == [] and set(assessment['requested_library_artifacts']) == {'style','geckoservo'}
+     warning_codes = [row['message']['code']['code'] for row in assessment['warnings']]
+-    assert sorted(warning_codes) == ['dead_code'] * 7 + ['missing_docs'] * 4
++    assert sorted(warning_codes) == ['dead_code'] * 6 + ['missing_docs'] * 4
+     pre = read(runtime / 'PAIR-PRE.json')
+     post, raw = read(runtime / 'POST.json'), read(runtime / 'RAW-INDEX-OBSERVATION.json')
+     assert pre['controls'] == policy['controls']
