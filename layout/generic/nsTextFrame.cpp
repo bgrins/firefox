@@ -1890,30 +1890,6 @@ void BuildTextRunsScanner::AccumulateRunInfo(nsTextFrame* aFrame) {
     mLineBreakBeforeFrames.AppendElement(aFrame);
     mStartOfLine = false;
   }
-
-  // Default limits used by `hyphenate-limit-chars` for `auto` components, as
-  // suggested by the CSS Text spec.
-  // TODO: consider making these sensitive to the context, e.g. increasing the
-  // values for long line lengths to reduce the tendency to hyphenate too much.
-  const uint32_t kDefaultHyphenateTotalWordLength = 5;
-  const uint32_t kDefaultHyphenatePreBreakLength = 2;
-  const uint32_t kDefaultHyphenatePostBreakLength = 2;
-
-  const auto& hyphenateLimitChars = aFrame->StyleText()->mHyphenateLimitChars;
-  uint32_t pre =
-      hyphenateLimitChars.pre_hyphen_length.IsAuto()
-          ? kDefaultHyphenatePreBreakLength
-          : std::max(0, hyphenateLimitChars.pre_hyphen_length.AsNumber());
-  uint32_t post =
-      hyphenateLimitChars.post_hyphen_length.IsAuto()
-          ? kDefaultHyphenatePostBreakLength
-          : std::max(0, hyphenateLimitChars.post_hyphen_length.AsNumber());
-  uint32_t total =
-      hyphenateLimitChars.total_word_length.IsAuto()
-          ? kDefaultHyphenateTotalWordLength
-          : std::max(0, hyphenateLimitChars.total_word_length.AsNumber());
-  total = std::max(total, pre + post);
-  mLineBreaker.SetHyphenateLimitChars(total, pre, post);
 }
 
 static bool HasTerminalNewline(const nsTextFrame* aFrame) {
@@ -2913,96 +2889,138 @@ void BuildTextRunsScanner::SetupBreakSinksForTextRun(gfxTextRun* aTextRun,
 
   for (uint32_t i = 0; i < mMappedFlows.Length(); ++i) {
     MappedFlow* mappedFlow = &mMappedFlows[i];
-    // The CSS word-break value may change within a word, so we reset it for
-    // each MappedFlow. The line-breaker will flush its text if the property
-    // actually changes.
-    const auto* styleText = mappedFlow->mStartFrame->StyleText();
-    auto wordBreak = styleText->EffectiveWordBreak();
-    switch (wordBreak) {
-      case StyleWordBreak::BreakAll:
-        mLineBreaker.SetWordBreak(WordBreakRule::BreakAll);
-        break;
-      case StyleWordBreak::KeepAll:
-        mLineBreaker.SetWordBreak(WordBreakRule::KeepAll);
-        break;
-      case StyleWordBreak::Normal:
-      default:
-        MOZ_ASSERT(wordBreak == StyleWordBreak::Normal);
-        mLineBreaker.SetWordBreak(WordBreakRule::Normal);
-        break;
-    }
-    switch (styleText->mLineBreak) {
-      case StyleLineBreak::Auto:
-        mLineBreaker.SetStrictness(LineBreakRule::Auto);
-        break;
-      case StyleLineBreak::Normal:
-        mLineBreaker.SetStrictness(LineBreakRule::Normal);
-        break;
-      case StyleLineBreak::Loose:
-        mLineBreaker.SetStrictness(LineBreakRule::Loose);
-        break;
-      case StyleLineBreak::Strict:
-        mLineBreaker.SetStrictness(LineBreakRule::Strict);
-        break;
-      case StyleLineBreak::Anywhere:
-        mLineBreaker.SetStrictness(LineBreakRule::Anywhere);
-        break;
-    }
-
-    uint32_t offset = iter.GetSkippedOffset();
-    gfxSkipCharsIterator iterNext = iter;
-    iterNext.AdvanceOriginal(mappedFlow->GetContentEnd() -
-                             mappedFlow->mStartFrame->GetContentOffset());
-
-    UniquePtr<BreakSink>* breakSink = mBreakSinks.AppendElement(
-        MakeUnique<BreakSink>(aTextRun, mDrawTarget, offset));
-
-    uint32_t length = iterNext.GetSkippedOffset() - offset;
-    uint32_t flags = 0;
-    nsIFrame* initialBreakController =
-        mappedFlow->mAncestorControllingInitialBreak;
-    if (!initialBreakController) {
-      initialBreakController = mLineContainer;
-    }
-    if (!initialBreakController->StyleText()->WhiteSpaceCanWrap(
-            initialBreakController)) {
-      flags |= nsLineBreaker::BREAK_SUPPRESS_INITIAL;
-    }
-    nsTextFrame* startFrame = mappedFlow->mStartFrame;
-    const nsStyleText* textStyle = startFrame->StyleText();
-    if (!textStyle->WhiteSpaceCanWrap(startFrame)) {
-      flags |= nsLineBreaker::BREAK_SUPPRESS_INSIDE;
-    }
-    if (aTextRun->GetFlags2() & nsTextFrameUtils::Flags::NoBreaks) {
-      flags |= nsLineBreaker::BREAK_SKIP_SETTING_NO_BREAKS;
-    }
-    if (textStyle->mTextTransform & StyleTextTransform::CAPITALIZE) {
-      flags |= nsLineBreaker::BREAK_NEED_CAPITALIZATION;
-    }
-    if (textStyle->mHyphens == StyleHyphens::Auto &&
-        textStyle->mLineBreak != StyleLineBreak::Anywhere) {
-      flags |= nsLineBreaker::BREAK_USE_AUTO_HYPHENATION;
-    }
-
-    if (HasCompressedLeadingWhitespace(startFrame, textStyle,
-                                       mappedFlow->GetContentEnd(), iter)) {
-      mLineBreaker.AppendInvisibleWhitespace(flags);
-    }
-
-    if (length > 0) {
-      BreakSink* sink = mSkipIncompleteTextRuns ? nullptr : (*breakSink).get();
-      if (mDoubleByteText) {
-        const char16_t* text = reinterpret_cast<const char16_t*>(aTextPtr);
-        mLineBreaker.AppendText(hyphenationLanguage, text + offset, length,
-                                flags, sink);
-      } else {
-        const uint8_t* text = reinterpret_cast<const uint8_t*>(aTextPtr);
-        mLineBreaker.AppendText(hyphenationLanguage, text + offset, length,
-                                flags, sink);
+    bool firstTextRange = true;
+    for (nsTextFrame* startFrame = mappedFlow->mStartFrame;
+         startFrame != mappedFlow->mEndFrame;) {
+      const auto* styleText = startFrame->StyleText();
+      nsTextFrame* endFrame = startFrame->GetNextContinuation();
+      while (endFrame != mappedFlow->mEndFrame &&
+             endFrame->StyleText()->mHyphenateLimitChars ==
+                 styleText->mHyphenateLimitChars) {
+        endFrame = endFrame->GetNextContinuation();
       }
-    }
+      const int32_t contentEnd = endFrame
+                                     ? std::min(endFrame->GetContentOffset(),
+                                                mappedFlow->GetContentEnd())
+                                     : mappedFlow->GetContentEnd();
+      // Default limits used by `hyphenate-limit-chars` for `auto` components,
+      // as suggested by the CSS Text spec.
+      // TODO: consider making these sensitive to the context, e.g. increasing
+      // the values for long line lengths to reduce the tendency to hyphenate
+      // too much.
+      const uint32_t kDefaultHyphenateTotalWordLength = 5;
+      const uint32_t kDefaultHyphenatePreBreakLength = 2;
+      const uint32_t kDefaultHyphenatePostBreakLength = 2;
 
-    iter = iterNext;
+      const auto& hyphenateLimitChars = styleText->mHyphenateLimitChars;
+      uint32_t pre =
+          hyphenateLimitChars.pre_hyphen_length.IsAuto()
+              ? kDefaultHyphenatePreBreakLength
+              : std::max(0, hyphenateLimitChars.pre_hyphen_length.AsNumber());
+      uint32_t post =
+          hyphenateLimitChars.post_hyphen_length.IsAuto()
+              ? kDefaultHyphenatePostBreakLength
+              : std::max(0, hyphenateLimitChars.post_hyphen_length.AsNumber());
+      uint32_t total =
+          hyphenateLimitChars.total_word_length.IsAuto()
+              ? kDefaultHyphenateTotalWordLength
+              : std::max(0, hyphenateLimitChars.total_word_length.AsNumber());
+      total = std::max(total, pre + post);
+      mLineBreaker.SetHyphenateLimitChars(total, pre, post);
+
+      // The CSS word-break value may change within a word, so we reset it for
+      // each style range. The line-breaker will flush its text if the property
+      // actually changes.
+      auto wordBreak = styleText->EffectiveWordBreak();
+      switch (wordBreak) {
+        case StyleWordBreak::BreakAll:
+          mLineBreaker.SetWordBreak(WordBreakRule::BreakAll);
+          break;
+        case StyleWordBreak::KeepAll:
+          mLineBreaker.SetWordBreak(WordBreakRule::KeepAll);
+          break;
+        case StyleWordBreak::Normal:
+        default:
+          MOZ_ASSERT(wordBreak == StyleWordBreak::Normal);
+          mLineBreaker.SetWordBreak(WordBreakRule::Normal);
+          break;
+      }
+      switch (styleText->mLineBreak) {
+        case StyleLineBreak::Auto:
+          mLineBreaker.SetStrictness(LineBreakRule::Auto);
+          break;
+        case StyleLineBreak::Normal:
+          mLineBreaker.SetStrictness(LineBreakRule::Normal);
+          break;
+        case StyleLineBreak::Loose:
+          mLineBreaker.SetStrictness(LineBreakRule::Loose);
+          break;
+        case StyleLineBreak::Strict:
+          mLineBreaker.SetStrictness(LineBreakRule::Strict);
+          break;
+        case StyleLineBreak::Anywhere:
+          mLineBreaker.SetStrictness(LineBreakRule::Anywhere);
+          break;
+      }
+
+      uint32_t offset = iter.GetSkippedOffset();
+      gfxSkipCharsIterator iterNext = iter;
+      const int32_t contentStart =
+          std::min(startFrame->GetContentOffset(), mappedFlow->GetContentEnd());
+      iterNext.AdvanceOriginal(contentEnd - contentStart);
+
+      uint32_t length = iterNext.GetSkippedOffset() - offset;
+      uint32_t flags = 0;
+      nsIFrame* initialBreakController =
+          firstTextRange ? mappedFlow->mAncestorControllingInitialBreak
+                         : startFrame;
+      if (!initialBreakController) {
+        initialBreakController = mLineContainer;
+      }
+      if (!initialBreakController->StyleText()->WhiteSpaceCanWrap(
+              initialBreakController)) {
+        flags |= nsLineBreaker::BREAK_SUPPRESS_INITIAL;
+      }
+      const nsStyleText* textStyle = startFrame->StyleText();
+      if (!textStyle->WhiteSpaceCanWrap(startFrame)) {
+        flags |= nsLineBreaker::BREAK_SUPPRESS_INSIDE;
+      }
+      if (aTextRun->GetFlags2() & nsTextFrameUtils::Flags::NoBreaks) {
+        flags |= nsLineBreaker::BREAK_SKIP_SETTING_NO_BREAKS;
+      }
+      if (textStyle->mTextTransform & StyleTextTransform::CAPITALIZE) {
+        flags |= nsLineBreaker::BREAK_NEED_CAPITALIZATION;
+      }
+      if (textStyle->mHyphens == StyleHyphens::Auto &&
+          textStyle->mLineBreak != StyleLineBreak::Anywhere) {
+        flags |= nsLineBreaker::BREAK_USE_AUTO_HYPHENATION;
+      }
+
+      if (HasCompressedLeadingWhitespace(startFrame, textStyle, contentEnd,
+                                         iter)) {
+        mLineBreaker.AppendInvisibleWhitespace(flags);
+      }
+
+      UniquePtr<BreakSink>* breakSink = mBreakSinks.AppendElement(
+          MakeUnique<BreakSink>(aTextRun, mDrawTarget, offset));
+      if (length > 0) {
+        BreakSink* sink =
+            mSkipIncompleteTextRuns ? nullptr : (*breakSink).get();
+        if (mDoubleByteText) {
+          const char16_t* text = reinterpret_cast<const char16_t*>(aTextPtr);
+          mLineBreaker.AppendText(hyphenationLanguage, text + offset, length,
+                                  flags, sink);
+        } else {
+          const uint8_t* text = reinterpret_cast<const uint8_t*>(aTextPtr);
+          mLineBreaker.AppendText(hyphenationLanguage, text + offset, length,
+                                  flags, sink);
+        }
+      }
+
+      firstTextRange = firstTextRange && length == 0;
+      iter = iterNext;
+      startFrame = endFrame;
+    }
   }
 }
 

@@ -197,9 +197,9 @@ nsresult nsLineBreaker::FlushCurrentWord() {
     RefPtr<nsHyphenator> hyphenator =
         nsHyphenationManager::Instance()->GetHyphenator(mCurrentWordLanguage);
     if (hyphenator) {
-      FindHyphenationPoints(hyphenator, mCurrentWord.Elements(),
-                            mCurrentWord.Elements() + length,
-                            breakState.Elements());
+      FindHyphenationPoints(
+          hyphenator, mCurrentWord.Elements(), mCurrentWord.Elements() + length,
+          breakState.Elements(), mCurrentWordHyphenationLimits);
     }
   }
 
@@ -325,6 +325,7 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
     }
 
     if (offset > 0) {
+      mCurrentWordHyphenationLimits = mHyphenationLimits;
       mTextItems.AppendElement(TextItem(aSink, 0, offset, aFlags));
     }
 
@@ -419,7 +420,8 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
           }
           if (hyphenator) {
             FindHyphenationPoints(hyphenator, aText + wordStart, aText + offset,
-                                  breakState.Elements() + wordStart);
+                                  breakState.Elements() + wordStart,
+                                  mHyphenationLimits);
           }
         }
         if (!mWordContinuation && !noCapitalizationNeeded) {
@@ -450,6 +452,7 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
         return NS_ERROR_OUT_OF_MEMORY;
       }
       memcpy(elems, aText + wordStart, sizeof(char16_t) * len);
+      mCurrentWordHyphenationLimits = mHyphenationLimits;
       mTextItems.AppendElement(TextItem(aSink, wordStart, len, aFlags));
       // Ensure that the break-before for this word is written out
       offset = wordStart + 1;
@@ -475,9 +478,10 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
 void nsLineBreaker::FindHyphenationPoints(nsHyphenator* aHyphenator,
                                           const char16_t* aTextStart,
                                           const char16_t* aTextLimit,
-                                          uint8_t* aBreakState) {
+                                          uint8_t* aBreakState,
+                                          const HyphenationLimits& aLimits) {
   // Early-return for words that are definitely too short to hyphenate.
-  if (aTextLimit - aTextStart < mHyphenateLimitWord) {
+  if (aTextLimit - aTextStart < aLimits.mWord) {
     return;
   }
 
@@ -501,8 +505,7 @@ void nsLineBreaker::FindHyphenationPoints(nsHyphenator* aHyphenator,
   AutoTArray<BreakInfo, 16> oldBreaks;
   // Don't consider setting any breaks where i >= endLimit, as they will
   // definitely be too near the end of the word to be accepted.
-  uint32_t endLimit =
-      string.Length() - std::max<uint32_t>(1u, mHyphenateLimitEnd);
+  uint32_t endLimit = string.Length() - std::max<uint32_t>(1u, aLimits.mEnd);
   for (uint32_t i = 0; i < string.Length(); ++i) {
     // Get current character, converting surrogate pairs to UCS4 for char
     // category lookup.
@@ -542,7 +545,7 @@ void nsLineBreaker::FindHyphenationPoints(nsHyphenator* aHyphenator,
     // all the remaining characters are countable; if there are combining
     // marks, etc., in the trailing part of the word we may need to reset the
     // potential break later, after we've fully counted length.)
-    if (hyphens[i] && length >= mHyphenateLimitStart && i < endLimit) {
+    if (hyphens[i] && length >= aLimits.mStart && i < endLimit) {
       // Keep track of hyphen position and "countable" length of the word.
       oldBreaks.AppendElement(BreakInfo{i + 1, length, aBreakState[i + 1]});
       aBreakState[i + 1] = gfxTextRun::CompressedGlyph::FLAG_BREAK_TYPE_HYPHEN;
@@ -554,7 +557,7 @@ void nsLineBreaker::FindHyphenationPoints(nsHyphenator* aHyphenator,
     }
   }
 
-  if (length < mHyphenateLimitWord) {
+  if (length < aLimits.mWord) {
     // After discounting combining marks, punctuation, controls, etc., the word
     // was too short for hyphenate-limit-chars. If we've set any hyphen breaks,
     // forget them.
@@ -567,7 +570,7 @@ void nsLineBreaker::FindHyphenationPoints(nsHyphenator* aHyphenator,
     // break(s) that we set, until the fragment will be long enough.
     while (!oldBreaks.IsEmpty()) {
       auto lastBreak = oldBreaks.PopLastElement();
-      if (length - lastBreak.mLength >= mHyphenateLimitEnd) {
+      if (length - lastBreak.mLength >= aLimits.mEnd) {
         break;
       }
       aBreakState[lastBreak.mPosition] = lastBreak.mState;
@@ -606,6 +609,7 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
 
     if (offset > 0) {
       UpdateCurrentWordLanguage(aHyphenationLanguage);
+      mCurrentWordHyphenationLimits = mHyphenationLimits;
       mTextItems.AppendElement(TextItem(aSink, 0, offset, aFlags));
     }
 
@@ -715,6 +719,7 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
       // Ensure that the break-before for this word is written out
       offset = wordStart + 1;
       UpdateCurrentWordLanguage(aHyphenationLanguage);
+      mCurrentWordHyphenationLimits = mHyphenationLimits;
       break;
     }
   }

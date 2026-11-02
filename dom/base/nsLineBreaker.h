@@ -220,9 +220,9 @@ class nsLineBreaker {
    */
   void SetHyphenateLimitChars(uint32_t aWordLength, uint32_t aStartLength,
                               uint32_t aEndLength) {
-    mHyphenateLimitWord = std::min(255u, aWordLength);
-    mHyphenateLimitStart = std::min(255u, aStartLength);
-    mHyphenateLimitEnd = std::min(255u, aEndLength);
+    mHyphenationLimits = {uint8_t(std::min(255u, aWordLength)),
+                          uint8_t(std::min(255u, aStartLength)),
+                          uint8_t(std::min(255u, aEndLength))};
   }
 
  private:
@@ -253,9 +253,16 @@ class nsLineBreaker {
 
   void UpdateCurrentWordLanguage(nsAtom* aHyphenationLanguage);
 
+  struct HyphenationLimits {
+    uint8_t mWord = 0;
+    uint8_t mStart = 0;
+    uint8_t mEnd = 0;
+  };
+
   void FindHyphenationPoints(nsHyphenator* aHyphenator,
                              const char16_t* aTextStart,
-                             const char16_t* aTextLimit, uint8_t* aBreakState);
+                             const char16_t* aTextLimit, uint8_t* aBreakState,
+                             const HyphenationLimits& aLimits);
 
   inline constexpr bool IsSegmentSpace(char16_t u) const {
     return u == 0x0020 ||  // SPACE u
@@ -275,9 +282,9 @@ class nsLineBreaker {
   // so they are not purely codepoint or character counts.)
   // (Zero values would have no effect; but text-frame code will update the
   // values from CSS before calling the line-breaker.)
-  uint8_t mHyphenateLimitWord = 0;   // Min word length to auto-hyphenate
-  uint8_t mHyphenateLimitStart = 0;  // Min number of chars before the break
-  uint8_t mHyphenateLimitEnd = 0;    // Min number of chars after the break
+  HyphenationLimits mHyphenationLimits;
+  // Preserve the last contributing text's limits until the word is flushed.
+  HyphenationLimits mCurrentWordHyphenationLimits;
 
   bool mCurrentWordContainsMixedLang = false;
   bool mCurrentWordMightBeBreakable = false;
