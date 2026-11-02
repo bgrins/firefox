@@ -1,0 +1,9 @@
+# Identity-only metric typecheck retry — actual disabled admission
+
+This successor reuses the executed v3 runner, assessor and all restoration/admission helpers. Only the runner execution literal is reset. Runtime2 uses the sealed identity correction9566c412: cascade0b22a697 and unchanged provider90acb505. Both original source captures remain exact. No selected-reference producer or additional source repair is introduced.
+
+Actual V104 HEAD2f3651b43172dc43ad261cc1d0a8b90a49b2b425 and signed receiptf468dde0 bind fresh capturea334e970 (53266/0826f7/5e0684/0), epoch e9b79f4c. The accepted payload identities, source/app/index/flags/control snapshot and 212 consumed-input closure are taken from that authenticated capture. Previous failed runtime evidence remains immutable.
+
+The checker authenticates the new source capsule while retaining exact old base roles, Cargo command, six configuration inputs, assessor and runner apart from its unique execution literal. Intermediate guard helpers and the full app/source/index/control/flags restoration path remain unchanged. The 27 GiB start and 15 GiB running floors remain. Saved checks pass three Cargo parser positives, twenty negatives, seven current-binding negatives and the active-literal identity control; none is a real compile result.
+
+All four execution gates remain false and activation_pending is empty. Root first preserves this disabled package, changes only run.py EXECUTION_ENABLED, POLICY.json execution_enabled, POLICY.json candidate_execution_enabled and TYPECHECK.json execution_enabled to true, then reseals FILES.json. After activation, run.py --check ACTIVE_MANIFEST authenticates saved inputs; run.py --run ACTIVE_MANIFEST owns live guards, the actual Cargo check and restoration. The driver intentionally rejects both modes before activation. No native success, metric repair, browser validation or accepted-fix increment is claimed.

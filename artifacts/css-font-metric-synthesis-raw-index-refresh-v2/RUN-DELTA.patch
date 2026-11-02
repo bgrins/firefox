@@ -1,0 +1,75 @@
+--- artifacts/css-font-metric-synthesis-raw-index-refresh-v1/run.py
++++ artifacts/css-font-metric-synthesis-raw-index-refresh-v2/run.py
+@@ -53,18 +53,23 @@
+     owner.authenticate(owner_dir, policy['owner']['manifest_sha256'])
+     runtime = ROOT / policy['runtime']
+     owner.authenticate(runtime, policy['runtime_manifest_sha256'])
+-    assert policy['live_audit'] and policy['cleanup']
++    assert policy['live_audit'] and policy['cleanup'] and policy['audit_terminal']
+     assert sha(ROOT / policy['live_audit']['path']) == policy['live_audit']['sha256']
+     live = read(ROOT / policy['live_audit']['path'])
+     assert live == read(runtime / 'ROOT-LIVE-RESTORATION.json')
+-    assert (live['root_session'], live['launch_chunk'], live['terminal_chunk'], live['exit']) == (14538, '5cc3e6', 'd5d203', 1)
+-    assert live['native_typecheck_success'] is False
+-    for name in ('restoration_independently_verified', 'source_app_extras_flags_index_controls_verified', 'required_inputs_unchanged', 'source_transition_lock_absent', 'backup_verified'):
++    assert sha(ROOT / policy['audit_terminal']['path']) == policy['audit_terminal']['sha256']
++    terminal = read(ROOT / policy['audit_terminal']['path'])
++    assert terminal == read(runtime / 'ROOT-AUDIT-TERMINAL.json')
++    assert (terminal['session_id'], terminal['launch_chunk'], terminal['terminal_chunk'], terminal['exit']) == (38746, 'd7e6cf', '0c4394', 0)
++    assert terminal['audit_sha256'] == policy['live_audit']['sha256']
++    assert (live['root_session'], live['launch_chunk'], live['terminal_chunk'], live['exit']) == (37936, 'e68e9c', '024ca1', 0)
++    assert live['native_typecheck_success'] is True
++    for name in ('restoration_independently_verified', 'source_app_extras_flags_index_controls_verified', 'required_inputs_unchanged', 'source_transition_lock_absent', 'backup_removed_verified'):
+         assert live[name] is True
+     assert live['epoch_sha256'] == policy['controls']['CURRENT-EPOCH.json']
+     assert live['result_sha256'] == sha(runtime / 'RESULT.json')
+     result = read(runtime / 'RESULT.json')
+-    assert result['success'] is False and result['error']
++    assert result['success'] is True and result['error'] is None
+     assert result['restoration_verified'] and result['runtime_controls_unchanged'] and result['empty_staging_preserved']
+     assert result['publication_errors'] == [] and not result['native_fix_acceptance']
+     typecheck = read(owner_dir / 'TYPECHECK.json')
+@@ -77,10 +82,10 @@
+     assessor = load('refresh_cargo_assessor', owner_dir / 'assess.py')
+     assessment = assessor.assess((runtime / 'candidate-check/build.log').read_bytes(), inner['exit'], ROOT, ROOT / 'objdir-full.noindex')
+     assert assessment == read(runtime / 'candidate-check/ASSESSMENT.json') == result['phase']['cargo']
+-    assert assessment['success'] is False and assessment['build_finished'] == [{'reason':'build-finished','success':False}]
+-    errors = [row['record']['message'] for row in assessment['errors'] if row['error'] == 'compiler error']
+-    assert len(errors) == 4 and sorted(row['code']['code'] for row in errors) == ['E0277','E0369','E0369','E0369']
+-    assert all('PrioritaryPropertyId' in row['message'] for row in errors)
++    assert assessment['success'] is True and assessment['build_finished'] == [{'reason':'build-finished','success':True}]
++    assert assessment['errors'] == [] and set(assessment['requested_library_artifacts']) == {'style','geckoservo'}
++    warning_codes = [row['message']['code']['code'] for row in assessment['warnings']]
++    assert sorted(warning_codes) == ['dead_code'] * 7 + ['missing_docs'] * 4
+     pre = read(runtime / 'PAIR-PRE.json')
+     post, raw = read(runtime / 'POST.json'), read(runtime / 'RAW-INDEX-OBSERVATION.json')
+     assert pre['controls'] == policy['controls']
+@@ -92,15 +97,11 @@
+     assert restored['sources'] == {name:{'sha256':row['base_sha256'],'identity':pre['sources'][name]['identity']} for name,row in roles.items()}
+     groups = [read(runtime / name)['pgid'] for name in ('candidate-check/build-PROCESS.json','candidate-check/WAKE-PROCESS.json')]
+     assert len(set(groups)) == 2 and live['owned_groups_absent'] == groups
+-    historical = read(runtime / 'BACKUP-CLEANUP.json')
+-    assert historical['removed'] is False and historical['verified_original_restoration'] and historical['retained_after_failure']
++    cleanup = read(runtime / 'BACKUP-CLEANUP.json')
+     assert sha(ROOT / policy['cleanup']['path']) == policy['cleanup']['sha256']
+-    cleanup = read(ROOT / policy['cleanup']['path'])
+-    assert cleanup == read(runtime / 'ROOT-BACKUP-CLEANUP.json')
+-    assert cleanup['removed'] and cleanup['failed_compile_evidence_retained']
+-    assert cleanup['independent_audit_sha256'] == policy['live_audit']['sha256']
+-    assert (cleanup['audit_session_id'],cleanup['audit_launch_chunk'],cleanup['audit_terminal_chunk'],cleanup['audit_exit']) == (60100,'0a192d','f0e859',0)
+-    assert cleanup['owned_backup_bytes'] == historical['owned_backup_bytes'] == live['owned_backup_bytes'] == 1008605176
++    assert cleanup == read(ROOT / policy['cleanup']['path'])
++    assert cleanup['removed'] and cleanup['verified_original_restoration'] and not cleanup['retained_after_failure']
++    assert cleanup['owned_backup_bytes'] == live['owned_backup_bytes'] == 1008605176
+     owner_policy = read(owner_dir / 'POLICY.json')
+     capture = read(ROOT / owner_policy['current_binding']['path'])
+     assert live['capture_sha256'] == sha(ROOT / owner_policy['current_binding']['path']) == owner_policy['current_binding']['sha256']
+@@ -170,7 +171,7 @@
+     (output/'PRE-CURRENT-EPOCH.json').write_bytes(controls['CURRENT-EPOCH.json'])
+     state.save(output/'PRE.json',before)
+     state.save(output/'ADMISSION-RAW.json', {'canonical_before': raw['before'], 'frozen_pair_after': raw['after'], 'actual_after': actual_index['raw_index'], 'semantic_index_unchanged': True, 'full_frozen_post_equal_except_raw': True})
+-    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'restored metric typecheck fresh raw observation refresh'})+'\n')
++    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'successful metric typecheck fresh raw observation refresh'})+'\n')
+     lock_identity = (lock.stat().st_dev,lock.stat().st_ino)
+     def check_controls(body):
+         for name,claim in claims.items():

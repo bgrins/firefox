@@ -1,0 +1,7 @@
+# Metric native compilation milestone
+
+The corrected identity candidate passed its first real native Cargo check in 37936/e68e9c/024ca1, exit 0. The strict assessor found exactly one successful build-finished record and both style and geckoservo library artifacts, with zero compiler errors. All eleven warnings remain recorded: seven dead_code and four missing_docs. This supersedes the earlier four-error compile attempt without changing that historical evidence.
+
+Root independently verified restoration in 38746/d7e6cf/0c4394/0. Both owned process groups were absent; the two Rust source files, application, extra binaries, flags and controls were restored. The owner removed its verified 1,008,605,176-byte backup. The canonical raw-index refresh and closing research checkpoint are administrative preservation steps, separate from the compile result.
+
+Next implement the selected-reference producer described in the sealed next-step report, using the compiled identity candidate as the starting point. Keep retained declaration selection, dependency readiness and resumption ownership explicit; the finite resumption model supplies conditional reasoning, not proof of native refinement or scheduler progress. Then repeat actual native checking before browser validation. No browser correctness or metric fix is accepted here. The catalogue remains 156 committed native fixes (highest ID157); the existing full readout remains authoritative.

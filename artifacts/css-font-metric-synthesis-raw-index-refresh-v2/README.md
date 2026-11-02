@@ -1,0 +1,5 @@
+# Raw-index refresh after the successful metric Cargo check
+
+Disabled successor of the executed metric refresh. The saved evidence adapter requires the actual successful Cargo attempt, all eleven retained warnings, independent root restoration authority and the owner’s verified backup removal. The original signed V104 receipt remains distinct from this raw-only state update. Actual owner 37936/e68e9c/024ca1 exited 0. Root independently verified restoration in 38746/d7e6cf/0c4394/0; frozen runtime 0796ab44 preserves both authorities and owner removal of the 1,008,605,176-byte backup. Full saved bindings are now present.
+
+The derive/fresh-raw admission and complete live write/rollback path remain unchanged except the operation label. Only raw_index_observation.current may change; fresh raw bytes require exact semantic-index and full restored snapshot equivalence. Source/app/extras/flags/process/signature checks and write-race rejection remain. No browser behavior, native fix acceptance or catalogue increase is implied by a successful compile.

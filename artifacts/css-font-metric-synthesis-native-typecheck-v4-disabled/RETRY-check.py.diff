@@ -1,0 +1,77 @@
+--- artifacts/css-font-metric-synthesis-native-typecheck-v3/check.py
++++ artifacts/css-font-metric-synthesis-native-typecheck-v4/check.py
+@@ -7,6 +7,8 @@
+ import sys
+ 
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
++EXPECTED_HEAD = '2f3651b43172dc43ad261cc1d0a8b90a49b2b425'
++EXPECTED_CHECKPOINT = 'f468dde09f447fc22717bc27aaca8b9f51cb78c1eabf848bf636f072152c1046'
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+ read = lambda p: json.loads(p.read_bytes())
+@@ -29,8 +31,8 @@
+ 
+ def validate_policy(policy):
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-font-metric-synthesis-native-typecheck-runtime-1'
+-    assert policy['head'] == '6150cc523a2b35b52e8af0f898af471f344862d2'
++    assert policy['runtime_output'] == 'artifacts/css-font-metric-synthesis-native-typecheck-runtime-2'
++    assert policy['head'] == EXPECTED_HEAD
+     assert policy['ownership_commit'] == '8870962db02b006791085b73f9e270942e145365'
+     admission = load('admission')
+     prior = admission.authenticate(ROOT, policy['predecessor_binding'])
+@@ -42,16 +44,21 @@
+         assert policy[name] == old[name], name
+     assert policy['wpt_lanes'] == {} and policy['lane_order'] == policy['diagnostic_lane_order'] == []
+     admission.authenticate(ROOT, policy['source_binding'])
+-    assert policy['source_binding']['directory'] == 'artifacts/css-font-metric-synthesis-producer-v1'
++    assert policy['source_binding']['directory'] == 'artifacts/css-font-metric-synthesis-identity-v1'
+     typecheck = read(HERE / 'TYPECHECK.json')
+     prepared = read(template / 'TYPECHECK.json')
+-    for name in ('source_roles', 'command', 'required_input_hashes', 'fresh_input_revalidation_required'):
++    for name in ('command', 'required_input_hashes', 'fresh_input_revalidation_required'):
+         assert typecheck[name] == prepared[name], name
+     assert typecheck['current_binding'] == policy['current_binding']
+     assert typecheck['baseline_and_policy_materialization_required'] is False
+     assert policy['required_typecheck_inputs'] == typecheck['required_input_hashes']
+     roles = read(HERE / 'SOURCE-ROLES.json')
+     assert roles == typecheck['source_roles'] and len(roles) == 2
++    assert set(roles) == set(prepared['source_roles'])
++    for name, row in roles.items():
++        for key in ('base_sha256', 'base_capture'):
++            assert row[key] == prepared['source_roles'][name][key]
++        assert row['candidate_capture'] == policy['source_binding']['directory'] + '/candidate/' + name
+     assert policy['committed_source_preimages'] == {name: row['base_sha256'] for name, row in roles.items()}
+     for row in roles.values():
+         for kind in ('base', 'candidate'):
+@@ -68,8 +75,13 @@
+     for path, digest in closure.items():
+         if path.startswith('artifacts/'):
+             assert digest is not None and sha(ROOT / path) == digest, path
++    if policy['current_binding'] is None:
++        assert EXPECTED_HEAD is EXPECTED_CHECKPOINT is None and policy['head'] is None
++        assert policy['controls'] is None and policy['accepted_current_payloads'] == {}
++        assert policy['activation_pending'] and not policy['execution_enabled']
++        return len(closure)
+     capture = admission.validate_current(ROOT, policy, roles)
+-    assert capture['checkpoint_receipt']['sha256'] == 'ce2f4c5ac8b76f47ed20b0dfabec0f5702fe5413d9f0caf4461c062e38e79f36'
++    assert capture['checkpoint_receipt']['sha256'] == EXPECTED_CHECKPOINT
+     adapter = read(ROOT / policy['capture_owner']['directory'] / 'BINDINGS.json')
+     assert adapter['typecheck_required_inputs'] == typecheck['required_input_hashes']
+     assert policy['resource_policy']['start_after_backups_bytes'] == 27 * 1024**3
+@@ -87,6 +99,15 @@
+     active = driver.replace('EXECUTION_ENABLED = False', 'EXECUTION_ENABLED = True')
+     assert normalized_driver(active, True) == driver
+     assert normalized_driver(active + '\nraise RuntimeError(\'unrelated change\')\n', True) != driver
++    if policy['current_binding'] is None:
++        try:
++            load('baseline').require_ready(policy)
++        except AssertionError:
++            pass
++        else:
++            raise AssertionError('Pending admission accepted')
++        print(json.dumps({'consumed_inputs': count, 'pending_admission_rejected': True, 'no_live_operations': True}))
++        raise SystemExit(0)
+     negatives = 0
+     for key, value in [('head', '0' * 40), ('ownership_commit', '0' * 40), ('current_binding', None), ('controls', {}), ('accepted_current_payloads', {}), ('committed_source_preimages', {}), ('required_typecheck_inputs', {})]:
+         changed = copy.deepcopy(policy)
