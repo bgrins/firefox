@@ -2360,7 +2360,7 @@ fn substitute_one_reference<'a>(
         return Err(());
     };
 
-    do_substitute_chunk(
+    let mut substitution = do_substitute_chunk(
         css,
         fallback.start.get(),
         reference.end - 1, // Skip the closing parenthesis of the reference value.
@@ -2375,7 +2375,9 @@ fn substitute_one_reference<'a>(
         attribute_tracker,
         seen,
         /* attr_taint */ None,
-    )
+    )?;
+    substitution.attr_tainted |= reference.substitution_kind == SubstitutionFunctionKind::Attr;
+    Ok(substitution)
 }
 
 /// Replace `var()`, `env()`, and `attr()` functions. Return `Err(..)` for invalid at computed time.
