@@ -615,7 +615,7 @@ fn tweak_when_ignoring_colors(
 }
 
 /// We track the index only for prioritary properties. For other properties we can just iterate.
-type DeclarationIndex = u16;
+type DeclarationIndex = u32;
 
 /// "Prioritary" properties are properties that other properties depend on in one way or another.
 ///
