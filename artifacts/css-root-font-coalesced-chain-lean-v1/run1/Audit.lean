@@ -1,0 +1,26 @@
+import Coalesced
+#print axioms CoalescedChain.refresh_valid
+#print axioms CoalescedChain.refresh_value
+#print axioms CoalescedChain.select_valid
+#print axioms CoalescedChain.complete_valid
+#print axioms CoalescedChain.complete_endpoint_refresh_unchanged
+#print axioms CoalescedChain.downstream_coherent
+#print axioms CoalescedChain.step_coherent
+#print axioms CoalescedChain.downstream_length
+#print axioms CoalescedChain.step_length
+#print axioms CoalescedChain.refresh_weight
+#print axioms CoalescedChain.select_weight
+#print axioms CoalescedChain.complete_weight
+#print axioms CoalescedChain.downstream_weight
+#print axioms CoalescedChain.step_decreases
+#print axioms CoalescedChain.quiet_dependency_values
+#print axioms CoalescedChain.progress
+#print axioms CoalescedChain.history_budget
+#print axioms CoalescedChain.history_coherent
+#print axioms CoalescedChain.stopped_values
+#print axioms CoalescedChain.selected_is_not_installed
+#print axioms CoalescedChain.stale_completion_preserves_newest
+#print axioms CoalescedChain.unchanged_refresh_keeps_application
+#print axioms CoalescedChain.sample_dependency_coherent
+#print axioms CoalescedChain.real_change_marks_child
+#print axioms CoalescedChain.dropped_work_counterexample

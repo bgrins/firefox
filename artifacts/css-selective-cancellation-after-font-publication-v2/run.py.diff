@@ -1,0 +1,28 @@
+--- artifacts/css-selective-cancellation-after-font-publication-v1/run.py
++++ artifacts/css-selective-cancellation-after-font-publication-v2/run.py
+@@ -46,7 +46,7 @@
+ 
+ 
+ def claim_uninstalled_source(owner, root, epoch, ownership, path, pin, captured):
+-    assert epoch['pins'].get(path) == pin
++    assert path == UNINSTALLED_SOURCE and path not in epoch['pins']
+     assert path not in epoch['installed_identities'] and path not in ownership
+     assert captured['path'] == path and captured['owned_sha256'] == pin
+     claim = owner.claim(root, path, pin, captured['identity'])
+@@ -95,12 +95,12 @@
+     assert git('rev-parse', 'HEAD').decode().strip() == binding['head']
+     assert git('symbolic-ref', 'HEAD').decode().strip() == binding['branch']
+     prior = authenticated_receipt(binding, 'predecessor_receipt')
+-    assert binding['predecessor_kind'] == 'signed-font-unit-native' and stage['stage'] == 'selective-cancellation'
++    assert binding['predecessor_kind'] == 'signed-research-after-font' and stage['stage'] == 'selective-cancellation'
+     evidence = load('cancellation_evidence', HERE / 'evidence.py')
+     observed = evidence.verify(ROOT, policy['pair_binding'], stage)
+-    evidence.require_font_receipt(prior, observed['font_stage'])
+-    assert prior == observed['font_native'] and prior['commit'] == binding['head']
+-    evidence.verify_font_history(git, policy['allowed_signers'], prior, observed['font_stage'], observed['tested_head'])
++    font = observed['font_native']
++    evidence.verify_font_history(git, policy['allowed_signers'], font, observed['font_stage'], observed['tested_head'])
++    evidence.verify_research_history(git, policy['allowed_signers'], prior, font, binding['head'])
+     controls = {n: (RUNTIME / n).read_bytes() for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+     assert {n: digest(b) for n, b in controls.items()} == binding['controls']
+     epoch, ownership, role = (json.loads(controls[n]) for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json'))

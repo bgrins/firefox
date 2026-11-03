@@ -1,0 +1,166 @@
+{
+  "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+  "source": "git show immutable objects; no working-source read",
+  "files": {
+    "dom/animation/EffectCompositor.h": {
+      "sha256": "5ee054432f5105515def6f1eba9e2875226d6a59b6a0dc4d1e05b9617a12dc19",
+      "excerpts": [
+        {
+          "label": "queue",
+          "symbol_or_text": "// Elements with a pending animation restyle.",
+          "start_line_in_pinned_object": 239,
+          "sha256": "8e621a5f20a65958ecc333737b3576e29f781c229d94526a1a2620986a8f707e",
+          "text": "// Elements with a pending animation restyle. The associated bool value is\n  // true if a pending animation restyle has also been dispatched. For\n  // animations that can be throttled, we will add an entry to the hashtable to\n  // indicate that the style rule on the element is out of date but without\n  // posting a restyle to update it.\n  EnumeratedArray<CascadeLevel, nsTHashMap<PseudoElementHashEntry, bool>,\n                  kCascadeLevelCount>\n      mElementsToRestyle;\n\n  bool mIsInPreTraverse = false;\n"
+        }
+      ]
+    },
+    "dom/animation/EffectCompositor.cpp": {
+      "sha256": "6ec3a0ca45789b3089e8d2abcfb3ff37b881b0ee9084e09d0d396d73491249ed",
+      "excerpts": [
+        {
+          "label": "request",
+          "symbol_or_text": "void EffectCompositor::RequestRestyle(",
+          "start_line_in_pinned_object": 198,
+          "sha256": "503290c5d83efae4caecc6d2f1d4fb7453d2240f4ec6d73c24940e805a010cca",
+          "text": "void EffectCompositor::RequestRestyle(dom::Element* aElement,\n                                      const PseudoStyleRequest& aPseudoRequest,\n                                      RestyleType aRestyleType,\n                                      CascadeLevel aCascadeLevel) {\n  if (!mPresContext) {\n    // Pres context will be null after the effect compositor is disconnected.\n    return;\n  }\n\n  // Ignore animations on orphaned elements and elements in documents without\n  // a pres shell (e.g. XMLHttpRequest responseXML documents).\n  if (!nsContentUtils::GetPresShellForContent(aElement)) {\n    return;\n  }\n\n  auto& elementsToRestyle = mElementsToRestyle[aCascadeLevel];\n  PseudoElementHashEntry::KeyType key = {aElement, aPseudoRequest};\n\n  bool& restyleEntry = elementsToRestyle.LookupOrInsert(key, false);\n  if (aRestyleType == RestyleType::Throttled) {\n    mPresContext->PresShell()->SetNeedThrottledAnimationFlush();\n  } else {\n    // Update hashtable first in case PostRestyleForAnimation mutates it\n    // and invalidates the restyleEntry reference.\n    // (It shouldn't, but just to be sure.)\n    bool skipRestyle = std::exchange(restyleEntry, true);\n    if (!skipRestyle) {\n      PostRestyleForAnimation(aElement, aPseudoRequest, aCascadeLevel);\n    }\n  }\n\n  if (aRestyleType == RestyleType::Layer) {\n    mPresContext->RestyleManager()->IncrementAnimationGeneration();\n    if (auto* effectSet = EffectSet::Get(aElement, aPseudoRequest)) {\n      effectSet->UpdateAnimationGeneration(mPresContext);\n    }\n  }\n}\n\nvoid EffectCompositor::PostRestyleForAnimation(\n"
+        },
+        {
+          "label": "selection",
+          "symbol_or_text": "bool EffectCompositor::PreTraverseInSubtree(",
+          "start_line_in_pinned_object": 799,
+          "sha256": "125cc3f375551c8f4adeacc7b7b4949d0628f504ece5d44d5a2a05799e73f841",
+          "text": "bool EffectCompositor::PreTraverseInSubtree(ServoTraversalFlags aFlags,\n                                            Element* aRoot) {\n  MOZ_ASSERT(NS_IsMainThread());\n  MOZ_ASSERT(!aRoot || nsContentUtils::GetPresShellForContent(aRoot),\n             \"Traversal root, if provided, should be bound to a display \"\n             \"document\");\n\n  // Convert the root element to the parent element if the root element is\n  // pseudo since we check each element in mElementsToRestyle is in the subtree\n  // of the root element later in this function, but for pseudo elements the\n  // element in mElementsToRestyle is the parent of the pseudo.\n  if (aRoot && (aRoot->IsGeneratedContentContainerForBefore() ||\n                aRoot->IsGeneratedContentContainerForAfter() ||\n                aRoot->IsGeneratedContentContainerForBackdrop() ||\n                aRoot->IsGeneratedContentContainerForMarker())) {\n    aRoot = aRoot->GetParentElement();\n  }\n\n  AutoRestore<bool> guard(mIsInPreTraverse);\n  mIsInPreTraverse = true;\n\n  // We need to force flush all throttled animations if we also have\n  // non-animation restyles (since we'll want the up-to-date animation style\n  // when we go to process them so we can trigger transitions correctly), and\n  // if we are currently flushing all throttled animation restyles.\n  bool flushThrottledRestyles =\n      (aRoot && aRoot->HasDirtyDescendantsForServo()) ||\n      (aFlags & ServoTraversalFlags::FlushThrottledAnimations);\n\n  using ElementsToRestyleIterType =\n      nsTHashMap<PseudoElementHashEntry, bool>::ConstIterator;\n  auto getNeededRestyleTarget =\n      [&](const ElementsToRestyleIterType& aIter) -> NonOwningAnimationTarget {\n    NonOwningAnimationTarget returnTarget;\n\n    // If aIter.Data() is false, the element only requested a throttled\n    // (skippable) restyle, so we can skip it if flushThrottledRestyles is not\n    // true.\n    if (!flushThrottledRestyles && !aIter.Data()) {\n      return returnTarget;\n    }\n\n    const NonOwningAnimationTarget& target = aIter.Key();\n\n    // Skip elements in documents without a pres shell. Normally we filter out\n    // such elements in RequestRestyle but it can happen that, after adding\n    // them to mElementsToRestyle, they are transferred to a different document.\n    //\n    // We will drop them from mElementsToRestyle at the end of the next full\n    // document restyle (at the end of this function) but for consistency with\n    // how we treat such elements in RequestRestyle, we just ignore them here.\n    if (!nsContentUtils::GetPresShellForContent(target.mElement)) {\n      return returnTarget;\n    }\n\n    // Ignore restyles that aren't in the flattened tree subtree rooted at\n    // aRoot.\n    if (aRoot && !nsContentUtils::ContentIsFlattenedTreeDescendantOfForStyle(\n                     target.mElement, aRoot)) {\n      return returnTarget;\n    }\n\n    returnTarget = target;\n    return returnTarget;\n  };\n\n  bool foundElementsNeedingRestyle = false;\n\n  nsTArray<NonOwningAnimationTarget> elementsWithCascadeUpdates;\n  for (size_t i = 0; i < kCascadeLevelCount; ++i) {\n    CascadeLevel cascadeLevel = CascadeLevel(i);\n    auto& elementSet = mElementsToRestyle[cascadeLevel];\n    for (auto iter = elementSet.ConstIter(); !iter.Done(); iter.Next()) {\n      const NonOwningAnimationTarget& target = getNeededRestyleTarget(iter);\n      if (!target.mElement) {\n        continue;\n      }\n\n      EffectSet* effects = EffectSet::Get(target);\n      if (!effects || !effects->CascadeNeedsUpdate()) {\n        continue;\n      }\n\n      elementsWithCascadeUpdates.AppendElement(target);\n    }\n  }\n\n  for (const NonOwningAnimationTarget& target : elementsWithCascadeUpdates) {\n    MaybeUpdateCascadeResults(target.mElement, target.mPseudoRequest);\n  }\n  elementsWithCascadeUpdates.Clear();\n\n  for (size_t i = 0; i < kCascadeLevelCount; ++i) {\n    CascadeLevel cascadeLevel = CascadeLevel(i);\n    auto& elementSet = mElementsToRestyle[cascadeLevel];\n    for (auto iter = elementSet.Iter(); !iter.Done(); iter.Next()) {\n      const NonOwningAnimationTarget& target = getNeededRestyleTarget(iter);\n      if (!target.mElement) {\n        continue;\n      }\n\n      if (target.mElement->GetComposedDoc() != mPresContext->Document()) {\n        iter.Remove();\n        continue;\n      }\n\n      // We need to post restyle hints even if the target is not in EffectSet to\n      // ensure the final restyling for removed animations.\n      // We can't call PostRestyleEvent directly here since we are still in the\n      // middle of the servo traversal.\n      mPresContext->RestyleManager()->PostRestyleEventForAnimations(\n          target.mElement, target.mPseudoRequest,\n          cascadeLevel == CascadeLevel::Transitions\n              ? RestyleHint::RESTYLE_CSS_TRANSITIONS\n              : RestyleHint::RESTYLE_CSS_ANIMATIONS);\n\n      foundElementsNeedingRestyle = true;\n\n      auto* effects = EffectSet::Get(target);\n      if (!effects) {\n        // Drop EffectSets that have been destroyed.\n        iter.Remove();\n        continue;\n      }\n\n      for (KeyframeEffect* effect : *effects) {\n        effect->GetAnimation()->WillComposeStyle();\n      }\n\n      // Remove the element from the list of elements to restyle since we are\n      // about to restyle it.\n      iter.Remove();\n    }\n\n    // If this is a full document restyle, then unconditionally clear\n    // elementSet in case there are any elements that didn't match above\n    // because they were moved to a document without a pres shell after\n    // posting an animation restyle.\n    if (!aRoot && flushThrottledRestyles) {\n      elementSet.Clear();\n    }\n  }\n\n  return foundElementsNeedingRestyle;\n}\n\nvoid EffectCompositor::NoteElementForReducing(\n    const NonOwningAnimationTarget& aTarget) {\n  (void)mElementsToReduce.put(\n      OwningAnimationTarget{aTarget.mElement, aTarget.mPseudoRequest});\n}\n\nstatic void ReduceEffectSet(EffectSet& aEffectSet) {\n  // Get a list of effects sorted by composite order.\n  nsTArray<KeyframeEffect*> sortedEffectList(aEffectSet.Count());\n"
+        }
+      ]
+    },
+    "dom/animation/KeyframeEffect.h": {
+      "sha256": "e0520592c645b2fe93c4c0af386f35c2fed8401c2610f7559f59a7e544b6a317",
+      "excerpts": [
+        {
+          "label": "computed_properties",
+          "symbol_or_text": "struct AnimationProperty {",
+          "start_line_in_pinned_object": 56,
+          "sha256": "46b5f2dba46a3615622da3d93a302dd866b06a0ad7b06220cccc5cc54ef41d4b",
+          "text": "struct AnimationProperty {\n  CSSPropertyId mProperty;\n\n  // If true, the propery is currently being animated on the compositor.\n  //\n  // Note that when the owning Animation requests a non-throttled restyle, in\n  // between calling RequestRestyle on its EffectCompositor and when the\n  // restyle is performed, this member may temporarily become false even if\n  // the animation remains on the layer after the restyle.\n  //\n  // **NOTE**: This member is not included when comparing AnimationProperty\n  // objects for equality.\n  bool mIsRunningOnCompositor = false;\n\n  Maybe<AnimationPerformanceWarning> mPerformanceWarning;\n\n  nsTArray<AnimationPropertySegment> mSegments;\n\n  // The copy constructor/assignment doesn't copy mIsRunningOnCompositor and\n  // mPerformanceWarning.\n  AnimationProperty() : mProperty(eCSSProperty_UNKNOWN) {};\n  AnimationProperty(const AnimationProperty& aOther)\n      : mProperty(aOther.mProperty), mSegments(aOther.mSegments.Clone()) {}\n  AnimationProperty& operator=(const AnimationProperty& aOther) {\n    mProperty = aOther.mProperty;\n    mSegments = aOther.mSegments.Clone();\n    return *this;\n  }\n\n  // NOTE: This operator does *not* compare the mIsRunningOnCompositor member.\n  // This is because AnimationProperty objects are compared when recreating\n  // CSS animations to determine if mutation observer change records need to\n  // be created or not. However, at the point when these objects are compared\n  // the mIsRunningOnCompositor will not have been set on the new objects so\n  // we ignore this member to avoid generating spurious change records.\n  bool operator==(const AnimationProperty& aOther) const {\n    return mProperty == aOther.mProperty && mSegments == aOther.mSegments;\n  }\n  bool operator!=(const AnimationProperty& aOther) const {\n    return !(*this == aOther);\n  }\n\n"
+        },
+        {
+          "label": "effect_state",
+          "symbol_or_text": "// The specified keyframes.",
+          "start_line_in_pinned_object": 449,
+          "sha256": "4394c9d7141571dae1dae453d8f0ee00890f866cd08cdfe7bfc8a2a54eb51c75",
+          "text": "// The specified keyframes.\n  nsTArray<Keyframe> mKeyframes;\n  // The into about whether there are any range-based keyframes in |mKeyframes|,\n  // to avoid any unnecessary passes of |mKeyframes|.\n  KeyframeOffsetsHasRangeOffset mKeyframeOffsetsHasRangeOffset =\n      KeyframeOffsetsHasRangeOffset::No;\n\n  // A set of per-property value arrays, derived from |mKeyframes|.\n  nsTArray<AnimationProperty> mProperties;\n  // Conservative until keyframes can be computed with a target style.\n  bool mReferencesAttributes = false;\n\n  // The computed progress last time we composed the style rule. This is\n  // used to detect when the progress is not changing (e.g. due to a step\n  // timing function) so we can avoid unnecessary style updates.\n  Nullable<double> mProgressOnLastCompose;\n\n  // The purpose of this value is the same as mProgressOnLastCompose but\n  // this is used to detect when the current iteration is not changing\n  // in the case when iterationComposite is accumulate.\n  uint64_t mCurrentIterationOnLastCompose = 0;\n\n  // We need to track when we go to or from being \"in effect\" since\n  // we need to re-evaluate the cascade of animations when that changes.\n  bool mInEffectOnLastAnimationTimingUpdate = false;\n\n"
+        }
+      ]
+    },
+    "dom/animation/AnimationPropertySegment.h": {
+      "sha256": "fee88c6d1b2e88fa921adc4fff1cc54515d0d26cf28536a09e1c6d1512ac6ebc",
+      "excerpts": [
+        {
+          "label": "segment",
+          "symbol_or_text": "struct AnimationPropertySegment {",
+          "start_line_in_pinned_object": 15,
+          "sha256": "98bfd5c0c98740f2f62f681b3bc396848f22aeba43bc36ca389fd443e8f9b216",
+          "text": "struct AnimationPropertySegment {\n  float mFromKey, mToKey;\n  // NOTE: In the case that no keyframe for 0 or 1 offset is specified\n  // the unit of mFromValue or mToValue is eUnit_Null.\n  AnimationValue mFromValue, mToValue;\n\n  Maybe<StyleComputedTimingFunction> mTimingFunction;\n  dom::CompositeOperation mFromComposite = dom::CompositeOperation::Replace;\n  dom::CompositeOperation mToComposite = dom::CompositeOperation::Replace;\n\n  bool HasReplaceableValues() const {\n    return HasReplaceableFromValue() && HasReplaceableToValue();\n  }\n\n  bool HasReplaceableFromValue() const {\n    return !mFromValue.IsNull() &&\n           mFromComposite == dom::CompositeOperation::Replace;\n  }\n\n  bool HasReplaceableToValue() const {\n    return !mToValue.IsNull() &&\n           mToComposite == dom::CompositeOperation::Replace;\n  }\n\n  bool operator==(const AnimationPropertySegment& aOther) const {\n    return mFromKey == aOther.mFromKey && mToKey == aOther.mToKey &&\n           mFromValue == aOther.mFromValue && mToValue == aOther.mToValue &&\n           mTimingFunction == aOther.mTimingFunction &&\n           mFromComposite == aOther.mFromComposite &&\n           mToComposite == aOther.mToComposite;\n  }\n  bool operator!=(const AnimationPropertySegment& aOther) const {\n    return !(*this == aOther);\n  }\n};\n"
+        }
+      ]
+    },
+    "dom/animation/Keyframe.h": {
+      "sha256": "0902b8c4296df696a9f26440d90e080e5ee9fd582882c2f5f2a94dfbed1c344b",
+      "excerpts": [
+        {
+          "label": "specified_pair",
+          "symbol_or_text": "struct PropertyValuePair {",
+          "start_line_in_pinned_object": 21,
+          "sha256": "19d2b732a6f6240451459c0ab6b4ea5cbf664415d669426be88537497edb874a",
+          "text": "struct PropertyValuePair {\n  explicit PropertyValuePair(const CSSPropertyId& aProperty)\n      : mProperty(aProperty) {}\n\n  PropertyValuePair(const CSSPropertyId& aProperty,\n                    RefPtr<StyleLockedDeclarationBlock>&& aValue)\n      : mProperty(aProperty), mServoDeclarationBlock(std::move(aValue)) {}\n\n  CSSPropertyId mProperty;\n\n  // The specified value when using the Servo backend.\n  // If it is nullptr, we use the base values, i.e. the value generated for that\n  // property by finding the computed value for that property in the absence of\n  // animations, when composing the animations and getkeyframes().\n  RefPtr<StyleLockedDeclarationBlock> mServoDeclarationBlock;\n\n#ifdef DEBUG\n  // Flag to indicate that when we call StyleAnimationValue::ComputeValues on\n  // this value we should behave as if that function had failed.\n  bool mSimulateComputeValuesFailure = false;\n#endif\n\n  bool operator==(const PropertyValuePair&) const;\n};\n"
+        }
+      ]
+    },
+    "dom/animation/Animation.cpp": {
+      "sha256": "f227dba4007cea20d9ca4e70a3c3a41993a2b011a02b6d633d3b6dca1e9ae1cd",
+      "excerpts": [
+        {
+          "label": "paused",
+          "symbol_or_text": "AnimationPlayState Animation::PlayState() const",
+          "start_line_in_pinned_object": 814,
+          "sha256": "082539a2602f41353b7bd1a350419a060bad56042e7bf37d020fe482a61a0cff",
+          "text": "AnimationPlayState Animation::PlayState() const {\n  Nullable<TimeDuration> currentTime = GetCurrentTimeAsDuration();\n  if (currentTime.IsNull() && mStartTime.IsNull() && !Pending()) {\n    return AnimationPlayState::Idle;\n  }\n\n  if (mPendingState == PendingState::PausePending ||\n      (mStartTime.IsNull() && !Pending())) {\n    return AnimationPlayState::Paused;\n  }\n\n  double playbackRate = CurrentOrPendingPlaybackRate();\n  if (!currentTime.IsNull() &&\n      ((playbackRate > 0.0 && currentTime.Value() >= EffectEnd()) ||\n       (playbackRate < 0.0 && currentTime.Value() <= TimeDuration()))) {\n    return AnimationPlayState::Finished;\n  }\n\n  return AnimationPlayState::Running;\n}\n\nPromise* Animation::GetReady(ErrorResult& aRv) {\n  nsCOMPtr<nsIGlobalObject> global = GetRelevantGlobal();\n"
+        }
+      ]
+    },
+    "dom/animation/Animation.h": {
+      "sha256": "cf62585848244f334bda21bba02c6ce6901e60765a7cd674c95c5d817bcab055",
+      "excerpts": [
+        {
+          "label": "class",
+          "symbol_or_text": "virtual CSSAnimation* AsCSSAnimation()",
+          "start_line_in_pinned_object": 116,
+          "sha256": "4a86dfc13d0f3a013a26055f5ca25b84ef2fd5ebf8b132c5f81c9cdfc55102eb",
+          "text": "virtual CSSAnimation* AsCSSAnimation() { return nullptr; }\n  virtual const CSSAnimation* AsCSSAnimation() const { return nullptr; }\n  virtual CSSTransition* AsCSSTransition() { return nullptr; }\n  virtual const CSSTransition* AsCSSTransition() const { return nullptr; }\n\n"
+        },
+        {
+          "label": "pending",
+          "symbol_or_text": "bool Pending() const",
+          "start_line_in_pinned_object": 216,
+          "sha256": "5190dcfdc63404cb5153ce685a8b23318f4bdcbb43d999cf691b58382590a6eb",
+          "text": "bool Pending() const { return mPendingState != PendingState::NotPending; }\n  virtual bool PendingFromJS() const { return Pending(); }\n"
+        }
+      ]
+    },
+    "dom/animation/KeyframeEffect.cpp": {
+      "sha256": "8ec54d488bde7ba5a681e0319f5c0687a35e79391f7e70368539b174e400f239",
+      "excerpts": [
+        {
+          "label": "update",
+          "symbol_or_text": "void KeyframeEffect::UpdateProperties(",
+          "start_line_in_pinned_object": 439,
+          "sha256": "7730dfd3f88f811be33018c3bc6b30493d53394badc35e9bb23aab24ce723b35",
+          "text": "void KeyframeEffect::UpdateProperties(const ComputedStyle* aStyle,\n                                      const AnimationTimeline* aTimeline) {\n  MOZ_ASSERT(aStyle);\n\n  bool referencesAttributes = false;\n  nsTArray<AnimationProperty> properties = BuildProperties(\n      aStyle,\n      aTimeline ? aTimeline\n                : (mAnimation ? mAnimation->GetTimeline() : nullptr),\n      referencesAttributes);\n\n  bool propertiesChanged = mProperties != properties;\n  if (!propertiesChanged) {\n    auto attrTainted = [](const AnimationValue& aValue) {\n      return aValue.mServo && Servo_AnimationValue_IsAttrTainted(aValue.mServo);\n    };\n    for (size_t i = 0; i < properties.Length() && !propertiesChanged; ++i) {\n      if (!properties[i].mProperty.IsCustom()) {\n        continue;\n      }\n      const auto& oldSegments = mProperties[i].mSegments;\n      const auto& newSegments = properties[i].mSegments;\n      for (size_t j = 0; j < newSegments.Length(); ++j) {\n        const auto& oldSegment = oldSegments[j];\n        const auto& newSegment = newSegments[j];\n        if (attrTainted(oldSegment.mFromValue) !=\n                attrTainted(newSegment.mFromValue) ||\n            attrTainted(oldSegment.mToValue) !=\n                attrTainted(newSegment.mToValue)) {\n          propertiesChanged = true;\n          break;\n        }\n      }\n    }\n  }\n\n  // We need to update base styles even if any properties are not changed at all\n  // since base styles might have been changed due to parent style changes, etc.\n  bool baseStylesChanged = false;\n  EnsureBaseStyles(aStyle, properties, aTimeline,\n                   !propertiesChanged ? &baseStylesChanged : nullptr);\n\n  mReferencesAttributes = referencesAttributes;\n\n  if (!propertiesChanged) {\n    if (baseStylesChanged) {\n      RequestRestyle(EffectCompositor::RestyleType::Layer);\n    }\n    return;\n  }\n\n  // Preserve the state of the mIsRunningOnCompositor flag.\n  nsCSSPropertyIDSet runningOnCompositorProperties;\n\n  for (const AnimationProperty& property : mProperties) {\n    if (property.mIsRunningOnCompositor) {\n      runningOnCompositorProperties.AddProperty(property.mProperty.mId);\n    }\n  }\n\n  mProperties = std::move(properties);\n  UpdateEffectSet();\n\n  mCumulativeChanges = {};\n  for (AnimationProperty& property : mProperties) {\n    property.mIsRunningOnCompositor =\n        runningOnCompositorProperties.HasProperty(property.mProperty);\n    CalculateCumulativeChangesForProperty(property);\n  }\n\n  MarkCascadeNeedsUpdate();\n\n  if (mAnimation) {\n    mAnimation->NotifyEffectPropertiesUpdated();\n  }\n\n  RequestRestyle(EffectCompositor::RestyleType::Layer);\n}\n\nvoid KeyframeEffect::UpdateBaseStyle(const ComputedStyle* aStyle) {\n  const AnimationTimeline* timeline =\n      mAnimation ? mAnimation->GetTimeline() : nullptr;\n  bool referencesAttributes = false;\n  EnsureBaseStyles(aStyle,\n                   BuildProperties(aStyle, timeline, referencesAttributes),\n                   nullptr, nullptr);\n"
+        },
+        {
+          "label": "application_timing",
+          "symbol_or_text": "void KeyframeEffect::WillComposeStyle()",
+          "start_line_in_pinned_object": 646,
+          "sha256": "5ea881134a1ef783771d19835cf659cb9c7d2b17f011a8dc4020d5e1832a62c2",
+          "text": "void KeyframeEffect::WillComposeStyle() {\n  ComputedTiming computedTiming = GetComputedTiming();\n  mProgressOnLastCompose = computedTiming.mProgress;\n  mCurrentIterationOnLastCompose =\n      computedTiming.mCurrentIterationForAccumulation;\n}\n\nvoid KeyframeEffect::ComposeStyleRule(StyleAnimationValueMap& aAnimationValues,\n                                      const AnimationProperty& aProperty,\n                                      const AnimationPropertySegment& aSegment,\n                                      const ComputedTiming& aComputedTiming) {\n  auto* opaqueTable =\n      reinterpret_cast<RawServoAnimationValueTable*>(&mBaseValues);\n  Servo_AnimationCompose(&aAnimationValues, opaqueTable, &aProperty.mProperty,\n                         &aSegment, &aProperty.mSegments.LastElement(),\n                         &aComputedTiming, mEffectOptions.mIterationComposite);\n}\n\nvoid KeyframeEffect::ComposeStyle(\n    StyleAnimationValueMap& aComposeResult,\n    const InvertibleAnimatedPropertyIDSet& aPropertiesToSkip,\n    EndpointBehavior aEndpointBehavior) {\n"
+        },
+        {
+          "label": "forward",
+          "symbol_or_text": "void KeyframeEffect::RequestRestyle(",
+          "start_line_in_pinned_object": 1069,
+          "sha256": "11a8815ee8d5ae96c55d1b6697f1dae6b36f1bb3a6b8fd6581338ba7c2b8be47",
+          "text": "void KeyframeEffect::RequestRestyle(\n    EffectCompositor::RestyleType aRestyleType) {\n  if (!mTarget) {\n    return;\n  }\n  nsPresContext* presContext =\n      nsContentUtils::GetContextForContent(mTarget.mElement);\n  if (presContext && mAnimation) {\n    presContext->EffectCompositor()->RequestRestyle(\n        mTarget.mElement, mTarget.mPseudoRequest, aRestyleType,\n        mAnimation->CascadeLevel());\n  }\n}\n\nalready_AddRefed<const ComputedStyle> KeyframeEffect::GetTargetComputedStyle(\n"
+        }
+      ]
+    },
+    "servo/components/style/matching.rs": {
+      "sha256": "41e95acc6e2903963df96bee70c260aeebffdd9b4d5dfc18bd6e875f9352035d",
+      "excerpts": [
+        {
+          "label": "normal_tasks",
+          "symbol_or_text": "fn process_animations(",
+          "start_line_in_pinned_object": 440,
+          "sha256": "726f8f1007c9dd66202e7dd65f30359835673cc16f9bcc720ab57b3f1161eabd",
+          "text": "fn process_animations(\n        &self,\n        context: &mut StyleContext<Self>,\n        old_styles: &mut ElementStyles,\n        new_styles: &mut ResolvedElementStyles,\n        important_rules_changed: bool,\n    ) {\n        use crate::context::UpdateAnimationsTasks;\n\n        let old_values = &old_styles.primary;\n        if context.shared.traversal_flags.for_animation_only() && old_values.is_some() {\n            return;\n        }\n\n        // Bug 868975: These steps should examine and update the visited styles\n        // in addition to the unvisited styles.\n\n        let mut tasks = UpdateAnimationsTasks::empty();\n\n        if old_values.as_deref().map_or_else(\n            || {\n                new_styles\n                    .primary_style()\n                    .get_ui()\n                    .specifies_timeline_scope()\n            },\n            |old| {\n                !old.get_ui()\n                    .timeline_scope_equals(new_styles.primary_style().get_ui())\n            },\n        ) {\n            tasks.insert(UpdateAnimationsTasks::TIMELINE_SCOPES);\n        }\n\n        if old_values.as_deref().map_or_else(\n            || {\n                new_styles\n                    .primary_style()\n                    .get_ui()\n                    .specifies_scroll_timelines()\n            },\n            |old| {\n                !old.get_ui()\n                    .scroll_timelines_equals(new_styles.primary_style().get_ui())\n            },\n        ) {\n            tasks.insert(UpdateAnimationsTasks::SCROLL_TIMELINES);\n        }\n\n        if old_values.as_deref().map_or_else(\n            || {\n                new_styles\n                    .primary_style()\n                    .get_ui()\n                    .specifies_view_timelines()\n            },\n            |old| {\n                !old.get_ui()\n                    .view_timelines_equals(new_styles.primary_style().get_ui())\n            },\n        ) {\n            tasks.insert(UpdateAnimationsTasks::VIEW_TIMELINES);\n        }\n\n        if self.needs_animations_update(\n            context,\n            old_values.as_deref(),\n            new_styles.primary_style(),\n            /* pseudo_element = */ None,\n        ) {\n            tasks.insert(UpdateAnimationsTasks::CSS_ANIMATIONS);\n            tasks.insert(UpdateAnimationsTasks::EFFECT_PROPERTIES);\n        }\n\n        let before_change_style =\n            self.process_transitions(context, old_values.as_ref(), new_styles);\n        if before_change_style.is_some() {\n            tasks.insert(UpdateAnimationsTasks::CSS_TRANSITIONS);\n        }\n\n        if self.has_animations(context.shared) {\n            tasks.insert(UpdateAnimationsTasks::EFFECT_PROPERTIES);\n            if important_rules_changed {\n                tasks.insert(UpdateAnimationsTasks::CASCADE_RESULTS);\n            }\n            if new_styles\n"
+        }
+      ]
+    },
+    "servo/ports/geckolib/glue.rs": {
+      "sha256": "83cc1e6f6d27aa92d34377564aa6969dbdda838dd880b401e35de08f250d5027",
+      "excerpts": [
+        {
+          "label": "conversion_context",
+          "symbol_or_text": "pub extern \"C\" fn Servo_GetComputedKeyframeValues(",
+          "start_line_in_pinned_object": 7500,
+          "sha256": "2ea0698a099ed755ce5ad168cbbe40af8c927f80a2e6a1859a2710c1fbd86c41",
+          "text": "pub extern \"C\" fn Servo_GetComputedKeyframeValues(\n    keyframes: &nsTArray<structs::Keyframe>,\n    element: &RawGeckoElement,\n    pseudo_type: PseudoStyleType,\n    style: &ComputedValues,\n    raw_data: &PerDocumentStyleData,\n    computed_keyframes: &mut nsTArray<structs::ComputedKeyframeValues>,\n) -> bool {\n    use style::applicable_declarations::CascadePriority;\n    use style::properties::{\n        CustomDeclarationValue, KeyframeCustomPropertiesBuilder, PropertyDeclaration,\n    };\n    use style::properties_and_values::value::CustomAnimatedValue;\n    let data = raw_data.borrow();\n    let element = GeckoElement(element);\n    let pseudo = PseudoElement::from_pseudo_type(pseudo_type, None);\n    let parent_element = if pseudo.is_none() {\n        element.inheritance_parent()\n    } else {\n        Some(element)\n    };\n    let parent_data = parent_element.as_ref().and_then(|e| e.borrow_data());\n    let parent_style = parent_data\n        .as_ref()\n        .map(|d| d.styles.primary())\n        .map(|x| &**x);\n\n    let container_size_query =\n        ContainerSizeQuery::for_element(element, parent_style, pseudo.is_some());\n    let mut conditions = Default::default();\n    let mut tree_counting_caches = TreeCountingCaches::default();\n    let mut context = create_context_for_animation(\n        &data,\n        &style,\n        parent_style,\n        /* for_smil_animation = */ false,\n        &mut conditions,\n        container_size_query,\n        &element,\n        &mut tree_counting_caches,\n    );\n\n    let restriction = pseudo.map_or(PropertyFlags::empty(), |p| p.property_restriction());\n\n    let global_style_data = &*GLOBAL_STYLE_DATA;\n    let guard = global_style_data.shared_lock.read();\n"
+        },
+        {
+          "label": "conversion_return",
+          "sha256": "4bdbbf945527952ef46d305733643b86237b350e8ee9d40fead05ce7078d2e93",
+          "text": "erty.mProperty)\n                {\n                    maybe_append_animation_value(prop.as_borrowed(), None);\n                }\n                continue;\n            }\n\n            let declarations = unsafe { &*property.mServoDeclarationBlock.mRawPtr };\n            let guard = declarations.read_with(&guard);\n            for declaration in guard.normal_declaration_iter() {\n                if let PropertyDeclaration::Custom(custom) = declaration\n                    && matches!(custom.value, CustomDeclarationValue::Unparsed(_))\n                {\n                    let registration = data.stylist.get_custom_property_registration(&custom.name);\n                    if !registration.is_universal() {\n                        let value = context\n                            .builder\n                            .custom_properties()\n                            .get(registration, &custom.name);\n                        let value = AnimationValue::Custom(CustomAnimatedValue::from_computed(\n                            &custom.name,\n                            value,\n                        ));\n                        maybe_append_animation_value(value.id(), Some(value.clone()));\n                        continue;\n                    }\n                }\n\n                if let Some(value) = AnimationValue::from_declaration(\n                    declaration,\n                    &mut context,\n                    style,\n                    &default_values,\n                    &mut attribute_tracker,\n                ) {\n                    maybe_append_animation_value(value.id(), Some(value.clone()));\n                }\n            }\n        }\n    }\n    attribute_tracker.references.is_some()\n}\n\n"
+        }
+      ]
+    }
+  }
+}

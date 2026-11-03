@@ -1,0 +1,54 @@
+--- a/layout/style/ServoStyleSet.cpp
++++ b/layout/style/ServoStyleSet.cpp
+@@ -919,6 +919,51 @@
+     }
+   }
+ 
++  constexpr unsigned kMaxAdditionalAnimationPasses = 16;
++  unsigned additionalAnimationPasses = 0;
++  for (; additionalAnimationPasses < kMaxAdditionalAnimationPasses;
++       ++additionalAnimationPasses) {
++    const bool selected =
++        GetPresContext()->EffectCompositor()->PreTraverse(aFlags);
++    if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++      std::fprintf(stderr,
++                   "RFST drain-select set=%p extra=%u selected=%d\n",
++                   static_cast<void*>(this), additionalAnimationPasses + 1,
++                   int(selected));
++    }
++    if (!selected) {
++      break;
++    }
++    DocumentStyleRootIterator iter(mDocument->GetServoRestyleRoot());
++    while (Element* root = iter.GetNextStyleRoot()) {
++      if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++        std::fprintf(stderr,
++                     "RFST drain-subtree set=%p extra=%u root_node=%p\n",
++                     static_cast<void*>(this), additionalAnimationPasses + 1,
++                     static_cast<const void*>(static_cast<const nsINode*>(root)));
++      }
++      AutoPrepareTraversal guard(this);
++      postTraversalRequired |=
++          Servo_TraverseSubtree(root, mRawData.get(), &snapshots, aFlags) ||
++          root->HasAnyOfFlags(Element::kAllServoDescendantBits |
++                              NODE_NEEDS_FRAME);
++    }
++    if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++      std::fprintf(stderr,
++                   "RFST drain-pass-end set=%p extra=%u post_required=%d\n",
++                   static_cast<void*>(this), additionalAnimationPasses + 1,
++                   int(postTraversalRequired));
++    }
++  }
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    std::fprintf(stderr,
++                 "RFST drain-exit set=%p completed=%u cap_reached=%d "
++                 "pending_any=%d\n",
++                 static_cast<void*>(this), additionalAnimationPasses,
++                 int(additionalAnimationPasses == kMaxAdditionalAnimationPasses),
++                 int(GetPresContext()->EffectCompositor()->HasPendingStyleUpdates()));
++  }
++
+   if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
+     std::fprintf(stderr, "RFST document-exit set=%p post_required=%d\n", static_cast<void*>(this), int(postTraversalRequired));
+   }

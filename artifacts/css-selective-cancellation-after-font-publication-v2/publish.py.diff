@@ -1,0 +1,38 @@
+--- artifacts/css-selective-cancellation-after-font-publication-v1/publish.py
++++ artifacts/css-selective-cancellation-after-font-publication-v2/publish.py
+@@ -76,9 +76,6 @@
+         path = args.predecessor.resolve()
+         assert sha(path) == args.predecessor_sha256
+         predecessor = {'path': str(path.relative_to(ROOT)), 'sha256': args.predecessor_sha256}
+-    if args.action == 'install':
+-        assert policy['pair_binding']['font_native_receipt'] is None
+-        policy['pair_binding']['font_native_receipt'] = predecessor
+     load('cancellation_evidence', HERE / 'evidence.py').verify(ROOT, policy['pair_binding'], stage)
+     if args.action == 'delivery':
+         delivery = load('delivery', HERE / 'delivery.py')
+@@ -94,12 +91,15 @@
+     head = runner.git('rev-parse', 'HEAD').decode().strip()
+     prior = read(ROOT / predecessor['path'])
+     assert sha(ROOT / predecessor['path']) == predecessor['sha256']
+-    assert prior['commit'] == head and prior['signature_verified']
++    evidence = load('publication_research_history', HERE / 'evidence.py')
++    font_record = policy['pair_binding']['font_native_receipt']
++    assert sha(ROOT / font_record['path']) == font_record['sha256']
++    evidence.verify_research_history(runner.git, policy['allowed_signers'], prior, read(ROOT / font_record['path']), head)
+     claims = {p: {'sha256': epoch['pins'][p], 'identity': identity}
+               for p, identity in epoch['installed_identities'].items() if p not in stage['files']}
+     binding = {'head': head, 'branch': runner.git('symbolic-ref', 'HEAD').decode().strip(),
+                'controls': controls, 'snapshot': snapshot, 'predecessor_receipt': predecessor,
+-               'predecessor_kind': 'signed-font-unit-native',
++               'predecessor_kind': 'signed-research-after-font',
+                'preserved_claims': claims,
+                'historical_markers': {k:v for k,v in epoch.items() if k.startswith('accepted_')},
+                'absent_metadata': sorted(p.replace('testing/web-platform/tests/', 'testing/web-platform/meta/') + '.ini'
+@@ -107,7 +107,6 @@
+     if installed is None:
+         binding['source_claims'] = {}
+         for path, pin in stage['head_preimages'].items():
+-            assert epoch['pins'].get(path) == pin
+             assert hashlib.sha256(runner.git('show', head + ':' + path)).hexdigest() == pin
+             captured = owner.claim(ROOT, path, pin)
+             binding['source_claims'][path] = runner.claim_source(owner, ROOT, epoch, read(RUNTIME / 'OWNED.json'), path, pin, captured)

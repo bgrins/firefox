@@ -1,0 +1,147 @@
+--- V127/commit.py
++++ V128/commit.py
+@@ -15,7 +15,7 @@
+ BINDINGS = json.loads((HERE / 'BINDINGS.json').read_bytes())
+ HEAD = BINDINGS['head']
+ EPOCH = BINDINGS['epoch_sha256']
+-EXECUTION_ENABLED = True
++EXECUTION_ENABLED = False
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+@@ -76,50 +76,48 @@
+     return module
+ 
+ 
+-def validate_refresh(receipt):
+-    binding = BINDINGS['refresh_binding']
+-    assert binding is not None
+-    parent_binding = BINDINGS['refresh_parent']
+-    parent_dir = ROOT / parent_binding['directory']
+-    assert sha((parent_dir / 'commit.py').read_bytes()) == parent_binding['driver_sha256']
+-    assert sha((parent_dir / 'BINDINGS.json').read_bytes()) == parent_binding['bindings_sha256']
+-    parent = load('previous_verified_raw_refresh', str((parent_dir / 'commit.py').relative_to(ROOT)))
+-    assert parent.BINDINGS['prior_receipt'] == BINDINGS['prior_receipt']
+-    assert parent.BINDINGS['prior_receipt_sha256'] == BINDINGS['prior_receipt_sha256']
+-    previous = parent.saved_admission()
+-    assert parent.BINDINGS['head'] == HEAD
+-    old_epoch = parent.BINDINGS['epoch_sha256']
+-    for binding in BINDINGS['refresh_prefix'] + [binding]:
+-        directory = ROOT / binding['directory']
+-        body = (directory / 'RESULT.json').read_bytes()
+-        assert sha(body) == binding['result_sha256']
+-        result = json.loads(body)
+-        assert result['updated'] and result['updated_only'] == 'raw_index_observation.current'
+-        assert result['preservation_verified'] and result['restoration_independently_verified']
+-        assert result['existing_head_signature_verified'] and result['accepted_fix_increment'] == 0
+-        assert not result['native_fix_acceptance']
+-        assert result['head'] == receipt['commit'] == HEAD
+-        assert result['signed_commit_receipt'] == {'path': BINDINGS['prior_receipt'], 'sha256': BINDINGS['prior_receipt_sha256']}
+-        old_body, new_body = (directory / 'PRE-CURRENT-EPOCH.json').read_bytes(), (directory / 'EPOCH.json').read_bytes()
+-        assert sha(old_body) == result['old_epoch_sha256'] == old_epoch
+-        new_epoch = result['epoch_sha256']
+-        assert sha(new_body) == new_epoch
+-        old, new = json.loads(old_body), json.loads(new_body)
+-        assert old['raw_index_observation']['current'] == result['before']
+-        expected = copy.deepcopy(old)
+-        expected['raw_index_observation']['current'] = result['after']
+-        assert expected == new
+-        assert new['semantic_index']['head'] == HEAD
+-        pre, post = json.loads((directory / 'PRE.json').read_bytes()), json.loads((directory / 'POST.json').read_bytes())
+-        assert pre == post and post['index']['raw_index'] == result['after']
+-        assert {k:v for k,v in post['index'].items() if k != 'raw_index'} == new['semantic_index']
+-        projected_previous = copy.deepcopy(previous)
+-        projected_previous['index']['raw_index'] = result['after']
+-        assert projected_previous == post
+-        previous = post
+-        old_epoch = new_epoch
+-    assert old_epoch == EPOCH
+-    return previous
++def validate_native_publication(receipt):
++    assert set(receipt) == {'stage', 'commit', 'parent', 'signature_verified', 'files', 'epoch_sha256', 'accepted', 'accepted_fix_increment', 'app_rebuilt'}
++    assert receipt['stage'] == 'font-units' and receipt['signature_verified'] is True
++    assert receipt['commit'] == HEAD and receipt['epoch_sha256'] == EPOCH
++    assert receipt['files'] == list(BINDINGS['native_files'])
++    assert receipt['accepted'] is False and receipt['accepted_fix_increment'] == 0
++    assert receipt['app_rebuilt'] is False
++    body = (ROOT / BINDINGS['prior_research_receipt']).read_bytes()
++    assert sha(body) == BINDINGS['prior_research_receipt_sha256']
++    research = json.loads(body)
++    assert research['committed'] and research['signature_verified']
++    assert research['accepted_fix_increment'] == 0 and research['native_working_diff_preserved']
++    assert receipt['parent'] == research['head'] == BINDINGS['native_parent']
++    assert receipt['commit'] != receipt['parent']
++    saved = BINDINGS['native_preservation']
++    directory = ROOT / saved['directory']
++    report_body = (directory / 'REPORT.json').read_bytes()
++    assert sha(report_body) == saved['report_sha256']
++    report = json.loads(report_body)
++    assert report['head'] == HEAD and report['epoch_sha256'] == EPOCH
++    assert report['failed_before_owner_creation'] and report['full_current_state_verified']
++    assert report['generated_owner_and_runtime_absent'] and report['new_tests_absent']
++    assert report['source_transition_lock_absent']
++    controls = {n: (directory / n).read_bytes() for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
++    assert {n:sha(b) for n,b in controls.items()} == saved['controls']
++    assert saved['controls']['CURRENT-EPOCH.json'] == EPOCH
++    epoch = json.loads(controls['CURRENT-EPOCH.json'])
++    snapshot = report['snapshot']
++    assert snapshot['index']['head'] == HEAD
++    assert snapshot['index']['cached_diff'] == snapshot['index']['working_diff'] == sha(b'')
++    assert snapshot['current_raw_stable_during_check'] and snapshot['working_sources_binaries_research_preserved']
++    assert epoch['raw_index_observation']['current'] == snapshot['index']['raw_index']
++    assert epoch['semantic_index'] == {k:v for k,v in snapshot['index'].items() if k != 'raw_index'}
++    publication = epoch['keyframe_font_unit_publication']['font-units']
++    assert publication['native_commit'] == HEAD and publication['files'] == BINDINGS['native_files']
++    assert publication['stage'] == 'font-units' and publication['accepted'] is False
++    assert publication['compiled'] is False and publication['current_app_contains_candidate'] is False
++    for path, digest in BINDINGS['native_files'].items():
++        assert epoch['pins'][path] == digest
++        identity = epoch['installed_identities'][path]
++        assert len(identity) == 2 and all(type(v) is int and v > 0 for v in identity)
++    return snapshot
+ 
+ 
+ def saved_admission():
+@@ -128,12 +126,12 @@
+     assert sha(body) == BINDINGS['prior_receipt_sha256']
+     receipt = json.loads(body)
+     assert set(receipt) == {'stage', 'commit', 'parent', 'signature_verified', 'files', 'epoch_sha256', 'accepted', 'accepted_fix_increment', 'app_rebuilt'}
+-    assert receipt['stage'] == 'capacity' and receipt['signature_verified'] is True
++    assert receipt['stage'] == 'font-units' and receipt['signature_verified'] is True
+     assert receipt['commit'] == HEAD
+-    refreshed = validate_refresh(receipt)
++    refreshed = validate_native_publication(receipt)
+     assert receipt['accepted'] is False and receipt['accepted_fix_increment'] == 0
+     assert receipt['app_rebuilt'] is False
+-    assert receipt['files'] == ['servo/components/style/properties/cascade.rs', 'testing/web-platform/tests/css/css-cascade/prioritary-after-many-unrelated-declarations.html']
++    assert receipt['files'] == list(BINDINGS['native_files'])
+     research_body = (ROOT / BINDINGS['prior_research_receipt']).read_bytes()
+     assert sha(research_body) == BINDINGS['prior_research_receipt_sha256']
+     research = json.loads(research_body)
+@@ -211,7 +209,7 @@
+         assert file.stat().st_size == record['bytes'] and sha(file.read_bytes()) == record['sha256'], path
+     tracked = set(git('ls-files', '-z').decode().split('\0'))
+     skipped = [path for path in selected if path in tracked]
+-    assert not skipped, 'V127 must not reselect already committed payloads'
++    assert not skipped, 'V128 must not reselect already committed payloads'
+     for path in skipped:
+         del selected[path]
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+@@ -235,7 +233,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v127-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v128-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)
+@@ -248,7 +246,7 @@
+             tree = git('write-tree', env=index_env).decode().strip()
+             assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+             message = directory / 'message'
+-            message.write_text('No bug - Record font animation and cancellation repair research. r?#firefox-style-system-reviewers\n')
++            message.write_text('No bug - Record font publication and animation settlement research. r?#firefox-style-system-reviewers\n')
+             with (HERE / 'signing.log').open('x') as stream:
+                 result = subprocess.run(GIT + ['commit', '--quiet', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
+             if result.returncode:

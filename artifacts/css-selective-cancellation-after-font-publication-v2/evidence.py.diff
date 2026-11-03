@@ -1,0 +1,37 @@
+--- artifacts/css-selective-cancellation-after-font-publication-v1/evidence.py
++++ artifacts/css-selective-cancellation-after-font-publication-v2/evidence.py
+@@ -5,7 +5,7 @@
+ read = lambda path: json.loads(path.read_bytes())
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+ BASE = 'e86b64866cdc5e2260ba9be08c45756fd96e21bb'
+-PACKAGE = 'artifacts/css-selective-cancellation-after-font-publication-v1'
++PACKAGE = 'artifacts/css-selective-cancellation-after-font-publication-v2'
+ 
+ 
+ def load(name, path):
+@@ -40,6 +40,17 @@
+             assert not git('ls-tree', parent, '--', path)
+     assert not git('merge-base', '--is-ancestor', tested_head, parent)
+     assert all(path.startswith('artifacts/') for path in git('diff', '--name-only', tested_head, parent).decode().splitlines())
++
++
++def verify_research_history(git, allowed_signers, receipt, font, head):
++    assert receipt['committed'] is True and receipt['signature_verified'] is True
++    assert receipt['accepted_fix_increment'] == 0 and receipt['native_working_diff_preserved'] is True
++    assert receipt['head'] == head and receipt['parent'] == font['commit']
++    assert head != font['commit']
++    assert git('rev-list', '--parents', '-n', '1', head).decode().split() == [head, font['commit']]
++    git('-c', 'gpg.ssh.allowedSignersFile=' + allowed_signers, 'verify-commit', head)
++    assert not git('merge-base', '--is-ancestor', font['commit'], head)
++    assert all(path.startswith('artifacts/') for path in git('diff', '--name-only', font['commit'], head).decode().splitlines())
+ 
+ 
+ def signatures(events, page, count):
+@@ -238,6 +249,7 @@
+     assert binding and binding['font_native_receipt'], 'pending signed font-unit native predecessor'
+     result = verify_completed(root, binding, stage)
+     record = binding['font_native_receipt']
++    assert record == read(root / PACKAGE / 'PAIR-BINDING.json')['font_native_receipt']
+     assert sha(root / record['path']) == record['sha256']
+     receipt = read(root / record['path'])
+     require_font_receipt(receipt, result['font_stage'])

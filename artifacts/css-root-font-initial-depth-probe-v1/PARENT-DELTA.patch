@@ -1,0 +1,78 @@
+--- artifacts/css-root-font-startup-depth-probe-v1/tests/web-animations/animation-model/keyframe-effects/root-font-startup-depth.html
++++ artifacts/css-root-font-initial-depth-probe-v1/tests/web-animations/animation-model/keyframe-effects/initial-root-font-depth.html
+@@ -1,6 +1,6 @@
+ <!doctype html>
+ <meta charset="utf-8">
+-<title>Font animation startup through rem and em dependency chains</title>
++<title>Initial font animations through rem and em dependency chains</title>
+ <meta name="timeout" content="long">
+ <link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+ <link rel="help" href="https://drafts.csswg.org/css-animations-1/#animations">
+@@ -10,7 +10,7 @@
+ <script>
+ "use strict";
+ 
+-window.rootFontStartupDepthObservations = [];
++window.rootFontInitialDepthObservations = [];
+ const nextFrame = win => new Promise(resolve => win.requestAnimationFrame(resolve));
+ const cases = [
+   ["animated", 2],
+@@ -41,7 +41,7 @@
+     const frame = document.createElement("iframe");
+     t.add_cleanup(() => frame.remove());
+     const loaded = new Promise(resolve => frame.onload = resolve);
+-    frame.srcdoc = `<!doctype html><html class="${mode}"><style>
++    frame.srcdoc = `<!doctype html><html class="${mode} active"><style>
+       html { font-size: 23px; }
+       html.literal { font-size: 32px; }
+       html.animated.active { animation: root-size 100s linear both paused; }
+@@ -72,13 +72,7 @@
+       return nodes.map((node, index) => ({node, level: index + 1})).reverse()
+         .map(({node, level}) => ({level, value: read(phase, node, "fontSize", level)}));
+     }
+-    const precondition = {
+-      root: read("pre-root", root, "fontSize", 0),
+-      nodes: nodes.map((node, index) => read("pre-node", node, "fontSize", index + 1)),
+-      rootAnimations: root.getAnimations().length,
+-      nodeAnimations: nodes.map(node => node.getAnimations().length),
+-    };
+-    root.classList.add("active");
++    const precondition = null;
+     const firstLeaf = read("first-leaf", leaf, "fontSize", depth);
+     await nextFrame(win);
+     await nextFrame(win);
+@@ -97,13 +91,13 @@
+       animation: describe(list[0], allTargets[index], expectedNames[index], win),
+     }));
+     const observation = {
+-      mode, depth, standards: doc.compatMode === "CSS1Compat", precondition,
++      mode, depth, startup: "initial-stylesheet", standards: doc.compatMode === "CSS1Compat", precondition,
+       expectedLeaf: 32 * 2 ** depth,
+       expectedNodes: nodes.map((_, index) => ({level: index + 1, value: 32 * 2 ** (index + 1)})),
+       firstLeaf, settledNodes, rootSize, plainSize, afterCalibrationNodes,
+       animationRecords, styleReadOrder,
+     };
+-    window.rootFontStartupDepthObservations.push(observation);
++    window.rootFontInitialDepthObservations.push(observation);
+ 
+     leaf.classList.add("force-target-restyle");
+     const afterTargetRestyle = read("restyle-leaf", leaf, "fontSize", depth);
+@@ -126,10 +120,6 @@
+ 
+     assert_true(observation.standards, "fresh standards document");
+     assert_equals(nodes.length, depth, "complete nested chain");
+-    assert_equals(precondition.root, mode === "animated" ? "23px" : "32px", "pre-styled root");
+-    assert_array_equals(precondition.nodes, Array(depth).fill("11px"), "all descendants pre-styled");
+-    assert_equals(precondition.rootAnimations, 0, "no pre-existing root animation");
+-    assert_array_equals(precondition.nodeAnimations, Array(depth).fill(0), "no pre-existing child animations");
+     assert_equals(rootSize, "32px", "effective root font size");
+     assert_equals(plainSize, "64px", "ordinary rem control");
+     for (const record of animationRecords) {
+@@ -163,6 +153,6 @@
+       assert_approx_equals(parseFloat(record.value), 32 * 2 ** record.level, 0.06,
+         "settled node value at level " + record.level);
+     }
+-  }, `${mode} root with font animation dependency depth ${depth}`);
++  }, `initial ${mode} root with font animation dependency depth ${depth}`);
+ }
+ </script>
