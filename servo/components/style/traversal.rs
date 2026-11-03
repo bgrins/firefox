@@ -333,7 +333,7 @@ where
     styles
 }
 
-/// Calculates the style for a single node.
+/// Calculates the style for a single node and returns its new child restyle hint.
 #[inline]
 #[allow(unsafe_code)]
 pub fn recalc_style_at<E, D, F>(
@@ -342,7 +342,8 @@ pub fn recalc_style_at<E, D, F>(
     element: E,
     data: &mut ElementData,
     note_child: F,
-) where
+) -> RestyleHint
+where
     E: TElement,
     D: DomTraversal<E>,
     F: FnMut(E::ConcreteNode),
@@ -468,6 +469,7 @@ pub fn recalc_style_at<E, D, F>(
     }
 
     clear_state_after_traversing(element, data, flags);
+    child_restyle_hint
 }
 
 fn clear_state_after_traversing<E>(element: E, data: &mut ElementData, flags: TraversalFlags)

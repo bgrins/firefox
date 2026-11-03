@@ -1,0 +1,89 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Child root-relative keyframes after cancelling a root font animation</title>
+<meta name="timeout" content="long">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+window.rootFontCancellationObservations = [];
+const nextFrame = win => new Promise(resolve => win.requestAnimationFrame(resolve));
+const cases = [];
+for (const target of ["existing-child", "new-child", "root-pseudo"]) {
+  for (const barrier of ["none", "root-read"]) {
+    cases.push({unit: "rem", target, barrier});
+  }
+}
+for (const target of ["existing-child", "root-pseudo"]) {
+  cases.push({unit: "rlh", target, barrier: "none"});
+}
+
+function paused(target, from, to, pseudoElement) {
+  const animation = target.animate([{fontSize: from}, {fontSize: to}],
+    {duration: 1000, fill: "both", pseudoElement});
+  animation.pause();
+  animation.currentTime = 500;
+  return animation;
+}
+
+for (const {unit, target: kind, barrier} of cases) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    frame.srcdoc = `<!doctype html><style>
+      html, body { margin: 0; writing-mode: horizontal-tb; }
+      .child { font-size: 11px; line-height: 17px; }
+      html::before { content: "root"; display: block; font-size: 7px; line-height: 9px; }
+      #measure { position: absolute; width: 100rem; }
+    </style><div class="child"></div><div id="measure"></div>`;
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = win.document;
+    await doc.fonts.ready;
+    const root = doc.documentElement;
+    const initialRem = parseFloat(win.getComputedStyle(doc.querySelector("#measure")).width) / 100;
+    assert_greater_than(initialRem, 0, "initial root font size is measurable");
+    root.style.fontSize = "23px";
+    root.style.lineHeight = "37px";
+    assert_equals(win.getComputedStyle(root).fontSize, "23px", "literal root before disturbance");
+    assert_equals(win.getComputedStyle(root).lineHeight, "37px", "literal root line height");
+    let child = doc.querySelector(".child");
+    assert_equals(win.getComputedStyle(child).fontSize, "11px", "existing child styled before disturbance");
+    assert_equals(win.getComputedStyle(root, "::before").fontSize, "7px", "existing pseudo styled before disturbance");
+    const disturbance = paused(root, "1em", "3em");
+    t.add_cleanup(() => disturbance.cancel());
+    assert_approx_equals(parseFloat(win.getComputedStyle(root).fontSize), 2 * initialRem, 0.06,
+      "root em animation calibration");
+    disturbance.cancel();
+    if (barrier === "root-read") {
+      assert_equals(win.getComputedStyle(root).fontSize, "23px", "explicit root-read control");
+      assert_equals(win.getComputedStyle(root).lineHeight, "37px", "explicit root line-height control");
+    }
+    if (kind === "new-child") {
+      child = doc.createElement("div");
+      child.className = "child";
+      doc.body.append(child);
+    }
+    const target = kind === "root-pseudo" ? root : child;
+    const pseudo = kind === "root-pseudo" ? "::before" : null;
+    const animation = paused(target, `1${unit}`, `3${unit}`, pseudo);
+    t.add_cleanup(() => animation.cancel());
+    const first = parseFloat(win.getComputedStyle(target, pseudo).fontSize);
+    await animation.ready;
+    await nextFrame(win);
+    await nextFrame(win);
+    const settled = parseFloat(win.getComputedStyle(target, pseudo).fontSize);
+    const expected = unit === "rem" ? 46 : 74;
+    window.rootFontCancellationObservations.push({unit, kind, barrier, first, settled, expected});
+    assert_equals(animation.currentTime, 500, "paused midpoint");
+    assert_approx_equals(first, expected, 0.06, "first synchronous child value after cancellation");
+    assert_approx_equals(settled, expected, 0.06, "settled child value after cancellation");
+  }, `${kind} ${unit} keyframes after root em cancellation with ${barrier}`);
+}
+</script>

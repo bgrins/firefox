@@ -321,7 +321,29 @@ fn traverse_subtree(
     };
 
     let traversal = RecalcStyleOnly::new(shared_style_context);
-    driver::traverse_dom(&traversal, token, thread_pool);
+    let root = driver::traverse_dom(&traversal, token, thread_pool);
+    if traversal.needs_normal_descendant_restyle() {
+        let mut has_styled_child = false;
+        for child_node in root.traversal_children() {
+            let Some(child) = child_node.as_element() else {
+                continue;
+            };
+            let mut child_data = child.mutate_data();
+            let Some(child_data) = child_data.as_mut() else {
+                continue;
+            };
+            if !child_data.has_styles() {
+                continue;
+            }
+            child_data
+                .hint
+                .insert(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT);
+            has_styled_child = true;
+        }
+        if has_styled_child {
+            unsafe { root.set_dirty_descendants() };
+        }
+    }
 }
 
 /// Traverses the subtree rooted at `root` for restyling.

@@ -1,0 +1,94 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Root-relative keyframes through fixed-font ancestors after cancellation</title>
+<meta name="timeout" content="long">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+window.rootFontCancellationDepthObservations = [];
+const nextFrame = win => new Promise(resolve => win.requestAnimationFrame(resolve));
+const cases = [];
+for (const depth of [1, 4]) {
+  for (const barrier of ["none", "root-read"]) {
+    cases.push({unit: "rem", depth, barrier});
+  }
+}
+
+function paused(target, from, to, pseudoElement) {
+  const animation = target.animate([{fontSize: from}, {fontSize: to}],
+    {duration: 1000, fill: "both", pseudoElement});
+  animation.pause();
+  animation.currentTime = 500;
+  return animation;
+}
+
+for (const {unit, depth, barrier} of cases) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    frame.srcdoc = `<!doctype html><style>
+      html, body { margin: 0; writing-mode: horizontal-tb; }
+      .fixed { font-size: 13px; line-height: 19px; }
+      .child { font-size: 11px; line-height: 17px; }
+      html::before { content: "root"; display: block; font-size: 7px; line-height: 9px; }
+      #measure { position: absolute; width: 100rem; }
+    </style>${'<div class="fixed">'.repeat(depth)}<div class="child"></div>
+      ${"</div>".repeat(depth)}<div id="measure"></div>`;
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = win.document;
+    await doc.fonts.ready;
+    const root = doc.documentElement;
+    const initialRem = parseFloat(win.getComputedStyle(doc.querySelector("#measure")).width) / 100;
+    assert_greater_than(initialRem, 0, "initial root font size is measurable");
+    root.style.fontSize = "23px";
+    root.style.lineHeight = "37px";
+    assert_equals(win.getComputedStyle(root).fontSize, "23px", "literal root before disturbance");
+    assert_equals(win.getComputedStyle(root).lineHeight, "37px", "literal root line height");
+    const child = doc.querySelector(".child");
+    const wrappers = Array.from(doc.querySelectorAll(".fixed"));
+    assert_equals(wrappers.length, depth, "fixed ancestor count");
+    let ancestor = child.parentElement;
+    for (let i = 0; i < depth; i++) {
+      assert_true(ancestor.classList.contains("fixed"), "fixed ancestor in target chain");
+      assert_equals(win.getComputedStyle(ancestor).fontSize, "13px", "fixed ancestor styled before disturbance");
+      assert_equals(win.getComputedStyle(ancestor).lineHeight, "19px", "fixed ancestor line height");
+      assert_equals(ancestor.getAnimations().length, 0, "fixed ancestor has no animation");
+      ancestor = ancestor.parentElement;
+    }
+    assert_equals(ancestor, doc.body, "all fixed ancestors are between body and target");
+    assert_equals(win.getComputedStyle(child).fontSize, "11px", "existing child styled before disturbance");
+    assert_equals(win.getComputedStyle(root, "::before").fontSize, "7px", "existing pseudo styled before disturbance");
+    const disturbance = paused(root, "1em", "3em");
+    t.add_cleanup(() => disturbance.cancel());
+    assert_approx_equals(parseFloat(win.getComputedStyle(root).fontSize), 2 * initialRem, 0.06,
+      "root em animation calibration");
+    disturbance.cancel();
+    if (barrier === "root-read") {
+      assert_equals(win.getComputedStyle(root).fontSize, "23px", "explicit root-read control");
+      assert_equals(win.getComputedStyle(root).lineHeight, "37px", "explicit root line-height control");
+    }
+    const target = child;
+    const pseudo = null;
+    const animation = paused(target, `1${unit}`, `3${unit}`, pseudo);
+    t.add_cleanup(() => animation.cancel());
+    const first = parseFloat(win.getComputedStyle(target, pseudo).fontSize);
+    await animation.ready;
+    await nextFrame(win);
+    await nextFrame(win);
+    const settled = parseFloat(win.getComputedStyle(target, pseudo).fontSize);
+    const expected = 46;
+    window.rootFontCancellationDepthObservations.push({unit, depth, barrier, first, settled, expected});
+    assert_equals(animation.currentTime, 500, "paused midpoint");
+    assert_approx_equals(first, expected, 0.06, "first synchronous child value after cancellation");
+    assert_approx_equals(settled, expected, 0.06, "settled child value after cancellation");
+  }, `existing-child rem keyframes through ${depth} fixed ancestors after root em cancellation with ${barrier}`);
+}
+</script>
