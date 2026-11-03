@@ -1,0 +1,31 @@
+--- artifacts/css-attr-fallback-after-reparse-publication-v2/run.py
++++ artifacts/css-attr-fallback-post-font-after-reparse-publication-v1/run.py
+@@ -85,15 +85,15 @@
+     assert digest(git('show', typed['commit'] + ':' + evidence.ROLE)) == stage['head_preimages'][evidence.ROLE]
+     assert not git('ls-tree', typed['parent'], '--', evidence.TYPED_TEST)
+     assert digest(git('show', typed['commit'] + ':' + evidence.TYPED_TEST)) == typed_source['test']['sha256']
+-    assert not git('merge-base', '--is-ancestor', observed['tested_head'], typed['parent'])
+-    assert all(path.startswith('artifacts/') for path in git('diff', '--name-only', observed['tested_head'], typed['parent']).decode().splitlines())
++    chain = load('fallback_native_chain', HERE / 'chain.py')
++    chain.verify(ROOT, git, str(ROOT / policy['allowed_signers']), policy['publication_chain'],
++                 observed['tested_head'], observed['typed_parent_research'], typed['parent'])
+     if action == 'install':
+         capture = observed['current_capture']
+         assert capture['snapshot'] == binding['snapshot'] and capture['controls'] == binding['controls']
+         assert capture['checkpoint_receipt'] == binding['predecessor_receipt'] and capture['checkpoint'] == prior
+     pair_head = observed['pair_head']
+-    assert not git('merge-base', '--is-ancestor', pair_head, binding['head'])
+-    assert all(path.startswith('artifacts/') for path in git('diff', '--name-only', pair_head, binding['head']).decode().splitlines())
++    chain.artifact_interval(git, str(ROOT / policy['allowed_signers']), pair_head, binding['head'])
+     git('-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / policy['allowed_signers']), 'verify-commit', binding['head'])
+     controls = {n: (RUNTIME / n).read_bytes() for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+     assert {n: digest(b) for n, b in controls.items()} == binding['controls']
+@@ -113,7 +113,7 @@
+     owner.quiescent(RUNTIME)
+     owner.quiescent(ROOT / 'artifacts/css-page-selector-native-runtime-v1')
+     output = ROOT / policy['runtime_output']
+-    assert output.parent == ROOT / 'artifacts' and output.name.startswith('css-attr-fallback-after-reparse-publication-')
++    assert output.parent == ROOT / 'artifacts' and output.name.startswith('css-attr-fallback-post-font-after-reparse-publication-')
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not os.path.lexists(lock)
+     sources = set(stage['head_preimages'])

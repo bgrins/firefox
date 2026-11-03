@@ -1,0 +1,16 @@
+import Rebind
+#print axioms ProviderRebind.invalidate_valid
+#print axioms ProviderRebind.rebind_keeps_numeric_endpoint
+#print axioms ProviderRebind.old_completion_cannot_publish
+#print axioms ProviderRebind.refresh_coherent
+#print axioms ProviderRebind.select_coherent
+#print axioms ProviderRebind.complete_coherent
+#print axioms ProviderRebind.departed_parent_irrelevant
+#print axioms ProviderRebind.root_is_direct_dependency
+#print axioms ProviderRebind.quiet_ready
+#print axioms ProviderRebind.history_length
+#print axioms ProviderRebind.finite_ready_after_last_edit
+#print axioms ProviderRebind.equal_value_context_change
+#print axioms ProviderRebind.missing_rebind_counterexample
+#print axioms ProviderRebind.retained_old_job_counterexample
+#print axioms ProviderRebind.same_value_refresh_keeps_old_job_stale

@@ -1,0 +1,105 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Paused font-size effects rebind equal-value parent and root dependencies</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#computing-property-values">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+window.providerRebindObservations = [];
+
+promise_test(async t => {
+  const frame = document.createElement("iframe");
+  const loaded = new Promise(resolve => { frame.onload = resolve; });
+  frame.srcdoc = `<!doctype html><meta charset="utf-8"><style>
+    html { font-size: 16px; }
+    html.root24 { font-size: 24px; }
+    .parent { font-size: 20px; }
+    .parent.changed { font-size: 30px; }
+    #ordinary { font-size: calc(2em + 1rem); }
+  </style><body><div id="a" class="parent"><span id="moving">moving</span></div>
+  <div id="b" class="parent"><span id="stable">stable</span>
+  <span id="ordinary">ordinary</span><span id="literal">literal</span></div>`;
+  t.add_cleanup(() => frame.remove());
+  document.body.append(frame);
+  await loaded;
+  const win = frame.contentWindow;
+  const doc = frame.contentDocument;
+  const a = doc.getElementById("a");
+  const b = doc.getElementById("b");
+  const names = ["moving", "stable", "ordinary", "literal"];
+  const nodes = Object.fromEntries(names.map(name => [name, doc.getElementById(name)]));
+  const px = node => parseFloat(win.getComputedStyle(node).fontSize);
+  assert_equals(px(doc.documentElement), 16, "initial root calibration");
+  assert_equals(px(a), 20, "initial A calibration");
+  assert_equals(px(b), 20, "initial B calibration");
+  for (const node of Object.values(nodes)) {
+    px(node);
+  }
+  const frames = [{fontSize: "calc(1em + 1rem)"}, {fontSize: "calc(3em + 1rem)"}];
+  const animations = {};
+  for (const name of ["moving", "stable", "literal"]) {
+    const values = name === "literal" ? [{fontSize: "56px"}, {fontSize: "56px"}] : frames;
+    const animation = nodes[name].animate(values, {duration: 1000, fill: "both"});
+    animation.pause();
+    animation.currentTime = 500;
+    animations[name] = animation;
+  }
+  t.add_cleanup(() => Object.values(animations).forEach(animation => animation.cancel()));
+  await Promise.all(Object.values(animations).map(animation => animation.ready));
+  const effects = Object.fromEntries(Object.entries(animations).map(([name, animation]) => [name, animation.effect]));
+  const tick = () => new Promise(resolve => win.requestAnimationFrame(resolve));
+  await tick();
+  await tick();
+  function read(phase, timing, expected) {
+    const values = Object.fromEntries(names.map(name => [name, px(nodes[name])]));
+    const identities = Object.fromEntries(Object.entries(animations).map(([name, animation]) => [name, {
+      sameEffect: animation.effect === effects[name],
+      sameTarget: animation.effect.target === nodes[name],
+      listed: nodes[name].getAnimations().includes(animation),
+      paused: animation.playState === "paused",
+      currentTime: animation.currentTime,
+      progress: animation.effect.getComputedTiming().progress,
+    }]));
+    window.providerRebindObservations.push({phase, timing, expected, values, identities,
+      movingParent: nodes.moving.parentElement.id});
+  }
+  async function sample(phase, expected, parentA, parentB, root) {
+    read(phase, "first", expected);
+    await tick();
+    await tick();
+    read(phase, "settled", expected);
+    const row = window.providerRebindObservations.at(-1);
+    row.providers = {a: px(a), b: px(b), root: px(doc.documentElement)};
+    row.expectedProviders = {a: parentA, b: parentB, root};
+  }
+  await sample("initial", 56, 20, 20, 16);
+  b.append(nodes.moving);
+  await sample("equal-value-rebind", 56, 20, 20, 16);
+  a.classList.add("changed");
+  await sample("departed-parent-change", 56, 30, 20, 16);
+  b.classList.add("changed");
+  await sample("current-parent-change", 76, 30, 30, 16);
+  doc.documentElement.classList.add("root24");
+  await sample("root-change", 84, 30, 30, 24);
+  for (const row of window.providerRebindObservations) {
+    const label = `${row.phase}/${row.timing}`;
+    assert_equals(row.movingParent, row.phase === "initial" ? "a" : "b", `${label} parent identity`);
+    for (const [name, state] of Object.entries(row.identities)) {
+      assert_true(state.sameEffect && state.sameTarget && state.listed && state.paused, `${label}/${name} animation identity`);
+      assert_equals(state.currentTime, 500, `${label}/${name} currentTime`);
+      assert_equals(state.progress, 0.5, `${label}/${name} progress`);
+    }
+    for (const name of names) {
+      assert_approx_equals(row.values[name], name === "literal" ? 56 : row.expected, 0.01, `${label}/${name}`);
+    }
+    if (row.providers) {
+      for (const name of ["a", "b", "root"]) {
+        assert_equals(row.providers[name], row.expectedProviders[name], `${label}/provider ${name}`);
+      }
+    }
+  }
+}, "Existing paused mixed em/rem font-size effect follows its new equal-value parent and root");
+</script>

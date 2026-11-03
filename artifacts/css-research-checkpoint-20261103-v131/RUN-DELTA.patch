@@ -1,0 +1,142 @@
+--- artifacts/css-research-checkpoint-20261103-v130/commit.py
++++ artifacts/css-research-checkpoint-20261103-v131/commit.py
+@@ -15,7 +15,7 @@
+ BINDINGS = json.loads((HERE / 'BINDINGS.json').read_bytes())
+ HEAD = BINDINGS['head']
+ EPOCH = BINDINGS['epoch_sha256']
+-EXECUTION_ENABLED = True
++EXECUTION_ENABLED = False
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+@@ -76,11 +76,11 @@
+     return module
+ 
+ 
+-def validate_native_raw_observation(receipt):
++def validate_native_publication(receipt):
+     assert set(receipt) == {'stage', 'commit', 'parent', 'signature_verified', 'files', 'epoch_sha256', 'accepted', 'accepted_fix_increment', 'app_rebuilt'}
+-    assert receipt['stage'] == 'selective-cancellation' and receipt['signature_verified'] is True
++    assert receipt['stage'] == 'reparse' and receipt['signature_verified'] is True
+     assert receipt['commit'] == HEAD and receipt['parent'] == BINDINGS['native_parent']
+-    assert receipt['files'] == list(BINDINGS['native_files'])
++    assert receipt['epoch_sha256'] == EPOCH and receipt['files'] == list(BINDINGS['native_files'])
+     assert receipt['accepted'] is False and receipt['accepted_fix_increment'] == 0
+     assert receipt['app_rebuilt'] is False
+     research_body = (ROOT / BINDINGS['prior_research_receipt']).read_bytes()
+@@ -89,63 +89,56 @@
+     assert research['committed'] is True and research['signature_verified'] is True
+     assert research['head'] == receipt['parent'] and research['head'] != HEAD
+     assert research['accepted_fix_increment'] == 0 and research['native_working_diff_preserved'] is True
+-    saved = BINDINGS['raw_observation']
++    saved = BINDINGS['native_observation']
+     directory = ROOT / saved['directory']
+     body = (directory / 'RESULT.json').read_bytes()
+     assert sha(body) == saved['result_sha256']
+     result = json.loads(body)
+-    assert result['updated_only'] == 'raw_index_observation.current' and result['head'] == HEAD
+-    for name in ('semantic_index_unchanged', 'full_current_state_verified', 'owned_and_role_unchanged'):
+-        assert result[name] is True
+-    assert result['native_fix_increment'] == 0 and result['actual_raw_change_cause_unestablished'] is True
++    assert result['head'] == HEAD and result['full_current_state_verified'] is True
++    assert result['source_transition_lock_absent'] is True
+     terminal_body = (directory / 'ROOT-TERMINAL.json').read_bytes()
+     assert sha(terminal_body) == saved['terminal_sha256']
+     terminal = json.loads(terminal_body)
+     assert terminal == saved['terminal'] and terminal['exit_code'] == 0
+     assert terminal['result_sha256'] == saved['result_sha256']
+     controls = {n: (directory / n).read_bytes() for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+-    assert {n:sha(body) for n,body in controls.items()} == saved['controls']
+-    assert saved['controls']['CURRENT-EPOCH.json'] == result['epoch_sha256'] == EPOCH
+-    old_body = (directory / 'PRE-CURRENT-EPOCH.json').read_bytes()
+-    assert sha(old_body) == saved['old_epoch_sha256'] == result['old_epoch_sha256'] == receipt['epoch_sha256']
+-    old, epoch = json.loads(old_body), json.loads(controls['CURRENT-EPOCH.json'])
+-    assert old['raw_index_observation']['current'] == result['old_raw']
+-    assert epoch['raw_index_observation']['current'] == result['new_raw']
+-    assert result['old_raw'] != result['new_raw']
+-    expected = copy.deepcopy(old)
+-    expected['raw_index_observation']['current'] = result['new_raw']
+-    assert json.dumps(expected, sort_keys=True) == json.dumps(epoch, sort_keys=True)
+-    for name in ('OWNED.json', 'ROLE.json'):
+-        assert controls[name] == (directory / ('PRE-' + name)).read_bytes()
+-    before_body, after_body = (directory / 'BEFORE.json').read_bytes(), (directory / 'AFTER.json').read_bytes()
+-    assert sha(before_body) == saved['before_sha256'] and sha(after_body) == saved['after_sha256']
+-    before, after = json.loads(before_body), json.loads(after_body)
+-    assert json.dumps(before, sort_keys=True) == json.dumps(after, sort_keys=True)
+-    assert after['index']['head'] == HEAD and after['index']['raw_index'] == result['new_raw']
+-    assert after['index']['cached_diff'] == after['index']['working_diff'] == sha(b'')
+-    assert after['current_raw_stable_during_check'] and after['working_sources_binaries_research_preserved']
+-    assert epoch['semantic_index'] == {k:v for k,v in after['index'].items() if k != 'raw_index'}
+-    publication = epoch['selective_cancellation_publication']['selective-cancellation']
++    assert {n:sha(body) for n,body in controls.items()} == saved['controls'] == result['controls']
++    assert saved['controls']['CURRENT-EPOCH.json'] == EPOCH
++    epoch, owned, role = (json.loads(controls[n]) for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json'))
++    snapshot_body = (directory / 'SNAPSHOT.json').read_bytes()
++    assert sha(snapshot_body) == saved['snapshot_sha256'] == result['snapshot_sha256']
++    snapshot = json.loads(snapshot_body)
++    assert snapshot['index']['head'] == HEAD
++    assert snapshot['index']['cached_diff'] == snapshot['index']['working_diff'] == sha(b'')
++    assert snapshot['current_raw_stable_during_check'] is True
++    assert snapshot['working_sources_binaries_research_preserved'] is True
++    assert epoch['raw_index_observation']['current'] == snapshot['index']['raw_index']
++    assert epoch['semantic_index'] == {k:v for k,v in snapshot['index'].items() if k != 'raw_index'}
++    assert epoch['staged_working'] == {} and epoch['modified_native_paths'] == []
++    publication = epoch['explicit_taint_reparse_publication']['reparse']
+     assert publication['native_commit'] == HEAD and publication['files'] == BINDINGS['native_files']
+-    assert publication['accepted'] is False and publication['compiled'] is False
+-    assert publication['current_app_contains_candidate'] is False
++    assert publication['stage'] == 'reparse' and publication['accepted'] is False
++    assert publication['compiled'] is False and publication['current_app_contains_candidate'] is False
++    assert role['role'] == 'published-native' and role['variant'] == 'reparse'
++    assert role['built'] is False and role['paired_head'] == HEAD
+     for path, digest in BINDINGS['native_files'].items():
+         assert epoch['pins'][path] == digest
+         identity = epoch['installed_identities'][path]
+         assert len(identity) == 2 and all(type(v) is int and v > 0 for v in identity)
+-    return after
++        assert owned[path] == {'path': path, 'owned_sha256': digest, 'identity': identity}
++    return snapshot
+ 
+ 
+ def saved_admission():
+     assert not BINDINGS['pending_current_admission']
+     body = (ROOT / BINDINGS['prior_receipt']).read_bytes()
+     assert sha(body) == BINDINGS['prior_receipt_sha256']
+-    baseline = validate_native_raw_observation(json.loads(body))
++    baseline = validate_native_publication(json.loads(body))
+     body = (ROOT / BINDINGS['current_capture']).read_bytes()
+     assert sha(body) == BINDINGS['current_capture_sha256']
+     current = json.loads(body)
+     assert current['prior_receipt_sha256'] == BINDINGS['prior_receipt_sha256']
+-    assert current['controls'] == BINDINGS['controls'] == BINDINGS['raw_observation']['controls']
++    assert current['controls'] == BINDINGS['controls'] == BINDINGS['native_observation']['controls']
+     assert current['controls']['CURRENT-EPOCH.json'] == EPOCH
+     assert current['full_current_state_verified'] and current['source_transition_lock_absent']
+     assert current['tracked_modified_paths'] == [] and current['staged_paths'] == []
+@@ -208,7 +201,7 @@
+         assert file.stat().st_size == record['bytes'] and sha(file.read_bytes()) == record['sha256'], path
+     tracked = set(git('ls-files', '-z').decode().split('\0'))
+     skipped = [path for path in selected if path in tracked]
+-    assert not skipped, 'V130 must not reselect already committed payloads'
++    assert not skipped, 'V131 must not reselect already committed payloads'
+     for path in skipped:
+         del selected[path]
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+@@ -232,7 +225,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v130-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v131-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)
+@@ -245,7 +238,7 @@
+             tree = git('write-tree', env=index_env).decode().strip()
+             assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+             message = directory / 'message'
+-            message.write_text('No bug - Record cancellation publication and subsequent validation research. r?#firefox-style-system-reviewers\n')
++            message.write_text('No bug - Record typed attribute taint publication and fallback research. r?#firefox-style-system-reviewers\n')
+             with (HERE / 'signing.log').open('x') as stream:
+                 result = subprocess.run(GIT + ['commit', '--quiet', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
+             if result.returncode:

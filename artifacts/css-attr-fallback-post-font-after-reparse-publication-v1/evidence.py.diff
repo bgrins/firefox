@@ -1,0 +1,47 @@
+--- artifacts/css-attr-fallback-after-reparse-publication-v2/evidence.py
++++ artifacts/css-attr-fallback-post-font-after-reparse-publication-v1/evidence.py
+@@ -39,7 +39,7 @@
+ 
+ def verify_completed(root, binding, stage):
+     assert binding is not None
+-    expected = read(root / 'artifacts/css-attr-fallback-after-reparse-publication-v2/PAIR-BINDING.json')
++    expected = read(root / 'artifacts/css-attr-fallback-post-font-after-reparse-publication-v1/PAIR-BINDING.json')
+     assert set(binding) == set(expected)
+     for key in ('historical_standalone', 'combined_refresh_owner', 'combined_outcome'):
+         assert binding[key] == expected[key]
+@@ -90,7 +90,7 @@
+ 
+ 
+ def require_future(binding, receipt, capture, source):
+-    assert binding['typed_native_receipt'] and binding['current_capture'] and binding['current_epoch_sha256'], 'pending typed native receipt/current capture/epoch'
++    assert binding['typed_native_receipt'] and binding['typed_parent_research'] and binding['current_capture'] and binding['current_epoch_sha256'], 'pending typed native receipt/current capture/epoch'
+     assert receipt['stage'] == 'reparse' and receipt['signature_verified'] is True
+     assert receipt['files'] == sorted([ROLE, TYPED_TEST]) and receipt['app_rebuilt'] is False
+     assert receipt['accepted_fix_increment'] == 0
+@@ -107,15 +107,23 @@
+     assert capture['snapshot']['index']['cached_diff'] == capture['snapshot']['index']['working_diff'] == hashlib.sha256(b'').hexdigest()
+ 
+ 
++def require_typed_parent(receipt, research):
++    assert research['head'] == receipt['parent']
++    assert research['committed'] is True and research['signature_verified'] is True
++    assert research['accepted_fix_increment'] == 0 and research['native_working_diff_preserved'] is True
++
++
+ def verify(root, binding, stage):
+-    assert binding and binding['typed_native_receipt'] and binding['current_capture'] and binding['current_epoch_sha256'], 'pending typed native receipt/current capture/epoch'
++    assert binding and binding['typed_native_receipt'] and binding['typed_parent_research'] and binding['current_capture'] and binding['current_epoch_sha256'], 'pending typed native receipt/current capture/epoch'
+     result = verify_completed(root, binding, stage)
+     values = {}
+-    for key in ('typed_native_receipt', 'current_capture'):
++    for key in ('typed_native_receipt', 'typed_parent_research', 'current_capture'):
+         record = binding[key]
+         path = root / record['path']
+         assert sha(path) == record['sha256']
+         values[key] = read(path)
++    require_typed_parent(values['typed_native_receipt'], values['typed_parent_research'])
+     require_future(binding, values['typed_native_receipt'], values['current_capture'], result['source'])
+     return dict(result, pair_head=values['typed_native_receipt']['commit'],
+-                typed_native=values['typed_native_receipt'], current_capture=values['current_capture'])
++                typed_native=values['typed_native_receipt'], current_capture=values['current_capture'],
++                typed_parent_research=values['typed_parent_research'])

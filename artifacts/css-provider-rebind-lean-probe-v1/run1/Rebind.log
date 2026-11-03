@@ -1,0 +1,49 @@
+Rebind.lean:30:94: error: unexpected identifier; expected '}'
+Rebind.lean:41:14: error: unsolved goals
+w : World
+s : Consumer
+p : Parent
+h : localValid s.node
+⊢ s.node.refresh = false → s.node.endpoint.value = expected w p
+Rebind.lean:43:55: error: Application type mismatch: The argument
+  rfl
+has type
+  ?m.19 = ?m.19
+but is expected to have type
+  s.node.queued = true
+in the application
+  Or.inl rfl
+Rebind.lean:57:54: error: unsolved goals
+s : Consumer
+p : Parent
+job : EndpointApplication.Version
+h : localValid s.node
+pending : s.node.inflight = some job
+bound : job.generation ≤ s.node.endpoint.generation
+stale : job.generation ≠ s.node.endpoint.generation + 1
+⊢ s.node.refresh = true ∧ s.node.queued = true
+Rebind.lean:101:2: error: Type mismatch: After simplification, term
+  ready
+ has type
+  ∃ count after,
+    History 0 (fun x x_1 => expected w s.parent) 0 count [s.node] after ∧
+      allQuiet after ∧
+        count ≤ weight [s.node] ∧
+          List.map (fun n => n.installed.value) after =
+            CoalescedChain.expected 0 (fun x x_1 => expected w s.parent) 0 after.length
+but is expected to have type
+  ∃ count after,
+    History 0 (fun x x_1 => expected w s.parent) 0 count [s.node] after ∧
+      allQuiet after ∧ count ≤ weight [s.node] ∧ ∃ a, after = [a] ∧ a.installed.value = expected w s.parent
+Rebind.lean:112:2: error: Tactic `decide` proved that the proposition
+  expected world Parent.a = expected world Parent.b ∧
+    (invalidate Parent.b quiet56).context = 1 ∧ (invalidate Parent.b quiet56).node.refresh = true
+is false
+Rebind.lean:116:2: error: failed to synthesize
+  Decidable (quiet badRebind.node ∧ badRebind.node.installed.value ≠ expected changed badRebind.parent)
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+Rebind.lean:121:2: error: Tactic `decide` proved that the proposition
+  (complete (invalidate Parent.b pending)).node.installed.value = 10 ∧
+    (complete (invalidate Parent.b pending)).node.queued = true
+is false
