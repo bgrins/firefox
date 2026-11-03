@@ -1,0 +1,172 @@
+import copy
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import sys
+import tempfile
+
+assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[1]
+sha = lambda data: hashlib.sha256(data).hexdigest()
+spec = importlib.util.spec_from_file_location('checkpoint', HERE / 'commit.py')
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+assert m.EXECUTION_ENABLED is False
+bindings = m.BINDINGS
+for path, digest in bindings['references'].items():
+    assert sha((ROOT / path).read_bytes()) == digest
+selection_body = (HERE / 'SELECTION.json').read_bytes()
+assert sha(selection_body) == bindings['selection_sha256']
+selected = json.loads(selection_body)
+assert len(selected) == bindings['selected_paths_before_self']
+for path, record in selected.items():
+    assert path.startswith('artifacts/') and '..' not in Path(path).parts
+    source = ROOT / path
+    assert source.is_file() and not source.is_symlink()
+    assert source.stat().st_size == record['bytes'] and sha(source.read_bytes()) == record['sha256']
+for path, digest in bindings['completed_packages'].items():
+    assert sha((ROOT / path).read_bytes()) == digest == selected[path]['sha256']
+    manifest = json.loads((ROOT / path).read_bytes())
+    for name, record in m.manifest_items(manifest):
+        assert not Path(name).is_absolute() and '..' not in Path(name).parts
+        full = str((Path(path).parent / name))
+        assert selected[full]['sha256'] == (record['sha256'] if isinstance(record, dict) else record)
+nested_path = str((HERE / 'NESTED-DEPENDENCIES.json').relative_to(ROOT))
+assert sha((ROOT / nested_path).read_bytes()) == bindings['references'][nested_path]
+nested = json.loads((ROOT / nested_path).read_bytes())
+assert nested['repository'] == 'artifacts/css-spec-lean'
+assert nested['head'] == '162b20fb7c53a0ab89b20875a965baee98fb66bb'
+assert nested['tracked_status'] == '' and nested['before_after_head_and_tracked_status_equal']
+assert nested['read_only_git'] and not nested['source_or_nested_writes']
+assert len(nested['files']) == 25
+omitted = json.loads((ROOT / 'artifacts/css-research-v123-staging-mismatch-v1/RESULT.json').read_bytes())['exact_missing']
+assert set(nested['files']) == set(omitted) and not set(omitted).intersection(selected)
+for path, record in nested['files'].items():
+    assert bindings['references'][path] == record['sha256'] == sha((ROOT / path).read_bytes())
+    assert (ROOT / path).stat().st_size == record['bytes']
+    assert str(Path(nested['repository']) / record['nested_path']) == path
+    assert len(record['blob']) == 40 and set(record['blob']) <= set('0123456789abcdef')
+    assert not any(Path(path).is_relative_to(Path(item).parent) for item in bindings['completed_packages'])
+import ast
+import subprocess
+
+parent = ROOT / 'artifacts/css-research-checkpoint-20261103-v127'
+old = (parent / 'commit.py').read_text()
+new = (HERE / 'commit.py').read_text()
+marker = "    controls = {name: (RUNTIME / name).read_bytes()"
+assert old[old.index(marker):].replace('v127', 'v128').replace('V127', 'V128').replace(
+    'No bug - Record font animation and cancellation repair research.',
+    'No bug - Record font publication and animation settlement research.') == new[new.index(marker):]
+def functions(source):
+    return {node.name: ast.dump(node, include_attributes=False) for node in ast.parse(source).body
+            if isinstance(node, ast.FunctionDef)}
+old_functions, new_functions = functions(old), functions(new)
+for name in ('git', 'verify_blob', 'verify_blobs', 'load', 'manifest_items'):
+    assert old_functions[name] == new_functions[name]
+assert (HERE / 'native_admission.py.txt').read_text().strip() == ast.get_source_segment(
+    new, next(n for n in ast.parse(new).body if isinstance(n, ast.FunctionDef) and n.name == 'validate_native_publication'))
+capture = (HERE / 'capture_current.py').read_text()
+old_capture = (parent / 'capture_current.py').read_text()
+expected_capture = old_capture.replace("receipt['stage'] == 'capacity'", "receipt['stage'] == 'font-units'").replace(
+    'checkpoint.validate_refresh(receipt)', 'checkpoint.validate_native_publication(receipt)').replace(
+    "['servo/components/style/properties/cascade.rs', 'testing/web-platform/tests/css/css-cascade/prioritary-after-many-unrelated-declarations.html']",
+    "list(bindings['native_files'])")
+start = expected_capture.index('for path, digest in {')
+end = expected_capture.index('.items():', start)
+expected_capture = expected_capture[:start] + "for path, digest in bindings['native_files']" + expected_capture[end:]
+point = "assert sha(controls['CURRENT-EPOCH.json']) == bindings['epoch_sha256']\n"
+expected_capture = expected_capture.replace(point, point + "assert {name:sha(body) for name,body in controls.items()} == bindings['native_preservation']['controls']\n")
+assert capture == expected_capture
+
+inventory = json.loads((HERE / 'INVENTORY.json').read_bytes())
+assert inventory['immutable_parent'] == bindings['head'] == '334937d9ef8537e95cb80b29295797bc78f44252'
+tree = subprocess.check_output(['git', '--no-optional-locks', '-c', 'core.fsmonitor=false', 'ls-tree', '-r', '--name-only', '-z',
+                                bindings['head'], '--', 'artifacts'], cwd=ROOT)
+tracked = set(tree.decode().split('\0'))
+assert not tracked.intersection(selected)
+for path, row in inventory['excluded_already_committed_exact_blobs'].items():
+    assert path in tracked and path not in selected
+    blob = subprocess.check_output(['git', '--no-optional-locks', '-c', 'core.fsmonitor=false', 'show', bindings['head'] + ':' + path], cwd=ROOT)
+    assert len(blob) == row['bytes'] and sha(blob) == row['sha256'] == sha((ROOT / path).read_bytes())
+assert set(bindings['native_files']) == {
+    'servo/components/style/data.rs', 'servo/components/style/traversal.rs',
+    'testing/web-platform/tests/web-animations/animation-model/keyframe-effects/root-font-unit-invalidation.html'}
+for path, digest in bindings['native_files'].items():
+    blob = subprocess.check_output(['git', '--no-optional-locks', '-c', 'core.fsmonitor=false', 'show', bindings['head'] + ':' + path], cwd=ROOT)
+    assert sha(blob) == digest
+assert subprocess.check_output(['git', '--no-optional-locks', '-c', 'core.fsmonitor=false', 'rev-list', '--parents', '-n', '1', bindings['head']], cwd=ROOT).decode().split() == [bindings['head'], bindings['native_parent']]
+assert subprocess.check_output(['git', '--no-optional-locks', '-c', 'core.fsmonitor=false', 'diff-tree', '--no-commit-id', '--name-only', '-r', bindings['head']], cwd=ROOT).decode().splitlines() == list(bindings['native_files'])
+
+receipt = json.loads((ROOT / bindings['prior_receipt']).read_bytes())
+baseline = m.validate_native_publication(receipt)
+assert baseline['index']['head'] == bindings['head']
+rejections = []
+def reject(label, action):
+    try:
+        action()
+    except AssertionError:
+        rejections.append(label)
+    else:
+        raise AssertionError('Accepted mutation: ' + label)
+for field, value in [('stage', 'capacity'), ('signature_verified', False), ('commit', '0'*40),
+                     ('parent', '0'*40), ('epoch_sha256', '0'*64), ('files', []),
+                     ('accepted', True), ('accepted_fix_increment', 1), ('app_rebuilt', True)]:
+    r = copy.deepcopy(receipt); r[field] = value
+    reject('receipt-' + field, lambda: m.validate_native_publication(r))
+
+saved = bindings['native_preservation']
+with tempfile.TemporaryDirectory(prefix='css-research-v128-admission-', dir='/private/tmp') as temporary:
+    scratch = Path(temporary)
+    source = ROOT / saved['directory']
+    for name in ('REPORT.json', 'CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json'):
+        (scratch/name).write_bytes((source/name).read_bytes())
+    test_bindings = copy.deepcopy(bindings)
+    test_bindings['native_preservation']['directory'] = str(scratch)
+    m.BINDINGS = test_bindings
+    assert m.validate_native_publication(receipt) == baseline
+    original_report = json.loads((source/'REPORT.json').read_bytes())
+    for field, value in [('head', '0'*40), ('epoch_sha256', '0'*64),
+                         ('full_current_state_verified', False), ('failed_before_owner_creation', False),
+                         ('generated_owner_and_runtime_absent', False), ('new_tests_absent', False),
+                         ('source_transition_lock_absent', False)]:
+        report = copy.deepcopy(original_report); report[field] = value
+        body = json.dumps(report).encode(); (scratch/'REPORT.json').write_bytes(body)
+        test_bindings['native_preservation']['report_sha256'] = sha(body)
+        reject('preservation-' + field, lambda: m.validate_native_publication(receipt))
+    for field, value in [('raw_index', '0'*64), ('entries', '0'*64), ('cached_diff', ''), ('working_diff', '')]:
+        report = copy.deepcopy(original_report); report['snapshot']['index'][field] = value
+        body = json.dumps(report).encode(); (scratch/'REPORT.json').write_bytes(body)
+        test_bindings['native_preservation']['report_sha256'] = sha(body)
+        reject('snapshot-' + field, lambda: m.validate_native_publication(receipt))
+    (scratch/'REPORT.json').write_bytes((source/'REPORT.json').read_bytes())
+    test_bindings['native_preservation']['report_sha256'] = saved['report_sha256']
+    for name in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json'):
+        (scratch/name).write_bytes((source/name).read_bytes() + b' ')
+        reject('control-' + name, lambda: m.validate_native_publication(receipt))
+        (scratch/name).write_bytes((source/name).read_bytes())
+    research = json.loads((ROOT / bindings['prior_research_receipt']).read_bytes())
+    test_bindings['prior_research_receipt'] = str(scratch/'research.json')
+    for field, value in [('committed', False), ('signature_verified', False), ('head', '0'*40),
+                         ('accepted_fix_increment', 1), ('native_working_diff_preserved', False)]:
+        changed = copy.deepcopy(research); changed[field] = value
+        body = json.dumps(changed).encode(); (scratch/'research.json').write_bytes(body)
+        test_bindings['prior_research_receipt_sha256'] = sha(body)
+        reject('research-' + field, lambda: m.validate_native_publication(receipt))
+    m.BINDINGS = bindings
+assert not scratch.exists()
+assert m.validate_native_publication(receipt) == baseline
+conditions = json.loads((HERE / 'PRECONDITIONS.json').read_bytes())
+assert not conditions['pending_new_raw_refresh']
+assert conditions['current_epoch_sha256'] == bindings['epoch_sha256']
+assert bindings['pending_current_admission'] and bindings['current_capture_sha256'] is None and bindings['controls'] == {}
+reject('pending-current', m.saved_admission)
+sys.argv = [str(HERE/'commit.py'), '--run']
+reject('disabled-run', m.main)
+assert not (HERE/'result.json').exists()
+print(json.dumps({'preparation_only': True, 'selected': len(selected), 'closures': len(bindings['completed_packages']),
+                  'references': len(bindings['references']), 'excluded_committed': len(inventory['excluded_already_committed_exact_blobs']),
+                  'authority_negatives': rejections, 'native_preservation_positive': True,
+                  'exact_v127_signing_rollback_tail': True, 'capture_full_live_guards_preserved': True,
+                  'immutable_git_objects_only': True, 'scratch_removed': True}))

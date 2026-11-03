@@ -1,0 +1,42 @@
+def validate_native_publication(receipt):
+    assert set(receipt) == {'stage', 'commit', 'parent', 'signature_verified', 'files', 'epoch_sha256', 'accepted', 'accepted_fix_increment', 'app_rebuilt'}
+    assert receipt['stage'] == 'font-units' and receipt['signature_verified'] is True
+    assert receipt['commit'] == HEAD and receipt['epoch_sha256'] == EPOCH
+    assert receipt['files'] == list(BINDINGS['native_files'])
+    assert receipt['accepted'] is False and receipt['accepted_fix_increment'] == 0
+    assert receipt['app_rebuilt'] is False
+    body = (ROOT / BINDINGS['prior_research_receipt']).read_bytes()
+    assert sha(body) == BINDINGS['prior_research_receipt_sha256']
+    research = json.loads(body)
+    assert research['committed'] and research['signature_verified']
+    assert research['accepted_fix_increment'] == 0 and research['native_working_diff_preserved']
+    assert receipt['parent'] == research['head'] == BINDINGS['native_parent']
+    assert receipt['commit'] != receipt['parent']
+    saved = BINDINGS['native_preservation']
+    directory = ROOT / saved['directory']
+    report_body = (directory / 'REPORT.json').read_bytes()
+    assert sha(report_body) == saved['report_sha256']
+    report = json.loads(report_body)
+    assert report['head'] == HEAD and report['epoch_sha256'] == EPOCH
+    assert report['failed_before_owner_creation'] and report['full_current_state_verified']
+    assert report['generated_owner_and_runtime_absent'] and report['new_tests_absent']
+    assert report['source_transition_lock_absent']
+    controls = {n: (directory / n).read_bytes() for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+    assert {n:sha(b) for n,b in controls.items()} == saved['controls']
+    assert saved['controls']['CURRENT-EPOCH.json'] == EPOCH
+    epoch = json.loads(controls['CURRENT-EPOCH.json'])
+    snapshot = report['snapshot']
+    assert snapshot['index']['head'] == HEAD
+    assert snapshot['index']['cached_diff'] == snapshot['index']['working_diff'] == sha(b'')
+    assert snapshot['current_raw_stable_during_check'] and snapshot['working_sources_binaries_research_preserved']
+    assert epoch['raw_index_observation']['current'] == snapshot['index']['raw_index']
+    assert epoch['semantic_index'] == {k:v for k,v in snapshot['index'].items() if k != 'raw_index'}
+    publication = epoch['keyframe_font_unit_publication']['font-units']
+    assert publication['native_commit'] == HEAD and publication['files'] == BINDINGS['native_files']
+    assert publication['stage'] == 'font-units' and publication['accepted'] is False
+    assert publication['compiled'] is False and publication['current_app_contains_candidate'] is False
+    for path, digest in BINDINGS['native_files'].items():
+        assert epoch['pins'][path] == digest
+        identity = epoch['installed_identities'][path]
+        assert len(identity) == 2 and all(type(v) is int and v > 0 for v in identity)
+    return snapshot

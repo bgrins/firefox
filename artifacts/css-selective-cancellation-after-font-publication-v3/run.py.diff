@@ -1,0 +1,20 @@
+--- artifacts/css-selective-cancellation-after-font-publication-v2/run.py
++++ artifacts/css-selective-cancellation-after-font-publication-v3/run.py
+@@ -100,7 +100,7 @@
+     observed = evidence.verify(ROOT, policy['pair_binding'], stage)
+     font = observed['font_native']
+     evidence.verify_font_history(git, policy['allowed_signers'], font, observed['font_stage'], observed['tested_head'])
+-    evidence.verify_research_history(git, policy['allowed_signers'], prior, font, binding['head'])
++    evidence.verify_research_history(git, policy['allowed_signers'], prior, font, binding['head'], authenticated_receipt(policy, 'research_anchor'))
+     controls = {n: (RUNTIME / n).read_bytes() for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+     assert {n: digest(b) for n, b in controls.items()} == binding['controls']
+     epoch, ownership, role = (json.loads(controls[n]) for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json'))
+@@ -207,7 +207,7 @@
+                 blocked = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
+                 try:
+                     created[path] = creation.create_owned(owner, ROOT, path, parents[path])
+-                    save(output / 'CREATED.json', created)
++                    save(output / f'CREATED-{len(created):04d}.json', created)
+                 finally:
+                     signal.pthread_sigmask(signal.SIG_SETMASK, blocked)
+                 owner.write_owned(ROOT, created[path], (ROOT / stage['files'][path]['path']).read_bytes())

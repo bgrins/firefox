@@ -1,0 +1,557 @@
+--- a/servo/components/style/data.rs
++++ b/servo/components/style/data.rs
+@@ -433,7 +433,11 @@
+         .intersects(ComputedValueFlags::DEPENDS_ON_CONTAINER_STYLE_QUERY)
+ }
+ 
+-fn needs_to_recascade_self(hint: RestyleHint, style: &ComputedValues) -> bool {
++fn needs_to_recascade_self(
++    hint: RestyleHint,
++    style: &ComputedValues,
++    has_animations: bool,
++) -> bool {
+     if hint.intersects(RestyleHint::RECASCADE_SELF) {
+         return true;
+     }
+@@ -445,9 +449,10 @@
+         return true;
+     }
+     if hint.intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
+-        && style
+-            .flags
+-            .contains(ComputedValueFlags::USES_FONT_OR_WM_RELATIVE_UNITS)
++        && (has_animations
++            || style
++                .flags
++                .contains(ComputedValueFlags::USES_FONT_OR_WM_RELATIVE_UNITS))
+     {
+         return true;
+     }
+@@ -551,7 +556,11 @@
+ 
+     /// Returns the kind of restyling that we're going to need to do on this
+     /// element, based of the stored restyle hint.
+-    pub fn restyle_kind(&self, shared_context: &SharedStyleContext) -> Option<RestyleKind> {
++    pub fn restyle_kind(
++        &self,
++        shared_context: &SharedStyleContext,
++        has_animations: bool,
++    ) -> Option<RestyleKind> {
+         let style = match self.styles.primary {
+             Some(ref s) => s,
+             None => return Some(RestyleKind::MatchAndCascade),
+@@ -580,7 +589,7 @@
+             ));
+         }
+ 
+-        if needs_to_recascade_self(hint, style) {
++        if needs_to_recascade_self(hint, style, has_animations) {
+             return Some(RestyleKind::CascadeOnly);
+         }
+ 
+@@ -617,7 +626,7 @@
+             ));
+         }
+ 
+-        if needs_to_recascade_self(hint, style) {
++        if needs_to_recascade_self(hint, style, false) {
+             return Some(RestyleKind::CascadeOnly);
+         }
+         None
+--- a/servo/components/style/traversal.rs
++++ b/servo/components/style/traversal.rs
+@@ -333,7 +333,7 @@
+     styles
+ }
+ 
+-/// Calculates the style for a single node.
++/// Calculates the style for a single node and returns its new child restyle hint.
+ #[inline]
+ #[allow(unsafe_code)]
+ pub fn recalc_style_at<E, D, F>(
+@@ -342,7 +342,8 @@
+     element: E,
+     data: &mut ElementData,
+     note_child: F,
+-) where
++) -> RestyleHint
++where
+     E: TElement,
+     D: DomTraversal<E>,
+     F: FnMut(E::ConcreteNode),
+@@ -359,7 +360,12 @@
+         "Should've handled snapshots here already"
+     );
+ 
+-    let restyle_kind = data.restyle_kind(context.shared);
++    let has_animations = !flags.for_animation_only()
++        && data
++            .hint
++            .intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
++        && element.has_animations(context.shared);
++    let restyle_kind = data.restyle_kind(context.shared, has_animations);
+     debug!(
+         "recalc_style_at: {:?} (restyle_kind={:?}, dirty_descendants={:?}, data={:?})",
+         element,
+@@ -463,6 +469,7 @@
+     }
+ 
+     clear_state_after_traversing(element, data, flags);
++    child_restyle_hint
+ }
+ 
+ fn clear_state_after_traversing<E>(element: E, data: &mut ElementData, flags: TraversalFlags)
+--- a/servo/components/style/gecko/traversal.rs
++++ b/servo/components/style/gecko/traversal.rs
+@@ -7,18 +7,29 @@
+ use crate::context::{SharedStyleContext, StyleContext};
+ use crate::dom::{TElement, TNode};
+ use crate::gecko::wrapper::{GeckoElement, GeckoNode};
++use crate::invalidation::element::restyle_hints::RestyleHint;
+ use crate::traversal::{DomTraversal, recalc_style_at};
++use std::sync::atomic::{AtomicBool, Ordering};
+ 
+ /// This is the simple struct that Gecko uses to encapsulate a DOM traversal for
+ /// styling.
+ pub struct RecalcStyleOnly<'a> {
+     shared: SharedStyleContext<'a>,
++    normal_descendant_restyle: AtomicBool,
+ }
+ 
+ impl<'a> RecalcStyleOnly<'a> {
+     /// Create a `RecalcStyleOnly` traversal from a `SharedStyleContext`.
+     pub fn new(shared: SharedStyleContext<'a>) -> Self {
+-        RecalcStyleOnly { shared }
++        RecalcStyleOnly {
++            shared,
++            normal_descendant_restyle: AtomicBool::new(false),
++        }
++    }
++
++    /// Whether animation styling produced descendant font-dependent work.
++    pub fn needs_normal_descendant_restyle(&self) -> bool {
++        self.normal_descendant_restyle.load(Ordering::Relaxed)
+     }
+ }
+ 
+@@ -33,7 +44,12 @@
+     {
+         if let Some(el) = node.as_element() {
+             let mut data = unsafe { el.ensure_data() };
+-            recalc_style_at(self, context, el, &mut data, note_child);
++            let child_hint = recalc_style_at(self, context, el, &mut data, note_child);
++            if self.shared.traversal_flags.for_animation_only()
++                && child_hint.intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
++            {
++                self.normal_descendant_restyle.store(true, Ordering::Relaxed);
++            }
+         }
+     }
+ 
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -321,7 +321,29 @@
+     };
+ 
+     let traversal = RecalcStyleOnly::new(shared_style_context);
+-    driver::traverse_dom(&traversal, token, thread_pool);
++    let root = driver::traverse_dom(&traversal, token, thread_pool);
++    if traversal.needs_normal_descendant_restyle() {
++        let mut has_styled_child = false;
++        for child_node in root.traversal_children() {
++            let Some(child) = child_node.as_element() else {
++                continue;
++            };
++            let mut child_data = child.mutate_data();
++            let Some(child_data) = child_data.as_mut() else {
++                continue;
++            };
++            if !child_data.has_styles() {
++                continue;
++            }
++            child_data
++                .hint
++                .insert(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT);
++            has_styled_child = true;
++        }
++        if has_styled_child {
++            unsafe { root.set_dirty_descendants() };
++        }
++    }
+ }
+ 
+ /// Traverses the subtree rooted at `root` for restyling.
+--- /dev/null
++++ b/testing/web-platform/tests/web-animations/animation-model/keyframe-effects/root-font-cancel-child-animation.html
+@@ -0,0 +1,89 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Child root-relative keyframes after cancelling a root font animation</title>
++<meta name="timeout" content="long">
++<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++"use strict";
++
++window.rootFontCancellationObservations = [];
++const nextFrame = win => new Promise(resolve => win.requestAnimationFrame(resolve));
++const cases = [];
++for (const target of ["existing-child", "new-child", "root-pseudo"]) {
++  for (const barrier of ["none", "root-read"]) {
++    cases.push({unit: "rem", target, barrier});
++  }
++}
++for (const target of ["existing-child", "root-pseudo"]) {
++  cases.push({unit: "rlh", target, barrier: "none"});
++}
++
++function paused(target, from, to, pseudoElement) {
++  const animation = target.animate([{fontSize: from}, {fontSize: to}],
++    {duration: 1000, fill: "both", pseudoElement});
++  animation.pause();
++  animation.currentTime = 500;
++  return animation;
++}
++
++for (const {unit, target: kind, barrier} of cases) {
++  promise_test(async t => {
++    const frame = document.createElement("iframe");
++    t.add_cleanup(() => frame.remove());
++    const loaded = new Promise(resolve => frame.onload = resolve);
++    frame.srcdoc = `<!doctype html><style>
++      html, body { margin: 0; writing-mode: horizontal-tb; }
++      .child { font-size: 11px; line-height: 17px; }
++      html::before { content: "root"; display: block; font-size: 7px; line-height: 9px; }
++      #measure { position: absolute; width: 100rem; }
++    </style><div class="child"></div><div id="measure"></div>`;
++    document.body.append(frame);
++    await loaded;
++    const win = frame.contentWindow;
++    const doc = win.document;
++    await doc.fonts.ready;
++    const root = doc.documentElement;
++    const initialRem = parseFloat(win.getComputedStyle(doc.querySelector("#measure")).width) / 100;
++    assert_greater_than(initialRem, 0, "initial root font size is measurable");
++    root.style.fontSize = "23px";
++    root.style.lineHeight = "37px";
++    assert_equals(win.getComputedStyle(root).fontSize, "23px", "literal root before disturbance");
++    assert_equals(win.getComputedStyle(root).lineHeight, "37px", "literal root line height");
++    let child = doc.querySelector(".child");
++    assert_equals(win.getComputedStyle(child).fontSize, "11px", "existing child styled before disturbance");
++    assert_equals(win.getComputedStyle(root, "::before").fontSize, "7px", "existing pseudo styled before disturbance");
++    const disturbance = paused(root, "1em", "3em");
++    t.add_cleanup(() => disturbance.cancel());
++    assert_approx_equals(parseFloat(win.getComputedStyle(root).fontSize), 2 * initialRem, 0.06,
++      "root em animation calibration");
++    disturbance.cancel();
++    if (barrier === "root-read") {
++      assert_equals(win.getComputedStyle(root).fontSize, "23px", "explicit root-read control");
++      assert_equals(win.getComputedStyle(root).lineHeight, "37px", "explicit root line-height control");
++    }
++    if (kind === "new-child") {
++      child = doc.createElement("div");
++      child.className = "child";
++      doc.body.append(child);
++    }
++    const target = kind === "root-pseudo" ? root : child;
++    const pseudo = kind === "root-pseudo" ? "::before" : null;
++    const animation = paused(target, `1${unit}`, `3${unit}`, pseudo);
++    t.add_cleanup(() => animation.cancel());
++    const first = parseFloat(win.getComputedStyle(target, pseudo).fontSize);
++    await animation.ready;
++    await nextFrame(win);
++    await nextFrame(win);
++    const settled = parseFloat(win.getComputedStyle(target, pseudo).fontSize);
++    const expected = unit === "rem" ? 46 : 74;
++    window.rootFontCancellationObservations.push({unit, kind, barrier, first, settled, expected});
++    assert_equals(animation.currentTime, 500, "paused midpoint");
++    assert_approx_equals(first, expected, 0.06, "first synchronous child value after cancellation");
++    assert_approx_equals(settled, expected, 0.06, "settled child value after cancellation");
++  }, `${kind} ${unit} keyframes after root em cancellation with ${barrier}`);
++}
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/web-animations/animation-model/keyframe-effects/root-font-cancel-child-depth.html
+@@ -0,0 +1,94 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Root-relative keyframes through fixed-font ancestors after cancellation</title>
++<meta name="timeout" content="long">
++<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++"use strict";
++
++window.rootFontCancellationDepthObservations = [];
++const nextFrame = win => new Promise(resolve => win.requestAnimationFrame(resolve));
++const cases = [];
++for (const depth of [1, 4]) {
++  for (const barrier of ["none", "root-read"]) {
++    cases.push({unit: "rem", depth, barrier});
++  }
++}
++
++function paused(target, from, to, pseudoElement) {
++  const animation = target.animate([{fontSize: from}, {fontSize: to}],
++    {duration: 1000, fill: "both", pseudoElement});
++  animation.pause();
++  animation.currentTime = 500;
++  return animation;
++}
++
++for (const {unit, depth, barrier} of cases) {
++  promise_test(async t => {
++    const frame = document.createElement("iframe");
++    t.add_cleanup(() => frame.remove());
++    const loaded = new Promise(resolve => frame.onload = resolve);
++    frame.srcdoc = `<!doctype html><style>
++      html, body { margin: 0; writing-mode: horizontal-tb; }
++      .fixed { font-size: 13px; line-height: 19px; }
++      .child { font-size: 11px; line-height: 17px; }
++      html::before { content: "root"; display: block; font-size: 7px; line-height: 9px; }
++      #measure { position: absolute; width: 100rem; }
++    </style>${'<div class="fixed">'.repeat(depth)}<div class="child"></div>
++      ${"</div>".repeat(depth)}<div id="measure"></div>`;
++    document.body.append(frame);
++    await loaded;
++    const win = frame.contentWindow;
++    const doc = win.document;
++    await doc.fonts.ready;
++    const root = doc.documentElement;
++    const initialRem = parseFloat(win.getComputedStyle(doc.querySelector("#measure")).width) / 100;
++    assert_greater_than(initialRem, 0, "initial root font size is measurable");
++    root.style.fontSize = "23px";
++    root.style.lineHeight = "37px";
++    assert_equals(win.getComputedStyle(root).fontSize, "23px", "literal root before disturbance");
++    assert_equals(win.getComputedStyle(root).lineHeight, "37px", "literal root line height");
++    const child = doc.querySelector(".child");
++    const wrappers = Array.from(doc.querySelectorAll(".fixed"));
++    assert_equals(wrappers.length, depth, "fixed ancestor count");
++    let ancestor = child.parentElement;
++    for (let i = 0; i < depth; i++) {
++      assert_true(ancestor.classList.contains("fixed"), "fixed ancestor in target chain");
++      assert_equals(win.getComputedStyle(ancestor).fontSize, "13px", "fixed ancestor styled before disturbance");
++      assert_equals(win.getComputedStyle(ancestor).lineHeight, "19px", "fixed ancestor line height");
++      assert_equals(ancestor.getAnimations().length, 0, "fixed ancestor has no animation");
++      ancestor = ancestor.parentElement;
++    }
++    assert_equals(ancestor, doc.body, "all fixed ancestors are between body and target");
++    assert_equals(win.getComputedStyle(child).fontSize, "11px", "existing child styled before disturbance");
++    assert_equals(win.getComputedStyle(root, "::before").fontSize, "7px", "existing pseudo styled before disturbance");
++    const disturbance = paused(root, "1em", "3em");
++    t.add_cleanup(() => disturbance.cancel());
++    assert_approx_equals(parseFloat(win.getComputedStyle(root).fontSize), 2 * initialRem, 0.06,
++      "root em animation calibration");
++    disturbance.cancel();
++    if (barrier === "root-read") {
++      assert_equals(win.getComputedStyle(root).fontSize, "23px", "explicit root-read control");
++      assert_equals(win.getComputedStyle(root).lineHeight, "37px", "explicit root line-height control");
++    }
++    const target = child;
++    const pseudo = null;
++    const animation = paused(target, `1${unit}`, `3${unit}`, pseudo);
++    t.add_cleanup(() => animation.cancel());
++    const first = parseFloat(win.getComputedStyle(target, pseudo).fontSize);
++    await animation.ready;
++    await nextFrame(win);
++    await nextFrame(win);
++    const settled = parseFloat(win.getComputedStyle(target, pseudo).fontSize);
++    const expected = 46;
++    window.rootFontCancellationDepthObservations.push({unit, depth, barrier, first, settled, expected});
++    assert_equals(animation.currentTime, 500, "paused midpoint");
++    assert_approx_equals(first, expected, 0.06, "first synchronous child value after cancellation");
++    assert_approx_equals(settled, expected, 0.06, "settled child value after cancellation");
++  }, `existing-child rem keyframes through ${depth} fixed ancestors after root em cancellation with ${barrier}`);
++}
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/web-animations/animation-model/keyframe-effects/root-font-unit-invalidation.html
+@@ -0,0 +1,182 @@
++<!doctype html>
++<meta charset="utf-8">
++<meta name="timeout" content="long">
++<title>Root font dependencies across keyframe lifecycle changes</title>
++<link rel="help" href="https://drafts.csswg.org/web-animations-1/#the-effect-value-of-a-keyframe-animation-effect">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++"use strict";
++const settle = win => new Promise(resolve =>
++  win.requestAnimationFrame(() => win.requestAnimationFrame(resolve)));
++async function frameFor(t) {
++  const frame = document.createElement("iframe");
++  const loaded = new Promise(resolve => { frame.onload = resolve; });
++  frame.srcdoc = `<!doctype html><style>
++    html { font:23px/37px monospace; }
++    #parent { font:30px/61px monospace; }
++    .target { display:block; font:60px/99px monospace; width:7px; opacity:1;
++      font-variation-settings:"wdth" 7; height:0; border:0; padding:0; }
++    #reference { width:100rem; height:100rlh; }
++  </style><div id="parent"><div id="a" class="target"></div>
++  <div id="b" class="target"></div><div id="reference"></div></div>`;
++  document.body.append(frame);
++  t.add_cleanup(() => frame.remove());
++  await loaded;
++  return frame.contentWindow;
++}
++const properties = [
++  { name:"width", relative:(n, u) => `${n}${u}`, literal:n => `${n}px`,
++    read:s => parseFloat(s.width), baseline:7 },
++  { name:"fontVariationSettings", relative:(n, u) => `"wdth" calc(${n}${u} / 1px)`,
++    literal:n => `"wdth" ${n}`, read:s => {
++      const match = /^"wdth"\s+([\d.]+)$/.exec(s.fontVariationSettings);
++      return match ? Number(match[1]) : NaN;
++    }, baseline:7 },
++  { name:"opacity", relative:(n, u) => `calc(${n}${u} / 1000px)`,
++    literal:n => String(n / 1000), read:s => Number(s.opacity) * 1000,
++    baseline:1000 }
++];
++for (const unit of ["rem", "rlh"]) {
++  for (const property of properties) {
++    promise_test(async t => {
++      const win = await frameFor(t), doc = win.document;
++      const a = doc.getElementById("a"), b = doc.getElementById("b");
++      const root = doc.documentElement;
++      const base = unit === "rem" ? 23 : 37;
++      const frames = values => values.map(value => ({ [property.name]:value }));
++      const relative = frames([1, 3].map(n => property.relative(n, unit)));
++      const literals = n => frames([n, 3 * n].map(property.literal));
++      const animation = a.animate(relative, { duration:1000, fill:"both" });
++      t.add_cleanup(() => animation.cancel());
++      animation.pause(); animation.currentTime = 500;
++      const observations = [];
++      const sample = async (name, target, expected) => {
++        const first = property.read(win.getComputedStyle(target));
++        await settle(win);
++        observations.push({ name, first, value:property.read(win.getComputedStyle(target)), expected });
++      };
++      const setRoot = value => {
++        root.style[unit === "rem" ? "fontSize" : "lineHeight"] = `${value}px`;
++      };
++      await sample("initial", a, 2 * base);
++      setRoot(47);
++      await sample("root mutation", a, 94);
++      animation.currentTime = 250;
++      setRoot(43);
++      await sample("root mutation coalesced with seek", a, 64.5);
++      animation.currentTime = 500;
++      setRoot(47);
++      await sample("restore half progress", a, 94);
++      animation.effect.setKeyframes(literals(47));
++      await sample("equal-valued literal replacement", a, 94);
++      setRoot(53);
++      await sample("literal replacement stays constant", a, 94);
++      animation.effect.setKeyframes(literals(53));
++      await sample("literal before relative replacement", a, 106);
++      animation.effect.setKeyframes(relative);
++      await sample("equal-valued relative replacement", a, 106);
++      setRoot(59);
++      await sample("replacement restored dependency", a, 118);
++      animation.effect.target = b;
++      await sample("old target after retarget", a, property.baseline);
++      setRoot(61);
++      await sample("new target after retarget", b, 122);
++      animation.effect.target = null;
++      animation.effect.setKeyframes(relative);
++      setRoot(67);
++      animation.effect.target = a;
++      await sample("unbound effect rebound", a, 134);
++      animation.currentTime = 1000;
++      await sample("after-phase fill", a, 201);
++      setRoot(71);
++      await sample("filled effect dependency", a, 213);
++      animation.cancel();
++      await sample("cancel restores ordinary value", a, property.baseline);
++      const reference = doc.getElementById("reference").getBoundingClientRect();
++      assert_approx_equals((unit === "rem" ? reference.width : reference.height) / 100,
++        71, 0.02, "root metric control");
++      assert_equals(win.getComputedStyle(a).fontSize, "60px", "fixed target font size");
++      for (const row of observations) {
++        assert_approx_equals(row.first, row.expected, 0.04, row.name + " first");
++        assert_approx_equals(row.value, row.expected, 0.04, row.name + " settled");
++      }
++    }, `${property.name}: ${unit} keyframe replacement, retarget and removal`);
++  }
++  promise_test(async t => {
++    const win = await frameFor(t), doc = win.document;
++    const target = doc.getElementById("a");
++    target.style.marginLeft = `1${unit}`;
++    const animation = target.animate({ width:[`1${unit}`, `3${unit}`] }, { duration:1000, fill:"both" });
++    t.add_cleanup(() => animation.cancel());
++    animation.pause(); animation.currentTime = 500;
++    assert_approx_equals(parseFloat(win.getComputedStyle(target).width), unit === "rem" ? 46 : 74, 0.03);
++    doc.documentElement.style[unit === "rem" ? "fontSize" : "lineHeight"] = "47px";
++    const first = parseFloat(win.getComputedStyle(target).width);
++    await settle(win);
++    assert_approx_equals(first, 94, 0.03, "first ordinary-relative control");
++    assert_approx_equals(parseFloat(win.getComputedStyle(target).width), 94, 0.03);
++    assert_approx_equals(parseFloat(win.getComputedStyle(target).marginLeft), 47, 0.03);
++  }, `ordinary ${unit} declaration preserves animation invalidation`);
++  promise_test(async t => {
++    const win = await frameFor(t), doc = win.document;
++    const style = doc.createElement("style");
++    style.textContent = '#a::before { content:""; display:block; font:60px/99px monospace; }';
++    doc.head.append(style);
++    const target = doc.getElementById("a");
++    const animation = target.animate({ width:[`1${unit}`, `3${unit}`] },
++      { duration:1000, fill:"both", pseudoElement:"::before" });
++    t.add_cleanup(() => animation.cancel());
++    animation.pause(); animation.currentTime = 500;
++    assert_approx_equals(parseFloat(win.getComputedStyle(target, "::before").width),
++      unit === "rem" ? 46 : 74, 0.03, "initial pseudo width");
++    doc.documentElement.style[unit === "rem" ? "fontSize" : "lineHeight"] = "47px";
++    const first = parseFloat(win.getComputedStyle(target, "::before").width);
++    await settle(win);
++    assert_approx_equals(first, 94, 0.03, "first pseudo root dependency");
++    assert_approx_equals(parseFloat(win.getComputedStyle(target, "::before").width),
++      94, 0.03, "pseudo root dependency");
++  }, `pseudo-element ${unit} keyframe invalidation`);
++  promise_test(async t => {
++    const win = await frameFor(t), doc = win.document;
++    const style = doc.createElement("style");
++    style.textContent = `@keyframes root-unit { from { width:1${unit}; } to { width:3${unit}; } }
++      #a { animation:root-unit 1000s linear -500s both paused; }`;
++    doc.head.append(style);
++    const target = doc.getElementById("a");
++    assert_approx_equals(parseFloat(win.getComputedStyle(target).width),
++      unit === "rem" ? 46 : 74, 0.03, "initial CSS animation");
++    const animations = target.getAnimations();
++    assert_equals(animations.length, 1);
++    assert_equals(animations[0].animationName, "root-unit");
++    t.add_cleanup(() => animations[0].cancel());
++    doc.documentElement.style[unit === "rem" ? "fontSize" : "lineHeight"] = "47px";
++    const first = parseFloat(win.getComputedStyle(target).width);
++    await settle(win);
++    assert_approx_equals(first, 94, 0.03, "first CSS animation root dependency");
++    assert_approx_equals(parseFloat(win.getComputedStyle(target).width), 94, 0.03);
++  }, `CSS animation ${unit} generated keyframes retain root dependency`);
++  promise_test(async t => {
++    const win = await frameFor(t), doc = win.document;
++    const target = doc.getElementById("a");
++    const width = target.animate({ width:[`1${unit}`, `3${unit}`] }, { duration:1000, fill:"both" });
++    const opacity = target.animate({ opacity:[0.2, 0.8] }, { duration:1000, fill:"both" });
++    t.add_cleanup(() => { width.cancel(); opacity.cancel(); });
++    for (const animation of [width, opacity]) {
++      animation.pause(); animation.currentTime = 500;
++    }
++    assert_approx_equals(parseFloat(win.getComputedStyle(target).width),
++      unit === "rem" ? 46 : 74, 0.03, "initial surviving effect");
++    assert_equals(target.getAnimations().length, 2);
++    opacity.cancel();
++    assert_equals(target.getAnimations().length, 1);
++    doc.documentElement.style[unit === "rem" ? "fontSize" : "lineHeight"] = "47px";
++    const first = parseFloat(win.getComputedStyle(target).width);
++    await settle(win);
++    assert_approx_equals(first, 94, 0.03, "first surviving effect");
++    assert_approx_equals(parseFloat(win.getComputedStyle(target).width), 94, 0.03);
++    assert_equals(win.getComputedStyle(target).opacity, "1", "cancelled effect removed");
++  }, `surviving ${unit} effect retains invalidation after another effect is cancelled`);
++}
++</script>

@@ -1,0 +1,35 @@
+--- artifacts/css-selective-cancellation-after-font-publication-v2/publish.py
++++ artifacts/css-selective-cancellation-after-font-publication-v3/publish.py
+@@ -49,12 +49,12 @@
+         assert sha(ROOT / path) == pin
+     stage = next(s for s in read(HERE / 'STAGES.json')['stages'] if s['stage'] == args.stage)
+     policy['stage'] = args.stage
+-    policy['runtime_output'] = 'artifacts/css-selective-cancellation-publication-' + args.stage + '-runtime-1'
++    policy['runtime_output'] = 'artifacts/css-selective-cancellation-publication-' + args.stage + '-runtime-2'
+     for name, record in records.items():
+         policy['references'][str((HERE / name).relative_to(ROOT))] = record['sha256']
+     policy['references'][str((HERE / 'FILES.json').relative_to(ROOT))] = args.manifest
+     output = ROOT / policy['runtime_output']
+-    install_owner = ROOT / ('artifacts/css-selective-cancellation-publication-' + args.stage + '-install-v1')
++    install_owner = ROOT / ('artifacts/css-selective-cancellation-publication-' + args.stage + '-install-v2')
+     installed = None
+     assert policy['pair_binding'] is None
+     if args.action != 'install':
+@@ -94,7 +94,7 @@
+     evidence = load('publication_research_history', HERE / 'evidence.py')
+     font_record = policy['pair_binding']['font_native_receipt']
+     assert sha(ROOT / font_record['path']) == font_record['sha256']
+-    evidence.verify_research_history(runner.git, policy['allowed_signers'], prior, read(ROOT / font_record['path']), head)
++    evidence.verify_research_history(runner.git, policy['allowed_signers'], prior, read(ROOT / font_record['path']), head, runner.authenticated_receipt(policy, 'research_anchor'))
+     claims = {p: {'sha256': epoch['pins'][p], 'identity': identity}
+               for p, identity in epoch['installed_identities'].items() if p not in stage['files']}
+     binding = {'head': head, 'branch': runner.git('symbolic-ref', 'HEAD').decode().strip(),
+@@ -126,7 +126,7 @@
+         path = output / 'delivery/DELIVERY.json'
+         binding['delivery_receipt'] = {'path': str(path.relative_to(ROOT)), 'sha256': sha(path)}
+     policy.update(bindings=binding, enabled_modes=[args.action])
+-    directory = ROOT / ('artifacts/css-selective-cancellation-publication-' + args.stage + '-' + args.action + '-v1')
++    directory = ROOT / ('artifacts/css-selective-cancellation-publication-' + args.stage + '-' + args.action + '-v2')
+     directory.mkdir()
+     for name in ('run.py', 'transform.py', 'evidence.py', 'STAGES.json'):
+         with (directory / name).open('xb') as stream:

@@ -1,0 +1,24 @@
+import Trees
+#print axioms CoalescedTree.marked_size
+#print axioms CoalescedTree.marked_shape
+#print axioms CoalescedTree.downstream_size
+#print axioms CoalescedTree.downstream_shape
+#print axioms CoalescedTree.marked_coherent
+#print axioms CoalescedTree.downstream_coherent
+#print axioms CoalescedTree.step_coherent
+#print axioms CoalescedTree.step_size
+#print axioms CoalescedTree.step_shape
+#print axioms CoalescedTree.marked_weight
+#print axioms CoalescedTree.downstream_weight
+#print axioms CoalescedTree.step_decreases
+#print axioms CoalescedTree.quiet_values
+#print axioms CoalescedTree.progress
+#print axioms CoalescedTree.history_budget
+#print axioms CoalescedTree.history_coherent
+#print axioms CoalescedTree.history_shape
+#print axioms CoalescedTree.finite_settlement
+#print axioms CoalescedTree.finite_ready
+#print axioms CoalescedTree.branching_step
+#print axioms CoalescedTree.branching_coherent
+#print axioms CoalescedTree.branching_rank_counterexample
+#print axioms CoalescedTree.dropped_branch_counterexample
