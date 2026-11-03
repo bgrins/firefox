@@ -1,0 +1,24 @@
+{
+  "source": "artifacts/css-font-metric-synthesis-producer-v1/base/servo/components/style/properties/cascade.rs",
+  "source_sha256": "5b7204f81c999516c617ac05ab619258eb18a05d628845cc1c424f8256013573",
+  "exact_builder": "BUILDER.txt",
+  "mapping": {
+    "State.vector": "shared longhand_declarations, including non-prioritary and over-capacity entries",
+    "State.head/tail": "prioritary_positions indexed by mapped property",
+    "State.next": "single shared next_index field heap across every property",
+    "mapping": "fixed generated PrioritaryPropertyId::from_longhand projection, modeled Nat\u2192Option Nat",
+    "note": "always fresh next0/full-vector append; when mapping Some and below MAX, update only target head/tail and previous target tail next",
+    "Owned": "every member index resolves to a stored declaration mapped to the same property",
+    "owned_chains_disjoint": "different target images cannot own the same declaration index; no disjointness premise",
+    "note_preserves": "selected property extends via path_append; other properties unaffected because actual touched old-tail index is derived disjoint",
+    "final_global_theorems": "all keys simultaneously have admitted/full projections, derived disjoint membership and head/tail bounds"
+  },
+  "write_order": "As in the predecessor model, fresh-slot initialization precedes prior-tail update in the model. Actual native push follows prior-tail update. Derived allocated old-tail < new-index makes the two writes disjoint.",
+  "external_native_obligations": [
+    "generated property map equals the fixed abstract function and all concrete ids fit its array",
+    "concrete Rust vector/SmallVec memory, integer casts, allocation failure and ABI",
+    "actual code applies declarations or exits at a winner: theorem covers full index traversal, not CSS winner semantics",
+    "native matcher supplies vector; no browser-result claim"
+  ],
+  "closed_predecessor_gap": "The model now maintains all property chains over one next heap and derives actual update noninterference from vector property/index ownership. It no longer assumes that other-property tail writes are outside the chosen chain."
+}

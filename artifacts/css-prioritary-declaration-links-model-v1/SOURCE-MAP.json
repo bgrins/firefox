@@ -1,0 +1,21 @@
+{
+  "source": "artifacts/css-font-metric-synthesis-producer-v1/base/servo/components/style/properties/cascade.rs",
+  "builder": "BUILDER.txt",
+  "correspondence": {
+    "State.vector": "all longhand_declarations; full length supplies each new index",
+    "State.head/tail": "one fixed target property most_important/least_important",
+    "State.next": "functional projection of Declaration.next_index for that property",
+    "note": "guard before admission, MAX for absent head, previous tail write, new next zero, unconditional vector append",
+    "Path": "nonempty increasing head-to-tail linked representation, last next zero",
+    "walk/read": "read head unless MAX, then follow next until zero, with explicit vector-length fuel justified by increasing bounded indices",
+    "other properties": "unrelated_heap_update proves writes outside target chain cannot change its representation; actual disjoint property membership is a native correspondence obligation"
+  },
+  "ordering_note": "Native writes old tail before pushing a zero-initialized new record; model initializes fresh heap slot first. The invariant proves prior tail < new vector index, hence these distinct writes agree. No address arithmetic or Rust allocation semantics are modeled.",
+  "remaining_obligations": [
+    "actual per-property chain ownership and generated id mapping",
+    "concrete vector allocation/access and integer representation under guard",
+    "native traversal applies declarations in chain order but may stop at winner/rollback logic, not modeled here",
+    "browser matcher supplies proposed long list",
+    "all-property shared heap refinement; off-path noninterference is proved but actual membership is external"
+  ]
+}

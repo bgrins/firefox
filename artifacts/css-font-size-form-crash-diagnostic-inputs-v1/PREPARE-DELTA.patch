@@ -1,0 +1,11 @@
+--- artifacts/css-font-size-form-typed-attr-probe-v1/prepare.py
++++ artifacts/css-font-size-form-crash-diagnostic-inputs-v1/prepare.py
+@@ -11,7 +11,7 @@
+ import html5lib
+ from manifest.manifest import Manifest
+ from tools.lint import lint
+-program="const vm=require('vm');let input='';process.stdin.on('data',x=>input+=x);process.stdin.on('end',()=>{const names=[];const context=vm.createContext({window:{},test:(_,name)=>names.push(name),promise_test:(_,name)=>names.push(name)});for(const source of JSON.parse(input))vm.runInContext(source,context);process.stdout.write(JSON.stringify(names));});"
++program="const vm=require('vm');let input='';process.stdin.on('data',x=>input+=x);process.stdin.on('end',()=>{const names=[];const context=vm.createContext({window:{},dump:()=>{},test:(_,name)=>names.push(name),promise_test:(_,name)=>names.push(name)});for(const source of JSON.parse(input))vm.runInContext(source,context);process.stdout.write(JSON.stringify(names));});"
+ roster={}
+ mozilla_lint_findings=[]
+ for dirname,url,output in [('tests','/','MANIFEST.json')]:

@@ -1,0 +1,13 @@
+>>>  156: bool nsJSUtils::DumpEnabled() {
+     157: #ifdef FUZZING
+     158:   static bool mozFuzzDebug = !!PR_GetEnv("MOZ_FUZZ_DEBUG");
+     159:   // We also want to dump in automation so mochitests can run.
+     160:   return mozFuzzDebug || xpc::IsInAutomation();
+     161: #endif
+     162: 
+     163: #if defined(DEBUG) || defined(MOZ_ENABLE_JS_DUMP)
+     164:   return true;
+     165: #else
+     166:   return StaticPrefs::browser_dom_window_dump_enabled();
+     167: #endif
+     168: }

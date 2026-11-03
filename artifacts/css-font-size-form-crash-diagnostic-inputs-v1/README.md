@@ -1,0 +1,9 @@
+# Sizeforms crash diagnostic inputs
+
+Flat-manifest input capsule importing exact sealed diagnostic f0806257 source/HTML/INI. Candidate cascade39754d71 and provider90ac are unchanged copies; published source preimages are references in SOURCE-ROLES. No scheduler semantics, assertions or callback names were changed by this packaging.
+
+The diagnostic HTML is staged at its original `/css/css-ui/font-size-form-typed-attr.tentative.html` URL. Genuine WPT manifest generation, content/path lint and JavaScript roster discovery passed046702/0: four callbacks, one ending, five signatures. The preparer is the existing sizeforms preparer with only an inert dump function in its Node discovery context; this does not modify browser HTML. The four callback names equal the original roster exactly.
+
+INPUTS metadata enables only `browser.dom.window.dump.enabled:true` through the supplied per-test INI. No expected-status override is present. The unchanged executed wpt.prepare_inputs copied exact diagnostic HTML, manifest and metadata in an owned temporary staging tree, then that tree was removed. This confirms packaging, not actual browser transport; a future run must confirm the script-start canary and retain full stdout/stderr/raw events. CRASH stays a failed/incomplete observation.
+
+FILES uses the ordinary flat filename-to-hash/size mapping. Original wrapped FILES and all34 original payloads were authenticated before copying; shared owner authentication needs no change. This capsule supplies no enabled owner or current-state binding. Root must wait for capacity restoration, perform fresh admission, and use the established candidate-only diagnostic lifecycle. The earlier sizeforms4FAIL original remains explicitly historical evidence, never a relabelled fresh baseline. No native compilation, browser execution, live source/app/index/canonical mutation or acceptance is claimed.

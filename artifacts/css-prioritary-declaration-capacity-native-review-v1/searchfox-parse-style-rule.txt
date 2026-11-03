@@ -1,0 +1,66 @@
+1110:         self.rules.push(rule);
+1111:         Ok(())
+1112:     }
+1113: }
+1114: 
+1115: impl<'a, 'i> QualifiedRuleParser<'i> for NestedRuleParser<'a, 'i> {
+1116:     type Prelude = SelectorList<SelectorImpl>;
+1117:     type QualifiedRule = ();
+1118:     type Error = StyleParseErrorKind;
+1119: 
+1120:     fn parse_prelude(&mut self, input: &mut Parser<'i>) -> Result<Self::Prelude, ParseError> {
+1121:         let selector_parser = SelectorParser {
+1122:             stylesheet_origin: self.context.stylesheet_origin,
+1123:             namespaces: &self.context.namespaces,
+1124:             url_data: self.context.url_data,
+1125:             for_supports_rule: false,
+1126:         };
+1127:         SelectorList::parse(&selector_parser, input, self.parse_relative())
+1128:     }
+1129: 
+1130:     fn parse_block(
+1131:         &mut self,
+1132:         selectors: Self::Prelude,
+1133:         start: &ParserState,
+1134:         input: &mut Parser<'i>,
+1135:     ) -> Result<(), ParseError> {
+1136:         let source_location = start.source_location();
+1137:         let reporting_errors = self.context.error_reporting_enabled();
+1138:         if reporting_errors {
+1139:             self.handle_error_reporting_selectors_pre(start, &selectors);
+1140:         }
+1141:         self.flush_declarations();
+1142:         let result = self.parse_nested(input, CssRuleType::Style, true);
+1143:         if reporting_errors {
+1144:             self.handle_error_reporting_selectors_post();
+1145:         }
+1146:         let block = Arc::new(self.shared_lock.wrap(result.first_declaration_block));
+1147:         let top = &mut **self;
+1148:         top.rules
+1149:             .push(CssRule::Style(Arc::new(top.shared_lock.wrap(StyleRule {
+1150:                 selectors,
+1151:                 block,
+1152:                 rules: if result.rules.is_empty() {
+1153:                     None
+1154:                 } else {
+1155:                     Some(CssRules::new(result.rules, top.shared_lock))
+1156:                 },
+1157:                 source_location,
+1158:             }))));
+1159:         Ok(())
+1160:     }
+1161: }
+1162: 
+1163: impl<'a, 'i> DeclarationParser<'i> for NestedRuleParser<'a, 'i> {
+1164:     type Declaration = ();
+1165:     type Error = StyleParseErrorKind;
+1166:     fn parse_value(
+1167:         &mut self,
+1168:         name: CowRcStr<'i>,
+1169:         input: &mut Parser<'i>,
+1170:         declaration_start: &ParserState,
+1171:     ) -> Result<(), ParseError> {
+1172:         let top = &mut **self;
+1173:         top.declaration_parser_state
+1174:             .parse_value(&mut top.context, name, input, declaration_start)
+1175:     }

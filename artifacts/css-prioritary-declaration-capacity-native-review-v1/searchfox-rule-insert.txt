@@ -1,0 +1,131 @@
+ 170:     /// corresponding rule node.
+ 171:     pub fn compute_rule_node(
+ 172:         &self,
+ 173:         applicable_declarations: &mut ApplicableDeclarationList,
+ 174:         guards: &StylesheetGuards,
+ 175:     ) -> StrongRuleNode {
+ 176:         let mut prev = None;
+ 177:         self.insert_ordered_rules_with_important(
+ 178:             applicable_declarations.drain(..).filter_map(|d| {
+ 179:                 // for_rule_tree keeps only these two, so adjacent entries that
+ 180:                 // agree on them contribute the same thing to the rule path.
+ 181:                 let key = (d.source.key(), d.cascade_priority);
+ 182:                 if prev == Some(key) {
+ 183:                     return None;
+ 184:                 }
+ 185:                 prev = Some(key);
+ 186:                 Some(d.for_rule_tree())
+ 187:             }),
+ 188:             guards,
+ 189:         )
+ 190:     }
+ 191: 
+ 192:     /// Insert the given rules, that must be in proper order by specifity, and
+ 193:     /// return the corresponding rule node representing the last inserted one.
+ 194:     pub fn insert_ordered_rules<'a, I>(&self, iter: I) -> StrongRuleNode
+ 195:     where
+ 196:         I: Iterator<Item = (StyleSourceBorrow<'a>, CascadePriority)>,
+ 197:     {
+ 198:         self.insert_ordered_rules_from(self.root().clone(), iter)
+ 199:     }
+ 200: 
+ 201:     fn insert_ordered_rules_from<'a, I>(&self, from: StrongRuleNode, iter: I) -> StrongRuleNode
+ 202:     where
+ 203:         I: Iterator<Item = (StyleSourceBorrow<'a>, CascadePriority)>,
+ 204:     {
+ 205:         let mut current = from;
+ 206:         for (source, priority) in iter {
+ 207:             current = current.ensure_child(self.root(), source, priority);
+ 208:         }
+ 209:         current
+ 210:     }
+ 211: 
+ 212:     /// Replaces a rule in a given level (if present) for another rule.
+ 213:     ///
+ 214:     /// Returns the resulting node that represents the new path, or None if
+ 215:     /// the old path is still valid.
+ 216:     pub fn update_rule_at_level(
+ 217:         &self,
+ 218:         level: CascadeLevel,
+ 219:         layer_order: LayerOrder,
+ 220:         pdb: Option<ArcBorrow<Locked<PropertyDeclarationBlock>>>,
+ 221:         path: &StrongRuleNode,
+ 222:         guards: &StylesheetGuards,
+ 223:         important_rules_changed: &mut bool,
+ 224:     ) -> Option<StrongRuleNode> {
+ 225:         // TODO(emilio): Being smarter with lifetimes we could avoid a bit of
+ 226:         // the refcount churn.
+ 227:         let mut current = path.clone();
+ 228:         *important_rules_changed = false;
+ 229: 
+ 230:         // First walk up until the first less-or-equally specific rule.
+ 231:         let mut children = SmallVec::<[_; 10]>::new();
+ 232:         while current.cascade_priority().cascade_level() > level {
+ 233:             children.push((
+ 234:                 current.style_source().unwrap().clone(),
+ 235:                 current.cascade_priority(),
+ 236:             ));
+ 237:             current = current.parent().unwrap().clone();
+ 238:         }
+ 239: 
+ 240:         let cascade_priority = CascadePriority::new(level, layer_order, RuleCascadeFlags::empty());
+ 241: 
+ 242:         // Then remove the one at the level we want to replace, if any.
+ 243:         //
+ 244:         // NOTE: Here we assume that only one rule can be at the level + priority we're replacing,
+ 245:         // which holds because we only use this for HTML style attribute, animations and transition
+ 246:         // rules.
+ 247:         //
+ 248:         // This is certainly true for HTML style attribute rules, animations, transitions, and
+ 249:         // SMIL.
+ 250:         if current.cascade_priority() == cascade_priority {
+ 251:             *important_rules_changed |= level.is_important();
+ 252: 
+ 253:             let current_decls = current.style_source().unwrap().get();
+ 254: 
+ 255:             // If the only rule at the level we're replacing is exactly the
+ 256:             // same as `pdb`, we're done, and `path` is still valid.
+ 257:             if let Some(ref pdb) = pdb {
+ 258:                 // If the only rule at the level we're replacing is exactly the
+ 259:                 // same as `pdb`, we're done, and `path` is still valid.
+ 260:                 //
+ 261:                 // TODO(emilio): Another potential optimization is the one where
+ 262:                 // we can just replace the rule at that level for `pdb`, and
+ 263:                 // then we don't need to re-create the children, and `path` is
+ 264:                 // also equally valid. This is less likely, and would require an
+ 265:                 // in-place mutation of the source, which is, at best, fiddly,
+ 266:                 // so let's skip it for now.
+ 267:                 let is_here_already = ArcBorrow::ptr_eq(pdb, &current_decls.borrow_arc());
+ 268:                 if is_here_already {
+ 269:                     debug!("Picking the fast path in rule replacement");
+ 270:                     return None;
+ 271:                 }
+ 272:             }
+ 273: 
+ 274:             current = current.parent().unwrap().clone();
+ 275:         }
+ 276: 
+ 277:         // Insert the rule if it's relevant at this level in the cascade.
+ 278:         //
+ 279:         // These optimizations are likely to be important, because the levels where replacements
+ 280:         // apply (style and animations) tend to trigger pretty bad styling cases already.
+ 281:         if let Some(pdb) = pdb {
+ 282:             let source = StyleSourceBorrow::from_declarations(pdb);
+ 283:             if level.is_important() {
+ 284:                 if pdb.read_with(level.guard(guards)).any_important() {
+ 285:                     current = current.ensure_child(self.root(), source, cascade_priority);
+ 286:                     *important_rules_changed = true;
+ 287:                 }
+ 288:             } else if pdb.read_with(level.guard(guards)).any_normal() {
+ 289:                 current = current.ensure_child(self.root(), source, cascade_priority);
+ 290:             }
+ 291:         }
+ 292: 
+ 293:         // Now the rule is in the relevant place, push the children as
+ 294:         // necessary.
+ 295:         let rule = self.insert_ordered_rules_from(
+ 296:             current,
+ 297:             children.iter().rev().map(|(s, p)| (s.borrow(), *p)),
+ 298:         );
+ 299:         Some(rule)
+ 300:     }

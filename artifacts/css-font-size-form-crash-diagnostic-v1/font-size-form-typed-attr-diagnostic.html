@@ -1,0 +1,92 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Typed attribute scheduling with different font-size forms</title>
+<link rel="help" href="https://drafts.csswg.org/css-fonts-4/#font-size-prop">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<pre id="observations" hidden></pre>
+<script>
+dump('CSS_SIZEFORMS_STAGE {"mode":"page","phase":"startup","sequence":0,"stage":"script:start"}\n');
+window.fontSizeFormObservations = [];
+for (const mode of ["literal-size-control", "variable-size", "percentage-size", "inherited-size"]) {
+  promise_test(async t => {
+    let phase = "setup";
+    let sequence = 0;
+    const mark = stage => dump("CSS_SIZEFORMS_STAGE " + JSON.stringify({mode, phase, sequence: ++sequence, stage}) + "\n");
+    const read = (stage, operation) => {
+      mark(stage + ":before");
+      const value = operation();
+      mark(stage + ":after");
+      return value;
+    };
+    mark("body:start");
+    const frame = document.createElement("iframe");
+    frame.srcdoc = '<!doctype html><style></style><div id="parent"><div id="target">Target</div></div><div id="reference"></div><div id="attr-reference"></div>';
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    read("iframe:append", () => document.body.append(frame));
+    t.add_cleanup(() => frame.remove());
+    mark("iframe:load:before");
+    await loaded;
+    mark("iframe:load:after");
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    const target = doc.getElementById("target");
+    const parent = doc.getElementById("parent");
+    const reference = doc.getElementById("reference");
+    const attrReference = doc.getElementById("attr-reference");
+    assert_true(win.CSS.supports("appearance", "attr(data-length type(<length>), auto)"), "typed attr syntax");
+    read("registration", () => win.CSS.registerProperty({name: "--len", syntax: "<length>", inherits: false, initialValue: "0px"}));
+    const row = {mode, initial: read("target:initial-len", () => win.getComputedStyle(target).getPropertyValue("--len")), phases: []};
+    read("target:attribute", () => target.setAttribute("data-length", "var(--len)"));
+    read("attr-reference:attribute", () => attrReference.setAttribute("data-length", "var(--len)"));
+    for (const size of [20, 30]) {
+      phase = size;
+      mark("phase:start");
+      const sizeDeclaration = mode === "variable-size" ? "font-size: var(--size);" :
+        mode === "percentage-size" ? "font-size: 100%;" :
+        mode === "inherited-size" ? "" : `font-size: ${size}px;`;
+      mark("stylesheet:before");
+      doc.querySelector("style").textContent = `
+        #parent { font-size: ${size}px; }
+        #target { --len: 1em; --size: ${size}px; ${sizeDeclaration}
+          appearance: attr(data-length type(<length>), auto); font-family: serif; }
+        #reference { width: ${size}px; font-size: ${size}px; appearance: none; }
+        #attr-reference { --len: ${size}px; width: attr(data-length type(<length>), 0px); }`;
+      mark("stylesheet:after");
+      const samples = [read("target:len:first", () => win.getComputedStyle(target).getPropertyValue("--len"))];
+      for (let i = 0; i < 3; ++i) {
+        mark(`frame:${i}:before`);
+        await new Promise(resolve => win.requestAnimationFrame(resolve));
+        mark(`frame:${i}:after`);
+        samples.push(read(`target:len:frame:${i}`, () => win.getComputedStyle(target).getPropertyValue("--len")));
+      }
+      const computed = read("target:style", () => win.getComputedStyle(target));
+      const control = read("reference:style", () => win.getComputedStyle(reference));
+      row.phases.push({size, samples, appearance: read("target:appearance", () => computed.appearance),
+        fontSize: read("target:font-size", () => computed.fontSize), sizeVariable: read("target:size-variable", () => computed.getPropertyValue("--size")),
+        parentFontSize: read("parent:font-size", () => win.getComputedStyle(parent).fontSize),
+        referenceAppearance: read("reference:appearance", () => control.appearance), referenceFontSize: read("reference:font-size", () => control.fontSize),
+        referenceWidth: read("reference:width", () => control.width), attrReferenceWidth: read("attr-reference:width", () => win.getComputedStyle(attrReference).width)});
+    }
+    mark("observations:complete");
+    window.fontSizeFormObservations.push(row);
+    document.getElementById("observations").textContent = JSON.stringify(window.fontSizeFormObservations);
+    const diagnostic = JSON.stringify(row);
+    assert_equals(row.initial, "0px", diagnostic);
+    for (const phase of row.phases) {
+      const px = `${phase.size}px`;
+      assert_equals(phase.referenceWidth, px, diagnostic);
+      assert_equals(phase.attrReferenceWidth, px, diagnostic);
+      assert_equals(phase.referenceFontSize, px, diagnostic);
+      assert_equals(phase.parentFontSize, px, diagnostic);
+      assert_equals(phase.referenceAppearance, "none", diagnostic);
+      assert_equals(phase.sizeVariable.trim(), px, diagnostic);
+      assert_equals(phase.fontSize, px, diagnostic);
+      for (const sample of phase.samples) assert_equals(sample, px, diagnostic);
+      assert_equals(phase.appearance, "none", diagnostic);
+    }
+  }, `Font-size form typed attribute scheduling: ${mode}`);
+}
+</script>

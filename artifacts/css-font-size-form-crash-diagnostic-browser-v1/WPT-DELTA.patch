@@ -1,0 +1,26 @@
+--- artifacts/css-font-metric-selected-reference-diagnostic-run-v1/wpt.py
++++ artifacts/css-font-size-form-crash-diagnostic-browser-v1/wpt.py
+@@ -109,7 +109,7 @@
+     assert all(set(names) <= set(expected[test]) for test, names in targets.items())
+     comparison = load('paired_comparison', here / 'comparison.py')
+     assert role == 'candidate'
+-    builds = {'original': comparison.historical_build(root, policy, lane), 'candidate': comparison.build_binding(root, here, output.parent, policy, 'candidate')}
++    builds = {'candidate': comparison.build_binding(root, here, output.parent, policy, 'candidate')}
+     phase_policy = comparison.phase_policy(settings, builds, policy['head'])
+     output.mkdir()
+     before = verify()
+@@ -161,12 +161,8 @@
+     staged = json.loads((output / 'STAGED-RESOURCES.json').read_bytes())
+     assert all(sha(output / name) == digest for name, digest in staged.items())
+     events = [json.loads(line) for line in (output / 'raw.jsonl').read_text().splitlines()]
+-    if role == 'candidate':
+-        assert original == root / policy['historical_original']['runtime']['directory'] / ('original-wpt-' + lane)
+-        replay = comparison.historical_replay(root, policy, lane, assessor, checks)
+-    else:
+-        assert original is None
+-        replay = None
++    assert role == 'candidate' and original is None
++    replay = None
+     capture_result = None
+     if capture is not None:
+         assert error is None and cleanup and cleanup.get('owned_group_absent') and cleanup.get('temporary_root_removed')

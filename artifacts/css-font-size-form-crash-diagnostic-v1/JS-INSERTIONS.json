@@ -1,0 +1,98 @@
+[
+  [
+    "    const frame = document.createElement(\"iframe\");",
+    "    let phase = \"setup\";\n    let sequence = 0;\n    const mark = stage => dump(\"CSS_SIZEFORMS_STAGE \" + JSON.stringify({mode, phase, sequence: ++sequence, stage}) + \"\\n\");\n    const read = (stage, operation) => {\n      mark(stage + \":before\");\n      const value = operation();\n      mark(stage + \":after\");\n      return value;\n    };\n    mark(\"body:start\");\n    const frame = document.createElement(\"iframe\");"
+  ],
+  [
+    "    document.body.append(frame);",
+    "    read(\"iframe:append\", () => document.body.append(frame));"
+  ],
+  [
+    "    await loaded;",
+    "    mark(\"iframe:load:before\");\n    await loaded;\n    mark(\"iframe:load:after\");"
+  ],
+  [
+    "    win.CSS.registerProperty({name: \"--len\", syntax: \"<length>\", inherits: false, initialValue: \"0px\"});",
+    "    read(\"registration\", () => win.CSS.registerProperty({name: \"--len\", syntax: \"<length>\", inherits: false, initialValue: \"0px\"}));"
+  ],
+  [
+    "initial: win.getComputedStyle(target).getPropertyValue(\"--len\")",
+    "initial: read(\"target:initial-len\", () => win.getComputedStyle(target).getPropertyValue(\"--len\"))"
+  ],
+  [
+    "    target.setAttribute(\"data-length\", \"var(--len)\");",
+    "    read(\"target:attribute\", () => target.setAttribute(\"data-length\", \"var(--len)\"));"
+  ],
+  [
+    "    attrReference.setAttribute(\"data-length\", \"var(--len)\");",
+    "    read(\"attr-reference:attribute\", () => attrReference.setAttribute(\"data-length\", \"var(--len)\"));"
+  ],
+  [
+    "    for (const size of [20, 30]) {",
+    "    for (const size of [20, 30]) {\n      phase = size;\n      mark(\"phase:start\");"
+  ],
+  [
+    "      doc.querySelector(\"style\").textContent = `",
+    "      mark(\"stylesheet:before\");\n      doc.querySelector(\"style\").textContent = `"
+  ],
+  [
+    "      const samples = [win.getComputedStyle(target).getPropertyValue(\"--len\")];",
+    "      mark(\"stylesheet:after\");\n      const samples = [read(\"target:len:first\", () => win.getComputedStyle(target).getPropertyValue(\"--len\"))];"
+  ],
+  [
+    "        await new Promise(resolve => win.requestAnimationFrame(resolve));",
+    "        mark(`frame:${i}:before`);\n        await new Promise(resolve => win.requestAnimationFrame(resolve));\n        mark(`frame:${i}:after`);"
+  ],
+  [
+    "        samples.push(win.getComputedStyle(target).getPropertyValue(\"--len\"));",
+    "        samples.push(read(`target:len:frame:${i}`, () => win.getComputedStyle(target).getPropertyValue(\"--len\")));"
+  ],
+  [
+    "      const computed = win.getComputedStyle(target);",
+    "      const computed = read(\"target:style\", () => win.getComputedStyle(target));"
+  ],
+  [
+    "      const control = win.getComputedStyle(reference);",
+    "      const control = read(\"reference:style\", () => win.getComputedStyle(reference));"
+  ],
+  [
+    "computed.appearance",
+    "read(\"target:appearance\", () => computed.appearance)"
+  ],
+  [
+    "computed.fontSize",
+    "read(\"target:font-size\", () => computed.fontSize)"
+  ],
+  [
+    "computed.getPropertyValue(\"--size\")",
+    "read(\"target:size-variable\", () => computed.getPropertyValue(\"--size\"))"
+  ],
+  [
+    "win.getComputedStyle(parent).fontSize",
+    "read(\"parent:font-size\", () => win.getComputedStyle(parent).fontSize)"
+  ],
+  [
+    "control.appearance",
+    "read(\"reference:appearance\", () => control.appearance)"
+  ],
+  [
+    "control.fontSize",
+    "read(\"reference:font-size\", () => control.fontSize)"
+  ],
+  [
+    "control.width",
+    "read(\"reference:width\", () => control.width)"
+  ],
+  [
+    "win.getComputedStyle(attrReference).width",
+    "read(\"attr-reference:width\", () => win.getComputedStyle(attrReference).width)"
+  ],
+  [
+    "    window.fontSizeFormObservations.push(row);",
+    "    mark(\"observations:complete\");\n    window.fontSizeFormObservations.push(row);"
+  ],
+  [
+    "window.fontSizeFormObservations = [];",
+    "dump('CSS_SIZEFORMS_STAGE {\"mode\":\"page\",\"phase\":\"startup\",\"sequence\":0,\"stage\":\"script:start\"}\\n');\nwindow.fontSizeFormObservations = [];"
+  ]
+]

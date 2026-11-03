@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="timeout" content="long">
+<title>Unrelated declarations do not hide an earlier font-size declaration</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#cascade">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+test(t => {
+  const count = 65536;
+  const style = document.createElement("style");
+  const early = document.createElement("div");
+  const late = document.createElement("div");
+  early.className = "capacity-filler capacity-early";
+  late.className = "capacity-filler capacity-late";
+  style.textContent = ".capacity-early { font-size: 37px; width: 1em; }" +
+    ".capacity-filler { color: rgb(1, 2, 3); }".repeat(count) +
+    ".capacity-late { font-size: 37px; width: 1em; }";
+  document.head.append(style);
+  document.body.append(early, late);
+  t.add_cleanup(() => { style.remove(); early.remove(); late.remove(); });
+  const before = getComputedStyle(early);
+  const after = getComputedStyle(late);
+  const observation = JSON.stringify({
+    rules: style.sheet.cssRules.length,
+    early: { fontSize: before.fontSize, width: before.width, color: before.color },
+    late: { fontSize: after.fontSize, width: after.width, color: after.color }
+  });
+  assert_equals(style.sheet.cssRules.length, count + 2, observation);
+  assert_equals(after.fontSize, "37px", observation);
+  assert_equals(after.width, "37px", observation);
+  assert_equals(after.color, "rgb(1, 2, 3)", observation);
+  assert_equals(before.color, "rgb(1, 2, 3)", observation);
+  assert_equals(before.fontSize, "37px", observation);
+  assert_equals(before.width, "37px", observation);
+}, "Font-size survives 65536 higher-priority declarations for another property");
+</script>

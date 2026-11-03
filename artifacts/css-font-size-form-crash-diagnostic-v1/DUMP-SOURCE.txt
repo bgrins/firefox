@@ -1,0 +1,31 @@
+>>> 3975: void nsGlobalWindowInner::Dump(const nsAString& aStr) {
+    3976:   if (!nsJSUtils::DumpEnabled()) {
+    3977:     return;
+    3978:   }
+    3979: 
+    3980:   char* cstr = ToNewUTF8String(aStr);
+    3981: 
+    3982: #if defined(XP_MACOSX)
+    3983:   // have to convert \r to \n so that printing to the console works
+    3984:   char *c = cstr, *cEnd = cstr + strlen(cstr);
+    3985:   while (c < cEnd) {
+    3986:     if (*c == '\r') *c = '\n';
+    3987:     c++;
+    3988:   }
+    3989: #endif
+    3990: 
+    3991:   if (cstr) {
+    3992:     MOZ_LOG(nsContentUtils::DOMDumpLog(), LogLevel::Debug,
+    3993:             ("[Window.Dump] %s", cstr));
+    3994: #ifdef XP_WIN
+    3995:     PrintToDebugger(cstr);
+    3996: #endif
+    3997: #ifdef ANDROID
+    3998:     __android_log_write(ANDROID_LOG_INFO, "GeckoDump", cstr);
+    3999: #endif
+    4000:     FILE* fp = gDumpFile ? gDumpFile : stdout;
+    4001:     fputs(cstr, fp);
+    4002:     fflush(fp);
+    4003:     free(cstr);
+    4004:   }
+    4005: }

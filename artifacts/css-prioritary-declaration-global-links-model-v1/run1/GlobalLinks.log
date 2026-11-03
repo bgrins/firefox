@@ -1,0 +1,86 @@
+GlobalLinks.lean:93:64: error: unexpected identifier; expected '}'
+GlobalLinks.lean:148:78: error: unexpected identifier; expected '}'
+GlobalLinks.lean:114:44: error(lean.unknownIdentifier): Unknown identifier `initialized_rep`
+GlobalLinks.lean:124:16: error: Tactic `apply` failed: could not unify the conclusion of `@Path.one`
+  Path ?heap ?i ?i [?i]
+with the goal
+  Path
+    (view
+        { vector := s.vector ++ [d], head := put s.head q s.vector.length, tail := put s.tail q s.vector.length,
+          next := put s.next s.vector.length 0 }
+        q).next
+    (view
+        { vector := s.vector ++ [d], head := put s.head q s.vector.length, tail := put s.tail q s.vector.length,
+          next := put s.next s.vector.length 0 }
+        q).head
+    (view
+        { vector := s.vector ++ [d], head := put s.head q s.vector.length, tail := put s.tail q s.vector.length,
+          next := put s.next s.vector.length 0 }
+        q).tail
+    (if True ∧ True then [s.vector.length] else [])
+
+Note: The full type of `@Path.one` is
+  ∀ {heap : Nat → Nat} {i : Nat}, heap i = 0 → Path heap i i [i]
+
+case pos.inl.refine_1
+mapping : Nat → Option Nat
+sentinel : Nat
+s : State
+chains : Nat → List Nat
+d : Declaration
+inv : Invariant mapping sentinel s chains
+q : Nat
+mapped : mapping d.property = some q
+bound : s.vector.length < sentinel
+hx : chains q = []
+ht : (view s q).tail = sentinel
+hh : s.head q = sentinel
+⊢ Path
+    (view
+        { vector := s.vector ++ [d], head := put s.head q s.vector.length, tail := put s.tail q s.vector.length,
+          next := put s.next s.vector.length 0 }
+        q).next
+    (view
+        { vector := s.vector ++ [d], head := put s.head q s.vector.length, tail := put s.tail q s.vector.length,
+          next := put s.next s.vector.length 0 }
+        q).head
+    (view
+        { vector := s.vector ++ [d], head := put s.head q s.vector.length, tail := put s.tail q s.vector.length,
+          next := put s.next s.vector.length 0 }
+        q).tail
+    (if True ∧ True then [s.vector.length] else [])
+GlobalLinks.lean:126:16: warning: `simp` already closes the goal
+
+Hint: Use `simp` instead of `simpa`:
+  [apply] simp [view, put]
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+GlobalLinks.lean:134:16: warning: `simp` already closes the goal
+
+Hint: Use `simp` instead of `simpa`:
+  [apply] simp [view, put]
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+GlobalLinks.lean:138:30: error(lean.unknownIdentifier): Unknown identifier `initialized_rep`
+GlobalLinks.lean:115:13: error: unsolved goals
+case neg
+mapping : Nat → Option Nat
+sentinel : Nat
+s : State
+chains : Nat → List Nat
+d : Declaration
+inv : Invariant mapping sentinel s chains
+p q : Nat
+mapped : mapping d.property = some q
+bound : ¬s.vector.length < sentinel
+⊢ Represents sentinel (view (note mapping sentinel s d) p) (advance mapping sentinel s.vector.length d chains p)
+GlobalLinks.lean:109:61: error: unsolved goals
+case refine_2
+mapping : Nat → Option Nat
+sentinel : Nat
+s : State
+chains : Nat → List Nat
+d : Declaration
+inv : Invariant mapping sentinel s chains
+p : Nat
+⊢ Owned mapping (note mapping sentinel s d).vector p (advance mapping sentinel s.vector.length d chains p)

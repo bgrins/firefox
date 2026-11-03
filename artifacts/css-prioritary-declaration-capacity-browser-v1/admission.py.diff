@@ -1,0 +1,33 @@
+--- artifacts/css-font-metric-computed-size-pair-v1/admission.py
++++ artifacts/css-prioritary-declaration-capacity-browser-v1/admission.py
+@@ -17,21 +17,6 @@
+     return directory
+ 
+ 
+-def verified_refresh(root, policy, checkpoint):
+-    binding = policy['refresh_lineage']
+-    directory = root / binding['directory']
+-    assert sha(directory / 'commit.py') == binding['driver_sha256']
+-    assert sha(directory / 'BINDINGS.json') == binding['bindings_sha256']
+-    spec = importlib.util.spec_from_file_location('diagnostic_refresh_lineage', directory / 'commit.py')
+-    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+-    receipt = root / module.BINDINGS['prior_receipt']
+-    assert sha(receipt) == module.BINDINGS['prior_receipt_sha256']
+-    assert checkpoint == read(receipt) and checkpoint['committed'] and checkpoint['signature_verified']
+-    assert module.BINDINGS['head'] == policy['head']
+-    assert module.BINDINGS['controls'] == policy['controls']
+-    return module.validate_refresh(checkpoint)
+-
+-
+ def validate_current(root,policy,roles):
+     binding=policy['current_binding']
+     assert binding and sha(root/binding['path'])==binding['sha256']
+@@ -47,7 +32,7 @@
+     assert checkpoint==capture['checkpoint'] and checkpoint['committed'] and checkpoint['signature_verified']
+     assert checkpoint['accepted_fix_increment']==0 and checkpoint['native_working_diff_preserved']
+     assert checkpoint['head']==policy['head']==capture['snapshot']['index']['head']
+-    assert verified_refresh(root,policy,checkpoint)==capture['snapshot']
++    assert checkpoint['epoch_sha256']==capture['controls']['CURRENT-EPOCH.json']
+     assert capture['controls']==policy['controls'] and set(capture['controls'])=={'CURRENT-EPOCH.json','ROLE.json','OWNED.json'}
+     here=root/policy['owner_directory']
+     def local(name):

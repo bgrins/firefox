@@ -1,0 +1,76 @@
+ 995:                 if !cfg!(feature = "gecko") {
+ 996:                     unreachable!()
+ 997:                 }
+ 998:                 CssRule::Document(Arc::new(DocumentRule {
+ 999:                     condition,
+1000:                     rules: self.parse_nested_rules(input, CssRuleType::Document),
+1001:                     source_location,
+1002:                 }))
+1003:             },
+1004:             AtRulePrelude::Container(conditions) => {
+1005:                 let source_location = start.source_location();
+1006:                 CssRule::Container(Arc::new(ContainerRule {
+1007:                     conditions: ContainerConditions(conditions),
+1008:                     rules: self.parse_nested_rules(input, CssRuleType::Container),
+1009:                     source_location,
+1010:                 }))
+1011:             },
+1012:             AtRulePrelude::Layer(names) => {
+1013:                 let name = match names.len() {
+1014:                     0 | 1 => names.into_iter().next(),
+1015:                     _ => {
+1016:                         return Err(ParseError::from_basic_kind(
+1017:                             BasicParseErrorKind::AtRuleBodyInvalid,
+1018:                         ));
+1019:                     },
+1020:                 };
+1021:                 CssRule::LayerBlock(Arc::new(LayerBlockRule {
+1022:                     name,
+1023:                     rules: self.parse_nested_rules(input, CssRuleType::LayerBlock),
+1024:                     source_location,
+1025:                 }))
+1026:             },
+1027:             AtRulePrelude::Margin(rule_type) => {
+1028:                 let declarations = self.nest_for_rule(CssRuleType::Margin, |p| {
+1029:                     parse_property_declaration_list(&mut p.context, input, &[])
+1030:                 });
+1031:                 CssRule::Margin(Arc::new(MarginRule {
+1032:                     rule_type,
+1033:                     block: Arc::new(self.shared_lock.wrap(declarations)),
+1034:                     source_location,
+1035:                 }))
+1036:             },
+1037:             AtRulePrelude::CustomMedia(..)
+1038:             | AtRulePrelude::Import(..)
+1039:             | AtRulePrelude::Namespace(..) => {
+1040:                 // These rules don't have blocks.
+1041:                 return Err(ParseError::unexpected_token());
+1042:             },
+1043:             AtRulePrelude::Scope(bounds) => CssRule::Scope(Arc::new(ScopeRule {
+1044:                 bounds,
+1045:                 rules: self.parse_nested_rules(input, CssRuleType::Scope),
+1046:                 source_location,
+1047:             })),
+1048:             AtRulePrelude::StartingStyle => CssRule::StartingStyle(Arc::new(StartingStyleRule {
+1049:                 rules: self.parse_nested_rules(input, CssRuleType::StartingStyle),
+1050:                 source_location,
+1051:             })),
+1052:             AtRulePrelude::AppearanceBase => {
+1053:                 CssRule::AppearanceBase(Arc::new(AppearanceBaseRule {
+1054:                     rules: self.parse_nested_rules(input, CssRuleType::AppearanceBase),
+1055:                     source_location,
+1056:                 }))
+1057:             },
+1058:             AtRulePrelude::PositionTry(name) => {
+1059:                 let declarations = self.nest_for_rule(CssRuleType::PositionTry, |p| {
+1060:                     parse_property_declaration_list(&mut p.context, input, &[])
+1061:                 });
+1062:                 CssRule::PositionTry(Arc::new(self.shared_lock.wrap(PositionTryRule {
+1063:                     name,
+1064:                     block: Arc::new(self.shared_lock.wrap(declarations)),
+1065:                     source_location,
+1066:                 })))
+1067:             },
+1068:             AtRulePrelude::ViewTransition => self.nest_for_rule(CssRuleType::ViewTransition, |p| {
+1069:                 CssRule::ViewTransition(Arc::new(ViewTransitionRule::parse(
+1070:                     &p.context,

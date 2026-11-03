@@ -1,0 +1,61 @@
+--- artifacts/css-prioritary-declaration-links-model-v1/replay.py
++++ artifacts/css-prioritary-declaration-global-links-model-v1/replay.py
+@@ -17,36 +17,37 @@
+ assert len(sys.argv) == 2 and Path(sys.argv[1]).name == sys.argv[1]
+ output = HERE / sys.argv[1]
+ output.mkdir()
+-names = re.findall(r"^theorem (\w+)", (HERE / "Links.lean").read_text(), re.M)
++names = re.findall(r"^theorem (\w+)", (HERE / "GlobalLinks.lean").read_text(), re.M)
+ false_cases = {
+-    "ZeroHeadAbsent": "read 3 (build 3 0 (empty 3) [font]) = []",
+-    "MissingTailUpdate": "let s := build 5 0 (empty 5) [font, color, font]; read 5 {s with next := fun _ => 0} = [0, 2]",
+-    "LinkThroughUnrelated": "let s := build 5 0 (empty 5) [font, color, font]; s.next 0 = 1",
+-    "MAXIndexAdmitted": "read 2 (build 2 0 (empty 2) [color, color, font]) = [2]",
+-    "GuardDropsVector": "(build 2 0 (empty 2) [color, color, font]).vector = [color, color]",
+-    "OverwriteHead": "let s := build 5 0 (empty 5) [font, color, font]; read 5 {s with head := s.tail} = [0, 2]",
++    "SharedTailConnectsProperties": "fixture.next 0 = 4",
++    "OtherAppendErasesFirstChain": "DeclarationLinks.read 8 (view fixture 0) = [0]",
++    "NoMappingDropsVector": "(build testMapping 8 (empty 8) [a, unrelated, b]).vector = [a, b]",
++    "PropertyCountAvoidsCapacity": "DeclarationLinks.read 2 (view (build testMapping 2 (empty 2) [b, unrelated, a]) 0) = [2]",
++    "ZeroHeadAbsent": "DeclarationLinks.read 8 (view fixture 0) = []",
++    "MappedPropertiesOverlap": "0 ∈ admitted testMapping 8 0 0 [a,b] ∧ 0 ∈ admitted testMapping 8 1 0 [a,b]",
+ }
+ 
+ 
+ 
+ records = []
+ (output / "TOOLCHAIN.txt").write_bytes(subprocess.check_output([str(LEAN), "--version"]))
+-with tempfile.TemporaryDirectory(prefix="css-declaration-links-lean-") as temporary:
++with tempfile.TemporaryDirectory(prefix="css-global-declaration-links-lean-") as temporary:
+     scratch = Path(temporary)
+     (output / "SCRATCH.json").write_text(json.dumps({"path": str(scratch)}) + "\n")
+     env = dict(os.environ, LEAN_PATH=str(scratch))
++    shutil.copyfile(HERE / "GlobalLinks.lean", scratch / "GlobalLinks.lean")
+     shutil.copyfile(HERE / "Links.lean", scratch / "Links.lean")
+     shutil.copyfile(HERE / "Capacity.lean", scratch / "Capacity.lean")
+-    (scratch / "Audit.lean").write_text("import Links\n" + "".join(
+-        "#print axioms DeclarationLinks." + name + "\n" for name in names))
++    (scratch / "Audit.lean").write_text("import GlobalLinks\n" + "".join(
++        "#print axioms GlobalDeclarationLinks." + name + "\n" for name in names))
+     for name, claim in false_cases.items():
+         (scratch / (name + ".lean")).write_text(
+-            "import Links\nopen DeclarationLinks\nopen DeclarationCapacity (font color)\nexample : " + claim + " := by decide\n")
++            "import GlobalLinks\nopen GlobalDeclarationLinks\nexample : " + claim + " := by decide\n")
+     for source in scratch.rglob("*.lean"):
+         target = output / source.relative_to(scratch)
+         target.parent.mkdir(parents=True, exist_ok=True)
+         shutil.copyfile(source, target)
+-    for name, expected in [(name, True) for name in ["Capacity", "Links", "Audit"]] + [(n, False) for n in false_cases]:
++    for name, expected in [(name, True) for name in ["Capacity", "Links", "GlobalLinks", "Audit"]] + [(n, False) for n in false_cases]:
+         result = subprocess.run([str(LEAN), "-o", name + ".olean", name + ".lean"],
+                                 cwd=scratch, env=env, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, timeout=60)
+@@ -68,7 +69,7 @@
+ assert not scratch.exists()
+ (output / "CHECK.json").write_text(json.dumps({
+     "success": True, "audited_theorems": names, "false_controls_rejected": len(false_cases),
+-    "source_sha256": sha(HERE / "Links.lean"), "lean_sha256": sha(LEAN),
++    "source_sha256": sha(HERE / "GlobalLinks.lean"), "lean_sha256": sha(LEAN),
+     "scratch_removed": True, "canonical_coverage_increment": 0,
+     "native_refinement_proved": False, "functional_link_refinement_proved": True, "native_link_memory_refinement_proved": False, "unbounded_capacity_proved": False,
+ }, indent=2, sort_keys=True) + "\n")

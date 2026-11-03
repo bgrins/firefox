@@ -1,0 +1,38 @@
+--- executed/run.py
++++ capacity/run.py
+@@ -72,7 +72,7 @@
+     prior = authenticated_receipt(binding, 'predecessor_receipt')
+     assert prior['head'] == binding['head'] and prior['signature_verified']
+     assert prior['committed'] and prior['accepted_fix_increment'] == 0 and prior['native_working_diff_preserved']
+-    assert binding['predecessor_kind'] == 'signed-research' and stage['stage'] == 'ownership'
++    assert binding['predecessor_kind'] == 'signed-research' and stage['stage'] == 'capacity'
+     evidence = load('nowrap_pair_evidence', HERE / 'evidence.py')
+     evidence.verify(ROOT, policy['pair_binding'], stage)
+     pair_head = read(ROOT / policy['pair_binding']['owner_directory'] / 'POLICY.json')['head']
+@@ -97,7 +97,7 @@
+     owner.quiescent(RUNTIME)
+     owner.quiescent(ROOT / 'artifacts/css-page-selector-native-runtime-v1')
+     output = ROOT / policy['runtime_output']
+-    assert output.parent == ROOT / 'artifacts' and output.name.startswith('css-hyphenation-ownership-publication-')
++    assert output.parent == ROOT / 'artifacts' and output.name.startswith('css-prioritary-declaration-capacity-publication-')
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not os.path.lexists(lock)
+     sources = set(stage['head_preimages'])
+@@ -134,7 +134,7 @@
+         assert installed['stage'] == stage['stage'] and installed['installed'] and not installed['app_rebuilt']
+         assert installed['manifest_sha256'] == binding['installation_manifest']
+         assert installed['epoch_sha256'] == binding['controls']['CURRENT-EPOCH.json']
+-        assert epoch['hyphenation_ownership_publication'][stage['stage']]['installation_manifest'] == binding['installation_manifest']
++        assert epoch['prioritary_declaration_capacity_publication'][stage['stage']]['installation_manifest'] == binding['installation_manifest']
+         assert epoch['modified_native_paths'] == sorted(sources)
+         for path, record in stage['files'].items():
+             assert epoch['pins'][path] == record['sha256']
+@@ -206,7 +206,7 @@
+                  'files': sorted(stage['files']), 'app_rebuilt': False, 'existing_tests_adopted_without_write': sorted(adopted_paths), 'new_tests_created': sorted(created_paths)})
+             safe = True
+         else:
+-            with tempfile.TemporaryDirectory(prefix='css-hyphenation-ownership-native-', dir='/private/tmp') as temporary:
++            with tempfile.TemporaryDirectory(prefix='css-prioritary-declaration-capacity-native-', dir='/private/tmp') as temporary:
+                 temporary = Path(temporary)
+                 index_env = dict(ENV, GIT_INDEX_FILE=str(temporary / 'index'))
+                 git('read-tree', binding['head'], env=index_env)

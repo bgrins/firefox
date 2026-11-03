@@ -1,0 +1,100 @@
+   1: /* This Source Code Form is subject to the terms of the Mozilla Public
+   2:  * License, v. 2.0. If a copy of the MPL was not distributed with this
+   3:  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+   4: 
+   5: //! Applicable declarations management.
+   6: 
+   7: use crate::derives::*;
+   8: use crate::rule_tree::{CascadeLevel, CascadeOrigin, RuleCascadeFlags, StyleSourceBorrow};
+   9: use crate::stylesheets::layer_rule::LayerOrder;
+  10: use smallvec::SmallVec;
+  11: 
+  12: /// List of applicable declarations. This is a transient structure that shuttles
+  13: /// declarations between selector matching and inserting into the rule tree, and
+  14: /// therefore we want to avoid heap-allocation where possible.
+  15: ///
+  16: /// In measurements on wikipedia, we pretty much never have more than 8 applicable
+  17: /// declarations, so we could consider making this 8 entries instead of 16.
+  18: /// However, it may depend a lot on workload, and stack space is cheap.
+  19: pub type ApplicableDeclarationList<'a> = SmallVec<[ApplicableDeclarationBlock<'a>; 16]>;
+  20: 
+  21: /// Blink uses 18 bits to store source order, and does not check overflow [1].
+  22: /// That's a limit that could be reached in realistic webpages, so we use
+  23: /// 24 bits and enforce defined behavior in the overflow case.
+  24: ///
+  25: /// Note that right now this restriction could be lifted if wanted (because we
+  26: /// no longer stash the cascade level in the remaining bits), but we keep it in
+  27: /// place in case we come up with a use-case for them, lacking reports of the
+  28: /// current limit being too small.
+  29: ///
+  30: /// [1] https://cs.chromium.org/chromium/src/third_party/WebKit/Source/core/css/
+  31: ///     RuleSet.h?l=128&rcl=90140ab80b84d0f889abc253410f44ed54ae04f3
+  32: const SOURCE_ORDER_BITS: usize = 24;
+  33: const SOURCE_ORDER_MAX: u32 = (1 << SOURCE_ORDER_BITS) - 1;
+  34: const SOURCE_ORDER_MASK: u32 = SOURCE_ORDER_MAX;
+  35: 
+  36: /// The cascade-level+layer order of this declaration.
+  37: #[derive(Clone, Copy, Debug, Eq, Hash, MallocSizeOf, PartialEq)]
+  38: pub struct CascadePriority {
+  39:     cascade_level: CascadeLevel,
+  40:     flags: RuleCascadeFlags,
+  41:     layer_order: LayerOrder,
+  42: }
+  43: 
+  44: const_assert_eq!(
+  45:     std::mem::size_of::<CascadePriority>(),
+  46:     std::mem::size_of::<u32>()
+  47: );
+  48: 
+  49: impl PartialOrd for CascadePriority {
+  50:     #[inline]
+  51:     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+  52:         Some(self.cmp(other))
+  53:     }
+  54: }
+  55: 
+  56: impl Ord for CascadePriority {
+  57:     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+  58:         self.cascade_level.cmp(&other.cascade_level).then_with(|| {
+  59:             let ordering = self.layer_order.cmp(&other.layer_order);
+  60:             if ordering == std::cmp::Ordering::Equal {
+  61:                 return ordering;
+  62:             }
+  63:             // https://drafts.csswg.org/css-cascade-5/#cascade-layering
+  64:             //
+  65:             //     Cascade layers (like declarations) are ordered by order
+  66:             //     of appearance. When comparing declarations that belong to
+  67:             //     different layers, then for normal rules the declaration
+  68:             //     whose cascade layer is last wins, and for important rules
+  69:             //     the declaration whose cascade layer is first wins.
+  70:             //
+  71:             // But the style attribute layer for some reason is special.
+  72:             if self.cascade_level.is_important()
+  73:                 && !self.layer_order.is_style_attribute_layer()
+  74:                 && !other.layer_order.is_style_attribute_layer()
+  75:             {
+  76:                 ordering.reverse()
+  77:             } else {
+  78:                 ordering
+  79:             }
+  80:         })
+  81:     }
+  82: }
+  83: 
+  84: /// The kind of revert that we're applying.
+  85: #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+  86: pub enum RevertKind {
+  87:     /// revert
+  88:     Origin,
+  89:     /// revert-layer
+  90:     Layer,
+  91:     /// revert-rule
+  92:     Rule,
+  93: }
+  94: 
+  95: impl CascadePriority {
+  96:     /// The transitions cascade priority. There's only one transition, and it's unassociated with any layer or so.
+  97:     pub const TRANSITIONS: Self = Self::new(
+  98:         CascadeLevel::new(CascadeOrigin::Transitions),
+  99:         LayerOrder::root(),
+ 100:         RuleCascadeFlags::empty(),

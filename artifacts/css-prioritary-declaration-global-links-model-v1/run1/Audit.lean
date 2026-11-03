@@ -1,0 +1,20 @@
+import GlobalLinks
+#print axioms GlobalDeclarationLinks.path_tail_member
+#print axioms GlobalDeclarationLinks.owned_indices_allocated
+#print axioms GlobalDeclarationLinks.owned_chains_disjoint
+#print axioms GlobalDeclarationLinks.owned_append
+#print axioms GlobalDeclarationLinks.owned_advance
+#print axioms GlobalDeclarationLinks.note_vector
+#print axioms GlobalDeclarationLinks.initialized_rep
+#print axioms GlobalDeclarationLinks.note_preserves
+#print axioms GlobalDeclarationLinks.build_vector
+#print axioms GlobalDeclarationLinks.build_preserves
+#print axioms GlobalDeclarationLinks.empty_invariant
+#print axioms GlobalDeclarationLinks.fresh_global_invariant
+#print axioms GlobalDeclarationLinks.all_chains_read_admitted
+#print axioms GlobalDeclarationLinks.admitted_complete
+#print axioms GlobalDeclarationLinks.all_chains_complete
+#print axioms GlobalDeclarationLinks.final_chains_disjoint
+#print axioms GlobalDeclarationLinks.final_head_tail_bounds
+#print axioms GlobalDeclarationLinks.all_vector_entries_retained
+#print axioms GlobalDeclarationLinks.interleaved_shared_heap

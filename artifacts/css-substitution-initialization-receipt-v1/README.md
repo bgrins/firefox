@@ -1,0 +1,41 @@
+# Custom lookup initialization receipt
+
+The completed custom-selection pass can authorize **storage-settled** no-node custom lookups within one fixed Context. Map absence alone cannot. `RECEIPT.rs` and `ADAPTER.rs` prototype that distinction against frozen f0d/90ac. They are not wired into Stylo or the resumable substitution engine. No native typecheck or browser run occurred for this package.
+
+`init_custom_properties` installs registered initial maps and the parent's computed inherited map (or initial inherited map at the root). The unvisited cascade then finishes `iter_declarations`, including custom selection, before calling `apply_custom_and_prioritary_properties` and creating the traversal Context. `seen.var == true` identifies selected values still requiring traversal. False or unmentioned entries retain the completed initialization/selection result: a value or a settled absence. Revert entries remove `seen` and permit lower declarations during that completed pass; the receipt must not be created mid-pass.
+
+The receipt clones `ComputedCustomProperties` at this boundary and copies the unresolved-name set. No-node lookup of an unresolved name stays Pending even if a current map contains a typed value or no value. Other lookups return owned snapshots. This is stability of stored bindings, not a proof that earlier eager computation was numerically correct: the source itself questions `CustomDeclarationValue::Parsed` dependency handling. Initial/inherited registration computation and custom-prefix semantic correctness remain external.
+
+`ADAPTER.rs` obtains registration, map, flags and indexed publication from the same Context. It accepts no caller-supplied registration or arbitrary name/publication pair. Before SCC pop, bind each custom node's actual `VarInfo.var` to its index. After actual publication, read the terminal state from that slot and snapshot its named result. Cycle settlement can yield a registered initial/inherited value; it is not blanket invalidity. Actual graph same-name uniqueness, index-map membership, no slot reuse before reset, and mandatory binding before `var.take()` are caller provenance requirements. These helper methods are private integration seams, not capabilities safe to invoke arbitrarily.
+
+The receipt retains batch snapshots across roots. `receipt_reset` executes the exact extracted native reset (all nodes retire, stacks/frames/preparations/claims clear) before rotating request identity. Old requests and requests from another Context fail. The future owned substitution continuation must also be empty at reset; it does not exist in this candidate, so the current reset cannot check it. A fresh cascade/element requires a fresh receipt after its own selection pass. The stylist, registrations, element and DOM/environment inputs remain fixed through that Context lifetime; request identity does not independently prove those inputs unchanged.
+
+All flags must match the receipt's creation flags. The current relevant mutation adds APPEARANCE_BASE during the Appearance hook; custom selection has already discarded ineligible declarations. The receipt therefore rejects that change, including an initially absent custom name whose gated declaration could become eligible. It does not borrow the narrower computed-size facet's flag permission. Observed invalidation is permanent and is a caller restart/error, never a provider `Invalid` reply. The equality guard is not an ABA detector: any future transient flag mutation or other mutation of the fixed inputs requires explicit invalidation at the mutation boundary, even if restored before lookup.
+
+## Required native hooks
+
+| Site | Required action, not yet installed |
+| --- | --- |
+| Context creation after completed custom selection | Seed the receipt once from `seen.var` and the computed custom map. Do not reseed after each root. |
+| `start_frame`, immediately after a custom `VarInfo` is created | Bind actual name to root-local index before any SCC pop. |
+| `publish_closed` after `Prepared.apply` or substitution/apply and `publication.finish()` | Record the indexed terminal snapshot. Pending and Applying must not record it. |
+| Both retained and compatibility cycle paths | Retain names before `var.take()`, apply every invalid/default outcome, settle cycle states, then record each custom member. |
+| `start_frame` dependency-free branch | After its actual synchronous compute/apply, call the distinct `receipt_dependency_free_applied` notification. The prototype tests this explicit notification with simulated map computation; it does not extract that full compute path. |
+| `start_frame` absent/already-typed shortcut | Use initial or recorded terminal authority. A still-unresolved name remains Pending/inconsistent; do not convert generic `VisitResult::Complete` into authority. |
+| `Context::reset` | Keep batch snapshots; use actual retirement checks and rotate request identity. Add owned-continuation retirement before integration. |
+
+The explicit shortcut notification is deliberately a private post-operation hook, not proof that the operation happened. Its source placement and the other hooks above remain unimplemented. After these hooks are installed, a no-node settled snapshot can feed the existing continuation's `Value` or `Invalid`; Pending stays Pending. Registered numeric computation must already have happened. `Expand` is not a way around it. Existing semantic graph edges and traversal remain separate from this lookup authority.
+
+## Attribute boundary remains separate
+
+`update_attributes_map` records the expanded name in `seen.attr` before attempting setup and inserts a value only on success. `get_attr_value_for_cycle_resolution` currently collapses unknown namespace, absent raw attribute and raw parse failure into `Err(())`; lazy ReferenceWalk setup can try again when the map has no key. Thus no custom-name receipt, missing cache entry, or generic no-node Complete certifies an attribute outcome.
+
+Retain an attribute setup attempt at the actual raw-query/parse boundary: known expanded name and URL context, owned raw presence/value, raw parse outcome, and unresolved expansion or later computed publication. Unknown namespace must reject without DOM query; raw missing follows the continuation's existing missing/raw-string rules; present raw text with failed universal parse is a different setup result. Typed syntax parsing remains per consumer after the attribute's value settles. A wrong typed syntax must not invalidate a different consumer's cached value. The currently erased query/parse distinction is the exact additional state needed; this package does not implement it or promise one-query behavior for the old graph path.
+
+## Validation and limits
+
+`test.py` compiles the exact frozen `init_custom_properties`, `NodePublication` implementation and `Context::reset`, together with the proposed receipt/adapter. Maps, atoms, stylist registrations, computed values and Context fields use explicit small Rust facades; map mutation simulates completed application/defaults. The full cascade-selection body, start-frame and publication bodies are pinned source evidence, not executed by these tests. `std::sync::Arc` is a test identity facade; native code uses servo_arc. No native parser, numerical computation, attribute setup, whole-graph traversal or lifetime refinement is tested.
+
+The final run checks eight positives and six compiled assertion-failing controls: unresolved-map shortcuts, premature Applying admission, stale-root reuse, ignored flags, blanket cycle invalidity, and wrong-name node admission. It also checks initial/root/inherited maps, fixed Context registration lookup, owned snapshots, once-only settlement, actual reset rejection and the explicit no-node notification. The earlier seven-test run is preserved separately. Owned temporary outputs are removed.
+
+The completed-binding and substitution-resumption Lean models require immutable settled bindings. This receipt supplies a concrete candidate source for some custom binding premises, conditional on the specified hooks and fixed Context inputs. It neither proves the hook correspondence nor extends those theorems to attributes, actual CSS computation or scheduler progress.

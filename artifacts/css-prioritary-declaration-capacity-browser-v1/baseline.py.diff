@@ -1,0 +1,22 @@
+--- artifacts/css-font-metric-computed-size-pair-v1/baseline.py
++++ artifacts/css-prioritary-declaration-capacity-browser-v1/baseline.py
+@@ -72,9 +72,7 @@
+     assert checkpoint['committed'] and checkpoint['signature_verified']
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'ROLE.json', 'OWNED.json')}
+     epoch, role = json.loads(controls['CURRENT-EPOCH.json']), json.loads(controls['ROLE.json'])
+-    admission = load('diagnostic_admission', str((HERE / 'admission.py').relative_to(ROOT)))
+-    refreshed = admission.verified_refresh(ROOT, policy, checkpoint)
+-    assert {name: hashlib.sha256(body).hexdigest() for name,body in controls.items()} == policy['controls']
++    assert hashlib.sha256(controls['CURRENT-EPOCH.json']).hexdigest() == checkpoint['epoch_sha256']
+     assert epoch['semantic_index']['head'] == checkpoint['head']
+     assert epoch['staged_working'] == {} and epoch['modified_native_paths'] == []
+     require_role(policy, role, epoch)
+@@ -99,7 +97,7 @@
+     assert not (RUNTIME / 'SOURCE-TRANSITION.lock').exists() and not (RUNTIME / 'SOURCE-TRANSITION.lock').is_symlink()
+     flags = {name: state.h.git(path, env, 'ls-files', '-v', '-z') for name, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]}
+     snapshot = state.a.verify_current(state.h, ROOT, env, epoch)
+-    assert snapshot == refreshed and snapshot['index']['head'] == checkpoint['head']
++    assert snapshot['index']['head'] == checkpoint['head']
+     assert all((RUNTIME / name).read_bytes() == body for name, body in controls.items())
+     return state, env, controls, epoch, role, sources, flags, snapshot
+ 

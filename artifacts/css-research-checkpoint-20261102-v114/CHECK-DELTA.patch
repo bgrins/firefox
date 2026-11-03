@@ -1,0 +1,71 @@
+--- artifacts/css-research-checkpoint-20261102-v105/check.py
++++ artifacts/css-research-checkpoint-20261102-v114/check.py
+@@ -21,12 +21,10 @@
+ assert sha(selection_body) == bindings['selection_sha256']
+ selected = json.loads(selection_body)
+ assert len(selected) == bindings['selected_paths_before_self']
+-previous = set()
+-for dirname in ('css-research-checkpoint-20261030-v99','css-research-checkpoint-20261030-v100','css-research-checkpoint-20261030-v101','css-research-checkpoint-20261102-v102','css-research-checkpoint-20261102-v103','css-research-checkpoint-20261102-v104'):
+-    prior = ROOT / 'artifacts' / dirname
+-    previous.update(json.loads((prior / 'SELECTION.json').read_bytes()))
+-    previous.update(str((prior / name).relative_to(ROOT)) for name in json.loads((prior / 'FILES.json').read_bytes()))
+-    previous.add(str((prior / 'FILES.json').relative_to(ROOT)))
++prior = ROOT / 'artifacts/css-research-checkpoint-20261102-v113'
++previous = set(json.loads((prior/'SELECTION.json').read_bytes()))
++previous.update(str((prior/name).relative_to(ROOT)) for name in json.loads((prior/'FILES.json').read_bytes()))
++previous.add(str((prior/'FILES.json').relative_to(ROOT)))
+ assert not previous.intersection(selected)
+ for path, record in selected.items():
+     assert path.startswith('artifacts/') and '..' not in Path(path).parts
+@@ -40,22 +38,22 @@
+         assert not Path(name).is_absolute() and '..' not in Path(name).parts
+         full = str((Path(path).parent / name))
+         assert selected[full]['sha256'] == (record['sha256'] if isinstance(record, dict) else record)
+-old = (ROOT / 'artifacts/css-research-checkpoint-20261102-v104/commit.py').read_text()
++old = (ROOT / 'artifacts/css-research-checkpoint-20261102-v113/commit.py').read_text()
+ new = (HERE / 'commit.py').read_text()
+ marker = "    controls = {name: (RUNTIME / name).read_bytes()"
+-assert old[old.index(marker):].replace('v104', 'v105').replace('V104', 'V105').replace('Record metric native typecheck and identity correction.', 'Record successful metric native typecheck.') == new[new.index(marker):]
++assert old[old.index(marker):].replace('v113','v114').replace('V113','V114').replace('No bug - Record resumed substitution research and browser validation. r?#firefox-style-system-reviewers','No bug - Record declaration capacity validation and diagnostic preparation. r?#firefox-style-system-reviewers') == new[new.index(marker):]
+ 
+ if bindings['pending_current_admission']:
+     if bindings.get('completed_pair_runtime_frozen'):
+-        assert 'artifacts/css-font-metric-synthesis-native-typecheck-runtime-2/FILES.json' in bindings['completed_packages']
++        assert 'artifacts/css-prioritary-declaration-capacity-browser-runtime-1/FILES.json' in bindings['completed_packages']
+     else:
+-        assert 'artifacts/css-font-metric-synthesis-native-typecheck-root-run-v2.log' not in selected
+-        assert not any(path.startswith('artifacts/css-font-metric-synthesis-native-typecheck-runtime-2/') for path in selected)
++        assert 'artifacts/css-prioritary-declaration-capacity-browser-root-run-v1.log' not in selected
++        assert not any(path.startswith('artifacts/css-prioritary-declaration-capacity-browser-runtime-1/') for path in selected)
+     assert bindings['current_capture_sha256'] is None
+     if bindings['refresh_binding']:
+         receipt = json.loads((ROOT / bindings['prior_receipt']).read_bytes())
+         refreshed = m.validate_refresh(receipt)
+-        frozen = json.loads((ROOT / 'artifacts/css-font-metric-synthesis-native-typecheck-runtime-2/POST.json').read_bytes())
++        frozen = json.loads((ROOT / 'artifacts/css-prioritary-declaration-capacity-browser-runtime-1/POST.json').read_bytes())
+         frozen['index']['raw_index'] = refreshed['index']['raw_index']
+         assert refreshed == frozen
+         assert bindings['controls']['CURRENT-EPOCH.json'] == bindings['epoch_sha256']
+@@ -85,14 +83,14 @@
+     sys.argv = saved_argv
+     m.git = original_git
+ if bindings['pending_current_admission']:
+-    print(json.dumps({'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'pending_admission_rejected':True, 'disabled_execution_rejected':True, 'exact_v104_signing_tail':True}))
++    print(json.dumps({'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'pending_admission_rejected':True, 'disabled_execution_rejected':True, 'exact_v113_signing_tail':True}))
+     raise SystemExit(0)
+ current = json.loads((ROOT / bindings['current_capture']).read_bytes())
+ receipt = json.loads((ROOT / bindings['prior_receipt']).read_bytes())
+ directory = ROOT / bindings['refresh_binding']['directory']
+ refresh = json.loads((directory / 'RESULT.json').read_bytes())
+ negatives = 0
+-with tempfile.TemporaryDirectory(prefix='css-research-v105-check-') as temporary:
++with tempfile.TemporaryDirectory(prefix='css-research-v114-check-') as temporary:
+     scratch=Path(temporary);(scratch/'refresh').mkdir()
+     for name in ['PRE-CURRENT-EPOCH.json','EPOCH.json','PRE.json','POST.json']:
+         (scratch/'refresh'/name).write_bytes((directory/name).read_bytes())
+@@ -110,4 +108,4 @@
+         else:raise AssertionError('accepted '+label)
+     m.ROOT,m.BINDINGS=ROOT,bindings
+ assert not scratch.exists()
+-print(json.dumps({'selected':len(selected),'bytes':sum(x['bytes'] for x in selected.values()),'closures':len(bindings['completed_packages']),'binding_negatives':negatives,'disabled_execution_rejected':True,'exact_v104_signing_tail':True,'scratch_removed':True}))
++print(json.dumps({'selected':len(selected),'bytes':sum(x['bytes'] for x in selected.values()),'closures':len(bindings['completed_packages']),'binding_negatives':negatives,'disabled_execution_rejected':True,'exact_v113_signing_tail':True,'scratch_removed':True}))

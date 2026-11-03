@@ -1,0 +1,11 @@
+# Declaration-capacity browser finding
+
+Two fresh full builds of the same branch revision reproduce and repair the capacity failure. The original produces one FAIL with a normal OK page ending; the u32 candidate produces one PASS with an OK ending. Root independently checked the raw events, build/source/binary joins, exact staged fixture, completed suite and WPT process cleanup. The native delta is exactly `DeclarationIndex = u16` to `u32`.
+
+The original browser retained all 65,538 CSS rules and applied the filler color to both elements. The later font rule produced 37px font size and 37px width. The earlier font rule instead produced 16px for both. The fixture checks the rule count, later font/width and both colors before the failing early-font assertion. The early width is a captured observation; its assertion is not reached on the original. Candidate PASS means all assertions, including the final early-width assertion, executed successfully.
+
+This is an observable cascade-capacity bug, not a parser rule-limit failure or a crash. Unrelated higher-priority declarations consume the shared vector indices and can exclude a prioritary property's winning declaration from its linked chain. The one-line fix raises the finite index limit; it does not promise unbounded capacity. The source/extraction controls and Lean chain proofs support this mechanism, while these full-browser results establish its reachability.
+
+Suggested review priority: medium. A page needs an unusually large set of declarations matching one element, but the consequence is silently incorrect winning style and dependent layout. No performance or security claim follows from this experiment. Discovery came from inspecting a native correspondence obligation while developing the formal model; Lean did not independently discover the implementation bug.
+
+This review records behavior only. The outer runner's final source/application restoration and root independent restoration audit remain separate prerequisites to publication. The accepted-fix increment is zero until the standalone native commit is completed. EVIDENCE.json pins the actual files examined; source/test publication should contain only the one-line Rust change and this WPT.

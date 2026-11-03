@@ -1,0 +1,138 @@
+--- executed/evidence.py
++++ capacity/evidence.py
+@@ -14,19 +14,40 @@
+     return module
+ 
+ 
++def require_witness(original, candidate, behavior):
++    assert original['complete'] and candidate['complete']
++    assert len(original['rows']) == len(candidate['rows']) == 1
++    assert len(original['ends']) == len(candidate['ends']) == 1
++    before, after = original['rows'][0], candidate['rows'][0]
++    page = '/css/css-cascade/prioritary-after-many-unrelated-declarations.html'
++    name = 'Font-size survives 65536 higher-priority declarations for another property'
++    assert before['test'] == after['test'] == page and before['subtest'] == after['subtest'] == name
++    assert before['status'] == 'FAIL' and after['status'] == 'PASS'
++    assert original['ends'][0]['status'] == candidate['ends'][0]['status'] == 'OK'
++    assert candidate['comparison_errors'] == [] and behavior['publication_observation_gate']
++    message = before['message']
++    assert message.startswith('assert_equals: ') and message.count('{"rules":') == 1
++    observation, _ = json.JSONDecoder().raw_decode(message[message.index('{"rules":'):])
++    assert set(observation) == {'rules', 'early', 'late'} and observation['rules'] == 65538
++    assert observation['late'] == {'fontSize': '37px', 'width': '37px', 'color': 'rgb(1, 2, 3)'}
++    assert set(observation['early']) == {'fontSize', 'width', 'color'}
++    assert observation['early']['color'] == 'rgb(1, 2, 3)' and observation['early']['fontSize'] != '37px'
++    return observation
++
++
+ def verify(root, binding, stage):
+     assert binding is not None
+-    assert binding['owner_directory'] == 'artifacts/css-hyphenation-ownership-native-pair-v2'
+-    assert binding['owner_manifest_sha256'] == '2f32e0d71998aea051caa46e144deb72ac49a1bc5d8e65b1e0da06cf023b4350'
++    assert binding['owner_directory'] == 'artifacts/css-prioritary-declaration-capacity-browser-v1'
++    assert binding['owner_manifest_sha256'] == 'a21655a0ef950303f0d92f68a73e4dace90dc1b91c54736bcce0c36b56483425'
+     here = root / binding['owner_directory']
+     baseline = load('nowrap_evidence_baseline', here / 'baseline.py')
+     policy, ownership, roles = baseline.prepare(binding['owner_manifest_sha256'])
+     admission = load('nowrap_evidence_admission', here / 'admission.py')
+     output = admission.authenticate(root, {'directory': binding['runtime_directory'], 'manifest_sha256': binding['runtime_manifest_sha256']})
+-    assert binding['runtime_directory'] == policy['runtime_output'] == 'artifacts/css-hyphenation-ownership-native-pair-runtime-2'
++    assert binding['runtime_directory'] == policy['runtime_output'] == 'artifacts/css-prioritary-declaration-capacity-browser-runtime-1'
+     result = read(output / 'RESULT.json')
+     terminal = read(output / 'ROOT-OWNER-TERMINAL.json')
+-    assert terminal['session'] == 25179 and terminal['launch'] == '8b41d2'
++    assert terminal['session'] == 68207 and terminal['launch'] == 'b1490c'
+     assert terminal['terminal'] and terminal['exit'] == 0 and terminal['result_sha256'] == sha(output / 'RESULT.json')
+     assert result['success'] and result['restoration_verified'] and result['runtime_controls_unchanged']
+     assert result['empty_staging_preserved'] and not result['native_fix_acceptance']
+@@ -35,7 +56,7 @@
+     live_terminal = read(output / 'ROOT-LIVE-AUDIT-TERMINAL.json')
+     assert live_terminal['exit'] == 0 and live_terminal['terminal']
+     assert live_terminal['audit_sha256'] == sha(output / 'ROOT-LIVE-RESTORATION.json')
+-    assert live['audit_script_sha256'] == sha(root / 'artifacts/css-hyphenation-ownership-native-live-audit-v2.py')
++    assert live['audit_script_sha256'] == sha(root / 'artifacts/css-prioritary-declaration-capacity-browser-live-audit-v1.py')
+     assert live['owner_result_sha256'] == sha(output / 'RESULT.json')
+     for field in ('independent_live_restoration_verified', 'application_and_extras_semantically_restored', 'source_and_binary_hashes_restored', 'flags_restored', 'controls_unchanged', 'backup_removed'):
+         assert live[field] is True
+@@ -44,26 +65,28 @@
+     assert cleanup['removed'] and cleanup['verified_original_restoration'] and not cleanup['retained_after_failure']
+     restoration = read(output / 'RESTORATION.json')
+     assert restoration['errors'] == [] and restoration['owned_processes'] == {}
+-    assert set(stage['head_preimages']) == set(roles) == {'dom/base/nsLineBreaker.cpp','dom/base/nsLineBreaker.h','layout/generic/nsTextFrame.cpp'}
++    assert set(stage['head_preimages']) == set(roles) == {'servo/components/style/properties/cascade.rs'}
+     for name, record in roles.items():
+         assert record['base_sha256'] == stage['head_preimages'][name]
+         assert record['candidate_sha256'] == stage['files'][name]['sha256']
+         assert restoration['sources'][name]['sha256'] == record['base_sha256']
+     tests = set(stage['files']) - set(roles)
+-    expected_pages = ['/css/css-text/hyphens/hyphenate-limit-chars-inline-ownership.html', '/css/css-text/hyphens/hyphenate-limit-chars-dynamic.html', '/css/css-text/hyphens/hyphenate-limit-chars-pseudo-ownership.html']
++    expected_pages = ['/css/css-cascade/prioritary-after-many-unrelated-declarations.html']
+     assert tests == {'testing/web-platform/tests' + page for page in expected_pages}
+-    assert set(stage['adopt_existing_tests']) == tests and stage['create_tests'] == []
+-    assert policy['ownership_target_pages'] == [expected_pages[0]]
++    assert stage['adopt_existing_tests'] == [] and set(stage['create_tests']) == tests
++    assert policy['lane_order'] == ['capacity'] and policy['diagnostic_lane_order'] == []
++    assert policy['wpt']['fixture_target_pages'] == expected_pages
++    settings = policy['wpt_lanes']['capacity']
++    assert settings['metadata'] == {'portable': {}, 'mozilla': {}}
+     for test in tests:
+         url = '/' + test.removeprefix('testing/web-platform/tests/')
+-        assert policy['wpt_lanes']['regression']['resources'][url]['sha256'] == stage['files'][test]['sha256']
++        assert settings['resources'][url]['sha256'] == stage['files'][test]['sha256']
+     comparison = load('nowrap_evidence_comparison', here / 'comparison.py')
+     assessor = load('nowrap_evidence_assessor', here / 'assess.py')
+     checks = load('nowrap_evidence_streams', root / policy['wpt']['checks_helper'])
+     builds = {role: comparison.build_binding(root, here, output, policy, role) for role in ('original', 'candidate')}
+-    ports = load('language_bound_port_comparison', here / 'port_comparison.py')
+     comparisons, group_ids = {}, []
+-    corrected = None
++    observation = None
+     for role in ('original', 'candidate'):
+         for filename in ('build-PROCESS.json', 'WAKE-PROCESS.json'):
+             group_ids.append(read(output / (role + '-build') / filename)['pgid'])
+@@ -99,35 +122,23 @@
+         assert actual == read(phase / 'ASSESSMENT.json') and actual['complete']
+         behavior = comparison.behavior(original, actual, assessor.signature)
+         assert behavior == read(phase / 'BEHAVIOR-COMPARISON.json')
+-        if lane in ('target', 'context'):
+-            assert behavior['publication_observation_gate'] and actual['comparison_errors'] == []
+-            assert len(actual['rows']) == (169 if lane=='target' else 8)
+-            assert len(actual['ends']) == 1 and actual['ends'][0]['status'] == 'OK'
+-        else:
+-            assert len(actual['rows']) == 720 and len(actual['ends']) == 21
+-            corrected = ports.compare(root, output.resolve(), policy, original, actual, assessor.signature)
+-            assert corrected['derived_ownership_gate'] and corrected['target_callbacks']==289
+-            assert corrected['preserved_signatures']==452 and corrected['port_bound_reftest_endings']==4
++        observation = require_witness(original, actual, behavior)
+         comparisons[lane] = behavior
+         for role in ('original', 'candidate'):
+             source = output / (role + '-wpt-' + lane)
+             clean = read(source / 'CLEANUP.json')
+             assert clean['owned_group_absent'] and clean['temporary_root_removed']
+             group_ids.append(read(source / 'PROCESS.json')['pgid'])
+-    assert len(group_ids) == 10 and sorted(group_ids) == sorted(live['independently_absent_process_groups'])
++    assert len(group_ids) == 6 and sorted(group_ids) == sorted(live['independently_absent_process_groups'])
+     combined = read(output / 'COMPARISON.json')
+     assert combined['lanes'] == comparisons and not combined['native_acceptance']
+     assert combined['publication_observation_gate'] == all(row['publication_observation_gate'] for row in comparisons.values())
+-    assert combined['all920_signatures_equal'] == all(row['all_signatures_equal'] for row in comparisons.values())
+-    assert corrected is not None
+-    corrected['publication_observation_gate'] = corrected['derived_ownership_gate'] and comparisons['target']['publication_observation_gate'] and comparisons['context']['publication_observation_gate']
+-    corrected['native_acceptance'] = False
+-    assert corrected == read(output / 'DERIVED-COMPARISON.json') and corrected['publication_observation_gate']
+-    assert sum(len(row['candidate_signatures']) for row in comparisons.values()) == 920
+-    assert len(original_outcomes['rows']) == len(candidate_outcomes['rows']) == 897
+-    assert len(original_outcomes['endings']) == len(candidate_outcomes['endings']) == 23
+-    return {'pair_head': policy['head'], 'ownership_target_PASS': 289,
+-            'preserved_other_callbacks': 608, 'preserved_endings': 23,
+-            'regression_port_bound_endings': 4, 'derived_gate': True,
+-            'stored_raw_gate': combined['publication_observation_gate'], 'complete_signatures': 920,
++    assert combined['all2_signatures_equal'] == all(row['all_signatures_equal'] for row in comparisons.values())
++    assert combined['publication_observation_gate'] and observation is not None
++    assert sum(len(row['candidate_signatures']) for row in comparisons.values()) == 2
++    assert len(original_outcomes['rows']) == len(candidate_outcomes['rows']) == 1
++    assert len(original_outcomes['endings']) == len(candidate_outcomes['endings']) == 1
++    return {'pair_head': policy['head'], 'original_target_FAIL': 1, 'candidate_target_PASS': 1,
++            'original_control_observation': observation, 'preserved_endings': 1,
++            'complete_signatures': 2, 'stored_raw_gate': True,
+             'root_live_restoration_verified': True, 'native_publication_performed': False}
