@@ -2389,7 +2389,7 @@ fn substitute_internal<'a>(
     seen: &mut SmallVec<[&'a Name; 8]>,
     attr_taint: Option<&mut AttrTaint>,
 ) -> Result<Substitution<'a>, ()> {
-    do_substitute_chunk(
+    let mut substitution = do_substitute_chunk(
         &variable_value.css,
         /* start = */ 0,
         /* end = */ variable_value.css.len(),
@@ -2404,7 +2404,9 @@ fn substitute_internal<'a>(
         attribute_tracker,
         seen,
         attr_taint,
-    )
+    )?;
+    substitution.attr_tainted |= variable_value.explicitly_attr_tainted;
+    Ok(substitution)
 }
 
 /// Replace var(), env(), and attr() functions, returning the resulting CSS string.
