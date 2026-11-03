@@ -1,0 +1,7 @@
+# Standalone execution notes
+
+The disabled standalone template was already committed in V129. Root initially bound its POLICY and resealed it in place (dd889f), then corrected that before execution: the activated bytes were copied to css-selective-cancellation-standalone-commit-execution-v1, and the committed template POLICY/FILES were restored exactly from preserved preimages (73a7e2). Root checked all template payloads against HEAD and verified an empty tracked diff. The original disabled template remains fbc295f0; the separate active execution owner is e0ed1c43.
+
+The first execution (5a25d8/exit1) stopped at the environment guard before any Git operation or runtime directory creation. The only inherited GIT_ variable was GIT_PAGER (17d692). The successful invocation unset that process-only pager variable and retained the exact configured signing key and program. Actual c7fba5/session41593/719fd0/0 created signed standalone6d88dc0173d31be32a5522b98e04c914256be391 on refs/heads/css-selective-cancellation-standalone-2701. Root6f7aaa checked the exact seven commit paths and parent2701; mainHEAD2409 and tracked/staged diffs remained unchanged.
+
+This is alternative packaging of the same primary cancellation repair plus its necessary font prerequisite, not an additional primary fix or a new browser/build run. Immutable preparation and both execution logs are retained. The later raw-index observation change is recorded separately; the standalone PRE/POST index bytes were identical, so its cause is not attributed to this operation.

@@ -1,0 +1,187 @@
+--- V129/check.py
++++ V130/check.py
+@@ -40,24 +40,24 @@
+ for path, row in nested['files'].items():
+     assert b['references'][path] == row['sha256'] == sha((ROOT / path).read_bytes())
+     assert not any(Path(path).is_relative_to(Path(item).parent) for item in b['completed_packages'])
+-parent = HERE.with_name('css-research-checkpoint-20261103-v128')
++parent = HERE.with_name('css-research-checkpoint-20261103-v129')
+ old, new = (parent / 'commit.py').read_text(), (HERE / 'commit.py').read_text()
+ marker = 'def manifest_items('
+-assert old[old.index(marker):].replace('v128', 'v129').replace('V128', 'V129').replace(
+-    'No bug - Record font publication and animation settlement research.',
+-    'No bug - Record cancellation publication recovery and tree settlement research.') == new[new.index(marker):]
++assert old[old.index(marker):].replace('v129', 'v130').replace('V129', 'V130').replace(
++    'No bug - Record cancellation publication recovery and tree settlement research.',
++    'No bug - Record cancellation publication and subsequent validation research.') == new[new.index(marker):]
+ def functions(text):
+     return {n.name: ast.dump(n, include_attributes=False) for n in ast.parse(text).body if isinstance(n, ast.FunctionDef)}
+ for name in ('git', 'load', 'verify_blob', 'verify_blobs'):
+     assert functions(old)[name] == functions(new)[name]
+ old_capture, capture = (parent / 'capture_current.py').read_text(), (HERE / 'capture_current.py').read_text()
+ point = 'for path, digest in'
+-assert old_capture[old_capture.index(point):].replace("bindings['native_preservation']['controls']", "bindings['rollback_preservation']['controls']") == capture[capture.index(point):]
++assert old_capture[old_capture.index(point):].replace("bindings['rollback_preservation']['controls']", "bindings['raw_observation']['controls']") == capture[capture.index(point):]
+ for name in ('commit.py', 'capture_current.py', 'check.py'):
+     compile((HERE / name).read_bytes(), name, 'exec')
+ git = lambda *a: subprocess.check_output(['git', '--no-optional-locks', '-c', 'core.fsmonitor=false', *a], cwd=ROOT)
+-assert git('rev-list', '--parents', '-n', '1', b['head']).decode().split() == [b['head'], b['native_head']]
+-assert all(p.startswith('artifacts/') for p in git('diff', '--name-only', b['native_head'], b['head']).decode().splitlines())
++assert git('rev-list', '--parents', '-n', '1', b['head']).decode().split() == [b['head'], b['native_parent']]
++assert git('diff-tree', '--no-commit-id', '--name-only', '-r', b['head']).decode().splitlines() == list(b['native_files'])
+ tracked = set(git('ls-tree', '-r', '--name-only', '-z', b['head'], '--', 'artifacts').decode().split('\0'))
+ assert not tracked.intersection(selection)
+ for path, row in read(HERE / 'INVENTORY.json')['excluded_already_committed_exact_blobs'].items():
+@@ -67,7 +67,7 @@
+ for path, digest in b['native_files'].items():
+     assert sha(git('show', b['head'] + ':' + path)) == digest
+ receipt = read(ROOT / b['prior_receipt'])
+-baseline = m.validate_research_rollback(receipt)
++baseline = m.validate_native_raw_observation(receipt)
+ rejects = []
+ def reject(label, fn):
+     try:
+@@ -76,77 +76,82 @@
+         rejects.append(label)
+     else:
+         raise AssertionError('Accepted mutation: ' + label)
+-for key, value in [('committed', False), ('signature_verified', False), ('head', '0'*40),
+-                   ('parent', '0'*40), ('epoch_sha256', '0'*64), ('accepted_fix_increment', 1),
+-                   ('native_working_diff_preserved', False)]:
++for key, value in [('stage', 'font-units'), ('signature_verified', False), ('commit', '0'*40),
++                   ('parent', '0'*40), ('epoch_sha256', '0'*64), ('files', []), ('accepted', True),
++                   ('accepted_fix_increment', 1), ('app_rebuilt', True)]:
+     bad = copy.deepcopy(receipt); bad[key] = value
+-    reject('receipt-' + key, lambda: m.validate_research_rollback(bad))
+-reject('native-receipt-is-not-research', lambda: m.validate_research_rollback(read(ROOT / b['native_receipt'])))
+-saved = b['rollback_preservation']
+-with tempfile.TemporaryDirectory(prefix='research-v129-saved-', dir='/private/tmp') as temporary:
++    reject('receipt-' + key, lambda: m.validate_native_raw_observation(bad))
++saved = b['raw_observation']
++with tempfile.TemporaryDirectory(prefix='research-v130-saved-', dir='/private/tmp') as temporary:
+     scratch = Path(temporary)
+-    audit, failed = scratch / 'audit', scratch / 'failed'
+-    audit.mkdir(); failed.mkdir()
+-    for n in ('REPORT.json', 'ROOT-AUDIT-TERMINAL.json', 'CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json'):
+-        (audit/n).write_bytes((ROOT/saved['directory']/n).read_bytes())
+-    for n in ('INSTALL-FAILURE.json', 'PRE-CURRENT-EPOCH.json', 'PRE-OWNED.json', 'PRE-ROLE.json', 'PRE.json'):
+-        (failed/n).write_bytes((ROOT/saved['failed_runtime']/n).read_bytes())
+-    test = copy.deepcopy(b); test['rollback_preservation']['directory'] = str(audit)
+-    test['rollback_preservation']['failed_runtime'] = str(failed)
+-    m.BINDINGS = test; local = test['rollback_preservation']
+-    assert m.validate_research_rollback(receipt) == baseline
+-    report = read(audit/'REPORT.json')
+-    def write_report(value):
+-        body = json.dumps(value).encode(); (audit/'REPORT.json').write_bytes(body)
+-        local['report_sha256'] = sha(body)
+-    for key, value in [('head', '0'*40), ('epoch_sha256', '0'*64), ('full_current_state_verified', False),
+-                       ('rollback_verified', False), ('tracked_diff_empty', False), ('staged_diff_empty', False),
+-                       ('new_tests_absent', False), ('source_hashes_and_identities_restored', False),
+-                       ('source_transition_lock_absent', False), ('only_possible_epoch_change', 'other')]:
+-        bad = copy.deepcopy(report); bad[key] = value; write_report(bad)
+-        reject('report-' + key, lambda: m.validate_research_rollback(receipt))
+-    for key, value in [('raw_index', '0'*64), ('entries', '0'*64), ('working_diff', '')]:
+-        bad = copy.deepcopy(report); bad['snapshot']['index'][key] = value; write_report(bad)
+-        reject('snapshot-' + key, lambda: m.validate_research_rollback(receipt))
+-    write_report(report)
+-    for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json'):
+-        original = (audit/n).read_bytes(); (audit/n).write_bytes(original+b' ')
+-        reject('control-' + n, lambda: m.validate_research_rollback(receipt))
+-        (audit/n).write_bytes(original)
+-    original_failure = (failed/'INSTALL-FAILURE.json').read_bytes()
+-    for key, value in [('rollback_verified', False), ('manual_recovery_required', True)]:
+-        bad = json.loads(original_failure); bad[key] = value
+-        body = json.dumps(bad).encode(); (failed/'INSTALL-FAILURE.json').write_bytes(body)
+-        local['failure_sha256'] = sha(body)
+-        changed = copy.deepcopy(report); changed['failure_sha256'] = sha(body); write_report(changed)
+-        reject('failure-' + key, lambda: m.validate_research_rollback(receipt))
+-    (failed/'INSTALL-FAILURE.json').write_bytes(original_failure)
+-    local['failure_sha256'] = saved['failure_sha256']; write_report(report)
+-    original_terminal = (audit/'ROOT-AUDIT-TERMINAL.json').read_bytes()
+-    for which in ('audit', 'failed-install'):
+-        bad = json.loads(original_terminal)
+-        if which == 'audit': bad['exit_code'] = 1
+-        else: bad['failed_install']['exit_code'] = 0
+-        body = json.dumps(bad).encode(); (audit/'ROOT-AUDIT-TERMINAL.json').write_bytes(body)
+-        local['terminal_sha256'], local['terminal'] = sha(body), bad
+-        reject('terminal-' + which, lambda: m.validate_research_rollback(receipt))
+-    (audit/'ROOT-AUDIT-TERMINAL.json').write_bytes(original_terminal)
+-    local['terminal_sha256'], local['terminal'] = saved['terminal_sha256'], saved['terminal']
+-    epoch = read(audit/'CURRENT-EPOCH.json'); epoch['unexpected_nonraw_change'] = True
+-    body = json.dumps(epoch).encode(); (audit/'CURRENT-EPOCH.json').write_bytes(body)
++    names = ('RESULT.json', 'ROOT-TERMINAL.json', 'CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json',
++             'PRE-CURRENT-EPOCH.json', 'PRE-OWNED.json', 'PRE-ROLE.json', 'BEFORE.json', 'AFTER.json')
++    for name in names:
++        (scratch/name).write_bytes((ROOT/saved['directory']/name).read_bytes())
++    test = copy.deepcopy(b); test['raw_observation']['directory'] = str(scratch)
++    m.BINDINGS = test; local = test['raw_observation']
++    assert m.validate_native_raw_observation(receipt) == baseline
++    result = read(scratch/'RESULT.json'); terminal = read(scratch/'ROOT-TERMINAL.json')
++    def set_terminal(value):
++        body = json.dumps(value).encode(); (scratch/'ROOT-TERMINAL.json').write_bytes(body)
++        local['terminal_sha256'], local['terminal'] = sha(body), value
++    def set_result(value):
++        body = json.dumps(value).encode(); (scratch/'RESULT.json').write_bytes(body)
++        local['result_sha256'] = sha(body)
++        changed = copy.deepcopy(terminal); changed['result_sha256'] = sha(body); set_terminal(changed)
++    for key, value in [('updated_only', 'other'), ('head', '0'*40), ('semantic_index_unchanged', False),
++                       ('full_current_state_verified', False), ('owned_and_role_unchanged', False),
++                       ('native_fix_increment', 1), ('actual_raw_change_cause_unestablished', False),
++                       ('old_epoch_sha256', '0'*64), ('epoch_sha256', '0'*64),
++                       ('old_raw', '0'*64), ('new_raw', '0'*64)]:
++        bad = copy.deepcopy(result); bad[key] = value; set_result(bad)
++        reject('result-' + key, lambda: m.validate_native_raw_observation(receipt))
++    set_result(result)
++    for key, value in [('exit_code', 1), ('result_sha256', '0'*64)]:
++        bad = copy.deepcopy(terminal); bad[key] = value; set_terminal(bad)
++        reject('terminal-' + key, lambda: m.validate_native_raw_observation(receipt))
++    set_result(result)
++    for name in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json'):
++        original = (scratch/name).read_bytes(); (scratch/name).write_bytes(original+b' ')
++        reject('control-' + name, lambda: m.validate_native_raw_observation(receipt))
++        (scratch/name).write_bytes(original)
++    before, after = (scratch/'BEFORE.json').read_bytes(), (scratch/'AFTER.json').read_bytes()
++    for key, value in [('head', '0'*40), ('raw_index', '0'*64), ('working_diff', '')]:
++        bad = json.loads(after); bad['index'][key] = value
++        body = json.dumps(bad).encode()
++        for name, field in [('BEFORE.json', 'before_sha256'), ('AFTER.json', 'after_sha256')]:
++            (scratch/name).write_bytes(body); local[field] = sha(body)
++        reject('snapshot-' + key, lambda: m.validate_native_raw_observation(receipt))
++    (scratch/'BEFORE.json').write_bytes(before); local['before_sha256'] = sha(before)
++    (scratch/'AFTER.json').write_bytes(after); local['after_sha256'] = sha(after)
++    bad = json.loads(after); bad['current_raw_stable_during_check'] = 1
++    body = json.dumps(bad).encode(); (scratch/'AFTER.json').write_bytes(body); local['after_sha256'] = sha(body)
++    reject('typed-before-after-difference', lambda: m.validate_native_raw_observation(receipt))
++    (scratch/'AFTER.json').write_bytes(after); local['after_sha256'] = sha(after)
++    research = read(ROOT/b['prior_research_receipt'])
++    test['prior_research_receipt'] = str(scratch/'research.json')
++    for key, value in [('committed', False), ('signature_verified', False), ('head', '0'*40),
++                       ('accepted_fix_increment', 1), ('native_working_diff_preserved', False)]:
++        bad = copy.deepcopy(research); bad[key] = value
++        body = json.dumps(bad).encode(); (scratch/'research.json').write_bytes(body)
++        test['prior_research_receipt_sha256'] = sha(body)
++        reject('research-' + key, lambda: m.validate_native_raw_observation(receipt))
++    test['prior_research_receipt'] = b['prior_research_receipt']
++    test['prior_research_receipt_sha256'] = b['prior_research_receipt_sha256']
++    epoch = read(scratch/'CURRENT-EPOCH.json'); epoch['unexpected_nonraw_change'] = True
++    body = json.dumps(epoch).encode(); (scratch/'CURRENT-EPOCH.json').write_bytes(body)
+     m.EPOCH = sha(body); local['controls']['CURRENT-EPOCH.json'] = m.EPOCH
+-    bad = copy.deepcopy(report); bad['epoch_sha256'] = m.EPOCH; bad['controls']['CURRENT-EPOCH.json'] = m.EPOCH
+-    write_report(bad)
+-    reject('nonraw-epoch-change-even-with-rebound-digests', lambda: m.validate_research_rollback(receipt))
++    bad = copy.deepcopy(result); bad['epoch_sha256'] = m.EPOCH; set_result(bad)
++    reject('nonraw-epoch-change-even-with-rebound-digests', lambda: m.validate_native_raw_observation(receipt))
+     m.BINDINGS, m.EPOCH = b, b['epoch_sha256']
+ assert not scratch.exists()
+-assert m.validate_research_rollback(receipt) == baseline
++assert m.validate_native_raw_observation(receipt) == baseline
+ reject('pending-current', m.saved_admission)
+ sys.argv = [str(HERE/'commit.py'), '--run']
+ reject('disabled-run', m.main)
+ assert not (HERE/'result.json').exists()
+ print(json.dumps({'preparation_only': True, 'selected': len(selection), 'closures': len(b['completed_packages']),
+                   'references': len(b['references']), 'authority_rejections': rejects,
+-                  'actual_rollback_positive': True, 'exact_signing_private_index_rollback_tail': True,
++                  'actual_native_and_raw_observation_positive': True, 'exact_signing_private_index_rollback_tail': True,
+                   'capture_live_observer_preserved': True, 'immutable_git_objects_only': True,
+                   'scratch_path': str(scratch), 'scratch_absent': True}))

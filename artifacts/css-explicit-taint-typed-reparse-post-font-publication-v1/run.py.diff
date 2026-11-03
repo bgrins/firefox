@@ -1,0 +1,24 @@
+--- prior/run.py
++++ post-font/run.py
+@@ -76,8 +76,10 @@
+     evidence = load('nowrap_pair_evidence', HERE / 'evidence.py')
+     observed = evidence.verify(ROOT, policy['pair_binding'], stage)
+     pair_head = observed['pair_head']
+-    assert not git('merge-base', '--is-ancestor', pair_head, binding['head'])
+-    assert all(path.startswith('artifacts/') for path in git('diff', '--name-only', pair_head, binding['head']).decode().splitlines())
++    chain = load('post_font_publication_chain', HERE / 'chain.py')
++    publication_base = chain.verify(ROOT, git, str(ROOT / policy['allowed_signers']),
++                                    policy['publication_chain'], pair_head, prior, binding['head'])
++    assert publication_base != pair_head
+     git('-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / policy['allowed_signers']), 'verify-commit', binding['head'])
+     controls = {n: (RUNTIME / n).read_bytes() for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+     assert {n: digest(b) for n, b in controls.items()} == binding['controls']
+@@ -97,7 +99,7 @@
+     owner.quiescent(RUNTIME)
+     owner.quiescent(ROOT / 'artifacts/css-page-selector-native-runtime-v1')
+     output = ROOT / policy['runtime_output']
+-    assert output.parent == ROOT / 'artifacts' and output.name.startswith('css-explicit-taint-typed-reparse-publication-')
++    assert output.parent == ROOT / 'artifacts' and output.name.startswith('css-explicit-taint-typed-reparse-post-font-publication-')
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not os.path.lexists(lock)
+     sources = set(stage['head_preimages'])

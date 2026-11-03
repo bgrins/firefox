@@ -1,0 +1,188 @@
+{
+  "dom/base/ChildIterator.cpp": {
+    "excerpts": [
+      {
+        "first_line": 34,
+        "last_line": 64,
+        "text": "template <TreeKind aKind>\nChildIteratorBase<aKind>::ChildIteratorBase(const nsINode* aParentNode,\n                                            bool aStartAtBeginning)\n    : mParentNode(aParentNode),\n      mOriginalParentNode(aParentNode),\n      mIsFirst(aStartAtBeginning) {\n  if constexpr (aKind == TreeKind::DOM) {\n    return;\n  }\n\n  if (!mParentNode->IsElement()) {\n    return;\n  }\n\n  if (const ShadowRoot* const shadowRoot =\n          mParentNode->AsElement()->GetShadowRoot<aKind>()) {\n    mParentNode = shadowRoot;\n    mShadowDOMInvolved = true;\n    return;\n  }\n\n  if (const auto* const slot =\n          mParentNode->GetAsHTMLSlotElementIfFilled<aKind>()) {\n    MOZ_ASSERT(!slot->AssignedNodes().IsEmpty());\n    mParentNodeAsSlot = slot;\n    if (!aStartAtBeginning) {\n      mIndexInInserted = slot->AssignedNodes().Length();\n    }\n    mShadowDOMInvolved = true;\n  }\n}\n"
+      },
+      {
+        "first_line": 140,
+        "last_line": 170,
+        "text": "\nNS_INSTANTIATE_CHILD_ITERATOR_METHOD(nsIContent*, GetNextChild);\n\ntemplate <TreeKind aKind>\nnsIContent* ChildIteratorBase<aKind>::GetNextChild() {\n  // If we're already in the inserted-children array, look there first\n  if (mParentNodeAsSlot) {\n    const Span assignedNodes = mParentNodeAsSlot->AssignedNodes();\n    if (mIsFirst) {\n      mIsFirst = false;\n      MOZ_ASSERT(mIndexInInserted == 0);\n      mChild = assignedNodes[0]->AsContent();\n      return mChild;\n    }\n    MOZ_ASSERT(mIndexInInserted <= assignedNodes.Length());\n    if (mIndexInInserted + 1 >= assignedNodes.Length()) {\n      mIndexInInserted = assignedNodes.Length();\n      return nullptr;\n    }\n    mChild = assignedNodes[++mIndexInInserted]->AsContent();\n    return mChild;\n  }\n\n  if (mIsFirst) {  // at the beginning of the child list\n    mChild = mParentNode->GetFirstChild();\n    mIsFirst = false;\n  } else if (mChild) {  // in the middle of the child list\n    mChild = mChild->GetNextSibling();\n  }\n\n  return mChild;\n"
+      },
+      {
+        "first_line": 360,
+        "last_line": 413,
+        "text": "nsIContent* AllChildrenIterator::GetNextChild() {\n  switch (mPhase) {\n    case Phase::AtBegin:\n      if (Element* backdropPseudo =\n              nsLayoutUtils::GetBackdropPseudo(Parent())) {\n        mPhase = Phase::AtBackdropKid;\n        return backdropPseudo;\n      }\n      [[fallthrough]];\n    case Phase::AtBackdropKid:\n      if (Element* markerContent = nsLayoutUtils::GetMarkerPseudo(Parent())) {\n        mPhase = Phase::AtMarkerKid;\n        return markerContent;\n      }\n      [[fallthrough]];\n    case Phase::AtMarkerKid:\n      if (Element* checkmarkContent =\n              nsLayoutUtils::GetCheckmarkPseudo(Parent())) {\n        mPhase = Phase::AtCheckmarkKid;\n        return checkmarkContent;\n      }\n      [[fallthrough]];\n    case Phase::AtCheckmarkKid:\n      if (Element* beforeContent = nsLayoutUtils::GetBeforePseudo(Parent())) {\n        mPhase = Phase::AtBeforeKid;\n        return beforeContent;\n      }\n      [[fallthrough]];\n    case Phase::AtBeforeKid:\n      [[fallthrough]];\n    case Phase::AtFlatTreeKids:\n      if (nsIContent* kid = FlattenedChildIterator::GetNextChild()) {\n        mPhase = Phase::AtFlatTreeKids;\n        return kid;\n      }\n      [[fallthrough]];\n    case Phase::AtAnonKids:\n      if (mAnonKids.IsEmpty()) {\n        MOZ_ASSERT(mAnonKidsIdx == UINT32_MAX);\n        AppendNativeAnonymousChildren();\n        mAnonKidsIdx = 0;\n      } else if (mAnonKidsIdx == UINT32_MAX) {\n        mAnonKidsIdx = 0;\n      } else {\n        mAnonKidsIdx++;\n      }\n      if (mAnonKidsIdx < mAnonKids.Length()) {\n        mPhase = Phase::AtAnonKids;\n        return mAnonKids[mAnonKidsIdx];\n      }\n      if (Element* afterContent = nsLayoutUtils::GetAfterPseudo(Parent())) {\n        mPhase = Phase::AtAfterKid;\n        return afterContent;\n      }\n"
+      }
+    ],
+    "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "74daf5083349c19eb1031c01be63133050fc765a96e97fd4eb72ce1c5e06979d"
+  },
+  "dom/base/ChildIterator.h": {
+    "excerpts": [
+      {
+        "first_line": 238,
+        "last_line": 264,
+        "text": "/**\n * StyleChildrenIterator traverses the children of the element from the\n * perspective of the style system, particularly the children we need to\n * traverse during restyle.\n *\n * At present, this is identical to AllChildrenIterator with\n * (eAllChildren | eSkipDocumentLevelNativeAnonymousContent). We used to have\n * detect and skip any native anonymous children that are used to implement some\n * special magic in here that went away, but we keep the separate class so\n * we can reintroduce special magic back if needed.\n *\n * Note: it assumes that no mutation of the DOM or frame tree takes place during\n * iteration, and will break horribly if that is not true.\n *\n * We require this to be memmovable since Rust code can create and move\n * StyleChildrenIterators.\n */\nclass MOZ_NEEDS_MEMMOVABLE_MEMBERS StyleChildrenIterator\n    : private AllChildrenIterator {\n public:\n  explicit StyleChildrenIterator(const nsIContent* aContent,\n                                 bool aStartAtBeginning = true)\n      : AllChildrenIterator(\n            aContent,\n            nsIContent::eAllChildren |\n                nsIContent::eSkipDocumentLevelNativeAnonymousContent,\n            aStartAtBeginning) {\n"
+      }
+    ],
+    "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "52a68a02d36a32664ffc326e74655a969ff9314da65bf04a81db022e0ab34940"
+  },
+  "dom/base/nsIContentInlines.h": {
+    "excerpts": [
+      {
+        "first_line": 101,
+        "last_line": 124,
+        "text": "template <nsINode::FlattenedParentType aType>\nstatic inline nsINode* GetFlattenedTreeParentNode(const nsINode* aNode) {\n  if (!aNode->IsContent()) {\n    return nullptr;\n  }\n\n  nsINode* parent = aNode->GetParentNode();\n  if (!parent || !parent->IsContent()) {\n    return parent;\n  }\n\n  const nsIContent* content = aNode->AsContent();\n  nsIContent* parentAsContent = parent->AsContent();\n\n  if (aType == nsINode::eForStyle &&\n      content->IsRootOfNativeAnonymousSubtree() &&\n      parentAsContent == content->OwnerDoc()->GetRootElement()) {\n    const bool docLevel =\n        content->GetProperty(nsGkAtoms::docLevelNativeAnonymousContent);\n    return docLevel ? content->OwnerDocAsNode() : parent;\n  }\n\n  if (content->IsRootOfNativeAnonymousSubtree()) {\n    return parent;\n"
+      },
+      {
+        "first_line": 136,
+        "last_line": 174,
+        "text": "  if (shadowRootForParent) {\n    // When aType is not nsINode::eForSelection, If it's not assigned to any\n    // slot it's not part of the flat tree, and thus we return null.\n    auto* assignedSlot = content->GetAssignedSlot();\n    if (assignedSlot || aType != nsINode::eForSelection) {\n      return assignedSlot;\n    }\n\n    MOZ_ASSERT(aType == nsINode::eForSelection);\n    // When aType is nsINode::eForSelection, we use the parent of the\n    // content even if it's not assigned to any slot because Selection API\n    // accepts any node in the DOM as a container of a range boundary.\n    return parent;\n  }\n\n  if (parentAsContent->IsInShadowTree()) {\n    if (auto* slot = mozilla::dom::HTMLSlotElement::FromNode(parentAsContent)) {\n      if constexpr (aType == nsINode::eForSelection) {\n        // Even if the parent node is a <slot> in any shadow (for either content\n        // or UA such as <details>, <video>, <audio>, we can return the <slot>\n        // as parent for nsINode::eForSelection because any node in the DOM can\n        // be a container of a range boundary. E.g., even if the <slot> has some\n        // assigned nodes, the fallback content can be selected by the Selection\n        // API. So, we should not treat the unused fallback content as\n        // disconnected from the flattened tree.\n        return slot;\n      } else {\n        // If the parent is a <slot> and its assigned nodes list is empty, aNode\n        // is a fallback content which is active, otherwise we are not part of\n        // the flattened tree.\n        return slot->AssignedNodes().IsEmpty() ? slot : nullptr;\n      }\n    }\n\n    if (auto* const shadowRoot =\n            mozilla::dom::ShadowRoot::FromNode(parentAsContent)) {\n      if constexpr (aType != nsINode::eForSelection) {\n        return shadowRoot->GetHost();\n      } else {\n"
+      }
+    ],
+    "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "fa21959f2f54e965b0c742c6cb4f35ba40dfbffdc18cdbbdf4c0b6fff750332f"
+  },
+  "selective/servo/components/style/data.rs": {
+    "excerpts": [
+      {
+        "first_line": 433,
+        "last_line": 463,
+        "text": "        .intersects(ComputedValueFlags::DEPENDS_ON_CONTAINER_STYLE_QUERY)\n}\n\nfn needs_to_recascade_self(\n    hint: RestyleHint,\n    style: &ComputedValues,\n    has_animations: bool,\n) -> bool {\n    if hint.intersects(RestyleHint::RECASCADE_SELF) {\n        return true;\n    }\n    if hint.intersects(RestyleHint::RECASCADE_SELF_IF_INHERIT_RESET_STYLE)\n        && style\n            .flags\n            .contains(ComputedValueFlags::INHERITS_RESET_STYLE)\n    {\n        return true;\n    }\n    if hint.intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)\n        && (has_animations\n            || style\n                .flags\n                .contains(ComputedValueFlags::USES_FONT_OR_WM_RELATIVE_UNITS))\n    {\n        return true;\n    }\n    false\n}\n\nimpl ElementData {\n    /// Invalidates style for this element, its descendants, and later siblings,\n"
+      }
+    ],
+    "path": "artifacts/css-root-font-cancellation-selective-handoff-fix-v1/candidate/servo/components/style/data.rs",
+    "sha256": "17aaffd1deef5fe3e325e76bb8e37f885e250b4ad767df492733c876f24e8375"
+  },
+  "selective/servo/components/style/traversal.rs": {
+    "excerpts": [
+      {
+        "first_line": 126,
+        "last_line": 165,
+        "text": "    fn pre_traverse(root: E, shared_context: &SharedStyleContext) -> PreTraverseToken<E> {\n        use crate::invalidation::element::state_and_attributes::propagate_dirty_bit_up_to;\n\n        let traversal_flags = shared_context.traversal_flags;\n\n        let mut data = root.mutate_data();\n        let mut data = data.as_deref_mut();\n\n        if let Some(ref mut data) = data\n            && !traversal_flags.for_animation_only()\n        {\n            // Invalidate our style, and that of our siblings and\n            // descendants as needed.\n            let invalidation_result = data.invalidate_style_if_needed(\n                root,\n                shared_context,\n                None,\n                &mut SelectorCaches::default(),\n            );\n\n            if invalidation_result.has_invalidated_siblings() {\n                let actual_root = root.as_node().parent_element_or_host().expect(\n                    \"How in the world can you invalidate \\\n                         siblings without a parent?\",\n                );\n                propagate_dirty_bit_up_to(actual_root, root);\n                return PreTraverseToken(Some(actual_root));\n            }\n        }\n\n        let should_traverse =\n            Self::element_needs_traversal(root, traversal_flags, data.as_mut().map(|d| &**d));\n\n        // If we're not going to traverse at all, we may need to clear some state\n        // off the root (which would normally be done at the end of recalc_style_at).\n        if !should_traverse && data.is_some() {\n            clear_state_after_traversing(root, data.unwrap(), traversal_flags);\n        }\n\n        PreTraverseToken(if should_traverse { Some(root) } else { None })\n"
+      },
+      {
+        "first_line": 179,
+        "last_line": 210,
+        "text": "        // Unwrap the data.\n        let data = match data {\n            Some(d) if d.has_styles() => d,\n            _ => return true,\n        };\n\n        if traversal_flags.for_animation_only() {\n            // In case of animation-only traversal we need to traverse the element if the element\n            // has animation only dirty descendants bit, or animation-only restyle hint.\n            return el.has_animation_only_dirty_descendants()\n                || data.hint.has_animation_hint_or_recascade();\n        }\n\n        // If the dirty descendants bit is set, we need to traverse no matter\n        // what. Skip examining the ElementData.\n        if el.has_dirty_descendants() {\n            return true;\n        }\n\n        // If we have a restyle hint or need to recascade, we need to visit the\n        // element.\n        //\n        // Note that this is different than checking has_current_styles_for_traversal(),\n        // since that can return true even if we have a restyle hint indicating\n        // that the element's descendants (but not necessarily the element) need\n        // restyling.\n        if !data.hint.is_empty() {\n            return true;\n        }\n\n        // Servo uses the post-order traversal for flow construction, so we need\n        // to traverse any element with damage so that we can perform fixup /\n"
+      },
+      {
+        "first_line": 351,
+        "last_line": 381,
+        "text": "    let flags = context.shared.traversal_flags;\n    let is_initial_style = !data.has_styles();\n\n    context.thread_local.statistics.elements_traversed += 1;\n    debug_assert!(\n        flags.intersects(TraversalFlags::AnimationOnly)\n            || is_initial_style\n            || !element.has_snapshot()\n            || element.handled_snapshot(),\n        \"Should've handled snapshots here already\"\n    );\n\n    let has_animations = !flags.for_animation_only()\n        && data\n            .hint\n            .intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)\n        && element.has_animations(context.shared);\n    let restyle_kind = data.restyle_kind(context.shared, has_animations);\n    debug!(\n        \"recalc_style_at: {:?} (restyle_kind={:?}, dirty_descendants={:?}, data={:?})\",\n        element,\n        restyle_kind,\n        element.has_dirty_descendants(),\n        data\n    );\n\n    let mut child_restyle_hint = RestyleHint::empty();\n\n    // Compute style for this element if necessary.\n    if let Some(restyle_kind) = restyle_kind {\n        child_restyle_hint = compute_style(context, element, data, restyle_kind);\n"
+      },
+      {
+        "first_line": 406,
+        "last_line": 472,
+        "text": "    } else {\n        debug_assert!(data.has_styles());\n        data.set_traversed_without_styling();\n    }\n\n    // Now that matching and cascading is done, clear the bits corresponding to\n    // those operations and compute the propagated restyle hint (unless we're\n    // not processing invalidations, in which case don't need to propagate it\n    // and must avoid clearing it).\n    debug_assert!(\n        flags.for_animation_only() || !data.hint.has_animation_hint(),\n        \"animation restyle hint should be handled during \\\n         animation-only restyles\"\n    );\n    let mut propagated_hint = data.hint.propagate(&flags);\n    trace!(\n        \"propagated_hint={:?}, restyle_requirement={:?}, \\\n         is_display_none={:?}, implementing_pseudo={:?}\",\n        propagated_hint,\n        child_restyle_hint,\n        data.styles.is_display_none(),\n        element.implemented_pseudo_element()\n    );\n\n    // Integrate the child cascade requirement into the propagated hint.\n    propagated_hint |= child_restyle_hint;\n\n    let has_dirty_descendants_for_this_restyle = if flags.for_animation_only() {\n        element.has_animation_only_dirty_descendants()\n    } else {\n        element.has_dirty_descendants()\n    };\n\n    // Before examining each child individually, try to prove that our children\n    // don't need style processing. They need processing if any of the following\n    // conditions hold:\n    //\n    //  * We have the dirty descendants bit.\n    //  * We're propagating a restyle hint.\n    //  * This is a servo non-incremental traversal.\n    //\n    // We only do this if we're not a display: none root, since in that case\n    // it's useless to style children.\n    let mut traverse_children =\n        has_dirty_descendants_for_this_restyle || !propagated_hint.is_empty();\n\n    traverse_children = traverse_children && !data.styles.is_display_none();\n\n    // Examine our children, and enqueue the appropriate ones for traversal.\n    if traverse_children {\n        note_children::<E, D, F>(\n            context,\n            element,\n            propagated_hint,\n            is_initial_style,\n            note_child,\n        );\n    }\n\n    // FIXME(bholley): Make these assertions pass for servo.\n    if cfg!(feature = \"gecko\") && cfg!(debug_assertions) && data.styles.is_display_none() {\n        debug_assert!(!element.has_dirty_descendants());\n        debug_assert!(!element.has_animation_only_dirty_descendants());\n    }\n\n    clear_state_after_traversing(element, data, flags);\n    child_restyle_hint\n"
+      },
+      {
+        "first_line": 685,
+        "last_line": 734,
+        "text": "    // Loop over all the traversal children.\n    for child_node in element.traversal_children() {\n        let Some(child) = child_node.as_element() else {\n            continue;\n        };\n\n        let mut child_data = child.mutate_data();\n        let mut child_data = child_data.as_deref_mut();\n        trace!(\n            \" > {:?} -> {:?} + {:?}, pseudo: {:?}\",\n            child,\n            child_data.as_ref().map(|d| d.hint),\n            propagated_hint,\n            child.implemented_pseudo_element()\n        );\n\n        if let Some(ref mut child_data) = child_data {\n            child_data.hint.insert(propagated_hint);\n\n            // Handle element snapshots and invalidation of descendants and siblings\n            // as needed.\n            //\n            // NB: This will be a no-op if there's no snapshot.\n            child_data.invalidate_style_if_needed(\n                child,\n                context.shared,\n                Some(&context.thread_local.stack_limit_checker),\n                &mut context.thread_local.selector_caches,\n            );\n        }\n\n        if D::element_needs_traversal(child, flags, child_data.map(|d| &*d)) {\n            note_child(child_node);\n\n            // Set the dirty descendants bit on the parent as needed, so that we\n            // can find elements during the post-traversal.\n            //\n            // Note that these bits may be cleared again at the bottom of\n            // recalc_style_at if requested by the caller.\n            if !is_initial_style {\n                if flags.for_animation_only() {\n                    unsafe {\n                        element.set_animation_only_dirty_descendants();\n                    }\n                } else {\n                    unsafe {\n                        element.set_dirty_descendants();\n                    }\n                }\n            }\n"
+      }
+    ],
+    "path": "artifacts/css-root-font-cancellation-selective-handoff-fix-v1/candidate/servo/components/style/traversal.rs",
+    "sha256": "e825bfbcc328d65b4c93836eafb8e831c6866f61f6558400f11146b17a06b818"
+  },
+  "selective/servo/ports/geckolib/glue.rs": {
+    "excerpts": [
+      {
+        "first_line": 290,
+        "last_line": 352,
+        "text": "fn traverse_subtree(\n    element: GeckoElement,\n    global_style_data: &GlobalStyleData,\n    per_doc_data: &PerDocumentStyleDataImpl,\n    guard: &SharedRwLockReadGuard,\n    traversal_flags: TraversalFlags,\n    snapshots: &ServoElementSnapshotTable,\n) {\n    let shared_style_context = create_shared_context(\n        &global_style_data,\n        &guard,\n        &per_doc_data.stylist,\n        traversal_flags,\n        snapshots,\n    );\n\n    let token = RecalcStyleOnly::pre_traverse(element, &shared_style_context);\n\n    if !token.should_traverse() {\n        return;\n    }\n\n    debug!(\"Traversing subtree from {:?}\", element);\n\n    let thread_pool_holder = &*STYLE_THREAD_POOL;\n    let pool;\n    let thread_pool = if traversal_flags.contains(TraversalFlags::ParallelTraversal) {\n        pool = thread_pool_holder.pool();\n        pool.as_ref()\n    } else {\n        None\n    };\n\n    let traversal = RecalcStyleOnly::new(shared_style_context);\n    let root = driver::traverse_dom(&traversal, token, thread_pool);\n    if traversal.needs_normal_descendant_restyle() {\n        let mut has_styled_child = false;\n        for child_node in root.traversal_children() {\n            let Some(child) = child_node.as_element() else {\n                continue;\n            };\n            let mut child_data = child.mutate_data();\n            let Some(child_data) = child_data.as_mut() else {\n                continue;\n            };\n            if !child_data.has_styles() {\n                continue;\n            }\n            child_data\n                .hint\n                .insert(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT);\n            has_styled_child = true;\n        }\n        if has_styled_child {\n            unsafe { root.set_dirty_descendants() };\n        }\n    }\n}\n\n/// Traverses the subtree rooted at `root` for restyling.\n///\n/// Returns whether the root was restyled. Whether anything else was restyled or\n/// not can be inferred from the dirty bits in the rest of the tree.\n"
+      },
+      {
+        "first_line": 358,
+        "last_line": 416,
+        "text": "    raw_flags: ServoTraversalFlags,\n) -> bool {\n    let traversal_flags = TraversalFlags::from_bits_retain(raw_flags);\n    debug_assert!(!snapshots.is_null());\n\n    let element = GeckoElement(root);\n\n    debug!(\"Servo_TraverseSubtree (flags={:?})\", traversal_flags);\n    debug!(\"{:?}\", ShowSubtreeData(element.as_node()));\n\n    if cfg!(debug_assertions) {\n        if let Some(parent) = element.traversal_parent() {\n            let data = parent\n                .borrow_data()\n                .expect(\"Styling element with unstyled parent\");\n            assert!(\n                !data.styles.is_display_none(),\n                \"Styling element with display: none parent\"\n            );\n        }\n    }\n\n    let needs_animation_only_restyle =\n        element.has_animation_only_dirty_descendants() || element.has_animation_restyle_hints();\n\n    let per_doc_data = raw_data.borrow();\n    debug_assert!(!per_doc_data.stylist.stylesheets_have_changed());\n\n    let global_style_data = &*GLOBAL_STYLE_DATA;\n    let guard = global_style_data.shared_lock.read();\n\n    let was_initial_style = !element.has_data();\n\n    if needs_animation_only_restyle {\n        debug!(\n            \"Servo_TraverseSubtree doing animation-only restyle (aodd={})\",\n            element.has_animation_only_dirty_descendants()\n        );\n        traverse_subtree(\n            element,\n            &global_style_data,\n            &per_doc_data,\n            &guard,\n            traversal_flags | TraversalFlags::AnimationOnly,\n            unsafe { &*snapshots },\n        );\n    }\n\n    traverse_subtree(\n        element,\n        &global_style_data,\n        &per_doc_data,\n        &guard,\n        traversal_flags,\n        unsafe { &*snapshots },\n    );\n\n    debug!(\n        \"Servo_TraverseSubtree complete (dd={}, aodd={}, lfcd={}, lfc={}, data={:?})\",\n"
+      }
+    ],
+    "path": "artifacts/css-root-font-cancellation-selective-handoff-fix-v1/candidate/servo/ports/geckolib/glue.rs",
+    "sha256": "fd97805681b6ae6f31cbab548acfde514767f4afa8ee1745adeadbcb2afaeaa6"
+  },
+  "servo/components/style/driver.rs": {
+    "excerpts": [
+      {
+        "first_line": 88,
+        "last_line": 100,
+        "text": "pub fn traverse_dom<E, D>(\n    traversal: &D,\n    token: PreTraverseToken<E>,\n    pool: Option<&rayon::ThreadPool>,\n) -> E\nwhere\n    E: TElement,\n    D: DomTraversal<E>,\n{\n    let root = token\n        .traversal_root()\n        .expect(\"Should've ensured we needed to traverse\");\n\n"
+      },
+      {
+        "first_line": 109,
+        "last_line": 146,
+        "text": "    // Declare the main-thread context, as well as the worker-thread contexts,\n    // which we may or may not instantiate. It's important to declare the worker-\n    // thread contexts first, so that they get dropped second. This matters because:\n    //   * ThreadLocalContexts borrow AtomicRefCells in TLS.\n    //   * Dropping a ThreadLocalContext can run SequentialTasks.\n    //   * Sequential tasks may call into functions like\n    //     Servo_StyleSet_GetBaseComputedValuesForElement, which instantiate a\n    //     ThreadLocalStyleContext on the main thread. If the main thread\n    //     ThreadLocalStyleContext has not released its TLS borrow by that point,\n    //     we'll panic on double-borrow.\n    let mut scoped_tls = ScopedTLS::<ThreadLocalStyleContext<E>>::new(pool);\n    // Process the nodes breadth-first. This helps keep similar traversal characteristics for the\n    // style sharing cache.\n    let work_unit_max = work_unit_max();\n\n    let send_root = unsafe { SendNode::new(root.as_node()) };\n    with_pool_in_place_scope(work_unit_max, pool, |maybe_scope| {\n        let mut tlc = scoped_tls.ensure(parallel::create_thread_local_context);\n        tlc.current_dom_depth = send_root.depth();\n\n        let mut context = StyleContext {\n            shared: traversal.shared_context(),\n            thread_local: &mut tlc,\n        };\n\n        let mut discovered = VecDeque::with_capacity(work_unit_max * 2);\n        let opaque_root = send_root.opaque();\n        discovered.push_back(send_root);\n        parallel::style_trees(\n            &mut context,\n            discovered,\n            opaque_root,\n            work_unit_max,\n            maybe_scope,\n            traversal,\n            &scoped_tls,\n        );\n    });\n"
+      },
+      {
+        "first_line": 169,
+        "last_line": 172,
+        "text": "    }\n\n    root\n}\n"
+      }
+    ],
+    "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "9962eec7a406fb5859ccf6f9d5696e2ac25448ef1b0ec8dc8d77fb466b2af6a0"
+  },
+  "servo/components/style/gecko/wrapper.rs": {
+    "excerpts": [
+      {
+        "first_line": 535,
+        "last_line": 537,
+        "text": "    fn traversal_parent(&self) -> Option<GeckoElement<'ln>> {\n        self.flattened_tree_parent().and_then(|n| n.as_element())\n    }\n"
+      },
+      {
+        "first_line": 1049,
+        "last_line": 1068,
+        "text": "    fn traversal_children(&self) -> LayoutIterator<GeckoChildrenIterator<'le>> {\n        // This condition is similar to the check that\n        // StyleChildrenIterator::IsNeeded does, except that it might return\n        // true if we used to (but no longer) have anonymous content from\n        // ::before/::after, or nsIAnonymousContentCreators.\n        if self.is_html_slot_element()\n            || self.shadow_root().is_some()\n            || self.may_have_anonymous_children()\n        {\n            unsafe {\n                let mut iter = mem::MaybeUninit::<structs::StyleChildrenIterator>::uninit();\n                bindings::Gecko_ConstructStyleChildrenIterator(self.0, iter.as_mut_ptr());\n                return LayoutIterator(GeckoChildrenIterator::GeckoIterator(\n                    mem::ManuallyDrop::new(iter.assume_init()),\n                ));\n            }\n        }\n\n        LayoutIterator(GeckoChildrenIterator::Current(self.as_node().first_child()))\n    }\n"
+      }
+    ],
+    "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "8be23a881af313800ebc9645834f88b37770faecc7ec0b35bd186f57471a9b38"
+  },
+  "servo/components/style/invalidation/element/restyle_hints.rs": {
+    "excerpts": [
+      {
+        "first_line": 108,
+        "last_line": 141,
+        "text": "    /// Propagates this restyle hint to a child element.\n    pub fn propagate(&mut self, traversal_flags: &TraversalFlags) -> Self {\n        // In the middle of an animation only restyle, we don't need to\n        // propagate any restyle hints, and we need to remove ourselves.\n        if traversal_flags.for_animation_only() {\n            self.remove_animation_hints();\n            return Self::empty();\n        }\n\n        debug_assert!(\n            !self.has_animation_hint(),\n            \"There should not be any animation restyle hints \\\n             during normal traversal\"\n        );\n\n        // Else we should clear ourselves, and return the propagated hint.\n        std::mem::take(self).propagate_for_non_animation_restyle()\n    }\n\n    /// Returns a new `RestyleHint` appropriate for children of the current element.\n    fn propagate_for_non_animation_restyle(&self) -> Self {\n        if self.contains(RestyleHint::RESTYLE_DESCENDANTS) {\n            return Self::restyle_subtree();\n        }\n        let mut result = Self::empty();\n        if self.contains(Self::RESTYLE_PSEUDOS) {\n            result |= Self::RESTYLE_SELF_IF_PSEUDO;\n        }\n        if self.contains(Self::RECASCADE_DESCENDANTS) {\n            result |= Self::recascade_subtree();\n        }\n        if self.contains(Self::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT) {\n            result |= Self::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT;\n        }\n"
+      }
+    ],
+    "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "ea21bed14935af1bd28bbd33c80086dfcea9fe7063a73fb9efa7311f67cd14a4"
+  },
+  "servo/components/style/matching.rs": {
+    "excerpts": [
+      {
+        "first_line": 878,
+        "last_line": 896,
+        "text": "    let old_display = *old_values.get_display();\n    let new_display = *new_values.get_display();\n\n    if old_display != new_display {\n        // If we used to be a display: none element, and no longer are, our\n        // children need to be restyled because they're unstyled.\n        if old_display == Display::None {\n            return true;\n        }\n        // Blockification of children may depend on our display value, so we need to actually do the\n        // recascade. We could potentially do better, but it doesn't seem worth it.\n        if old_display.is_item_container() != new_display.is_item_container() {\n            return true;\n        }\n        // We may also need to blockify and un-blockify descendants if our display goes from / to\n        // display: contents, since the \"layout parent style\" changes.\n        if old_display.is_contents() || new_display.is_contents() {\n            return true;\n        }\n"
+      }
+    ],
+    "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "41e95acc6e2903963df96bee70c260aeebffdd9b4d5dfc18bd6e875f9352035d"
+  },
+  "servo/components/style/traversal.rs": {
+    "excerpts": [
+      {
+        "first_line": 224,
+        "last_line": 242,
+        "text": "/// Manually resolve style by sequentially walking up the parent chain to the\n/// first styled Element, ignoring pending restyles. The resolved style is made\n/// available via a callback, and can be dropped by the time this function\n/// returns in the display:none subtree case.\npub fn resolve_style<E>(\n    context: &mut StyleContext<E>,\n    element: E,\n    rule_inclusion: RuleInclusion,\n    pseudo: Option<&PseudoElement>,\n    mut undisplayed_style_cache: Option<&mut UndisplayedStyleCache>,\n) -> ElementStyles\nwhere\n    E: TElement,\n{\n    debug_assert!(\n        rule_inclusion == RuleInclusion::DefaultOnly\n            || pseudo.is_some_and(|p| p.is_before_or_after())\n            || element.borrow_data().is_none_or(|d| !d.has_styles()),\n        \"Why are we here?\"\n"
+      },
+      {
+        "first_line": 291,
+        "last_line": 333,
+        "text": "    for ancestor in ancestors_requiring_style_resolution.iter().rev() {\n        context.thread_local.bloom_filter.assert_complete(*ancestor);\n        context.thread_local.current_dom_depth = context.thread_local.bloom_filter.matching_depth();\n\n        // Actually `PseudoElementResolution` doesn't really matter here.\n        // (but it does matter below!).\n        let primary_style = StyleResolverForElement::new(\n            *ancestor,\n            context,\n            rule_inclusion,\n            PseudoElementResolution::IfApplicable,\n        )\n        .resolve_primary_style(style.as_deref(), layout_parent_style.as_deref());\n\n        let is_display_contents = primary_style.style().is_display_contents();\n\n        style = Some(primary_style.style.0);\n        if !is_display_contents {\n            layout_parent_style = style.clone();\n        }\n\n        if let Some(ref mut cache) = undisplayed_style_cache {\n            cache.insert(ancestor.opaque(), style.clone().unwrap());\n        }\n        context.thread_local.bloom_filter.push(*ancestor);\n    }\n\n    context.thread_local.bloom_filter.assert_complete(element);\n    context.thread_local.current_dom_depth = context.thread_local.bloom_filter.matching_depth();\n    let styles: ElementStyles = StyleResolverForElement::new(\n        element,\n        context,\n        rule_inclusion,\n        PseudoElementResolution::Force,\n    )\n    .resolve_style(style.as_deref(), layout_parent_style.as_deref())\n    .into();\n\n    if let Some(ref mut cache) = undisplayed_style_cache {\n        cache.insert(element.opaque(), styles.primary().clone());\n    }\n\n    styles\n"
+      },
+      {
+        "first_line": 735,
+        "last_line": 763,
+        "text": "/// parallel traversal because the rayon stacks are small.\npub unsafe fn clear_descendant_data<E>(root: E)\nwhere\n    E: TElement,\n{\n    let mut parents = SmallVec::<[E; 32]>::new();\n    parents.push(root);\n    while let Some(p) = parents.pop() {\n        for kid in p.traversal_children() {\n            if let Some(kid) = kid.as_element() {\n                // We maintain an invariant that, if an element has data, all its\n                // ancestors have data as well.\n                //\n                // By consequence, any element without data has no descendants with\n                // data.\n                if kid.has_data() {\n                    unsafe {\n                        kid.clear_data();\n                    }\n                    parents.push(kid);\n                }\n            }\n        }\n    }\n\n    // Make sure not to clear NODE_NEEDS_FRAME on the root.\n    unsafe {\n        root.clear_descendant_bits();\n    }\n"
+      }
+    ],
+    "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "736920121fc8700a2a7e37ff900a5bb9ea9725dc001b5f4a5435fbe1a815345f"
+  }
+}

@@ -1,0 +1,35 @@
+--- prior/publish.py
++++ post-font/publish.py
+@@ -45,16 +45,18 @@
+     records = owner.authenticate(HERE, args.manifest)
+     policy = read(HERE / 'POLICY.json')
+     assert policy['bindings'] is None and policy['stage'] is None and policy['enabled_modes'] == []
++    assert policy['publication_chain'] == read(HERE / 'CHAIN-BINDING.json')
++    assert all(policy['publication_chain'].values()), 'pending actual cancellation publication'
+     for path, pin in policy['references'].items():
+         assert sha(ROOT / path) == pin
+     stage = next(s for s in read(HERE / 'STAGES.json')['stages'] if s['stage'] == args.stage)
+     policy['stage'] = args.stage
+-    policy['runtime_output'] = 'artifacts/css-explicit-taint-typed-reparse-publication-' + args.stage + '-runtime-1'
++    policy['runtime_output'] = 'artifacts/css-explicit-taint-typed-reparse-post-font-publication-' + args.stage + '-runtime-1'
+     for name, record in records.items():
+         policy['references'][str((HERE / name).relative_to(ROOT))] = record['sha256']
+     policy['references'][str((HERE / 'FILES.json').relative_to(ROOT))] = args.manifest
+     output = ROOT / policy['runtime_output']
+-    install_owner = ROOT / ('artifacts/css-explicit-taint-typed-reparse-publication-' + args.stage + '-install-v1')
++    install_owner = ROOT / ('artifacts/css-explicit-taint-typed-reparse-post-font-publication-' + args.stage + '-install-v1')
+     installed = None
+     assert policy['pair_binding'] is None
+     if args.action != 'install':
+@@ -117,9 +119,9 @@
+         path = output / 'delivery/DELIVERY.json'
+         binding['delivery_receipt'] = {'path': str(path.relative_to(ROOT)), 'sha256': sha(path)}
+     policy.update(bindings=binding, enabled_modes=[args.action])
+-    directory = ROOT / ('artifacts/css-explicit-taint-typed-reparse-publication-' + args.stage + '-' + args.action + '-v1')
++    directory = ROOT / ('artifacts/css-explicit-taint-typed-reparse-post-font-publication-' + args.stage + '-' + args.action + '-v1')
+     directory.mkdir()
+-    for name in ('run.py', 'transform.py', 'evidence.py', 'STAGES.json'):
++    for name in ('run.py', 'transform.py', 'evidence.py', 'chain.py', 'STAGES.json'):
+         with (directory / name).open('xb') as stream:
+             stream.write((HERE / name).read_bytes())
+     save(directory / 'POLICY.json', policy)

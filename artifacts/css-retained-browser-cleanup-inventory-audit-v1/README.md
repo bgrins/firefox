@@ -1,0 +1,9 @@
+# Retained archive inventory verification
+
+All three cleanup candidates matched their sealed complete inventories: each has 8,326 regular files and 1,052 directories, with exact file SHA-256, size and mode, exact directory set/modes, no symlinks or extra entries, and the expected owned root device/inode. Only Nightly.app exists directly under each owned root. The pinned archive snapshot's `files` map supplies file records; `resolved_source_inventory.directories` supplies directory names/modes only. Its original source inode identities are not archive inode expectations.
+
+The actual inventory attempt a8cf56/session85548/440b92 exited 1 only after all inventories completed: the sandbox denied launching `/bin/ps -axo pid=,ppid=,pgid=,command=`. CHECK.log and the exact audit.py preserve that failure. No process-absence claim follows. The partial report was finalized from the three completed JSON inventory records without repeating hashes.
+
+A separate final read-only open-file check 624d11/session7905/0ff4eb exited 0. For each exact root, `/usr/sbin/lsof -nP +D PATH` returned 1 with empty stdout and stderr: no visible open files. Exact arguments, exit statuses and saved output hashes are in REPORT.json. This is unprivileged visibility, not proof of complete system-wide process absence. Initial lsof output files are also preserved; their exit statuses were lost on the later ps exception and are not inferred.
+
+No deletion, browser/build operation, or source/index/canonical write occurred. The inventory is a point-in-time observation, not atomic across all entries. Root must check process absence and inventory/ownership freshness after the current publication, before any authorized removal. The preceding cleanup candidate capsule remains the source of runtime manifest pins, ownership paths, retention reasoning and comparison exclusions.
