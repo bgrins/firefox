@@ -1,0 +1,1 @@
+Root-bound SMIL restoration audit. The audit body is byte-identical to sealed v2. Bindings identify actual owner b6c257/session53146, terminal b29ff7 exit0 and its RESULT. Prior CHECK files document preparation only; this live audit has not yet run. No new browser or native acceptance is inferred from owner success.

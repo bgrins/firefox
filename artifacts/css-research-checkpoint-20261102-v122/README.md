@@ -1,0 +1,17 @@
+# Research checkpoint V122
+
+Finalized and execution-disabled. Native e86 with signed V114 parent remains authority. V121 failed configured signing; its full selection, actual owner/result/signing log and disabled preimages are retained as evidence, never as a signed predecessor. The V121 signing/index/canonical preservation lifecycle is unchanged apart from V122 labels; capture_current.py is byte-identical.
+
+The final selection contains4,112 paths/223,186,378 bytes/207 completed closures,857 additions beyond V121. Owner payloads are separately covered by exact FILES.json and self-file omission/change checks. Partial activation/disabled-preimage directories are selected file by file, not asserted complete packages. Browser binaries/backups and unfinished numeric native implementation are excluded. The newer bugfix summary and font-variation candidate/WPT are reserved for the next checkpoint.
+
+Included evidence covers the archived target4 and47 controls, standalone bb13→2bcc native build and all79 observations, full restoration/audits/outcome and exact two-file acceptance binding8c20ead7. Target3PASS/1FAIL becomes4PASS; fallback28 retains17PASS/11FAIL and all47 existing control callbacks remainPASS. Full callback signatures and six endings are preserved. Owner23498 and independent audit29050 exited0; backup removal and restored source/app/index/process state are authenticated. No native publication is claimed.
+
+Completed font research includes full21 input audit, seven/nineteen-input prototypes with their disclosed doubles, source snapshots, the conversion-effects Lean model21/7, numeric original/release observations and source-only repair boundary, and MathML calibration. Numeric observations are browser findings with no accepted-fix increment. Candidate snapshot metadata is selected, not archive binaries; its8,327-file inventory includes the exact one-byte browser/.purgecaches marker. Any future first-start consumption must be recorded separately without changing that snapshot.
+
+Actual raw refreshbc99ef/session38079/d9dd07/0 changes only raw_index_observation.current and preserves full PRE/POST equality. Its active owner, immutable runtimeab9afd0b, activation preimages, root logs and roadmap161 are selected. The unchanged saved-admission chain joins failed-V121's authenticated native admission to epocha3719604. Root's freshe2f32d/session86929/f589e6/0 capturebaddfd30 is hash-bound, with exact controls, clean tracked/staged state and absent lock.
+
+Final savedccc28c/session89020/4b5372/0 authenticates the selection, closures, refresh/current admission, four refresh negatives, eleven admission negatives, disabled execution, exact signing tail and self-payload checks. Earlier preparation logs retain their historical counts. No live source/index/current read, capture, native/browser operation or signing ran in this agent.
+
+Publication order remains standalone reparse first; then a separately rebased fallback publisher2bcc→bdb3 with unchanged28-case WPT after actual combined82 validation. Existing bb13 fallback publication must reject a changed base. If signing remains blocked, accurately attributed combinedbdb3 overlay validation can run without committing. Neither template is enabled here.
+
+Root next runs commit.py --check, then only after review preserves disabled preimages, enables the single execution flag, updates its exact manifest and invokes normal signing. No alternate signing authority or bypass is introduced.

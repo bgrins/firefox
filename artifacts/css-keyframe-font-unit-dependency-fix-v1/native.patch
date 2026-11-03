@@ -1,0 +1,76 @@
+--- a/servo/components/style/data.rs
++++ b/servo/components/style/data.rs
+@@ -433,7 +433,11 @@
+         .intersects(ComputedValueFlags::DEPENDS_ON_CONTAINER_STYLE_QUERY)
+ }
+ 
+-fn needs_to_recascade_self(hint: RestyleHint, style: &ComputedValues) -> bool {
++fn needs_to_recascade_self(
++    hint: RestyleHint,
++    style: &ComputedValues,
++    has_animations: bool,
++) -> bool {
+     if hint.intersects(RestyleHint::RECASCADE_SELF) {
+         return true;
+     }
+@@ -445,9 +449,10 @@
+         return true;
+     }
+     if hint.intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
+-        && style
+-            .flags
+-            .contains(ComputedValueFlags::USES_FONT_OR_WM_RELATIVE_UNITS)
++        && (has_animations
++            || style
++                .flags
++                .contains(ComputedValueFlags::USES_FONT_OR_WM_RELATIVE_UNITS))
+     {
+         return true;
+     }
+@@ -551,7 +556,11 @@
+ 
+     /// Returns the kind of restyling that we're going to need to do on this
+     /// element, based of the stored restyle hint.
+-    pub fn restyle_kind(&self, shared_context: &SharedStyleContext) -> Option<RestyleKind> {
++    pub fn restyle_kind(
++        &self,
++        shared_context: &SharedStyleContext,
++        has_animations: bool,
++    ) -> Option<RestyleKind> {
+         let style = match self.styles.primary {
+             Some(ref s) => s,
+             None => return Some(RestyleKind::MatchAndCascade),
+@@ -580,7 +589,7 @@
+             ));
+         }
+ 
+-        if needs_to_recascade_self(hint, style) {
++        if needs_to_recascade_self(hint, style, has_animations) {
+             return Some(RestyleKind::CascadeOnly);
+         }
+ 
+@@ -617,7 +626,7 @@
+             ));
+         }
+ 
+-        if needs_to_recascade_self(hint, style) {
++        if needs_to_recascade_self(hint, style, false) {
+             return Some(RestyleKind::CascadeOnly);
+         }
+         None
+--- a/servo/components/style/traversal.rs
++++ b/servo/components/style/traversal.rs
+@@ -359,7 +359,12 @@
+         "Should've handled snapshots here already"
+     );
+ 
+-    let restyle_kind = data.restyle_kind(context.shared);
++    let has_animations = !flags.for_animation_only()
++        && data
++            .hint
++            .intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
++        && element.has_animations(context.shared);
++    let restyle_kind = data.restyle_kind(context.shared, has_animations);
+     debug!(
+         "recalc_style_at: {:?} (restyle_kind={:?}, dirty_descendants={:?}, data={:?})",
+         element,

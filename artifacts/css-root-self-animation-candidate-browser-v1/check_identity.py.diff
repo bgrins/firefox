@@ -1,0 +1,18 @@
+--- artifacts/css-keyframe-font-unit-candidate-browser-v3/check_identity.py
++++ artifacts/css-root-self-animation-candidate-browser-v1/check_identity.py
+@@ -19,13 +19,13 @@
+ code = compile(ast.Module(body=loop.body[start:start + 3], type_ignores=[]), '<actual driver ownership claim>', 'exec')
+ with tempfile.TemporaryDirectory(prefix='caller-identity-', dir='/private/tmp') as scratch:
+     root = Path(scratch)
+-    for name in policy['additional_source_paths']:
++    for name in json.loads((HERE / 'SOURCE-ROLES.json').read_bytes()):
+         path = root / name
+         path.parent.mkdir(parents=True, exist_ok=True)
+         path.write_bytes(b'unchanged source')
+         pin = hashlib.sha256(path.read_bytes()).hexdigest()
+         admitted = ownership.claim(root, name, pin)
+-        capture = {'payload_claims': {}, 'additional_sources': {name: admitted}}
++        capture = {'payload_claims': {name: admitted}, 'additional_sources': {}}
+         scope = dict(ROOT=root, name=name, record={'base_sha256': pin}, ownership=ownership,
+                      claims={}, baseline=SimpleNamespace(current_capture=lambda _: capture), policy={})
+         exec(code, scope)

@@ -1,0 +1,58 @@
+--- artifacts/css-root-font-cancellation-trace-candidate-browser-v2/baseline.py
++++ artifacts/css-root-font-cancellation-trace-candidate-browser-v3/baseline.py
+@@ -83,25 +83,28 @@
+     state = load('published_state', policy['state_helper'])
+     adapter = load('native_capture_authority', policy['capture_owner']['directory'] + '/baseline.py')
+     native_receipt = checkpoint
+-    checkpoint = adapter.native_head_view(native_receipt)
++    admission = load('live_direct_admission', str((HERE / 'admission.py').relative_to(ROOT)))
++    evidence = admission.direct_evidence(ROOT, policy, native_receipt)
++    native_head = native_receipt['commit']
++    expected_epoch_sha256 = evidence['current_epoch_sha256']
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'ROLE.json', 'OWNED.json')}
+     epoch, role = json.loads(controls['CURRENT-EPOCH.json']), json.loads(controls['ROLE.json'])
+-    assert hashlib.sha256(controls['CURRENT-EPOCH.json']).hexdigest() == checkpoint['epoch_sha256']
+-    assert epoch['semantic_index']['head'] == checkpoint['head']
++    assert hashlib.sha256(controls['CURRENT-EPOCH.json']).hexdigest() == expected_epoch_sha256
++    assert epoch['semantic_index']['head'] == native_head
+     assert epoch['staged_working'] == {} and epoch['modified_native_paths'] == []
+     require_role(policy, role, epoch)
+-    assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['image_commit'], checkpoint['head'])
+-    assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['nowrap_commit'], checkpoint['head'])
+-    assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['language_commit'], checkpoint['head'])
++    assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['image_commit'], native_head)
++    assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['nowrap_commit'], native_head)
++    assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['language_commit'], native_head)
+     state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', policy['nowrap_commit'])
+     state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', policy['language_commit'])
+-    assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['ownership_commit'], checkpoint['head'])
++    assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['ownership_commit'], native_head)
+     state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', policy['ownership_commit'])
+-    assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['capacity_commit'], checkpoint['head'])
++    assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['capacity_commit'], native_head)
+     state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', policy['capacity_commit'])
+     state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', adapter.binding['native_parent'])
+-    assert state.h.git(ROOT, env, 'rev-parse', checkpoint['head'] + '^').decode().strip() == adapter.binding['native_parent']
+-    assert state.h.git(ROOT, env, 'diff-tree', '--no-commit-id', '--name-only', '-r', checkpoint['head']).decode().splitlines() == native_receipt['files']
++    assert state.h.git(ROOT, env, 'rev-parse', native_head + '^').decode().strip() == adapter.binding['native_parent']
++    assert state.h.git(ROOT, env, 'diff-tree', '--no-commit-id', '--name-only', '-r', native_head).decode().splitlines() == native_receipt['files']
+     metadata_guard(policy)
+     for name in policy['preserved_absent_metadata'] + policy['preserved_absent_resources']:
+         assert not (ROOT / name).exists() and not (ROOT / name).is_symlink()
+@@ -119,14 +122,14 @@
+         else:
+             assert record['base_sha256'] == epoch['pins'][name]
+             sources[name] = ownership.claim(ROOT, name, record['base_sha256'], epoch['installed_identities'][name])
+-        assert hashlib.sha256(state.h.git(ROOT, env, 'show', checkpoint['head'] + ':' + name)).hexdigest() == record['base_sha256']
++        assert hashlib.sha256(state.h.git(ROOT, env, 'show', native_head + ':' + name)).hexdigest() == record['base_sha256']
+     for name, pin in policy['source_context_pins'].items():
+         assert sha(ROOT / name) == pin
+     ownership.quiescent(RUNTIME)
+     assert not (RUNTIME / 'SOURCE-TRANSITION.lock').exists() and not (RUNTIME / 'SOURCE-TRANSITION.lock').is_symlink()
+     flags = {name: state.h.git(path, env, 'ls-files', '-v', '-z') for name, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]}
+     snapshot = state.a.verify_current(state.h, ROOT, env, epoch)
+-    assert snapshot['index']['head'] == checkpoint['head']
++    assert snapshot['index']['head'] == native_head
+     assert all((RUNTIME / name).read_bytes() == body for name, body in controls.items())
+     return state, env, controls, epoch, role, sources, flags, snapshot
+ 

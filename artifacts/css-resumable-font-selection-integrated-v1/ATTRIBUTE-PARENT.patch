@@ -1,0 +1,155 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -28,7 +28,7 @@
+     PropertyDeclarationId, PropertyFlags, PropertyIdRef, ShorthandsWithPropertyReferencesCache,
+     StyleBuilder, property_counts,
+ };
+-use crate::properties::{CustomDeclaration, CustomDeclarationValue, UnparsedValue};
++use crate::properties::{CustomDeclaration, CustomDeclarationValue, PropertyId, UnparsedValue};
+ use crate::properties_and_values::rule::Descriptors as PropertyDescriptors;
+ use crate::properties_and_values::value::ComputedValue as ComputedRegisteredValue;
+ use crate::rule_cache::{RuleCache, RuleCacheConditions};
+@@ -3384,7 +3384,10 @@
+                 assert!(self.frames.is_empty() && self.frame_reply.is_none());
+                 self.frame_root = Some(var.clone());
+                 match start_frame(var, self, attribute_tracker) {
+-                    Ok(frame) => self.frames.push(frame),
++                    Ok(mut frame) => {
++                        frame.enter_guarded_custom(Vec::new(), self);
++                        self.frames.push(frame);
++                    }
+                     Err(result) => {
+                         self.frame_root = None;
+                         return result;
+@@ -3841,6 +3844,33 @@
+             Ok(true)
+         }
+ 
++        fn authorize_metric_substitution(
++            &mut self,
++            action: &MetricAction,
++            longhand: LonghandId,
++            value: Arc<UnparsedValue>,
++        ) -> bool {
++            if !self.metric_action_is_current(action, self.frames.len())
++                || self.metric_references.is_some()
++                || self.frame_reply.is_some()
++                || self.lookup_reply.is_some()
++                || !self
++                    .lookup_bindings
++                    .valid_for(self.computed_context.included_cascade_flags)
++            {
++                return false;
++            }
++            self.lookup_reply = Some((
++                longhand,
++                FontSelectionReply {
++                    value,
++                    generation: self.lookup_bindings.root.clone(),
++                    lookup: None,
++                },
++            ));
++            true
++        }
++
+         fn drive_metric_action(
+             &mut self,
+             action: &MetricAction,
+@@ -3893,19 +3923,9 @@
+                 }
+                 match self.perform_metric_action(action, attribute_tracker) {
+                     MetricActionProgress::References(longhand, value) => {
+-                        assert!(self.metric_references.is_none());
+-                        assert!(self.frame_reply.is_none());
+-                        self.metric_references = Some(MetricReferences {
+-                            action: action.clone(),
+-                            longhand,
+-                            walk: ReferenceWalk::new(&value.variable_value.references),
+-                            value,
+-                            reply: None,
+-                            depth: self.frames.len(),
+-                            semantic_floor: self.count,
+-                            flags: self.computed_context.included_cascade_flags,
+-                            complete: false,
+-                        });
++                        if !self.authorize_metric_substitution(action, longhand, value) {
++                            return MetricActionProgress::Invalidated;
++                        }
+                     }
+                     MetricActionProgress::Lookup(longhand, value, request) => {
+                         assert!(self.metric_lookup.is_none() && self.lookup_reply.is_none());
+@@ -4799,7 +4819,9 @@
+                             }
+                             SubstitutionGuard::mark_reentry(
+                                 &request.guards,
+-                                &SubstitutionGuardKey::Property(request.name.clone()),
++                                &SubstitutionGuardKey::Property(PropertyId::Custom(
++                                    request.name.clone(),
++                                )),
+                             );
+                             let target = VarType::Custom(request.name.clone());
+                             return Some(self.link(target, LinkPurpose::Reference));
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -2657,7 +2657,7 @@
+ #[derive(Clone, PartialEq)]
+ pub(crate) enum SubstitutionGuardKey {
+     Attribute(Name, Namespace),
+-    Property(Name),
++    Property(PropertyId),
+ }
+ 
+ #[derive(Clone)]
+@@ -2735,14 +2735,35 @@
+     pub(crate) fn for_custom(
+         value: VariableValue,
+         name: Name,
++        guards: Vec<SubstitutionGuard>,
++    ) -> Self {
++        Self::for_guarded_property(value, PropertyId::Custom(name), guards, false)
++    }
++
++    pub(crate) fn for_property(
++        value: VariableValue,
++        property: PropertyIdRef,
++        in_container_query: bool,
++    ) -> Self {
++        let property = match property {
++            PropertyIdRef::Custom(name) => PropertyId::Custom(name.clone()),
++            PropertyIdRef::NonCustom(id) => PropertyId::NonCustom(id),
++        };
++        Self::for_guarded_property(value, property, Vec::new(), in_container_query)
++    }
++
++    fn for_guarded_property(
++        value: VariableValue,
++        property: PropertyId,
+         mut guards: Vec<SubstitutionGuard>,
++        in_container_query: bool,
+     ) -> Self {
+-        let guard = SubstitutionGuard::new(SubstitutionGuardKey::Property(name.clone()));
++        let guard = SubstitutionGuard::new(SubstitutionGuardKey::Property(property.clone()));
+         guards.push(guard.clone());
+-        let mut state = Self::new(value, None, false);
++        let mut state = Self::new(value, None, in_container_query);
+         state.guards = guards;
+         state.root_guard = Some(guard);
+-        state.owned_property_id = Some(PropertyId::Custom(name));
++        state.owned_property_id = Some(property);
+         state
+     }
+ 
+--- a/servo/components/style/properties/mod.rs
++++ b/servo/components/style/properties/mod.rs
+@@ -1714,9 +1714,9 @@
+                 }
+             }
+         }
+-        Ok(custom_properties::ResumableSubstitution::new(
++        Ok(custom_properties::ResumableSubstitution::for_property(
+             self.value.variable_value.clone(),
+-            Some(self.value.substitution_property_id(longhand_id)),
++            self.value.substitution_property_id(longhand_id),
+             computed_context.in_container_query,
+         ))
+     }

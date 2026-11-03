@@ -1,0 +1,154 @@
+import hashlib
+import importlib.util
+import json
+
+read = lambda path: json.loads(path.read_bytes())
+sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def require_witness(original, candidate, roster):
+    page, names = next(iter(roster.items()))
+    assert len(roster) == 1 and len(names) == len(set(names)) == 28
+    for value in (original, candidate):
+        assert value['complete'] and len(value['endings']) == 1
+        assert value['endings'][0]['test'] == page and value['endings'][0]['status'] == 'OK'
+        assert [row['subtest'] for row in value['subtests']] == names
+        assert all(row['test'] == page for row in value['subtests'])
+    assert original['counts'] == {'PASS': 17, 'FAIL': 11}
+    assert candidate['counts'] == {'PASS': 28} and candidate['all_28_pass']
+    changed = [f'{mode}: {case}' for mode in ('direct', 'unregistered', 'registered')
+               for case in ('missing-raw-fallback', 'invalid-typed-fallback', 'missing-typed-fallback')]
+    changed += ['empty-selected-unregistered', 'empty-selected-universal']
+    assert [row['subtest'] for row in original['subtests'] if row['status'] == 'FAIL'] == changed
+    for before, after in zip(original['subtests'], candidate['subtests']):
+        assert after['status'] == 'PASS'
+        if before['subtest'] in changed:
+            label = ('Only values produced by attr() are rejected as URLs' if ': ' in before['subtest']
+                     else 'Selected provenance and direct ranges stay distinct')
+            assert before['message'].startswith('assert_equals: ' + label + ' expected "none" but got "image-set(')
+        else:
+            assert before['status'] == 'PASS'
+    return {'original_PASS': 17, 'original_FAIL': 11, 'candidate_PASS': 28,
+            'preserved_PASS': 17, 'changed_FAIL_to_PASS': changed, 'preserved_OK_endings': 1}
+
+
+def verify(root, binding, stage):
+    assert binding is not None
+    template = root / 'artifacts/css-attr-fallback-publication-v1'
+    assert binding == read(template / 'PAIR-BINDING.json')
+    owner = load('fallback_evidence_auth', root / 'artifacts/css-registered-number-source-transition-v4/transition.py')
+    here = root / binding['owner_directory']
+    owner.authenticate(here, binding['owner_manifest_sha256'])
+    runner = load('fallback_archived_evidence', here / 'run.py')
+    runner.pins()
+    fixture = root / 'artifacts/css-attr-own-fallback-fix-v2'
+    owner.authenticate(fixture, '4d8aa1611f71f01df5057464a8c3aab41c514474fd53a3268b72d0ba8075788a')
+    source = read(fixture / 'SOURCE.json')
+    role = 'servo/components/style/custom_properties.rs'
+    test = source['test']['target']
+    assert stage['stage'] == 'fallback'
+    assert stage['head_preimages'] == {role: source['roles'][role]['base']['sha256']}
+    assert stage['files'] == {role: source['roles'][role]['candidate'],
+                              test: {'path': source['test']['source'], 'sha256': source['test']['sha256']}}
+    assert stage['create_tests'] == [test] and stage['adopt_existing_tests'] == []
+    output = root / binding['build_runtime_directory']
+    owner.authenticate(output, binding['build_runtime_manifest_sha256'])
+    result = read(output / 'RESULT.json')
+    terminal = read(output / 'ROOT-OWNER-TERMINAL.json')
+    assert terminal['session'] == 14079 and terminal['launch_tool'] == 'b69f41' and terminal['terminal_tool'] == '8d60f3'
+    assert terminal['terminal'] and terminal['exit'] == 0 and terminal['result_sha256'] == sha(output / 'RESULT.json')
+    for field in ('success', 'restoration_verified', 'runtime_controls_unchanged', 'empty_staging_preserved'):
+        assert result[field]
+    assert result['error'] is None and result['publication_errors'] == [] and not result['native_fix_acceptance']
+    restoration = read(output / 'RESTORATION.json')
+    assert restoration['errors'] == [] and restoration['owned_processes'] == {}
+    assert restoration['sources'][role]['sha256'] == stage['head_preimages'][role]
+    live = read(output / 'ROOT-LIVE-RESTORATION.json')
+    audit = root / 'artifacts/css-attr-fallback-candidate-root-audit-v2'
+    audit_terminal = read(audit / 'ROOT-TERMINAL.json')
+    assert audit_terminal['terminal'] and audit_terminal['exit'] == 0
+    assert audit_terminal['session'] == 23976 and audit_terminal['terminal_tool'] == '802c5e'
+    assert audit_terminal['report_sha256'] == sha(output / 'ROOT-LIVE-RESTORATION.json')
+    assert live['audit_script_sha256'] == sha(audit / 'audit.py')
+    assert live['owner_result_sha256'] == sha(output / 'RESULT.json') and live['owner_terminal'] == terminal
+    for field in ('independent_live_restoration_verified', 'application_and_extras_semantically_restored',
+                  'source_and_binary_hashes_restored', 'flags_restored', 'controls_unchanged', 'backup_removed'):
+        assert live[field] is True
+    assert live['snapshot'] == read(output / 'POST.json') and not live['native_acceptance']
+    cleanup = read(output / 'BACKUP-CLEANUP.json')
+    assert cleanup['removed'] and cleanup['verified_original_restoration'] and not cleanup['retained_after_failure']
+    groups = [read(output / record['path'])['pgid'] for record in live['process_records']]
+    assert len(groups) == 3
+    assert sorted(groups + [terminal['outer_group']]) == sorted(live['independently_absent_process_groups'])
+    roster = read(fixture / 'ROSTER.json')
+    assessments = {}
+    for kind in ('original', 'candidate'):
+        record = binding['runtimes'][kind]
+        phase = root / record['directory']
+        owner.authenticate(phase, record['manifest_sha256'])
+        policy = read(here / ('POLICY-' + kind + '.json'))
+        assert policy['runtime'] == record['directory'] and policy['archive_role'] == kind
+        assert policy['fixture_binding'] == {'directory': str(fixture.relative_to(root)),
+                                             'manifest_sha256': sha(fixture / 'FILES.json')}
+        assert policy['settings']['metadata'] == {'portable': {}, 'mozilla': {}}
+        assert policy['prior_owner_terminal']['sha256'] == sha(output / 'ROOT-OWNER-TERMINAL.json')
+        assert policy['prior_owner_audit']['sha256'] == sha(output / 'ROOT-LIVE-RESTORATION.json')
+        snapshot = read(root / policy['snapshot'])
+        assert sha(root / policy['snapshot']) == policy['snapshot_sha256']
+        assert snapshot['native_sources'] == policy['native_sources']
+        assert snapshot['application'] == policy['archive_application'] and snapshot['source_role'] == kind
+        build = read(root / snapshot['build_receipt'])
+        assert sha(root / snapshot['build_receipt']) == snapshot['build_receipt_sha256']
+        assert build['browser_build_performed'] and build['command_success'] and build['preservation_verified']
+        assert build['error'] is None and build['native_sources'] == snapshot['native_sources']
+        metadata = build['application_metadata']
+        assert metadata['source_role'] == kind and metadata['revision'] == source['base_head'] == policy['build_revision']
+        assert snapshot['files']['Contents/Resources/application.ini']['sha256'] == metadata['sha256']
+        for path, digest in build['binaries'].items():
+            if '/Nightly.app/' in path:
+                assert snapshot['files'][path.split('/Nightly.app/')[1]]['sha256'] == digest
+        assert build['native_sources'][role] == (stage['head_preimages'][role] if kind == 'original' else stage['files'][role]['sha256'])
+        before = read(phase / 'ARCHIVE-PRE.json')
+        assert before == read(phase / 'ARCHIVE-POST.json')
+        assert before['application'] == snapshot['application']
+        assert before['files'] == len(snapshot['files']) == policy['archive_files'] == 8326
+        assert before['bytes'] == snapshot['bytes'] == sum(item['bytes'] for item in snapshot['files'].values())
+        assert before['manifest_sha256'] == hashlib.sha256(json.dumps(snapshot['files'], sort_keys=True).encode()).hexdigest()
+        for name, digest in read(phase / 'STAGED.json').items():
+            assert sha(phase / name) == digest
+        for name, files in read(phase / 'STAGED-TREES.json').items():
+            assert runner.regular_files(phase / name) == files
+        for url, entry in policy['settings']['resources'].items():
+            assert sha(phase / 'tests' / url[1:]) == entry['sha256']
+        assert sha(phase / 'tests' / test.removeprefix('testing/web-platform/tests/')) == stage['files'][test]['sha256']
+        assert sha(phase / 'metadata/MANIFEST.json') == sha(fixture / 'MANIFEST.json')
+        assert (phase / 'tests/tools').is_symlink()
+        assert (phase / 'tests/tools').readlink() == root / 'testing/web-platform/tests/tools'
+        command = read(phase / 'COMMAND.json')['command']
+        assert '--binary=' + snapshot['application'] + '/Contents/MacOS/firefox' in command
+        assert [arg for arg in command if arg.startswith('--include=')] == ['--include=' + next(iter(roster))]
+        assert not any(arg.startswith('--setpref') for arg in command)
+        actual_result = read(phase / 'RESULT.json')
+        actual_terminal = read(phase / 'ROOT-OWNER-TERMINAL.json')
+        assert actual_terminal['terminal'] and actual_terminal['exit'] == 0
+        assert actual_terminal['result_sha256'] == sha(phase / 'RESULT.json')
+        assert actual_terminal['wpt_exit'] == actual_result['exit'] == (1 if kind == 'original' else 0)
+        assert actual_result['success'] and actual_result['archive_preserved'] and actual_result['staged_preserved']
+        assert actual_result['execution_error'] is None and not actual_result['native_fix_acceptance']
+        cleaned = read(phase / 'CLEANUP.json')
+        assert cleaned['owned_group_absent'] and cleaned['temporary_root_removed']
+        events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
+        assert any(event.get('message') == 'application_buildid: ' + metadata['browser_build_id'] for event in events)
+        assessment = runner.assess(events, roster, actual_result['exit'])
+        assert assessment == read(phase / 'ASSESSMENT.json') and assessment['complete']
+        assessments[kind] = assessment
+    witness = require_witness(assessments['original'], assessments['candidate'], roster)
+    return dict(witness, pair_head=source['base_head'], complete_signatures=29,
+                root_live_restoration_verified=True, native_publication_performed=False)

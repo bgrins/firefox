@@ -1,0 +1,108 @@
+--- probe-parent.js
++++ probe.js
+@@ -1,5 +1,5 @@
+ (async () => {
+-  const result = { schema: "animation-root-unit-invalidation-v1", userAgent: navigator.userAgent, frames: [], errors: [], cleanup: false };
++  const result = { schema: "animation-root-unit-style-dependency-v1", userAgent: navigator.userAgent, frames: [], errors: [], cleanup: false };
+   const number = raw => {
+     const match = /^"wdth"\s+([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)$/i.exec(raw);
+     return match ? Number(match[1]) : null;
+@@ -12,7 +12,7 @@
+   const allAnimations = [];
+   try {
+     for (const unit of ["rem", "rlh"]) {
+-      for (const order of ["variation-first", "width-first", "opacity-first"]) {
++      for (const order of ["ordinary-none", "ordinary-relative"]) {
+         const frame = document.createElement("iframe");
+         frame.title = `${unit} ${order} animation invalidation`;
+         const loaded = new Promise(resolve => { frame.onload = resolve; });
+@@ -20,6 +20,7 @@
+           html { font: 23px/37px monospace; writing-mode: horizontal-tb; }
+           #parent { font: 30px/61px monospace; }
+           .box { font: 60px/99px monospace; display:block; height:0; padding:0; border:0; }
++          #variation, #width, #opacity { margin-left: ${order === "ordinary-relative" ? `1${unit}` : "0px"}; }
+           #static-variation { font-variation-settings: "wdth" calc(2${unit} / 1px); }
+           #static-width { width: 2${unit}; }
+           #static-opacity { opacity: calc(2${unit} / 1000px); }
+@@ -65,12 +66,11 @@
+           const readVariation = () => { variationRaw = win.getComputedStyle(variationTarget).fontVariationSettings; };
+           const readWidth = () => { widthRaw = win.getComputedStyle(widthTarget).width; };
+           const readOpacity = () => { opacityRaw = win.getComputedStyle(opacityTarget).opacity; };
+-          if (order === "variation-first") { readVariation(); readWidth(); readOpacity(); }
+-          else if (order === "width-first") { readWidth(); readVariation(); readOpacity(); }
+-          else { readOpacity(); readVariation(); readWidth(); }
++          readVariation(); readWidth(); readOpacity();
+           const css = id => win.getComputedStyle(doc.getElementById(id));
+           const base = unit === "rem" ? rootSize : rootLine;
+           entry.rows.push({ phase, timing, rootSize, rootLine, progress,
++            targetMargins: [variationTarget, widthTarget, opacityTarget].map(target => win.getComputedStyle(target).marginLeft),
+             variationRaw, variationValue: number(variationRaw), widthRaw, widthValue: parseFloat(widthRaw),
+             opacityRaw, opacityRatioValue: Number(opacityRaw),
+             expectedCurrent: (1 + 2 * progress) * base,
+@@ -99,23 +99,6 @@
+         await sample("initial", 23, 37, 0.5);
+         root.style.fontSize = "31px"; root.style.lineHeight = "47px";
+         await sample("root-change", 31, 47, 0.5);
+-        variation.currentTime = 250; width.currentTime = 250; opacity.currentTime = 250;
+-        await sample("seek-quarter", 31, 47, 0.25);
+-        variation.currentTime = 500; width.currentTime = 500; opacity.currentTime = 500;
+-        await sample("seek-half", 31, 47, 0.5);
+-        variation.cancel(); width.cancel(); opacity.cancel();
+-        variation = make(variationTarget, "fontVariationSettings", expressions);
+-        width = make(widthTarget, "width", [1, 3].map(n => `${n}${unit}`));
+-        opacity = make(opacityTarget, "opacity", [1, 3].map(n => `calc(${n}${unit} / 1000px)`));
+-        await sample("recreate-same-target", 31, 47, 0.5);
+-        variation.cancel(); width.cancel(); opacity.cancel();
+-        variationTarget = doc.createElement("div"); variationTarget.className = "box"; parent.append(variationTarget);
+-        widthTarget = doc.createElement("div"); widthTarget.className = "box"; parent.append(widthTarget);
+-        opacityTarget = doc.createElement("div"); opacityTarget.className = "box"; parent.append(opacityTarget);
+-        variation = make(variationTarget, "fontVariationSettings", expressions);
+-        width = make(widthTarget, "width", [1, 3].map(n => `${n}${unit}`));
+-        opacity = make(opacityTarget, "opacity", [1, 3].map(n => `calc(${n}${unit} / 1000px)`));
+-        await sample("new-target", 31, 47, 0.5);
+         for (const animation of anims) animation.cancel();
+         frame.remove();
+       }
+--- assess-parent.py
++++ assess.py
+@@ -1,15 +1,15 @@
+ import json, math, re, sys
+ UNITS = ('rem', 'rlh')
+-ORDERS = ('variation-first', 'width-first', 'opacity-first')
+-PHASES = ('initial', 'root-change', 'seek-quarter', 'seek-half', 'recreate-same-target', 'new-target')
++ORDERS = ('ordinary-none', 'ordinary-relative')
++PHASES = ('initial', 'root-change')
+ NUMBER = re.compile(r'^"wdth"\s+([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)$', re.I)
+ def close(a, b, tolerance=0.03):
+     return isinstance(a, (float, int)) and math.isfinite(a) and abs(a-b) <= tolerance
+ 
+ def assess(data):
+-    assert data['schema'] == 'animation-root-unit-invalidation-v1'
++    assert data['schema'] == 'animation-root-unit-style-dependency-v1'
+     assert data['cleanup'] is True and data['errors'] == []
+-    assert len(data['frames']) == 6
++    assert len(data['frames']) == 4
+     expected_frames = {(u,o) for u in UNITS for o in ORDERS}
+     assert {(f['unit'],f['order']) for f in data['frames']} == expected_frames
+     output=[]; controls=[]
+@@ -35,6 +35,11 @@
+             opacity=float(row['opacityRaw']);assert close(opacity,row['opacityRatioValue'],1e-9)
+             expected_controls={'staticVariationValue':2*base,'staticWidthValue':2*base,'rootReference':base,'absoluteVariationValue':30,'literalVariationValue':30,'literalWidthValue':30,'opacity':0.6,'staticOpacityRatioValue':2*base/1000}
+             errors=[key for key,value in expected_controls.items() if not close(row[key],value,1e-5 if 'Opacity' in key or key=='opacity' else 0.03)]
++            assert len(row['targetMargins']) == 3
++            margin_expected = base if order == 'ordinary-relative' else 0
++            for i, raw in enumerate(row['targetMargins']):
++                assert raw.endswith('px')
++                if not close(float(raw[:-2]), margin_expected): errors.append(f'targetMargin{i}')
+             for key,value in {'rootFontSize':f'{size}px','rootLineHeight':f'{line}px','parentFontSize':'30px','childFontSize':'60px'}.items():
+                 if row[key]!=value:errors.append(key)
+             static=NUMBER.fullmatch(row['staticVariationRaw'])
+@@ -45,7 +50,7 @@
+                 return 'both' if now and before else 'current-root' if now else 'original-root' if before else 'other'
+             output.append({'unit':unit,'order':order,'phase':phase,'timing':timing,'variation':variation,'width':width,'opacity_scaled':opacity*1000,'expected_current':expected,'expected_original':old,'classifications':{'variation':classify(variation),'width':classify(width),'opacity':classify(opacity*1000)}})
+             if errors:controls.append({'unit':unit,'order':order,'phase':phase,'timing':timing,'errors':errors})
+-    return {'schema':'animation-root-unit-invalidation-assessment-v1','rows':output,'rows_count':len(output),'calibrated':not controls,'control_failures':controls,'inference':'Timing and cached-value observations only; no automatic bug or native-fix acceptance','native_acceptance':False}
++    return {'schema':'animation-root-unit-style-dependency-assessment-v1','rows':output,'rows_count':len(output),'calibrated':not controls,'control_failures':controls,'inference':'Timing and cached-value observations only; no automatic bug or native-fix acceptance','native_acceptance':False}
+ 
+ if __name__=='__main__':
+     print(json.dumps(assess(json.load(open(sys.argv[1]))),indent=2))

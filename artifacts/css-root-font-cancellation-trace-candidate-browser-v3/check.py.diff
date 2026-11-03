@@ -1,0 +1,60 @@
+--- artifacts/css-root-font-cancellation-trace-candidate-browser-v2/check.py
++++ artifacts/css-root-font-cancellation-trace-candidate-browser-v3/check.py
+@@ -56,6 +56,23 @@
+         assert terminal['capture_path'] == policy['current_binding']['path'] and terminal['capture_sha256'] == policy['current_binding']['sha256']
+         capture = load('admission').validate_current(ROOT, policy, read(HERE/'SOURCE-ROLES.json'))
+         assert capture['controls']['CURRENT-EPOCH.json'] == conditions['epoch_sha256']
++    assert policy['capture_reuse'] == conditions['capture_reuse']
++    for record in policy['capture_reuse'].values():
++        assert sha(ROOT/record['path']) == record['sha256']
++    failed = read(ROOT/policy['capture_reuse']['failure']['path'])
++    verification = read(ROOT/policy['capture_reuse']['verification']['path'])
++    assert failed['active_manifest_sha256'] == policy['references']['artifacts/css-root-font-cancellation-trace-candidate-browser-v2/FILES.json']
++    assert failed['run_launch'] == '15846c' and failed['run_session'] == 74508 and failed['run_terminal'] == '54b321' and failed['run_exit'] == 1
++    assert failed['capture_sha256'] == policy['current_binding']['sha256'] == verification['matches_actual_capture']
++    assert failed['head'] == policy['head'] and failed['raw_index'] == capture['snapshot']['index']['raw_index']
++    for key in ('failure_before_runtime_creation', 'flags_controls_unchanged', 'full_current_state_verified', 'process_group_absent', 'runtime_absent', 'snapshot_matches_capture', 'sources_and_identities_unchanged', 'transition_lock_absent', 'app_extras_binaries_unchanged'):
++        assert failed[key] is True
++    assert failed['build_started'] is False and failed['source_transition_started'] is False
++    assert verification['failed_run_terminal'] == policy['capture_reuse']['failure']
++    assert verification['launch_chunk'] == '92ffd8' and verification['session_id'] == 7504 and verification['terminal_chunk'] == '2f72d6'
++    assert type(verification['exit_code']) is int and verification['exit_code'] == 0
++    assert verification['full_current_state_and_app_verified'] is True and verification['native_transition_started'] is False
++    assert policy['direct_equivalence'] == conditions['direct_equivalence']
+     assert policy['compile_prerequisite'] is policy['native_owner_binding'] is policy['typecheck_binding'] is policy['predecessor_binding'] is None
+     assert policy['required_typecheck_inputs'] == {}
+     admission = load('admission')
+@@ -161,17 +178,26 @@
+     for path,pin in external.items():
+         if path.startswith('artifacts/'):
+             assert pin is not None and sha(ROOT/path) == pin,path
++    validate_origins(read(HERE/'ORIGINS.json'))
++    return len(external)
++
++
++
++def validate_origins(origins):
+     import difflib
+-    for name,path in read(HERE/'ORIGINS.json').items():
++    expected = {'run.py', 'baseline.py', 'admission.py', 'archive.py', 'assess.py', 'comparison.py', 'phases.py', 'wpt.py', 'inputs.py', 'closure.py', 'intermediate.py', 'review_scope.py', 'check_identity.py', 'check_manifest.py', 'check.py'}
++    assert set(origins) == expected, 'origin set'
++    for name, record in origins.items():
++        assert type(record) is dict and set(record) == {'path', 'sha256'}, 'origin record: ' + name
++        path = record['path']
++        assert type(path) is str and not Path(path).is_absolute() and '..' not in Path(path).parts, 'origin path: ' + name
++        assert sha(ROOT/path) == record['sha256'], 'origin hash: ' + name
+         original = (ROOT/path).read_text()
+         actual = (HERE/name).read_text()
+         difference = ''.join(difflib.unified_diff(original.splitlines(True), actual.splitlines(True), fromfile=path, tofile=str((HERE/name).relative_to(ROOT))))
+-        patch = HERE/(name+'.diff')
+-        assert (patch.read_text() if patch.exists() else '') == difference, name
+-    parent_driver = (ROOT / read(HERE/'ORIGINS.json')['run.py']).read_text()
+-    tail = (HERE/'run.py').read_text().split('    finally:\n', 1)[1]
+-    assert tail == parent_driver.split('    finally:\n', 1)[1]
+-    return len(external)
++        assert (HERE/(name+'.diff')).read_text() == difference, 'origin delta: ' + name
++    parent_driver = (ROOT/origins['run.py']['path']).read_text()
++    assert (HERE/'run.py').read_text().split('    finally:\n', 1)[1] == parent_driver.split('    finally:\n', 1)[1]
+ 
+ 
+ def rejected(action):

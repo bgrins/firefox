@@ -1,0 +1,17 @@
+import Application
+#print axioms EndpointApplication.initial_valid
+#print axioms EndpointApplication.refresh_valid
+#print axioms EndpointApplication.stale_job_preserves_installation
+#print axioms EndpointApplication.dispatch_valid
+#print axioms EndpointApplication.dispatch_decreases
+#print axioms EndpointApplication.drain_installs_current
+#print axioms EndpointApplication.stable_drain_ready
+#print axioms EndpointApplication.drain_valid
+#print axioms EndpointApplication.step_valid
+#print axioms EndpointApplication.history_valid
+#print axioms EndpointApplication.passes_valid
+#print axioms EndpointApplication.finite_changes_then_quiescent_pass_ready
+#print axioms EndpointApplication.two_pass_counterexample
+#print axioms EndpointApplication.normal_route_is_insufficient
+#print axioms EndpointApplication.stable_third_pass_control
+#print axioms EndpointApplication.stale_reply_then_current_control

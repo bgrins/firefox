@@ -1,0 +1,90 @@
+{
+  "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+  "method": "read-only git show exact e86 after Searchfox discovery",
+  "sources": {
+    "servo/components/style/context.rs": {
+      "sha256": "c2b374bd23196e08975340e77b6901e8d5d3bd93869054d3bee3231993196dc3",
+      "git_blob": "bdb52bf81541206680bcb0d56ae977cd7364901c",
+      "excerpts": [
+        {
+          "term": "DUMP_STYLE_STATISTICS",
+          "start_line": 92,
+          "text": "/// `StyleSystemOptions::default().dump_style_statistics`.\n/// See [#22854](https://github.com/servo/servo/issues/22854).\n#[cfg(feature = \"servo\")]\npub static DEFAULT_DUMP_STYLE_STATISTICS: std::sync::atomic::AtomicBool =\n    std::sync::atomic::AtomicBool::new(false);\n\nimpl Default for StyleSystemOptions {\n    #[cfg(feature = \"servo\")]\n    fn default() -> Self {\n        use std::sync::atomic::Ordering;\n\n        StyleSystemOptions {\n            disable_style_sharing_cache: DEFAULT_DISABLE_STYLE_SHARING_CACHE\n                .load(Ordering::Relaxed),\n            dump_style_statistics: DEFAULT_DUMP_STYLE_STATISTICS.load(Ordering::Relaxed),\n            style_statistics_threshold: DEFAULT_STATISTICS_THRESHOLD,\n        }\n    }\n\n    #[cfg(feature = \"gecko\")]\n    fn default() -> Self {\n        StyleSystemOptions {\n            disable_style_sharing_cache: get_env_bool(\"DISABLE_STYLE_SHARING_CACHE\"),\n            dump_style_statistics: get_env_bool(\"DUMP_STYLE_STATISTICS\"),\n            style_statistics_threshold: get_env_usize(\"STYLE_STATISTICS_THRESHOLD\")\n                .unwrap_or(DEFAULT_STATISTICS_THRESHOLD),\n        }\n    }"
+        },
+        {
+          "term": "DUMP_STYLE_STATISTICS",
+          "start_line": 103,
+          "text": "        StyleSystemOptions {\n            disable_style_sharing_cache: DEFAULT_DISABLE_STYLE_SHARING_CACHE\n                .load(Ordering::Relaxed),\n            dump_style_statistics: DEFAULT_DUMP_STYLE_STATISTICS.load(Ordering::Relaxed),\n            style_statistics_threshold: DEFAULT_STATISTICS_THRESHOLD,\n        }\n    }\n\n    #[cfg(feature = \"gecko\")]\n    fn default() -> Self {\n        StyleSystemOptions {\n            disable_style_sharing_cache: get_env_bool(\"DISABLE_STYLE_SHARING_CACHE\"),\n            dump_style_statistics: get_env_bool(\"DUMP_STYLE_STATISTICS\"),\n            style_statistics_threshold: get_env_usize(\"STYLE_STATISTICS_THRESHOLD\")\n                .unwrap_or(DEFAULT_STATISTICS_THRESHOLD),\n        }\n    }\n}\n\n/// A shared style context.\n///\n/// There's exactly one of these during a given restyle traversal, and it's\n/// shared among the worker threads.\npub struct SharedStyleContext<'a> {\n    /// The CSS selector stylist.\n    pub stylist: &'a Stylist,\n\n    /// Whether visited styles are enabled."
+        },
+        {
+          "term": "DUMP_STYLE_STATISTICS",
+          "start_line": 112,
+          "text": "    fn default() -> Self {\n        StyleSystemOptions {\n            disable_style_sharing_cache: get_env_bool(\"DISABLE_STYLE_SHARING_CACHE\"),\n            dump_style_statistics: get_env_bool(\"DUMP_STYLE_STATISTICS\"),\n            style_statistics_threshold: get_env_usize(\"STYLE_STATISTICS_THRESHOLD\")\n                .unwrap_or(DEFAULT_STATISTICS_THRESHOLD),\n        }\n    }\n}\n\n/// A shared style context.\n///\n/// There's exactly one of these during a given restyle traversal, and it's\n/// shared among the worker threads.\npub struct SharedStyleContext<'a> {\n    /// The CSS selector stylist.\n    pub stylist: &'a Stylist,\n\n    /// Whether visited styles are enabled.\n    ///\n    /// They may be disabled when Gecko's pref layout.css.visited_links_enabled\n    /// is false, or when in private browsing mode.\n    pub visited_styles_enabled: bool,\n\n    /// Configuration options.\n    pub options: StyleSystemOptions,\n\n    /// Guards for pre-acquired locks"
+        },
+        {
+          "term": "STYLE_STATISTICS_THRESHOLD",
+          "start_line": 113,
+          "text": "        StyleSystemOptions {\n            disable_style_sharing_cache: get_env_bool(\"DISABLE_STYLE_SHARING_CACHE\"),\n            dump_style_statistics: get_env_bool(\"DUMP_STYLE_STATISTICS\"),\n            style_statistics_threshold: get_env_usize(\"STYLE_STATISTICS_THRESHOLD\")\n                .unwrap_or(DEFAULT_STATISTICS_THRESHOLD),\n        }\n    }\n}\n\n/// A shared style context.\n///\n/// There's exactly one of these during a given restyle traversal, and it's\n/// shared among the worker threads.\npub struct SharedStyleContext<'a> {\n    /// The CSS selector stylist.\n    pub stylist: &'a Stylist,\n\n    /// Whether visited styles are enabled.\n    ///\n    /// They may be disabled when Gecko's pref layout.css.visited_links_enabled\n    /// is false, or when in private browsing mode.\n    pub visited_styles_enabled: bool,\n\n    /// Configuration options.\n    pub options: StyleSystemOptions,\n\n    /// Guards for pre-acquired locks\n    pub guards: StylesheetGuards<'a>,"
+        },
+        {
+          "term": "perf block start",
+          "start_line": 325,
+          "text": "/// See https://bugzilla.mozilla.org/show_bug.cgi?id=1331856#c2\nimpl fmt::Display for TraversalStatistics {\n    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {\n        writeln!(f, \"[PERF] perf block start\")?;\n        writeln!(\n            f,\n            \"[PERF],traversal,{}\",\n            if self.is_parallel {\n                \"parallel\"\n            } else {\n                \"sequential\"\n            }\n        )?;\n        writeln!(\n            f,\n            \"[PERF],elements_traversed,{}\",\n            self.aggregated.elements_traversed\n        )?;\n        writeln!(\n            f,\n            \"[PERF],elements_styled,{}\",\n            self.aggregated.elements_styled\n        )?;\n        writeln!(\n            f,\n            \"[PERF],elements_matched,{}\",\n            self.aggregated.elements_matched\n        )?;"
+        }
+      ]
+    },
+    "servo/components/style/driver.rs": {
+      "sha256": "9962eec7a406fb5859ccf6f9d5696e2ac25448ef1b0ec8dc8d77fb466b2af6a0",
+      "git_blob": "38ab1ebcb481776fc268543a3e5a6223fa366f5d",
+      "excerpts": [
+        {
+          "term": "let dump_stats",
+          "start_line": 99,
+          "text": "        .expect(\"Should've ensured we needed to traverse\");\n\n    let report_stats = should_report_statistics();\n    let dump_stats = traversal.shared_context().options.dump_style_statistics;\n    let start_time = if dump_stats {\n        Some(Instant::now())\n    } else {\n        None\n    };\n\n    // Declare the main-thread context, as well as the worker-thread contexts,\n    // which we may or may not instantiate. It's important to declare the worker-\n    // thread contexts first, so that they get dropped second. This matters because:\n    //   * ThreadLocalContexts borrow AtomicRefCells in TLS.\n    //   * Dropping a ThreadLocalContext can run SequentialTasks.\n    //   * Sequential tasks may call into functions like\n    //     Servo_StyleSet_GetBaseComputedValuesForElement, which instantiate a\n    //     ThreadLocalStyleContext on the main thread. If the main thread\n    //     ThreadLocalStyleContext has not released its TLS borrow by that point,\n    //     we'll panic on double-borrow.\n    let mut scoped_tls = ScopedTLS::<ThreadLocalStyleContext<E>>::new(pool);\n    // Process the nodes breadth-first. This helps keep similar traversal characteristics for the\n    // style sharing cache.\n    let work_unit_max = work_unit_max();\n\n    let send_root = unsafe { SendNode::new(root.as_node()) };\n    with_pool_in_place_scope(work_unit_max, pool, |maybe_scope| {\n        let mut tlc = scoped_tls.ensure(parallel::create_thread_local_context);"
+        },
+        {
+          "term": "if dump_stats || report_stats",
+          "start_line": 146,
+          "text": "    });\n\n    // Collect statistics from thread-locals if requested.\n    if dump_stats || report_stats {\n        let mut aggregate = PerThreadTraversalStatistics::default();\n        for slot in scoped_tls.slots() {\n            if let Some(cx) = slot.get_mut() {\n                aggregate += cx.statistics.clone();\n            }\n        }\n\n        if report_stats {\n            report_statistics(&aggregate);\n        }\n        // dump statistics to stdout if requested\n        if dump_stats {\n            let parallel = pool.is_some();\n            let stats =\n                TraversalStatistics::new(aggregate, traversal, parallel, start_time.unwrap());\n            if stats.is_large {\n                println!(\"{}\", stats);\n            }\n        }\n    }\n\n    root\n}"
+        },
+        {
+          "term": "println!",
+          "start_line": 163,
+          "text": "            let stats =\n                TraversalStatistics::new(aggregate, traversal, parallel, start_time.unwrap());\n            if stats.is_large {\n                println!(\"{}\", stats);\n            }\n        }\n    }\n\n    root\n}"
+        }
+      ]
+    },
+    "dom/base/nsGlobalWindowInner.cpp": {
+      "sha256": "ed70e49ac1bc1fa9896d74907d71fbc0bf1c91a304cdeb42d47958ab568b7eeb",
+      "git_blob": "62d2e74bb29e555bead67ff48ed4e6e3131a86d1",
+      "excerpts": [
+        {
+          "term": "browser.dom.window.dump.file",
+          "start_line": 979,
+          "text": "\n  if (gDumpFile == nullptr) {\n    nsAutoCString fname;\n    Preferences::GetCString(\"browser.dom.window.dump.file\", fname);\n    if (!fname.IsEmpty()) {\n      // If this fails to open, Dump() knows to just go to stdout on null.\n      gDumpFile = fopen(fname.get(), \"wb+\");\n    } else {\n      gDumpFile = stdout;\n    }\n  }\n\n#ifdef DEBUG\n  mSerial = nsContentUtils::InnerOrOuterWindowCreated();\n\n  if (MOZ_LOG_TEST(gDocShellAndDOMWindowLeakLogging, LogLevel::Info)) {\n    MOZ_LOG(gDocShellAndDOMWindowLeakLogging, LogLevel::Info,\n            (\"++DOMWINDOW == %d (%p) [pid = %d] [serial = %d] [outer = %p]\\n\",\n             nsContentUtils::GetCurrentInnerOrOuterWindowCount(),\n             static_cast<void*>(ToCanonicalSupports(this)), getpid(), mSerial,\n             static_cast<void*>(ToCanonicalSupports(aOuterWindow))));\n\n    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();\n    if (obs) {\n      nsString data;\n      data.AppendPrintf(\n          \"serial=%d address=0x%\" PRIxPTR \" type=inner outer=0x%\" PRIxPTR,\n          mSerial, reinterpret_cast<uintptr_t>(ToCanonicalSupports(this)),"
+        },
+        {
+          "term": "void nsGlobalWindowInner::Dump",
+          "start_line": 3966,
+          "text": "  return fullscreen;\n}\n\nvoid nsGlobalWindowInner::Dump(const nsAString& aStr) {\n  if (!nsJSUtils::DumpEnabled()) {\n    return;\n  }\n\n  char* cstr = ToNewUTF8String(aStr);\n\n#if defined(XP_MACOSX)\n  // have to convert \\r to \\n so that printing to the console works\n  char *c = cstr, *cEnd = cstr + strlen(cstr);\n  while (c < cEnd) {\n    if (*c == '\\r') *c = '\\n';\n    c++;\n  }\n#endif\n\n  if (cstr) {\n    MOZ_LOG(nsContentUtils::DOMDumpLog(), LogLevel::Debug,\n            (\"[Window.Dump] %s\", cstr));\n#ifdef XP_WIN\n    PrintToDebugger(cstr);\n#endif\n#ifdef ANDROID\n    __android_log_write(ANDROID_LOG_INFO, \"GeckoDump\", cstr);\n#endif"
+        },
+        {
+          "term": "FILE* fp = gDumpFile",
+          "start_line": 3991,
+          "text": "#ifdef ANDROID\n    __android_log_write(ANDROID_LOG_INFO, \"GeckoDump\", cstr);\n#endif\n    FILE* fp = gDumpFile ? gDumpFile : stdout;\n    fputs(cstr, fp);\n    fflush(fp);\n    free(cstr);\n  }\n}\n\nvoid nsGlobalWindowInner::Alert(nsIPrincipal& aSubjectPrincipal,\n                                ErrorResult& aError) {\n  Alert(u\"\"_ns, aSubjectPrincipal, aError);\n}\n\nvoid nsGlobalWindowInner::Alert(const nsAString& aMessage,\n                                nsIPrincipal& aSubjectPrincipal,\n                                ErrorResult& aError) {\n  FORWARD_TO_OUTER_OR_THROW(AlertOuter, (aMessage, aSubjectPrincipal, aError),\n                            aError, );\n}\n\nbool nsGlobalWindowInner::Confirm(const nsAString& aMessage,\n                                  nsIPrincipal& aSubjectPrincipal,\n                                  ErrorResult& aError) {\n  FORWARD_TO_OUTER_OR_THROW(ConfirmOuter, (aMessage, aSubjectPrincipal, aError),\n                            aError, false);\n}"
+        }
+      ]
+    },
+    "dom/base/nsJSUtils.cpp": {
+      "sha256": "fda55aef0ed65f03d2ed4e98a35a0a35ce257fde75979eb18330b6b776b9b25b",
+      "git_blob": "6a58ddfa1b9c95015e6afd081edc65cfc57158f0",
+      "excerpts": [
+        {
+          "term": "bool nsJSUtils::DumpEnabled",
+          "start_line": 153,
+          "text": "void nsJSUtils::ResetTimeZone() { JS::ResetTimeZone(); }\n\n/* static */\nbool nsJSUtils::DumpEnabled() {\n#ifdef FUZZING\n  static bool mozFuzzDebug = !!PR_GetEnv(\"MOZ_FUZZ_DEBUG\");\n  // We also want to dump in automation so mochitests can run.\n  return mozFuzzDebug || xpc::IsInAutomation();\n#endif\n\n#if defined(DEBUG) || defined(MOZ_ENABLE_JS_DUMP)\n  return true;\n#else\n  return StaticPrefs::browser_dom_window_dump_enabled();\n#endif\n}\n\nJSObject* nsJSUtils::MoveBufferAsUint8Array(\n    JSContext* aCx, size_t aSize,\n    UniquePtr<uint8_t[], JS::FreePolicy> aBuffer) {\n  JS::Rooted<JSObject*> arrayBuffer(\n      aCx, JS::NewArrayBufferWithContents(aCx, aSize, std::move(aBuffer)));\n  if (!arrayBuffer) {\n    return nullptr;\n  }\n\n  return JS_NewUint8ArrayWithBuffer(aCx, arrayBuffer, 0,\n                                    static_cast<int64_t>(aSize));"
+        }
+      ]
+    }
+  }
+}

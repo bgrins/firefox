@@ -1,0 +1,21 @@
+1450:     /// our minimum font-size range.
+1451:     #[cfg(feature = "gecko")]
+1452:     fn constrain_font_size_if_needed(&self, builder: &mut StyleBuilder) {
+1453:         use crate::gecko_bindings::bindings;
+1454:         use crate::values::generics::NonNegative;
+1455: 
+1456:         let min_font_size = {
+1457:             let font = builder.get_font();
+1458:             let min_font_size = unsafe {
+1459:                 bindings::Gecko_nsStyleFont_ComputeMinSize(&**font, builder.device.document())
+1460:             };
+1461: 
+1462:             if font.mFont.size.0 >= min_font_size {
+1463:                 return;
+1464:             }
+1465: 
+1466:             NonNegative(min_font_size)
+1467:         };
+1468: 
+1469:         builder.mutate_font().mFont.size = min_font_size;
+1470:     }

@@ -1,0 +1,5 @@
+# Root-target animation context: original branch
+
+Eight fresh cases produce16 calibrated observations. Root font-size animations from1rem to3rem retain midpoint46px or62px for underlying roots23px or31px; the measured initial reference and ordinary root font-size comparator are32px. Explicit-root-line-height cases similarly yield74px or94px instead of the measured38.4px initial reference. Both first and settled samples agree. The independent rootfont-size em animation uses the expected32px, and literal controls pass. Variation settings follow the same underlying-root pattern but also have a separate parent-font conversion defect.
+
+This is distinct from dynamic root-unit invalidation: every case starts in a fresh frame. It supports the missing root-identity source lead without proving the native correction. No accepted bug count or candidate success is assigned. Exact probe, full raw response, decoded report and assessment are retained. All8326 archived application files match before and after; the owned browser closed and no archive process remained.

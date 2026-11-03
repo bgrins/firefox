@@ -1,0 +1,23 @@
+--- a/closure.py
++++ b/closure.py
+@@ -17,14 +17,16 @@
+         path = root / binding['directory'] / 'FILES.json'
+         assert hashlib.sha256(path.read_bytes()).hexdigest() == binding['manifest_sha256']
+         add(str(path.relative_to(root)), binding['manifest_sha256'])
+-        for name, record in json.loads(path.read_bytes()).items():
+-            add(str((path.parent / name).relative_to(root)), record['sha256'])
++        inventory = json.loads(path.read_bytes())
++        for name, record in inventory.get('files', inventory).items():
++            add(str((path.parent / name).relative_to(root)), record if isinstance(record, str) else record['sha256'])
+     for binding in policy['suite_bindings'].values():
+         path = root / binding['directory'] / 'FILES.json'
+         assert hashlib.sha256(path.read_bytes()).hexdigest() == binding['manifest_sha256']
+         add(str(path.relative_to(root)), binding['manifest_sha256'])
+-        for name, record in json.loads(path.read_bytes()).items():
+-            add(str((path.parent / name).relative_to(root)), record['sha256'])
++        inventory = json.loads(path.read_bytes())
++        for name, record in inventory.get('files', inventory).items():
++            add(str((path.parent / name).relative_to(root)), record if isinstance(record, str) else record['sha256'])
+     for record in roles.values():
+         for kind in ('base', 'candidate'):
+             add(record[kind + '_capture'], record[kind + '_sha256'])

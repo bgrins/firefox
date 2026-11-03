@@ -1,0 +1,127 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Child rem keyframes with an initially animated root font</title>
+<meta name="timeout" content="long">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<link rel="help" href="https://drafts.csswg.org/css-animations-1/#animations">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+window.rootFontInitialAnimationObservations = [];
+const nextFrame = win => new Promise(resolve => win.requestAnimationFrame(resolve));
+const cases = [
+  ["late", "pre-styled root23px then simultaneous root32px and child2rem CSS animations"],
+];
+
+function describe(animation, target, name, win) {
+  return animation ? {
+    cssAnimation: animation instanceof win.CSSAnimation,
+    name: animation.animationName,
+    expectedName: name,
+    targetMatches: animation.effect.target === target,
+    pseudoElement: animation.effect.pseudoElement,
+    playState: animation.playState,
+    progress: animation.effect.getComputedTiming().progress,
+  } : null;
+}
+
+for (const [mode, label] of cases) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    frame.srcdoc = `<!doctype html><html class="${mode}"><style>
+      html { font-size: 23px; }
+      html.active { animation: root-size 100s linear both paused; }
+      html.constant { font-size: 32px; }
+      .target { font-size: 11px; }
+      html.active .target, html.constant .target {
+        animation: child-size 100s linear both paused;
+      }
+      .target.force-target-restyle { background-color: rgb(1, 2, 3); }
+      .plain { font-size: 2rem; }
+      @keyframes root-size { from, to { font-size: 32px; } }
+      @keyframes child-size { from, to { font-size: 2rem; } }
+    </style><div class="target">target</div><div class="plain">plain</div>`;
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = win.document;
+    const root = doc.documentElement;
+    const target = doc.querySelector(".target");
+    let precondition = null;
+    if (mode === "late") {
+      precondition = {
+        root: win.getComputedStyle(root).fontSize,
+        target: win.getComputedStyle(target).fontSize,
+        rootAnimations: root.getAnimations().length,
+        childAnimations: target.getAnimations().length,
+      };
+      root.classList.add("active");
+    }
+    const first = win.getComputedStyle(target).fontSize;
+    await nextFrame(win);
+    await nextFrame(win);
+    const settled = win.getComputedStyle(target).fontSize;
+    const rootSize = win.getComputedStyle(root).fontSize;
+    const plainSize = win.getComputedStyle(doc.querySelector(".plain")).fontSize;
+    const afterCalibration = win.getComputedStyle(target).fontSize;
+    const rootAnimations = root.getAnimations();
+    const childAnimations = target.getAnimations();
+    const rootAnimation = describe(rootAnimations[0], root, "root-size", win);
+    const childAnimation = describe(childAnimations[0], target, "child-size", win);
+    window.rootFontInitialAnimationObservations.push({
+      mode, first, settled, rootSize, plainSize, precondition, afterCalibration,
+      rootAnimationCount: rootAnimations.length,
+      childAnimationCount: childAnimations.length,
+      rootAnimation, childAnimation, standards: doc.compatMode === "CSS1Compat",
+    });
+
+    const childBeforeRestyle = childAnimations[0];
+    const rootBeforeRestyle = rootAnimations[0];
+    target.classList.add("force-target-restyle");
+    const afterTargetRestyle = win.getComputedStyle(target).fontSize;
+    const childAfterRestyle = target.getAnimations();
+    const rootAfterRestyle = root.getAnimations();
+    window.rootFontInitialAnimationObservations.at(-1).targetRestyle = {
+      value: afterTargetRestyle,
+      sameChildAnimation: childAfterRestyle.length === 1 &&
+        childAfterRestyle[0] === childBeforeRestyle,
+      sameRootAnimation: rootAfterRestyle.length === rootAnimations.length &&
+        rootAfterRestyle[0] === rootBeforeRestyle,
+      childAnimationCount: childAfterRestyle.length,
+      rootAnimationCount: rootAfterRestyle.length,
+      child: describe(childAfterRestyle[0], target, "child-size", win),
+      root: describe(rootAfterRestyle[0], root, "root-size", win),
+      background: win.getComputedStyle(target).backgroundColor,
+      rootSize: win.getComputedStyle(root).fontSize,
+      plainSize: win.getComputedStyle(doc.querySelector(".plain")).fontSize,
+    };
+
+    assert_equals(doc.compatMode, "CSS1Compat", "fresh standards document");
+    if (precondition) {
+      assert_equals(precondition.root, "23px", "pre-styled root");
+      assert_equals(precondition.target, "11px", "pre-styled child");
+      assert_equals(precondition.rootAnimations, 0, "no root animation before late start");
+      assert_equals(precondition.childAnimations, 0, "no child animation before late start");
+    }
+    assert_equals(rootSize, "32px", "effective root font size");
+    assert_equals(plainSize, "64px", "ordinary rem consumer");
+    assert_equals(rootAnimations.length, mode === "constant" ? 0 : 1, "root animation count");
+    assert_equals(childAnimations.length, 1, "child animation count");
+    for (const animation of [rootAnimation, childAnimation].filter(Boolean)) {
+      assert_true(animation.cssAnimation, "actual CSS animation");
+      assert_equals(animation.name, animation.expectedName, "expected animation name");
+      assert_true(animation.targetMatches, "animation targets intended element");
+      assert_equals(animation.pseudoElement, null, "ordinary target");
+      assert_equals(animation.playState, "paused", "constant paused animation");
+      assert_not_equals(animation.progress, null, "animation has effective timing progress");
+    }
+    assert_approx_equals(parseFloat(first), 64, 0.06, "first child rem animation value");
+    assert_approx_equals(parseFloat(settled), 64, 0.06, "settled child rem animation value");
+  }, label);
+}
+</script>

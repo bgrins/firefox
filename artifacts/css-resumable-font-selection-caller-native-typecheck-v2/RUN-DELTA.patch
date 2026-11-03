@@ -1,0 +1,40 @@
+--- artifacts/css-font-metric-computed-size-native-typecheck-v1/run.py
++++ artifacts/css-resumable-font-selection-caller-native-typecheck-v2/run.py
+@@ -15,7 +15,7 @@
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+ RUNTIME = ROOT / 'artifacts/css-registered-number-native-runtime-v1'
+-EXECUTION_ENABLED = True
++EXECUTION_ENABLED = False
+ read = lambda p: json.loads(p.read_bytes())
+ sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+ 
+@@ -39,7 +39,7 @@
+     baseline = load('activation_baseline', str((HERE / 'baseline.py').relative_to(ROOT)))
+     policy, ownership, roles = baseline.prepare(sys.argv[2])
+     assert policy['wpt'] is not None
+-    assert set(roles) == {'servo/components/style/properties/cascade.rs', 'servo/components/style/custom_properties.rs'}
++    assert set(roles) == {'servo/components/style/properties/cascade.rs', 'servo/components/style/custom_properties.rs', 'servo/components/style/properties/mod.rs'}
+     typecheck = read(HERE / 'TYPECHECK.json')
+     assert typecheck['source_roles'] == roles
+     if sys.argv[1] == '--check':
+@@ -70,7 +70,9 @@
+         candidates[name] = (ROOT / record['candidate_capture']).read_bytes()
+         assert hashlib.sha256(bases[name]).hexdigest() == record['base_sha256']
+         assert hashlib.sha256(candidates[name]).hexdigest() == record['candidate_sha256']
+-        claims[name] = ownership.claim(ROOT, name, record['base_sha256'], epoch['installed_identities'].get(name))
++        admitted = (baseline.current_capture(policy)['payload_claims'] | baseline.current_capture(policy)['additional_sources'])[name]
++        claims[name] = ownership.claim(ROOT, name, record['base_sha256'], admitted['identity'])
++        assert claims[name] == admitted
+         epoch['pins'][name] = record['base_sha256']
+         epoch['installed_identities'][name] = claims[name]['identity']
+     epoch['counts']['roles'] = len(epoch['pins'])
+@@ -113,7 +115,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'font-metric-synthesis-native-typecheck-v1'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'resumable-font-selection-caller-native-typecheck-v2'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):

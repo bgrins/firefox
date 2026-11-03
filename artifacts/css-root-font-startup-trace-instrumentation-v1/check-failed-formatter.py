@@ -1,0 +1,59 @@
+from pathlib import Path
+import hashlib
+import json
+import shutil
+import subprocess
+import tempfile
+
+HERE = Path(__file__).resolve().parent
+roles = json.loads((HERE / 'SOURCE-ROLES.json').read_text())['roles']
+edits = json.loads((HERE / 'EDITS.json').read_text())
+sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+for path, pins in roles.items():
+    for kind in ['base', 'parent', 'candidate']:
+        assert sha(HERE / kind / path) == pins[kind + '_sha256']
+    text = (HERE / 'candidate' / path).read_text()
+    for edit in reversed(edits):
+        if edit['path'] != path:
+            continue
+        assert text.count(edit['new']) == 1
+        text = text.replace(edit['new'], edit['old'])
+    assert text == (HERE / 'parent' / path).read_text()
+for path, pin in json.loads((HERE / 'TYPE-SOURCE.json').read_text())['files'].items():
+    assert sha(HERE / 'type-source' / path) == pin['sha256']
+with tempfile.TemporaryDirectory(prefix='css-startup-trace-') as td:
+    scratch = Path(td)
+    for origin, patch in [('base', 'native.patch'), ('parent', 'INSTRUMENTATION.patch')]:
+        tree = scratch / origin
+        shutil.copytree(HERE / origin, tree)
+        for reverse in [False, True]:
+            command = ['patch', '-p1', '--batch', '--fuzz=0'] + (['-R'] if reverse else [])
+            result = subprocess.run(command, cwd=tree, input=(HERE / patch).read_bytes(), capture_output=True)
+            assert result.returncode == 0, result.stdout + result.stderr
+            assert b'offset' not in result.stdout and b'fuzz' not in result.stdout
+            expected = origin if reverse else 'candidate'
+            for path in roles:
+                assert (tree / path).read_bytes() == (HERE / expected / path).read_bytes()
+    for path in roles:
+        source = HERE / 'candidate' / path
+        if path.endswith('.rs'):
+            command = ['rustfmt', '--edition', '2024', '--emit', 'stdout', '--config', 'skip_children=true,match_block_trailing_comma=true', str(source)]
+        else:
+            command = ['clang-format', str(source)]
+        result = subprocess.run(command, capture_output=True)
+        assert result.returncode == 0, result.stderr.decode()
+        assert source.read_bytes() == (HERE / 'candidate' / path).read_bytes()
+    scratch_name = str(scratch)
+assert not Path(scratch_name).exists()
+result = {
+    'source_roles': len(roles),
+    'exact_logging_replacements_erased': len(edits),
+    'zero_fuzz_forward_reverse_checks': 4,
+    'formatter_parser_acceptance': {'rust': 6, 'cpp': 2},
+    'native_typecheck': False,
+    'browser_run': False,
+    'scratch_removed': scratch_name,
+    'tested': {str(p.relative_to(HERE)): sha(p) for p in [HERE / 'check.py', HERE / 'prepare.py', HERE / 'EDITS.json', HERE / 'SOURCE-ROLES.json', HERE / 'TYPE-SOURCE.json', HERE / 'INSTRUMENTATION.patch', HERE / 'native.patch']},
+}
+(HERE / 'RESULT.json').write_text(json.dumps(result, indent=2) + '\n')
+print(json.dumps(result, indent=2))

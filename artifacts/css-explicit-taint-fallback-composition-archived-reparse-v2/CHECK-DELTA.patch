@@ -1,0 +1,25 @@
+--- artifacts/css-explicit-taint-fallback-composition-archived-reparse-v1/check.py
++++ artifacts/css-explicit-taint-fallback-composition-archived-reparse-v2/check.py
+@@ -90,6 +90,22 @@
+     assert policy['prior_owner_audit']['path'] == 'artifacts/css-explicit-taint-typed-reparse-candidate-browser-runtime-v1/ROOT-LIVE-RESTORATION.json'
+     assert run.sha(ROOT / policy['snapshot']) == policy['snapshot_sha256']
+     validate_ready(json.loads((ROOT / policy['snapshot']).read_text()))
++    ready = json.loads((ROOT / policy['snapshot']).read_text())
++    for path, digest in ready['startup_normalization']['initialization_evidence'].items():
++        assert run.sha(ROOT / path) == digest
++    initial = ROOT / 'artifacts/css-explicit-taint-browser-initialization-v1'
++    pre = json.loads((initial/'PRE.json').read_text())
++    post = json.loads((initial/'POST.json').read_text())
++    absent = json.loads((initial/'PROCESS-CHECK.json').read_text())
++    assert pre['snapshot_sha256'] == before_pin['sha256'] and pre['exact_inventory_match']
++    assert pre['application'] == policy['archive_application'] and pre['verified_files'] == 8327
++    assert pre['bytes'] == before['bytes']
++    assert post['removed'] == {marker:before['files'][marker]} and post['added'] == post['changed'] == []
++    assert post['verified_files'] == 8326 and post['bytes'] == ready['bytes']
++    assert post['retained_payloads_identical'] and not post['manual_archive_writes']
++    assert absent['exit'] == 0 and absent['complete_output_examined'] and absent['matching_processes'] == []
++    assert absent['archive_path_fragment'] == Path(policy['archive_application']).parent.name
++
+     for key in ('prior_owner_terminal','prior_owner_audit'):
+         assert run.sha(ROOT / policy[key]['path']) == policy[key]['sha256']
+     terminal = json.loads((ROOT / policy['prior_owner_terminal']['path']).read_text())

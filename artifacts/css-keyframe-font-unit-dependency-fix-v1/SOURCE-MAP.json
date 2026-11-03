@@ -1,0 +1,52 @@
+{
+  "native_base": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+  "membership_and_hint_excerpts": [
+    {
+      "path": "artifacts/css-animation-root-unit-repair-source-capture-v1/servo/components/style/gecko/wrapper.rs",
+      "sha256": "8be23a881af313800ebc9645834f88b37770faecc7ec0b35bd186f57471a9b38",
+      "text": "    fn has_animations(&self, _: &SharedStyleContext) -> bool {\n        self.has_any_animation()\n    }\n\n"
+    },
+    {
+      "path": "artifacts/css-animation-root-unit-repair-source-capture-v1/servo/components/style/gecko/wrapper.rs",
+      "sha256": "8be23a881af313800ebc9645834f88b37770faecc7ec0b35bd186f57471a9b38",
+      "text": "    fn may_have_animations(&self) -> bool {\n        if let Some(pseudo) = self.implemented_pseudo_element()\n            && pseudo.animations_stored_in_parent()\n        {\n            // FIXME(emilio): When would the parent of a ::before / ::after\n            // pseudo-element be null?\n            return self.parent_element().is_some_and(|p| {\n                p.as_node()\n                    .get_bool_flag(nsINode_BooleanFlag::ElementHasAnimations)\n            });\n        }\n        self.as_node()\n            .get_bool_flag(nsINode_BooleanFlag::ElementHasAnimations)\n    }\n\n"
+    },
+    {
+      "path": "artifacts/css-animation-root-unit-repair-source-capture-v1/layout/style/GeckoBindings.cpp",
+      "sha256": "6de005383793f63fd9fd8b201eefafc09425619bb10b7a48e847b31796241ffb",
+      "text": "bool Gecko_ElementHasAnimations(const Element* aElement) {\n  const auto [element, pseudo] = AnimationUtils::GetElementPseudoPair(aElement);\n  return !!EffectSet::Get(element, pseudo);\n}\n\n"
+    },
+    {
+      "path": "artifacts/css-attribute-registration-e86-gecko-callers-v1/dom/animation/KeyframeEffect.cpp",
+      "sha256": "8ec54d488bde7ba5a681e0319f5c0687a35e79391f7e70368539b174e400f239",
+      "text": "void KeyframeEffect::UpdateTargetRegistration() {\n  if (!mTarget) {\n    return;\n  }\n\n  bool isRelevant = mAnimation && mAnimation->IsRelevant();\n\n  // Animation::IsRelevant() returns a cached value. It only updates when\n  // something calls Animation::UpdateRelevance. Whenever our timing changes,\n  // we should be notifying our Animation before calling this, so\n  // Animation::IsRelevant() should be up-to-date by the time we get here.\n  MOZ_ASSERT(isRelevant ==\n                 ((IsCurrent() || IsInEffect()) && mAnimation &&\n                  mAnimation->ReplaceState() != AnimationReplaceState::Removed),\n             \"Out of date Animation::IsRelevant value\");\n\n  if (isRelevant && !mInEffectSet) {\n    EffectSet* effectSet = EffectSet::GetOrCreate(mTarget);\n    effectSet->AddEffect(*this);\n    mInEffectSet = true;\n    UpdateEffectSet(effectSet);\n    nsIFrame* frame = GetPrimaryFrame();\n    EnumerateContinuationsOrIBSplitSiblings(\n        frame, [](nsIFrame* aFrame) { aFrame->MarkNeedsDisplayItemRebuild(); });\n  } else if (!isRelevant && mInEffectSet) {\n    UnregisterTarget();\n  }\n}\n\nvoid KeyframeEffect::UnregisterTarget() {\n  if (!mInEffectSet) {\n    return;\n  }\n\n  EffectSet* effectSet = EffectSet::Get(mTarget);\n  MOZ_ASSERT(effectSet,\n             \"If mInEffectSet is true, there must be an EffectSet\"\n             \" on the target element\");\n  mInEffectSet = false;\n  if (effectSet) {\n    effectSet->RemoveEffect(*this);\n\n    if (effectSet->IsEmpty()) {\n      EffectSet::DestroyEffectSet(mTarget);\n    }\n  }\n  nsIFrame* frame = GetPrimaryFrame();\n  EnumerateContinuationsOrIBSplitSiblings(\n      frame, [](nsIFrame* aFrame) { aFrame->MarkNeedsDisplayItemRebuild(); });\n}\n\n"
+    },
+    {
+      "path": "artifacts/css-animation-root-unit-hint-source-capture-v1/servo/components/style/invalidation/element/restyle_hints.rs",
+      "sha256": "ea21bed14935af1bd28bbd33c80086dfcea9fe7063a73fb9efa7311f67cd14a4",
+      "text": "    pub fn propagate(&mut self, traversal_flags: &TraversalFlags) -> Self {\n        // In the middle of an animation only restyle, we don't need to\n        // propagate any restyle hints, and we need to remove ourselves.\n        if traversal_flags.for_animation_only() {\n            self.remove_animation_hints();\n            return Self::empty();\n        }\n\n        debug_assert!(\n            !self.has_animation_hint(),\n            \"There should not be any animation restyle hints \\\n             during normal traversal\"\n        );\n\n        // Else we should clear ourselves, and return the propagated hint.\n        std::mem::take(self).propagate_for_non_animation_restyle()\n    }\n\n"
+    },
+    {
+      "path": "artifacts/css-animation-root-unit-hint-source-capture-v1/servo/components/style/invalidation/element/restyle_hints.rs",
+      "sha256": "ea21bed14935af1bd28bbd33c80086dfcea9fe7063a73fb9efa7311f67cd14a4",
+      "text": "    pub fn remove_animation_hints(&mut self) {\n        self.remove(Self::for_animations());\n\n        // While RECASCADE_SELF is not animation-specific, we only ever add and process it during\n        // traversal.  If we are here, removing animation hints, then we are in an animation-only\n        // traversal, and we know that any RECASCADE_SELF flag must have been set due to changes in\n        // inherited values after restyling for animations, and thus we want to remove it so that\n        // we don't later try to restyle the element during a normal restyle.\n        // (We could have separate RECASCADE_SELF_NORMAL and RECASCADE_SELF_ANIMATIONS flags to\n        // make it clear, but this isn't currently necessary.)\n        self.remove(Self::RECASCADE_SELF | Self::RECASCADE_SELF_IF_INHERIT_RESET_STYLE);\n    }"
+    }
+  ],
+  "normal_effect_scheduling": {
+    "path": "artifacts/css-keyframe-root-unit-publication-contract-review-v1/source/matching.rs",
+    "sha256": "41e95acc6e2903963df96bee70c260aeebffdd9b4d5dfc18bd6e875f9352035d",
+    "functions": [
+      "process_animations",
+      "finish_restyle"
+    ]
+  },
+  "searchfox_call_site_discovery": [
+    "8bcf13",
+    "d373cb",
+    "2025d5"
+  ],
+  "exact_hint_reads": [
+    "d1ba61",
+    "57be53"
+  ]
+}

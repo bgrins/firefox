@@ -1,0 +1,103 @@
+--- artifacts/css-root-font-cancellation-normal-handoff-fix-v1/tests/web-animations/animation-model/keyframe-effects/root-font-cancel-child-animation.html
++++ artifacts/css-root-font-cancellation-depth-wpt-v1/tests/web-animations/animation-model/keyframe-effects/root-font-cancel-child-depth.html
+@@ -1,6 +1,6 @@
+ <!doctype html>
+ <meta charset="utf-8">
+-<title>Child root-relative keyframes after cancelling a root font animation</title>
++<title>Root-relative keyframes through fixed-font ancestors after cancellation</title>
+ <meta name="timeout" content="long">
+ <link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
+ <link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+@@ -10,16 +10,13 @@
+ <script>
+ "use strict";
+ 
+-window.rootFontCancellationObservations = [];
++window.rootFontCancellationDepthObservations = [];
+ const nextFrame = win => new Promise(resolve => win.requestAnimationFrame(resolve));
+ const cases = [];
+-for (const target of ["existing-child", "new-child", "root-pseudo"]) {
++for (const depth of [1, 4]) {
+   for (const barrier of ["none", "root-read"]) {
+-    cases.push({unit: "rem", target, barrier});
++    cases.push({unit: "rem", depth, barrier});
+   }
+-}
+-for (const target of ["existing-child", "root-pseudo"]) {
+-  cases.push({unit: "rlh", target, barrier: "none"});
+ }
+ 
+ function paused(target, from, to, pseudoElement) {
+@@ -30,17 +27,19 @@
+   return animation;
+ }
+ 
+-for (const {unit, target: kind, barrier} of cases) {
++for (const {unit, depth, barrier} of cases) {
+   promise_test(async t => {
+     const frame = document.createElement("iframe");
+     t.add_cleanup(() => frame.remove());
+     const loaded = new Promise(resolve => frame.onload = resolve);
+     frame.srcdoc = `<!doctype html><style>
+       html, body { margin: 0; writing-mode: horizontal-tb; }
++      .fixed { font-size: 13px; line-height: 19px; }
+       .child { font-size: 11px; line-height: 17px; }
+       html::before { content: "root"; display: block; font-size: 7px; line-height: 9px; }
+       #measure { position: absolute; width: 100rem; }
+-    </style><div class="child"></div><div id="measure"></div>`;
++    </style>${'<div class="fixed">'.repeat(depth)}<div class="child"></div>
++      ${"</div>".repeat(depth)}<div id="measure"></div>`;
+     document.body.append(frame);
+     await loaded;
+     const win = frame.contentWindow;
+@@ -53,7 +52,18 @@
+     root.style.lineHeight = "37px";
+     assert_equals(win.getComputedStyle(root).fontSize, "23px", "literal root before disturbance");
+     assert_equals(win.getComputedStyle(root).lineHeight, "37px", "literal root line height");
+-    let child = doc.querySelector(".child");
++    const child = doc.querySelector(".child");
++    const wrappers = Array.from(doc.querySelectorAll(".fixed"));
++    assert_equals(wrappers.length, depth, "fixed ancestor count");
++    let ancestor = child.parentElement;
++    for (let i = 0; i < depth; i++) {
++      assert_true(ancestor.classList.contains("fixed"), "fixed ancestor in target chain");
++      assert_equals(win.getComputedStyle(ancestor).fontSize, "13px", "fixed ancestor styled before disturbance");
++      assert_equals(win.getComputedStyle(ancestor).lineHeight, "19px", "fixed ancestor line height");
++      assert_equals(ancestor.getAnimations().length, 0, "fixed ancestor has no animation");
++      ancestor = ancestor.parentElement;
++    }
++    assert_equals(ancestor, doc.body, "all fixed ancestors are between body and target");
+     assert_equals(win.getComputedStyle(child).fontSize, "11px", "existing child styled before disturbance");
+     assert_equals(win.getComputedStyle(root, "::before").fontSize, "7px", "existing pseudo styled before disturbance");
+     const disturbance = paused(root, "1em", "3em");
+@@ -65,13 +75,8 @@
+       assert_equals(win.getComputedStyle(root).fontSize, "23px", "explicit root-read control");
+       assert_equals(win.getComputedStyle(root).lineHeight, "37px", "explicit root line-height control");
+     }
+-    if (kind === "new-child") {
+-      child = doc.createElement("div");
+-      child.className = "child";
+-      doc.body.append(child);
+-    }
+-    const target = kind === "root-pseudo" ? root : child;
+-    const pseudo = kind === "root-pseudo" ? "::before" : null;
++    const target = child;
++    const pseudo = null;
+     const animation = paused(target, `1${unit}`, `3${unit}`, pseudo);
+     t.add_cleanup(() => animation.cancel());
+     const first = parseFloat(win.getComputedStyle(target, pseudo).fontSize);
+@@ -79,11 +84,11 @@
+     await nextFrame(win);
+     await nextFrame(win);
+     const settled = parseFloat(win.getComputedStyle(target, pseudo).fontSize);
+-    const expected = unit === "rem" ? 46 : 74;
+-    window.rootFontCancellationObservations.push({unit, kind, barrier, first, settled, expected});
++    const expected = 46;
++    window.rootFontCancellationDepthObservations.push({unit, depth, barrier, first, settled, expected});
+     assert_equals(animation.currentTime, 500, "paused midpoint");
+     assert_approx_equals(first, expected, 0.06, "first synchronous child value after cancellation");
+     assert_approx_equals(settled, expected, 0.06, "settled child value after cancellation");
+-  }, `${kind} ${unit} keyframes after root em cancellation with ${barrier}`);
++  }, `existing-child rem keyframes through ${depth} fixed ancestors after root em cancellation with ${barrier}`);
+ }
+ </script>

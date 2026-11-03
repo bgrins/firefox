@@ -1,0 +1,19 @@
+import Reparse
+#print axioms ExplicitTaintReparse.uncompute_bytes
+#print axioms ExplicitTaintReparse.uncompute_provenance
+#print axioms ExplicitTaintReparse.published_wrapper_roundtrip
+#print axioms ExplicitTaintReparse.parse_payload_erasure
+#print axioms ExplicitTaintReparse.legacy_payload_erasure
+#print axioms ExplicitTaintReparse.transported_payload_erasure
+#print axioms ExplicitTaintReparse.same_parse_decision_and_payload
+#print axioms ExplicitTaintReparse.legacy_success_loses_bit
+#print axioms ExplicitTaintReparse.transported_success_retains_bit
+#print axioms ExplicitTaintReparse.admitted_dirty_handoff_differs
+#print axioms ExplicitTaintReparse.rejected_parse_selects_initial
+#print axioms ExplicitTaintReparse.successful_parse_does_not_take_initial
+#print axioms ExplicitTaintReparse.completed_origin_trace_transport
+#print axioms ExplicitTaintReparse.same_bytes_cannot_reconstruct_provenance
+#print axioms ExplicitTaintReparse.equal_payload_distinct_provenance
+#print axioms ExplicitTaintReparse.inner_explicit_also_survives
+#print axioms ExplicitTaintReparse.clean_input_stays_clean
+#print axioms ExplicitTaintReparse.aggregate_empty_contribution_survives

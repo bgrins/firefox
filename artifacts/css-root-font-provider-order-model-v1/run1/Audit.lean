@@ -1,0 +1,17 @@
+import Provider
+#print axioms FontProviderEffects.initial_valid
+#print axioms FontProviderEffects.invalidate_valid
+#print axioms FontProviderEffects.begin_valid
+#print axioms FontProviderEffects.finish_valid
+#print axioms FontProviderEffects.step_valid
+#print axioms FontProviderEffects.run_valid
+#print axioms FontProviderEffects.provider_current
+#print axioms FontProviderEffects.history_read_sound
+#print axioms FontProviderEffects.stale_finish_no_publication
+#print axioms FontProviderEffects.cancellation_dirties_provider
+#print axioms FontProviderEffects.finish_begin_current
+#print axioms FontProviderEffects.discard_then_refresh
+#print axioms FontProviderEffects.root_font_independent
+#print axioms FontProviderEffects.root_line_rem_uses_root
+#print axioms FontProviderEffects.pseudo_requires_current
+#print axioms FontProviderEffects.identity_and_freshness_independent

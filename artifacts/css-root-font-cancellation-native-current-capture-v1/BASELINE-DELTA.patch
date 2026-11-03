@@ -1,0 +1,35 @@
+--- artifacts/css-root-self-smil-native-current-capture-v1/baseline.py
++++ artifacts/css-root-font-cancellation-native-current-capture-v1/baseline.py
+@@ -84,12 +84,7 @@
+     assert core.sha(parent_dir / 'BINDINGS.json') == record['bindings_sha256']
+     parent = core.load('previous_native_capture_bridge', str((parent_dir / 'baseline.py').relative_to(ROOT)))
+     assert parent.binding['native_receipt'] == binding['native_receipt']
+-    memo_record = binding['saved_parent_refresh']
+-    memo_dir = ROOT / memo_record['directory']
+-    memo_ownership = core.load('parent_refresh_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')
+-    memo_ownership.authenticate(memo_dir, memo_record['manifest_sha256'])
+-    memo = core.load('known_parent_saved_refresh', str((memo_dir / 'hooks.py').relative_to(ROOT)))
+-    previous = memo.validate_refresh(parent, receipt, binding, {})
++    previous = parent.validate_refresh(receipt)
+     refresh = binding['refresh_binding']
+     assert refresh is not None
+     directory = ROOT / refresh['directory']
+@@ -132,9 +127,15 @@
+ 
+ 
+ def claim_additional_sources(ownership, state, env, epoch, head):
+-    assert binding['additional_sources'] == {}
+-    return {}
+-
++    assert set(binding['additional_sources']) == {'servo/components/style/traversal.rs', 'servo/components/style/data.rs'}
++    result = {}
++    for name, record in binding['additional_sources'].items():
++        assert name not in epoch['installed_identities']
++        assert name not in epoch['pins'] or epoch['pins'][name] == record['base_sha256']
++        assert core.sha(ROOT / record['base_capture']) == record['base_sha256']
++        result[name] = ownership.claim(ROOT, name, record['base_sha256'])
++        assert hashlib.sha256(state.h.git(ROOT, env, 'show', head + ':' + name)).hexdigest() == record['base_sha256']
++    return result
+ 
+ 
+ def observe(policy, ownership, roles, checkpoint):

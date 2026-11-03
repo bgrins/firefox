@@ -1,0 +1,1 @@
+Root-bound restoration audit for the actual completed owner5deb78/session23498/17e363/exit0, group9316. The immutable v2 preparation is preserved. audit.py is byte-identical; only factual result/terminal bindings and the audit gate changed. Copied CHECK files describe the prior disabled preparation, not execution of this bound audit. No acceptance is inferred from owner success.

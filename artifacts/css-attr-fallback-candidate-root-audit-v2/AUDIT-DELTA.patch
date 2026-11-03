@@ -1,0 +1,109 @@
+--- artifacts/css-resumable-font-selection-integrated-pair-root-audit-v1/audit.py
++++ artifacts/css-attr-fallback-candidate-root-audit-v2/audit.py
+@@ -1,4 +1,5 @@
+ import copy
++from collections import Counter
+ import hashlib
+ import importlib.util
+ import json
+@@ -8,8 +9,8 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ ROOT = Path(__file__).resolve().parents[2]
+ HERE = Path(__file__).resolve().parent
+-OWNER = ROOT / "artifacts/css-resumable-font-selection-integrated-pair-v1"
+-RUNTIME = ROOT / "artifacts/css-resumable-font-selection-integrated-pair-runtime-1"
++OWNER = ROOT / "artifacts/css-attr-fallback-candidate-browser-v2"
++RUNTIME = ROOT / "artifacts/css-attr-fallback-candidate-browser-runtime-v2"
+ CANONICAL = ROOT / "artifacts/css-registered-number-native-runtime-v1"
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+ read = lambda path: json.loads(path.read_bytes())
+@@ -22,7 +23,32 @@
+     return module
+ 
+ 
+-assert sha(OWNER / "FILES.json") == "f99a4fb85bdf9e456948ceab63dcea391d84d4d23d07e70851c3ee811b88eb2c"
++def raw_summary(events, expected):
++    rows = [row for row in events if row.get('action') == 'test_status']
++    starts = [(i, row) for i, row in enumerate(events) if row.get('action') == 'test_start']
++    ends = [(i, row) for i, row in enumerate(events) if row.get('action') == 'test_end']
++    suite_starts = [i for i, row in enumerate(events) if row.get('action') == 'suite_start']
++    suite_ends = [i for i, row in enumerate(events) if row.get('action') == 'suite_end']
++    names = [(row.get('test'), row.get('subtest')) for row in rows]
++    wanted = [(page, name) for page, names in expected.items() for name in names]
++    exact = len(wanted) == 24 and Counter(names) == Counter(wanted)
++    complete_end = len(starts) == len(ends) == len(expected) == 1 and starts[0][1].get('test') == ends[0][1].get('test') == next(iter(expected)) and ends[0][1].get('status') == 'OK'
++    ordered = complete_end and len(suite_starts) == len(suite_ends) == 1 and suite_starts[0] < starts[0][0] < ends[0][0] < suite_ends[0] and all(starts[0][0] < i < ends[0][0] for i, row in enumerate(events) if row.get('action') == 'test_status')
++    crashes = [row for row in events if row.get('action') == 'crash' or row.get('status') == 'CRASH']
++    valid = exact and ordered and not crashes and all(row.get('status') in ('PASS','FAIL') for row in rows)
++    return {'callbacks': len(rows), 'statuses': dict(Counter(row.get('status') for row in rows)), 'expected_24_names_exact': exact, 'expected_start_and_OK_ending': complete_end, 'ordered_suite': bool(ordered), 'crash_events': len(crashes), 'complete_raw_roster': bool(valid), 'all_24_pass': bool(valid and all(row.get('status') == 'PASS' for row in rows))}
++
++
++binding = read(HERE / 'BINDINGS.json')
++assert binding['execution_enabled'] is True and not binding['pending_owner_terminal']
++assert type(binding['outer_group']) is int and binding['outer_group'] > 1
++for path, pin in binding['references'].items():
++    assert sha(ROOT / path) == pin
++assert binding['result_sha256'] == sha(RUNTIME / 'RESULT.json')
++assert binding['terminal_sha256'] == sha(RUNTIME / 'ROOT-OWNER-TERMINAL.json')
++
++
++assert sha(OWNER / "FILES.json") == "a53d33fe9c3a0e9bb129a1ae29d11f98cfbd310f6824d09cf0ef773bfd3edcf9"
+ terminal = read(RUNTIME / "ROOT-OWNER-TERMINAL.json")
+ result = read(RUNTIME / "RESULT.json")
+ assert terminal["terminal"] and terminal["exit"] == (0 if result["success"] else 1)
+@@ -34,13 +60,29 @@
+ policy, ownership, roles = baseline.prepare(sha(OWNER / "FILES.json"))
+ env = baseline.environment()
+ capture = baseline.current_capture(policy)
++assert set(roles) == {'servo/components/style/custom_properties.rs'}
++phase = RUNTIME / 'candidate-wpt-fallback'
++raw_observation = None
++assessment_replayed = False
++if (phase / 'raw.jsonl').is_file():
++    events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
++    raw_observation = raw_summary(events, policy['wpt_lanes']['fallback']['expected_subtests'])
++    raw_observation['raw_sha256'] = sha(phase / 'raw.jsonl')
++    if (phase / 'ASSESSMENT.json').is_file():
++        assessor = load('audit_wpt_assessor', OWNER / 'assess.py')
++        checks = load('audit_wpt_checks', ROOT / policy['wpt']['checks_helper'])
++        assessment = assessor.assess(events, read(phase / 'RESULT.json')['exit'], read(phase / 'ASSESSMENT-POLICY.json'), checks, run_binding=read(phase / 'APPLICATION-METADATA.json'))
++        assert assessment == read(phase / 'ASSESSMENT.json')
++        assessment_replayed = True
++if result['success']:
++    assert raw_observation and raw_observation['complete_raw_roster'] and assessment_replayed
+ processes = []
+ for path in sorted(RUNTIME.rglob("*PROCESS.json")):
+     record = read(path)
+     group = record["pgid"]
+     ownership.group_absent(group)
+     processes.append({"path": str(path.relative_to(RUNTIME)), "pgid": group})
+-ownership.group_absent(62896)
++ownership.group_absent(binding['outer_group'])
+ wpt_temporary_roots = []
+ for phase in sorted(RUNTIME.glob("*-wpt-*")):
+     command = read(phase / "COMMAND.json")
+@@ -90,7 +132,7 @@
+ assert cleanup["owned_backup_bytes"] == backups["bytes"] == read(RUNTIME / "PAIR-PRE.json")["owned_backup_bytes"]
+ assert cleanup["removed"] is result["success"]
+ if cleanup["removed"]:
+-    assert not (RUNTIME / "backups").exists()
++    assert not (RUNTIME / "backups").exists() and not (RUNTIME / "backups").is_symlink()
+ else:
+     assert bundle.scan(RUNTIME / "backups") == backups["owned_inventory"]
+ report = {"independent_live_restoration_verified": True, "snapshot": observed,
+@@ -99,12 +141,14 @@
+           "controls_unchanged": True, "backup_removed": cleanup["removed"],
+           "retained_backup_inventory_verified": not cleanup["removed"],
+           "backup_inventory_sha256": sha(RUNTIME / "BACKUPS.json"),
+-          "independently_absent_process_groups": [p["pgid"] for p in processes] + [62896],
++          "independently_absent_process_groups": [p["pgid"] for p in processes] + [binding['outer_group']],
+           "process_records": processes, "removed_wpt_temporary_roots": wpt_temporary_roots,
+           "restored_application_metadata": application,
+           "owner_result_sha256": sha(RUNTIME / "RESULT.json"),
+           "audit_script_sha256": sha(Path(__file__)), "owner_terminal": terminal,
+           "restored_source_claims": {name: claims[name] for name in roles},
++          "raw_wpt_observation": raw_observation, "saved_assessment_replayed": assessment_replayed,
++          "owner_success_scope": "complete observation and restoration; all_24_pass is separate",
+           "native_acceptance": False}
+ with (RUNTIME / "ROOT-LIVE-RESTORATION.json").open("x") as stream:
+     json.dump(report, stream, indent=2)

@@ -1,0 +1,27 @@
+--- a/layout/style/GeckoBindings.cpp
++++ b/layout/style/GeckoBindings.cpp
+@@ -5,6 +5,8 @@
+ /* FFI functions for Servo to call into Gecko */
+ 
+ #include "mozilla/GeckoBindings.h"
++
++#include <cstdio>
+ 
+ #include "AnchorPositioningUtils.h"
+ #include "ChildIterator.h"
+@@ -536,6 +538,15 @@
+ 
+   const auto [element, pseudoRequest] =
+       AnimationUtils::GetElementPseudoPair(aElement);
++  fprintf(stderr,
++          "RFTC normalize input=%p input_node=%p target=%p target_node=%p "
++          "pseudo=%u tasks=%u style=%p\n",
++          static_cast<const void*>(aElement),
++          static_cast<const void*>(static_cast<const nsINode*>(aElement)),
++          static_cast<const void*>(element),
++          static_cast<const void*>(static_cast<const nsINode*>(element)),
++          unsigned(pseudoRequest.mType), unsigned(aTasks),
++          static_cast<const void*>(aComputedData));
+ 
+   // Handle timeline scopes first, because our own scroll/view-linked animations
+   // may be affected.

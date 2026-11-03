@@ -1,0 +1,63 @@
+--- artifacts/css-root-font-cancellation-candidate-browser-v2/run.py
++++ artifacts/css-root-font-cancellation-archive-candidate-browser-v1/run.py
+@@ -78,6 +78,7 @@
+     builder = load('activation_builder', policy['phase_helper'])
+     process_control = load('activation_process_control', policy['process_helper'])
+     wpt = load('activation_wpt', str((HERE / 'wpt.py').relative_to(ROOT)))
++    archive_helper = load('candidate_archive', str((HERE / 'archive.py').relative_to(ROOT)))
+     app = ROOT / policy['bundle_path']
+     app_before = bundle.scan(app)
+     extra_before = {name: bundle.entry(ROOT / name) for name in policy['extra_backup_paths']}
+@@ -106,13 +107,14 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'keyframe-font-unit-candidate-v1'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'font-unit-cancellation-archive-candidate-v1'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):
+         signal.signal(sig, lambda signum, frame: stopped.__setitem__(0, True))
+     owned, errors, restoration_errors = {}, [], []
+     failure, phase_result, binaries = None, None, None
++    archive_record = None
+     touched = []
+     def stable_controls():
+         baseline.metadata_guard(policy)
+@@ -184,8 +186,17 @@
+             metadata.update(build_revision=metadata['revision'], harness_revision=policy['head'], source_role=role)
+             state.save(build / 'RESULT.json', {'command_success': True, 'preservation_verified': True, 'snapshot': verified, 'binaries': binaries, 'native_sources': {name: row['base_sha256' if role == 'original' else 'candidate_sha256'] for name, row in roles.items()}, 'application_metadata': metadata, 'browser_build_performed': True, 'error': None})
+             phase_result[role] = phases.run(ROOT, HERE, output, role, policy, env, phase_verify, owned, lambda: stopped[0])
++            assert not owned and not errors and not stopped[0]
++            archive_record = archive_helper.create(ROOT, app, output, policy, roles, claims, phase_verify, lambda: stopped[0])
++            assert phase_verify() == verified
+     except BaseException as exc:
+         failure = repr(exc)
++        if archive_record is not None:
++            try:
++                archive_helper.discard(archive_record)
++                state.save(output / 'ARCHIVE-CLEANUP.json', {'removed': True, 'reason': failure})
++            except BaseException as cleanup_error:
++                failure += '; archive cleanup: ' + repr(cleanup_error)
+         state.save(output / 'FAILURE-TRACEBACK.json', {'error': failure, 'traceback': traceback.format_exc()})
+     finally:
+         if owned:
+@@ -229,6 +240,18 @@
+         assert state.h.git(path, env, 'ls-files', '-v', '-z') == flags[name]
+     state.save(output / 'POST.json', after)
+     state.save(output / 'RAW-INDEX-OBSERVATION.json', {'before': original_before['index']['raw_index'], 'after': index['raw_index'], 'semantic_index_unchanged': True, 'canonical_updated': False})
++    if failure is None and not errors and phase_result is not None:
++        try:
++            archive_helper.publish(archive_record, output)
++        except BaseException as exc:
++            failure = 'Archive publication: ' + repr(exc)
++            try:
++                archive_helper.discard(archive_record)
++                state.save(output / 'ARCHIVE-CLEANUP.json', {'removed': True, 'reason': failure})
++            except BaseException as cleanup_error:
++                failure += '; archive cleanup: ' + repr(cleanup_error)
++                state.save(output / 'ARCHIVE-CLEANUP.json', {'removed': False, 'reason': failure})
++            state.save(output / 'ARCHIVE-PUBLICATION-FAILURE.json', {'error': failure})
+     success = failure is None and not errors and phase_result is not None and set(phase_result) == {'candidate'}
+     if success:
+         assert bundle.scan(backups) == backup_snapshot

@@ -1,0 +1,56 @@
+--- artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-v1/check.py
++++ artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-v2/check.py
+@@ -13,6 +13,7 @@
+ ROOT = HERE.parents[1]
+ read = lambda p: json.loads(p.read_bytes())
+ sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
++ROLE_LEAF = {'directory': 'artifacts/css-root-font-cancellation-trace-current-capture-v1', 'manifest_sha256': 'aa159751abea0913da5c5db8c73cf615615a4741bc8e7fc57e47a966b4e9ca8b'}
+ 
+ 
+ def load(name, path=None):
+@@ -24,7 +25,7 @@
+ 
+ def validate_policy(policy):
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-runtime-v1'
++    assert policy['runtime_output'] == 'artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-runtime-v2'
+     assert policy['execution_enabled'] == policy['candidate_execution_enabled']
+     assert policy['archive'] == {'application_name': 'Nightly.app', 'minimum_free_after_copy': 28991029248, 'prefix': 'css-font-unit-candidate-', 'temporary_parent': '/private/tmp', 'validator': 'artifacts/css-root-self-smil-archived-original-v1/run.py', 'validator_sha256': '268a201122782c997cdeb566db7651200c58a669cb69821e4c94e5c01995a3ea'}
+     assert policy['authority_kind'] == 'signed-native-publication'
+@@ -53,7 +54,35 @@
+         assert set(terminal['candidate_roles_verified']) == set(read(HERE/'SOURCE-ROLES.json'))
+         capture = load('admission').validate_current(ROOT, policy, read(HERE/'SOURCE-ROLES.json'))
+         assert capture['controls']['CURRENT-EPOCH.json'] == conditions['epoch_sha256']
+-    assert policy['capture_reuse'] == conditions['capture_reuse'] == {}
++    assert policy['capture_reuse'] == conditions['capture_reuse']
++    for record in policy['capture_reuse'].values():
++        assert sha(ROOT/record['path']) == record['sha256']
++    failed = read(ROOT/policy['capture_reuse']['failure']['path'])
++    verification = read(ROOT/policy['capture_reuse']['verification']['path'])
++    verified_terminal = read(ROOT/policy['capture_reuse']['verification_terminal']['path'])
++    assert failed['launch'] == '0a51bb' and failed['session'] == 64506 and failed['terminal'] == '10cf72' and failed['exit'] == 1
++    assert failed['active_manifest'] == policy['references']['artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-v1/FILES.json']
++    assert failed['capture_sha256'] == verification['actual_capture_sha256'] == verified_terminal['actual_capture_sha256'] == policy['current_binding']['sha256']
++    assert verification['head'] == policy['head'] and verification['raw_index'] == capture['snapshot']['index']['raw_index']
++    assert verification['owner_process_group_absent'] == failed['pgid'] == 25379
++    for key in ('whole_snapshot_equal','controls_and_flags_equal','all_source_claims_and_context_equal','full_app_extras_binaries_equal','runtime_absent','lock_absent'):
++        assert verification[key] is True
++    assert verification['source_transition_started'] is False
++    assert verified_terminal['launch'] == '9f23b0' and verified_terminal['session'] == 32590 and verified_terminal['terminal'] == '35ddcb'
++    assert type(verified_terminal['exit']) is int and verified_terminal['exit'] == 0 and verified_terminal['full_preservation_verified'] is True
++    assert verified_terminal['verification'] == policy['capture_reuse']['verification']
++    assert verified_terminal['failed_run_terminal'] == policy['capture_reuse']['failure']
++    assert policy['role_validator'] == conditions['role_validator'] == ROLE_LEAF
++    admission = load('admission')
++    admission.authenticate(ROOT, policy['role_validator'])
++    capture_binding = read(ROOT/policy['capture_owner']['directory']/'BINDINGS.json')
++    epoch_path = capture_binding['saved_inputs']['current_epoch']
++    assert sha(ROOT/epoch_path) == policy['controls']['CURRENT-EPOCH.json'] == policy['references'][epoch_path]
++    epoch = read(ROOT/epoch_path)
++    baseline = load('baseline')
++    baseline.require_role(policy, capture['role'], epoch)
++    invalid_role = copy.deepcopy(capture['role']); invalid_role['built'] = True
++    rejected(lambda: baseline.require_role(policy, invalid_role, epoch))
+     assert policy['direct_equivalence'] == conditions['direct_equivalence']
+     assert policy['compile_prerequisite'] is policy['native_owner_binding'] is policy['typecheck_binding'] is policy['predecessor_binding'] is None
+     assert policy['required_typecheck_inputs'] == {}

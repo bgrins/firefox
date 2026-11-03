@@ -1,0 +1,5 @@
+# Root-target animation context: installed Firefox158
+
+The same unchanged probe reproduces all16 original-branch observations in a fresh owned browser session using /Applications/Firefox.app/Contents/MacOS/firefox, version158.0, build20261007201254. The full assessment is identical to the e86 branch assessment: root font-size rem and rlh animations use underlying root metrics, while the calibrated initial references, ordinary font-size and em/literal animation controls pass. Variation settings show the same pattern, with their separate parent-font conversion issue retained as a distinct concern.
+
+The exact function, complete connector response, report and assessment are saved. Application metadata and both firefox/XUL binary hashes match before and after; a full installed-application inventory was not taken. The connector confirmed closure of its owned browser and was reset to the installed browser configuration. No CSS feature preferences were enabled. No source repair, native cause proof, exploit or accepted-fix increment is claimed.

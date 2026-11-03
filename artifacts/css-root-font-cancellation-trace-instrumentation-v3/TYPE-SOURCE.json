@@ -1,0 +1,51 @@
+{
+  "servo/components/style/context.rs": {
+    "commit": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "c2b374bd23196e08975340e77b6901e8d5d3bd93869054d3bee3231993196dc3",
+    "excerpts": [
+      "    pub struct UpdateAnimationsTasks: u8 {\n        /// Update CSS Animations.\n        const CSS_ANIMATIONS = structs::UpdateAnimationsTasks_CSSAnimations;\n        /// Update CSS Transitions.\n        const CSS_TRANSITIONS = structs::UpdateAnimationsTasks_CSSTransitions;\n        /// Update effect properties.\n        const EFFECT_PROPERTIES = structs::UpdateAnimationsTasks_EffectProperties;\n        /// Update animation cacade results for animations running on the compositor.\n        const CASCADE_RESULTS = structs::UpdateAnimationsTasks_CascadeResults;\n        /// Display property was changed from none.\n        /// Script animations keep alive on display:none elements, so we need to trigger\n        /// the second animation restyles for the script animations in the case where\n        /// the display property was changed from 'none' to others.\n        const DISPLAY_CHANGED_FROM_NONE = structs::UpdateAnimationsTasks_DisplayChangedFromNone;\n        /// Update CSS named scroll progress timelines.\n        const SCROLL_TIMELINES = structs::UpdateAnimationsTasks_ScrollTimelines;\n        /// Update CSS named view progress timelines.\n        const VIEW_TIMELINES = structs::UpdateAnimationsTasks_ViewTimelines;\n        /// Update CSS timeline scopes, which affect visibility of both scroll and view timelines.\n        const TIMELINE_SCOPES = structs::UpdateAnimationsTasks_TimelineScopes;\n    }\n}\n\n/// A task to be run in sequential mode on the parent (non-worker) thread. This\n/// is used by the style system to queue up work which is not safe to do during\n/// the parallel traversal.\npub enum SequentialTask<E: TElement> {\n    /// Entry to avoid an unused type parameter error on servo.\n    Unused(SendElement<E>),\n\n    /// Performs one of a number of possible tasks related to updating\n    /// animations based on the |tasks| field. These include updating CSS"
+    ]
+  },
+  "servo/components/style/Cargo.toml": {
+    "commit": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "5421775e978794f47520e9d9120edf07692bc9e16b43b0fc5cff5525b7afe3c0",
+    "excerpts": [
+      "bitflags = \"2\"\nbyteorder = \"1.0\"\ncssparser = \"0.38\"\nderive_more = { version = \"2\", features = [\"add\", \"add_assign\", \"deref\", \"deref_mut\", \"from\"] }\ndom = { path = \"../../../dom/base/rust\" }\nnew_debug_unreachable = \"1.0\"\nencoding_rs = {version = \"0.8\", optional = true}\neuclid = \"0.22\"\nrustc-hash = \"2.1.1\"\nhashbrown = \"0.17\"\nicu_segmenter = { version = \"2.0\", default-features = false, features = [\"auto\", \"compiled_data\"] }\nindexmap = {version = \"2\", features = [\"std\"]}\nitertools = \"0.14\"\nitoa = \"1.0\"\nlog = \"0.4\"\nmalloc_size_of = { path = \"../malloc_size_of\" }\nmalloc_size_of_derive = { path = \"../../../xpcom/rust/malloc_size_of_derive\" }\nmozbuild = {version = \"0.1\", optional = true}\nweb_atoms = { version = \"0.1\", optional = true }\nnsstring = {path = \"../../../xpcom/rust/nsstring/\", optional = true}\nnum_cpus = {version = \"1.1.0\"}\nnum-integer = \"0.1\"\nnum-traits = \"0.2\"\nnum-derive = \"0.4\"\nparking_lot = \"0.12\"\nprecomputed-hash = \"0.1.1\"\nrand = { version = \"0.8.6\", features = [\"small_rng\"] }\nrayon = \"1\"\nrayon-core = \"1\"\nselectors = { path = \"../selectors\" }\nserde = {version = \"1.0\", optional = true, features = [\"derive\"]}\nservo_arc = { path = \"../servo_arc\" }"
+    ]
+  },
+  "Cargo.lock": {
+    "commit": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "08b107ca73719db4463ded01f5e8f6d557d87b610e5d79618260198675ae8fa8",
+    "excerpts": [
+      "name = \"style\"\nversion = \"0.0.1\"\ndependencies = [\n \"app_units\",\n \"arrayvec\",\n \"atomic_refcell\",\n \"bindgen 0.73.1\",\n \"bitflags 2.10.0\",\n \"byteorder\",\n \"cssparser\",\n \"derive_more\",\n \"dom\",\n \"euclid\",\n \"gecko-profiler\",\n \"hashbrown 0.17.1\",\n \"icu_segmenter\",\n \"indexmap\",\n \"itertools 0.14.999\",\n \"itoa\",\n \"log\",\n \"malloc_size_of\",\n \"malloc_size_of_derive\",\n \"mozbuild\",\n \"new_debug_unreachable\",\n \"nsstring\",\n \"num-derive\",\n \"num-integer\",\n \"num-traits\",\n \"num_cpus\",\n \"parking_lot\",\n \"precomputed-hash\",\n \"rand\",\n \"rayon\",\n \"rayon-core\",\n \"regex\",\n \"rustc-hash 2.1.1\",\n \"selectors\",\n \"serde\",\n \"servo_arc\",\n \"smallbitvec\",\n \"smallvec\",\n \"static_assertions\",\n \"static_prefs\",\n \"strum\",\n \"strum_macros\","
+    ]
+  },
+  "third_party/rust/bitflags/src/public.rs": {
+    "commit": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "2a695651626cf7442cc83e52c410e01ceeb50902345e2a85988ad27c951287ac",
+    "excerpts": [
+      "macro_rules! __declare_public_bitflags {\n    (\n        $(#[$outer:meta])*\n        $vis:vis struct $PublicBitFlags:ident\n    ) => {\n        $(#[$outer])*\n        $vis struct $PublicBitFlags(<$PublicBitFlags as $crate::__private::PublicFlags>::Internal);\n    };\n}\n\n/// Implement functions on the public (user-facing) bitflags type.\n///\n/// We need to be careful about adding new methods and trait implementations here because they\n/// could conflict with items added by the end-user.\n#[macro_export]\n#[doc(hidden)]\nmacro_rules! __impl_public_bitflags_forward {\n    (\n        $(#[$outer:meta])*\n        $PublicBitFlags:ident: $T:ty, $InternalBitFlags:ident\n    ) => {\n        $crate::__impl_bitflags! {\n            params: self, bits, name, other, value;\n            $(#[$outer])*\n            $PublicBitFlags: $T {\n                fn empty() {\n                    Self($InternalBitFlags::empty())\n                }\n\n                fn all() {\n                    Self($InternalBitFlags::all())\n                }"
+    ]
+  },
+  "layout/style/ServoTypes.h": {
+    "commit": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "ff2426503130fb520525c424e15a3cbe1bef6ef7e1b774ac68d3091c106d9e4a",
+    "excerpts": [
+      "enum class UpdateAnimationsTasks : uint8_t {\n  CSSAnimations = 1 << 0,\n  CSSTransitions = 1 << 1,\n  EffectProperties = 1 << 2,\n  CascadeResults = 1 << 3,\n  DisplayChangedFromNone = 1 << 4,\n  ScrollTimelines = 1 << 5,\n  ViewTimelines = 1 << 6,\n  TimelineScopes = 1 << 7,\n};\n\nMOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(UpdateAnimationsTasks)\n\n// The kind of style we're generating when requesting Servo to give us an\n// inherited style.\nenum class InheritTarget {\n  // We're requesting a text style.\n  Text,\n  // We're requesting a first-letter continuation frame style.\n  FirstLetterContinuation,\n  // We're requesting a style for a placeholder frame.\n  PlaceholderFrame,\n};\n\n// Represents values for interaction media features.\n// https://drafts.csswg.org/mediaqueries-4/#mf-interaction\nenum class PointerCapabilities : uint8_t {\n  None = 0,\n  Coarse = 1 << 0,\n  Fine = 1 << 1,\n  Hover = 1 << 2,\n};"
+    ]
+  },
+  "servo/components/style/gecko/wrapper.rs": {
+    "commit": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "8be23a881af313800ebc9645834f88b37770faecc7ec0b35bd186f57471a9b38",
+    "excerpts": [
+      "    fn update_animations(\n        &self,\n        before_change_style: Option<Arc<ComputedValues>>,\n        tasks: UpdateAnimationsTasks,\n    ) {\n        // We have to update animations even if the element has no computed\n        // style since it means the element is in a display:none subtree, we\n        // should destroy all CSS animations in display:none subtree.\n        let computed_data = self.borrow_data();\n        let computed_values = computed_data.as_ref().map(|d| d.styles.primary());\n        let before_change_values = before_change_style\n            .as_ref()\n            .map_or(ptr::null(), |x| x.as_gecko_computed_style());\n        let computed_values_opt = computed_values\n            .as_ref()\n            .map_or(ptr::null(), |x| x.as_gecko_computed_style());\n        unsafe {\n            Gecko_UpdateAnimations(\n                self.0,\n                before_change_values,\n                computed_values_opt,\n                tasks.bits(),\n            );\n        }\n    }\n\n    #[inline]\n    fn has_animations(&self, _: &SharedStyleContext) -> bool {\n        self.has_any_animation()\n    }\n\n    fn has_css_animations(&self, _: &SharedStyleContext, _: Option<PseudoElement>) -> bool {"
+    ]
+  },
+  "servo/components/style/dom.rs": {
+    "commit": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "22d0bf05f59db40df930026bd10b5f289afd53d19bd5f57db2115d50ecc12420",
+    "excerpts": [
+      "    fn opaque(&self) -> OpaqueNode;\n\n    /// A debug id, only useful, mm... for debugging.\n    fn debug_id(self) -> usize;\n\n    /// Get this node as an element, if it's one.\n    fn as_element(&self) -> Option<Self::ConcreteElement>;\n\n    /// Get this node as a document, if it's one.\n    fn as_document(&self) -> Option<Self::ConcreteDocument>;\n\n    /// Get this node as a ShadowRoot, if it's one.\n    fn as_shadow_root(&self) -> Option<Self::ConcreteShadowRoot>;\n}\n\n/// Wrapper to output the subtree rather than the single node when formatting\n/// for Debug.\npub struct ShowSubtree<N: TNode>(pub N);\nimpl<N: TNode> Debug for ShowSubtree<N> {\n    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {\n        writeln!(f, \"DOM Subtree:\")?;\n        fmt_subtree(f, &|f, n| write!(f, \"{:?}\", n), self.0, 1)\n    }\n}\n\n/// Wrapper to output the subtree along with the ElementData when formatting\n/// for Debug.\npub struct ShowSubtreeData<N: TNode>(pub N);\nimpl<N: TNode> Debug for ShowSubtreeData<N> {\n    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {\n        writeln!(f, \"DOM Subtree:\")?;\n        fmt_subtree(f, &|f, n| fmt_with_data(f, n), self.0, 1)"
+    ]
+  }
+}

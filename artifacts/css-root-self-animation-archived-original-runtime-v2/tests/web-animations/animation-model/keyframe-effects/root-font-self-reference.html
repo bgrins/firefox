@@ -1,0 +1,158 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Root identity when computing animated font-relative values</title>
+<meta name="timeout" content="long">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+window.rootFontSelfObservations = [];
+const nextFrame = win => new Promise(resolve => win.requestAnimationFrame(resolve));
+
+async function context(t, size, line) {
+  const frame = document.createElement("iframe");
+  t.add_cleanup(() => frame.remove());
+  const loaded = new Promise(resolve => frame.onload = resolve);
+  frame.srcdoc = `<!doctype html><style>
+    html, body { margin: 0; writing-mode: horizontal-tb; }
+    #child { font-size: 11px; line-height: 17px; }
+    html::before { content: "root"; display: block; font-size: 7px; line-height: 9px; }
+    #measure { position: absolute; width: 100rem; }
+  </style><div id="child"></div><div id="measure"></div>`;
+  document.body.append(frame);
+  await loaded;
+  const win = frame.contentWindow;
+  const doc = win.document;
+  await doc.fonts.ready;
+  const root = doc.documentElement;
+  const measure = doc.querySelector("#measure");
+  const initialRem = parseFloat(win.getComputedStyle(measure).width) / 100;
+  measure.style.width = "100rlh";
+  const initialRlh = parseFloat(win.getComputedStyle(measure).width) / 100;
+  assert_greater_than(initialRem, 0, "initial font size is measurable");
+  assert_greater_than(initialRlh, 0, "initial normal line height is measurable");
+  root.style.fontSize = `${size}px`;
+  root.style.lineHeight = `${line}px`;
+  assert_equals(win.getComputedStyle(root).fontSize, `${size}px`, "underlying root font size");
+  assert_equals(win.getComputedStyle(root).lineHeight, `${line}px`, "underlying root line height");
+  return {win, doc, root, child: doc.querySelector("#child"), initialRem, initialRlh};
+}
+
+function paused(target, property, from, to, pseudoElement) {
+  const animation = target.animate([{[property]: from}, {[property]: to}],
+    {duration: 1000, fill: "both", pseudoElement});
+  animation.pause();
+  animation.currentTime = 500;
+  return animation;
+}
+
+async function observe(t, ctx, target, pseudo, property, animation, expected, label) {
+  t.add_cleanup(() => animation.cancel());
+  const first = parseFloat(ctx.win.getComputedStyle(target, pseudo)[property]);
+  await animation.ready;
+  await nextFrame(ctx.win);
+  await nextFrame(ctx.win);
+  const settled = parseFloat(ctx.win.getComputedStyle(target, pseudo)[property]);
+  window.rootFontSelfObservations.push({label, first, settled, expected});
+  assert_equals(animation.currentTime, 500, "paused midpoint");
+  assert_approx_equals(first, expected, 0.06, `${label}: first synchronous value`);
+  assert_approx_equals(settled, expected, 0.06, `${label}: settled value`);
+}
+
+async function calibrateRoot(ctx) {
+  const literal = paused(ctx.root, "fontSize", "20px", "40px");
+  assert_approx_equals(parseFloat(ctx.win.getComputedStyle(ctx.root).fontSize), 30, 0.06,
+    "literal animation calibration");
+  literal.cancel();
+  const inherited = paused(ctx.root, "fontSize", "1em", "3em");
+  assert_approx_equals(parseFloat(ctx.win.getComputedStyle(ctx.root).fontSize),
+    2 * ctx.initialRem, 0.06, "root em uses the initial inherited font size");
+  inherited.cancel();
+}
+
+for (const unit of ["rem", "rlh"]) {
+  for (const kind of ["root", "child", "root-pseudo"]) {
+    promise_test(async t => {
+      for (const [size, line] of [[23, 37], [31, 47]]) {
+        const ctx = await context(t, size, line);
+        await calibrateRoot(ctx);
+        const target = kind === "child" ? ctx.child : ctx.root;
+        const pseudo = kind === "root-pseudo" ? "::before" : null;
+        const base = kind === "root" ?
+          (unit === "rem" ? ctx.initialRem : ctx.initialRlh) :
+          (unit === "rem" ? size : line);
+        if (kind === "root") {
+          ctx.root.style.fontSize = `2${unit}`;
+          assert_approx_equals(parseFloat(ctx.win.getComputedStyle(ctx.root).fontSize),
+            2 * base, 0.06, "ordinary root font-size comparator");
+          ctx.root.style.fontSize = `${size}px`;
+        }
+        const animation = paused(target, "fontSize", `1${unit}`, `3${unit}`, pseudo);
+        await observe(t, ctx, target, pseudo, "fontSize", animation, 2 * base,
+          `${kind} font-size ${unit} over ${size}/${line}`);
+        animation.cancel();
+      }
+    }, `${kind} font-size animation resolves ${unit} with the target identity`);
+  }
+
+  promise_test(async t => {
+    for (const [size, line] of [[23, 37], [31, 47]]) {
+      const ctx = await context(t, size, line);
+      const animation = paused(ctx.root, "width", `1${unit}`, `3${unit}`, "::before");
+      await observe(t, ctx, ctx.root, "::before", "width", animation,
+        2 * (unit === "rem" ? size : line), `root-host pseudo width ${unit}`);
+      animation.cancel();
+    }
+  }, `root-host pseudo width ${unit} uses the real root rather than pseudo metrics`);
+
+  promise_test(async t => {
+    for (const [size, line] of [[23, 37], [31, 47]]) {
+      const ctx = await context(t, size, line);
+      const base = unit === "rem" ? size : ctx.initialRlh;
+      ctx.root.style.lineHeight = `2${unit}`;
+      assert_approx_equals(parseFloat(ctx.win.getComputedStyle(ctx.root).lineHeight),
+        2 * base, 0.06, "ordinary root line-height comparator");
+      ctx.root.style.lineHeight = `${line}px`;
+      const animation = paused(ctx.root, "lineHeight", `1${unit}`, `3${unit}`);
+      await observe(t, ctx, ctx.root, null, "lineHeight", animation,
+        2 * base, `root line-height ${unit}`);
+      animation.cancel();
+    }
+  }, `root line-height animation resolves ${unit} with the correct self-reference rule`);
+
+  promise_test(async t => {
+    for (const [size, line] of [[23, 37], [31, 47]]) {
+      const ctx = await context(t, size, line);
+      await calibrateRoot(ctx);
+      const style = ctx.doc.createElement("style");
+      style.textContent = `@keyframes root-size { from { font-size: 1${unit}; }
+        to { font-size: 3${unit}; } }
+        html { animation: root-size 1s linear both paused; }`;
+      ctx.doc.head.append(style);
+      const animation = ctx.root.getAnimations().find(a => a.animationName === "root-size");
+      assert_true(!!animation, "generated CSS animation exists");
+      animation.currentTime = 500;
+      await observe(t, ctx, ctx.root, null, "fontSize", animation,
+        2 * (unit === "rem" ? ctx.initialRem : ctx.initialRlh), `CSS root font-size ${unit}`);
+      animation.cancel();
+    }
+  }, `CSS-generated root font-size keyframes resolve ${unit} against initial metrics`);
+
+  promise_test(async t => {
+    for (const [size, line] of [[23, 37], [31, 47]]) {
+      const ctx = await context(t, size, line);
+      await calibrateRoot(ctx);
+      ctx.root.style.setProperty("--from-size", `1${unit}`);
+      ctx.root.style.setProperty("--to-size", `3${unit}`);
+      const animation = paused(ctx.root, "fontSize", "var(--from-size)", "var(--to-size)");
+      await observe(t, ctx, ctx.root, null, "fontSize", animation,
+        2 * (unit === "rem" ? ctx.initialRem : ctx.initialRlh), `substituted root font-size ${unit}`);
+      animation.cancel();
+    }
+  }, `substituted root font-size keyframes retain root identity for ${unit}`);
+}
+</script>

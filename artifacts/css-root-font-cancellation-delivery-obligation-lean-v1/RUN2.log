@@ -1,0 +1,74 @@
+Traceback (most recent call last):
+  File "/Users/bgrins/code/firefox/artifacts/css-root-font-cancellation-delivery-obligation-lean-v1/replay.py", line 49, in <module>
+    assert (result.returncode == 0) == success, log.decode()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Delivery.lean:40:65: error: unexpected token '('; expected '}'
+Delivery.lean:69:2: error: `simp` made no progress
+Delivery.lean:66:13: warning: declaration uses `sorry`
+Delivery.lean:81:61: error: unsolved goals
+ownerOf : Nat → Nat
+events : List FontUnitAdmission.Event
+id : Nat
+entry : AttributeWatches.Entry
+member : (id, entry) ∈ (FontUnitAdmission.run ownerOf events).registry.active
+route : List Hop
+allVisited : reached route = true
+s : State
+hint : s.hint = true
+normalize : Nat → Key
+key : Key
+identity : normalize entry.target = key
+metrics : RootFontProvider.Metrics
+current : RootFontProvider.provider s.provider = some metrics
+admitted : FontUnitAdmission.admits ownerOf true true false (FontUnitAdmission.run ownerOf events) entry.target = true
+⊢ sorry () = some (key, RootFontProvider.observe metrics RootFontProvider.RootUnit.rem)
+Delivery.lean:83:64: warning: declaration uses `sorry`
+Delivery.lean:83:73: warning: This simp argument is unused:
+  current
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [enqueue, allVisited, hint, admitted, deliver, identity, rebuild]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+Delivery.lean:99:89: error: Tactic `decide` failed to reduce
+  @decide (noReach.hint = true ∧ noReach.result = none) instDecidableAnd
+to `true` or `false`.
+
+Reduction got stuck at
+  noReach.1
+Delivery.lean:103:99: error: Tactic `decide` failed to reduce
+  @decide (staleRead.delivered = some pseudoKey ∧ staleRead.result = none) instDecidableAnd
+to `true` or `false`.
+
+Reduction got stuck at
+  match staleRead.result with
+  | none => isTrue ⋯
+  | some val => isFalse ⋯
+Delivery.lean:104:92: error: Tactic `decide` failed to reduce
+  @decide (wrongHost.result = none ∧ (normalize 7).host ≠ 7) instDecidableAnd
+to `true` or `false`.
+
+Reduction got stuck at
+  match wrongHost.result with
+  | none => isTrue ⋯
+  | some val => isFalse ⋯
+Delivery.lean:105:90: error: Tactic `decide` failed to reduce
+  @decide (good.result = some (pseudoKey, RootFontProvider.Observation.font (FontConsumerDemand.Inputs.size 23)))
+    (good.result.instDecidableEq
+      (some (pseudoKey, RootFontProvider.Observation.font (FontConsumerDemand.Inputs.size 23))))
+to `true` or `false`.
+
+Reduction got stuck at
+  match good.result with
+  | none =>
+    match some (pseudoKey, RootFontProvider.Observation.font (FontConsumerDemand.Inputs.size 23)) with
+    | none => isTrue ⋯
+    | some val => isFalse ⋯
+  | some a =>
+    match some (pseudoKey, RootFontProvider.Observation.font (FontConsumerDemand.Inputs.size 23)) with
+    | none => isFalse ⋯
+    | some b =>
+      match (fun a b => instDecidableEqProd a b) a b with
+      | { decide := true, reflects_decide := h } => isTrue ⋯
+      | { decide := false, reflects_decide := n } => isFalse ⋯
+

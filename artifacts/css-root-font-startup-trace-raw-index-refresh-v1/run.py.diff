@@ -1,0 +1,45 @@
+--- artifacts/css-root-font-cancellation-selective-handoff-raw-index-refresh-v1/run.py
++++ artifacts/css-root-font-startup-trace-raw-index-refresh-v1/run.py
+@@ -70,8 +70,8 @@
+     assert live == read(runtime / 'ROOT-LIVE-RESTORATION.json')
+     audit_terminal = read(ROOT / policy['audit_terminal']['path'])
+     assert audit_terminal == policy['actual_audit_terminal']
+-    assert type(audit_terminal['terminal']) is str and audit_terminal['terminal'] and audit_terminal['exit'] == 0
+-    assert audit_terminal['active_audit_manifest_sha256'] == sha((ROOT / policy['audit_script']).parent / 'FILES.json')
++    assert type(audit_terminal['terminal_chunk']) is str and audit_terminal['terminal_chunk'] and audit_terminal['exit'] == 0
++    assert audit_terminal['active_audit_manifest'] == sha((ROOT / policy['audit_script']).parent / 'FILES.json')
+     assert audit_terminal['report_sha256'] == policy['live_audit']['sha256']
+     for key in ('independent_live_restoration_verified','application_and_extras_semantically_restored','source_and_binary_hashes_restored','flags_restored','controls_unchanged'):
+         assert live[key] is True
+@@ -84,7 +84,7 @@
+     assert owner_policy['direct_equivalence'] == policy['direct_equivalence'] == {'directory': 'artifacts/css-native-epoch-direct-equivalence-v1', 'manifest_sha256': '0c42724061acefb0f49b654d8a22f8aff2507f6138b72109e1906c4e7e49c488'}
+     assert owner_policy['lane_order'] == ['cancellation'] and owner_policy['diagnostic_lane_order'] == []
+     roles = read(owner_dir / 'SOURCE-ROLES.json')
+-    assert set(roles) == {'servo/components/style/data.rs', 'servo/components/style/traversal.rs', 'servo/components/style/gecko/traversal.rs', 'servo/ports/geckolib/glue.rs'}
++    assert set(roles) == {'dom/animation/KeyframeEffect.cpp', 'layout/style/GeckoBindings.cpp', 'servo/components/style/data.rs', 'servo/components/style/gecko/traversal.rs', 'servo/components/style/matching.rs', 'servo/components/style/traversal.rs', 'servo/components/style/values/specified/length.rs', 'servo/ports/geckolib/glue.rs'}
+     comparison = load('refresh_pair_comparison', owner_dir / 'comparison.py')
+     assessor = load('refresh_pair_assessor', owner_dir / 'assess.py')
+     build = comparison.build_binding(ROOT, owner_dir, runtime, owner_policy, 'candidate')
+@@ -130,8 +130,11 @@
+         cleanup = read(phase / 'CLEANUP.json')
+         assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
+     runtime_manifest = read(runtime/'FILES.json')
+-    assert set(runtime_manifest) == {'files', 'verified_staging_tool_links'}
+-    runtime_files = runtime_manifest['files']
++    assert runtime_manifest and all(type(row) is dict and set(row) == {'sha256', 'bytes'} for row in runtime_manifest.values())
++    runtime_files = runtime_manifest
++    links = sorted(str(path.relative_to(runtime)) for path in runtime.rglob('*') if path.is_symlink())
++    assert links == ['candidate-wpt-cancellation/tests/tools']
++    assert (runtime/links[0]).readlink() == ROOT/'testing/web-platform/tests/tools'
+     process_paths = [path for path in runtime_files if path.endswith(('PROCESS.json','WAKE-PROCESS.json'))]
+     groups = [read(runtime/path)['pgid'] for path in process_paths]
+     assert len(groups) == len(set(groups))
+@@ -248,7 +251,7 @@
+     (output/'PRE-CURRENT-EPOCH.json').write_bytes(controls['CURRENT-EPOCH.json'])
+     state.save(output/'PRE.json',before)
+     state.save(output/'ADMISSION-RAW.json', {'canonical_before': raw['before'], 'frozen_pair_after': raw['after'], 'actual_after': actual_index['raw_index'], 'semantic_index_unchanged': True, 'full_frozen_post_equal_except_raw': True})
+-    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'native-authority four-source selective handoff restored raw observation refresh'})+'\n')
++    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'native-authority eight-source startup trace restored raw observation refresh'})+'\n')
+     lock_identity = (lock.stat().st_dev,lock.stat().st_ino)
+     def check_controls(body):
+         for name,claim in claims.items():

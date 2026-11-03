@@ -1,0 +1,78 @@
+{
+  "artifacts": {
+    "artifacts/css-layer-cutoff-composition-probe-v1/fix-c-after-a-b-d-v1.patch": {
+      "bytes": 14800,
+      "sha256": "9402affc9bb4d250b3383f2ba6946fa8a41944a4f984cb786a2a34ef39c8ab6a"
+    },
+    "artifacts/css-revert-rule-logical-alias-probe-v1/LAYOUT-WITHOUT-C-v1.json": {
+      "bytes": 373,
+      "sha256": "b4ae28720b4916b5ce179fbd802474d185be6f50fe6e3e883a096e3c1d93cdb3"
+    },
+    "artifacts/css-rollback-held-leads-review-v1/INPUTS.json": {
+      "bytes": 4102,
+      "sha256": "ab531eaed86fa52075ab4d46c5161aab29432057b4b2e169848a8761f3950b29"
+    },
+    "artifacts/css-rollback-held-leads-review-v1/README.md": {
+      "bytes": 6633,
+      "sha256": "b77904ab6d335f64db34f4dec7099fca7892863bd7906b4c07370af12c059662"
+    },
+    "artifacts/css-shadow-context-order-proof-v1/cutoff-native-review-v1/REVIEW.md": {
+      "bytes": 10000,
+      "sha256": "709ef39ad6071128effcdf72096474b3f60fe837b1973f642969a3f319b47588"
+    },
+    "artifacts/css-shadow-context-order-proof-v1/cutoff-without-c-review-v1/REVIEW.md": {
+      "bytes": 6272,
+      "sha256": "e0c2512d48925f27dc8877b32026808affff2698f92348f18edd1f045e9c9f49"
+    }
+  },
+  "immutable_source": {
+    "servo/components/style/applicable_declarations.rs": {
+      "excerpts": {
+        "const_assert_eq!": "}\n\nconst_assert_eq!(\n    std::mem::size_of::<CascadePriority>(),\n    std::mem::size_of::<u32>()\n);\n\nimpl PartialOrd for CascadePriority {\n    #[inline]\n    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {\n        Some(self.cmp(other))\n    }\n}\n\nimpl Ord for CascadePriority {\n    fn cmp(&self, other: &Self) -> std::cmp::Ordering {\n        self.cascade_level.cmp(&other.cascade_level).then_with(|| {\n            let ordering = self.layer_order.cmp(&other.layer_order);\n            if ordering == std::cmp::Ordering::Equal {\n                return ordering;\n            }\n            // https://drafts.csswg.org/css-cascade-5/#cascade-layering\n            //\n            //     Cascade layers (like declarations) are ordered by order",
+        "pub struct CascadePriority": "/// The cascade-level+layer order of this declaration.\n#[derive(Clone, Copy, Debug, Eq, Hash, MallocSizeOf, PartialEq)]\npub struct CascadePriority {\n    cascade_level: CascadeLevel,\n    flags: RuleCascadeFlags,\n    layer_order: LayerOrder,\n}\n\nconst_assert_eq!(\n    std::mem::size_of::<CascadePriority>(),\n    std::mem::size_of::<u32>()\n);\n\nimpl PartialOrd for CascadePriority {\n    #[inline]\n    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {\n        Some(self.cmp(other))\n    }\n}\n\nimpl Ord for CascadePriority {\n    fn cmp(&self, other: &Self) -> std::cmp::Ordering {\n        self.cascade_level.cmp(&other.cascade_level).then_with(|| {\n            let ordering = self.layer_order.cmp(&other.layer_order);"
+      },
+      "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+      "sha256": "daf589d65a777c553470d60e71f5c134e919622ae440016e8349563eeb5d1c5c"
+    },
+    "servo/components/style/properties/cascade.rs": {
+      "excerpts": {
+        "fn apply_non_prioritary_properties": "    }\n\n    fn apply_non_prioritary_properties(\n        &mut self,\n        context: &mut computed::Context,\n        longhand_declarations: &[Declaration],\n        shorthand_cache: &mut ShorthandsWithPropertyReferencesCache,\n        properties_to_apply: &LonghandIdSet,\n        attribute_tracker: &mut AttributeTracker,\n    ) {\n        debug_assert!(!properties_to_apply.contains_any(LonghandIdSet::prioritary_properties()));\n        debug_assert!(self.declarations_to_apply_unless_overridden.is_empty());\n        for declaration in longhand_declarations {\n            let mut longhand_id = declaration.decl.id().as_longhand().unwrap();\n            if !properties_to_apply.contains(longhand_id) {\n                continue;\n            }\n            debug_assert!(PrioritaryPropertyId::from_longhand(longhand_id).is_none());\n            let is_logical = longhand_id.is_logical();\n            if is_logical {\n                let wm = context.builder.writing_mode;\n                context\n                    .rule_cache_conditions\n                    .borrow_mut()",
+        "fn apply_one_longhand": "    }\n\n    fn apply_one_longhand(\n        &mut self,\n        context: &mut computed::Context,\n        longhand_id: LonghandId,\n        declaration: &PropertyDeclaration,\n        priority: CascadePriority,\n        cache: &mut ShorthandsWithPropertyReferencesCache,\n        attribute_tracker: &mut AttributeTracker,\n    ) {\n        debug_assert!(!longhand_id.is_logical());\n        if self.seen.longhands.contains(longhand_id) {\n            return;\n        }\n\n        if !(priority.flags() - context.included_cascade_flags).is_empty() {\n            return;\n        }\n\n        if self.reverted.longhands_set.contains(longhand_id)\n            && let Some(&(reverted_priority, revert_kind)) =\n                self.reverted.longhands.get(&longhand_id)\n            && !reverted_priority.allows_when_reverted(&priority, revert_kind)",
+        "fn apply_one_prioritary_property": "    }\n\n    fn apply_one_prioritary_property(\n        &mut self,\n        context: &mut computed::Context,\n        decls: &Declarations,\n        cache: &mut ShorthandsWithPropertyReferencesCache,\n        id: PrioritaryPropertyId,\n        attr_provider: &mut AttributeTracker,\n    ) {\n        let mut index = decls.prioritary_positions[id as usize].most_important;\n        if index == DeclarationIndex::MAX {\n            return;\n        }\n\n        let longhand_id = id.to_longhand();\n        debug_assert!(\n            !longhand_id.is_logical(),\n            \"That could require more book-keeping\"\n        );\n        loop {\n            let decl = decls.longhand_declarations[index as usize];\n            self.apply_one_longhand(\n                context,",
+        "fn cascade_custom_property": "\n    /// Cascade a given custom property declaration.\n    fn cascade_custom_property(\n        &mut self,\n        context: &mut computed::Context,\n        declaration: &'a CustomDeclaration,\n        priority: CascadePriority,\n    ) {\n        let CustomDeclaration {\n            ref name,\n            ref value,\n        } = *declaration;\n\n        if let Some(&(reverted_priority, revert_kind)) = self.reverted.custom.get(name)\n            && !reverted_priority.allows_when_reverted(&priority, revert_kind)\n        {\n            return;\n        }\n\n        if !(priority.flags() - context.included_cascade_flags).is_empty() {\n            return;\n        }\n\n        let entry = match self.seen.custom.var.entry(name) {",
+        "struct Declaration<": "\n#[derive(Copy, Clone)]\nstruct Declaration<'a> {\n    decl: &'a PropertyDeclaration,\n    priority: CascadePriority,\n    next_index: DeclarationIndex,\n}\n\n/// The set of property declarations from our rules.\n#[derive(Default)]\npub(crate) struct Declarations<'a> {\n    /// Whether we have any prioritary property. This is just a minor optimization.\n    has_prioritary_properties: bool,\n    /// A list of all the applicable longhand declarations.\n    longhand_declarations: SmallVec<[Declaration<'a>; 64]>,\n    /// The prioritary property position data.\n    prioritary_positions: [PrioritaryDeclarationPosition; property_counts::PRIORITARY],\n}\n\nimpl<'a> Declarations<'a> {\n    fn note_prioritary_property(&mut self, id: PrioritaryPropertyId) {\n        let new_index = self.longhand_declarations.len();\n        if new_index >= DeclarationIndex::MAX as usize {\n            // This prioritary property is past the amount of declarations we can track. Let's give",
+        "struct DeclarationIterator": "}\n\nstruct DeclarationIterator<'a> {\n    // Global to the iteration.\n    guards: &'a StylesheetGuards<'a>,\n    restriction: PropertyFlags,\n    // The rule we're iterating over.\n    current_rule_node: Option<&'a StrongRuleNode>,\n    // Per rule state.\n    declarations: DeclarationImportanceIterator<'a>,\n    priority: CascadePriority,\n}\n\nimpl<'a> DeclarationIterator<'a> {\n    #[inline]\n    fn new(\n        rule_node: &'a StrongRuleNode,\n        guards: &'a StylesheetGuards,\n        pseudo: Option<&PseudoElement>,\n    ) -> Self {\n        let restriction = pseudo.map_or(PropertyFlags::empty(), |p| p.property_restriction());\n        let mut iter = Self {\n            guards,\n            current_rule_node: Some(rule_node),",
+        "type DeclarationIndex = u32;": "\n/// We track the index only for prioritary properties. For other properties we can just iterate.\ntype DeclarationIndex = u32;\n\n/// \"Prioritary\" properties are properties that other properties depend on in one way or another.\n///\n/// We keep track of their position in the declaration vector, in order to be able to cascade them\n/// separately in precise order.\n#[derive(Copy, Clone)]\nstruct PrioritaryDeclarationPosition {\n    // DeclarationIndex::MAX signals no index.\n    most_important: DeclarationIndex,\n    least_important: DeclarationIndex,\n}\n\nimpl Default for PrioritaryDeclarationPosition {\n    fn default() -> Self {\n        Self {\n            most_important: DeclarationIndex::MAX,\n            least_important: DeclarationIndex::MAX,\n        }\n    }\n}\n"
+      },
+      "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+      "sha256": "832d08549227e20f88f1bede253824b75b66a58b4adb2b7efc357cc52915f1f5"
+    },
+    "servo/components/style/properties/declaration_block.rs": {
+      "excerpts": {
+        "pub fn declaration_importance_iter": "    /// Iterate over `(PropertyDeclaration, Importance)` pairs\n    #[inline]\n    pub fn declaration_importance_iter(&self) -> DeclarationImportanceIterator<'_> {\n        DeclarationImportanceIterator::new(&self.declarations, &self.declarations_importance)\n    }\n\n    /// Iterate over `PropertyDeclaration` for Importance::Normal\n    #[inline]\n    pub fn normal_declaration_iter(&self) -> impl DoubleEndedIterator<Item = &PropertyDeclaration> {\n        self.declaration_importance_iter()\n            .filter(|(_, importance)| !importance.important())\n            .map(|(declaration, _)| declaration)\n    }\n\n    /// Return an iterator of (AnimatableLonghand, AnimationValue).\n    #[inline]\n    pub fn to_animation_value_iter<'a, 'cx, 'cx_a: 'cx>(\n        &'a self,\n        context: &'cx mut Context<'cx_a>,\n        style: &'a ComputedValues,\n        default_values: &'a ComputedValues,\n    ) -> AnimationValueIterator<'a, 'cx, 'cx_a> {\n        AnimationValueIterator::new(self, context, style, default_values)\n    }",
+        "pub fn declarations(&self)": "    /// The declarations in this block\n    #[inline]\n    pub fn declarations(&self) -> &[PropertyDeclaration] {\n        &self.declarations\n    }\n\n    /// The `important` flags for declarations in this block\n    #[inline]\n    pub fn declarations_importance(&self) -> &SmallBitVec {\n        &self.declarations_importance\n    }\n\n    /// Iterate over `(PropertyDeclaration, Importance)` pairs\n    #[inline]\n    pub fn declaration_importance_iter(&self) -> DeclarationImportanceIterator<'_> {\n        DeclarationImportanceIterator::new(&self.declarations, &self.declarations_importance)\n    }\n\n    /// Iterate over `PropertyDeclaration` for Importance::Normal\n    #[inline]\n    pub fn normal_declaration_iter(&self) -> impl DoubleEndedIterator<Item = &PropertyDeclaration> {\n        self.declaration_importance_iter()\n            .filter(|(_, importance)| !importance.important())\n            .map(|(declaration, _)| declaration)",
+        "pub struct PropertyDeclarationBlock": "/// Overridden declarations are skipped.\n#[derive(Default, MallocSizeOf)]\npub struct PropertyDeclarationBlock {\n    /// The group of declarations, along with their importance.\n    ///\n    /// Only deduplicated declarations appear here.\n    declarations: ThinVec<PropertyDeclaration>,\n\n    /// The \"important\" flag for each declaration in `declarations`.\n    declarations_importance: SmallBitVec,\n\n    /// The set of properties that are present in the block.\n    property_ids: PropertyDeclarationIdSet,\n\n    /// Whether this declaration block may be mutated by CSSOM without copying.\n    /// Set when a declaration is shared across elements and needs to be copied, even when not in\n    /// the rule tree, e.g. via the style attribute or the XUL prototype caches.\n    pub immutable: AtomicBool,\n}\n\nimpl to_shmem::ToShmem for PropertyDeclarationBlock {\n    fn to_shmem(&self, builder: &mut to_shmem::SharedMemoryBuilder) -> to_shmem::Result<Self> {\n        use std::mem::ManuallyDrop;\n        let declarations = self.declarations.to_shmem(builder)?;"
+      },
+      "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+      "sha256": "8474218db02f8787c212f47a08be33a468553b4ab809e774f2d26d4ae098812a"
+    },
+    "servo/components/style/stylist.rs": {
+      "excerpts": {
+        "pub fn compute_for_declarations": "    /// TODO(emilio): The type parameter can go away when\n    /// https://github.com/rust-lang/rust/issues/35121 is fixed.\n    pub fn compute_for_declarations<E>(\n        &self,\n        guards: &StylesheetGuards,\n        parent_style: &ComputedValues,\n        declarations: Arc<Locked<PropertyDeclarationBlock>>,\n    ) -> Arc<ComputedValues>\n    where\n        E: TElement,\n    {\n        let block = declarations.read_with(guards.author);\n\n        // We don't bother inserting these declarations in the rule tree, since\n        // it'd be quite useless and slow.\n        //\n        // TODO(emilio): Now that we fixed bug 1493420, we should consider\n        // reversing this as it shouldn't be slow anymore, and should avoid\n        // generating two instantiations of apply_declarations.\n        properties::apply_declarations::<E, _>(\n            self,\n            /* pseudo = */ None,\n            self.rule_tree.root(),\n            guards,"
+      },
+      "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+      "sha256": "1d31ff166603105b880aadbcd978f6dd3f41c7d2d4a9f6b6a7580ea19cd0cd21"
+    }
+  },
+  "reads": [
+    "e4abad",
+    "289c32",
+    "3bd199",
+    "c1f0f2",
+    "b24f52",
+    "cec55a",
+    "8cd5d7",
+    "6e3294"
+  ],
+  "scope": "Read-only design review; no implementation, build, layout measurement, browser, benchmark or live state mutation."
+}

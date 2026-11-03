@@ -1,0 +1,11 @@
+# Caller capture after native-authority raw refresh
+
+Read-only capture preparation; root executes it. The exact signed native capacity receipt e86b64866cdc5e2260ba9be08c45756fd96e21bb / epoch8fec remains archived verbatim, with its actual signed V114 parent. Failed V115/V117 and disabled V116 are not signed research authorities.
+
+The executed native-rich adapter is reused. The only internal epoch projection follows authentication of actual refresh runtime3 FILES43487a11 / RESULTaa4fe721, using the exact pinned V117 validate_refresh function and its pinned V116 saved native admission. V117 is code provenance only: its signing failed. That validator proves the original native epoch changes only raw_index_observation.current, PRE=POST and exact prior saved snapshot with only raw changed. The private observed-head view carries epoch1b37; output checkpoint remains the original native receipt, with separate refresh_binding, refresh_manifest_sha256, refresh_epoch_sha256 and refresh_lineage_verified. No native receipt field is rewritten.
+
+Existing full app/extras/source/payload/index/flags/controls, signatures, exact native parent/two-file commit, ancestry and lock guards remain. An additional properties/mod.rs claim is explicitly outside canonical pins and installed identities. It must match the caller's sealed base bytes and current signed HEAD blob; the live byte/inode claim is rechecked before output. Canonical payload claims are not extended or rewritten. The capture is for three source overlays; the actual typecheck owner is bound separately after capture.
+
+Saved check248528/0 authenticates39refs, the native→actual raw-refresh bridge and11 rejection controls. Eight receipt mutations are rejected by exact pinned-receipt equality; they do not isolate eight downstream assertions. Three refresh binding mutations also reject. No live HEAD/index/source identity was observed by this saved check. Those checks remain in root's actual capture.
+
+CLI unchanged: python3 -I -S -B capture_current.py MANIFEST_SHA NATIVE_RECEIPT_PATH NATIVE_RECEIPT_SHA OUTPUT_PATH. Proposed output artifacts/css-resumable-font-selection-caller-native-current-v2.json. No signing or canonical write occurs.

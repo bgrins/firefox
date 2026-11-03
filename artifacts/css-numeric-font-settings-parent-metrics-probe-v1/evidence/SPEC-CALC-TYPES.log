@@ -1,0 +1,242 @@
+# CSS-VALUES-4#calc-type-checking
+
+**Type Checking** (heading)
+
+**SHA**: hash:1c4ce22ba37b4ced4cb6360ea3d4657eb0f52ba7406d99b28f0f1a2e574ed34d
+
+## Content
+
+A [math function](CSS-VALUES-4#math-function) can be many possible types, such as [\<length>](CSS-VALUES-4#length-value), [\<number>](CSS-VALUES-4#number-value), etc., depending on the [calculations](CSS-VALUES-4#calc-calculation) it contains, as defined below. It can be used anywhere a value of that type is allowed.
+
+> **Example:** For example, the [width](CSS-SIZING-3#propdef-width) property accepts [\<length>](CSS-VALUES-4#length-value) values, so a [math function](CSS-VALUES-4#math-function) that resolves to a \<length>, such as calc(5px + 1em), can be used in width.
+
+Additionally, [math functions](CSS-VALUES-4#math-function) that resolve to [\<number>](CSS-VALUES-4#number-value) can be used in any place that only accepts [\<integer>](CSS-VALUES-4#integer-value); the value is [rounded to the nearest integer](CSS-VALUES-4#css-round-to-the-nearest-integer) as it resolves.
+
+Operators form sub-expressions, which gain types based on their arguments.
+
+> **Note:** Note: In previous versions of this specification, multiplication and division were limited in what arguments they could take, to avoid producing more complex intermediate results (such as 1px \* 1em, which is [\<length>](CSS-VALUES-4#length-value)²) and to make division-by-zero detectable at parse time. This version now relaxes those restrictions.
+
+To **determine the type of a [calculation](CSS-VALUES-4#calc-calculation)**:
+
+*   At a + or - sub-expression, attempt to [add the types](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-add-two-types) of the left and right arguments. If this returns failure, the entire [calculation’s](CSS-VALUES-4#calc-calculation) type is failure. Otherwise, the sub-expression’s [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is the returned type.
+
+*   At a \* sub-expression, [multiply the types](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-multiply-two-types) of the left and right arguments. The sub-expression’s [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is the returned result.
+
+*   At a / sub-expression, let *left type* be the result of finding the [types](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) of its left argument, and *right type* be the result of finding the types of its right argument and then [inverting](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-invert-a-type) it.
+
+    The sub-expression’s [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is the result of [multiplying](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-multiply-two-types) the *left type* and *right type*.
+
+*   Anything else is a terminal value, whose [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is determined based on its CSS type. (Unless otherwise specified, the type’s associated [percent hint](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-percent-hint) is null.)
+
+    [\<number>](CSS-VALUES-4#number-value)
+
+    [\<integer>](CSS-VALUES-4#integer-value)
+
+    the [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is «\[ \]» (empty map)
+
+    [\<length>](CSS-VALUES-4#length-value)
+
+    the [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is «\[ "length" → 1 \]»
+
+    [\<angle>](CSS-VALUES-4#angle-value)
+
+    the [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is «\[ "angle" → 1 \]»
+
+    [\<time>](CSS-VALUES-4#time-value)
+
+    the [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is «\[ "time" → 1 \]»
+
+    [\<frequency>](CSS-VALUES-4#frequency-value)
+
+    the [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is «\[ "frequency" → 1 \]»
+
+    [\<resolution>](CSS-VALUES-4#resolution-value)
+
+    the [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is «\[ "resolution" → 1 \]»
+
+    [\<flex>](CSS-GRID-2#typedef-flex)
+
+    the [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is «\[ "flex" → 1 \]»
+
+    [\<calc-keyword>](CSS-VALUES-4#typedef-calc-keyword)
+
+    the [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is as defined by the keyword
+
+    [\<percentage>](CSS-VALUES-4#percentage-value)
+
+    If, in the context in which the [math function](CSS-VALUES-4#math-function) containing this [calculation](CSS-VALUES-4#calc-calculation) is placed, [\<percentage>](CSS-VALUES-4#percentage-value)s are resolved relative to another type of value (such as in [width](CSS-SIZING-3#propdef-width), where \<percentage> is resolved against a [\<length>](CSS-VALUES-4#length-value)), and that other type is *not* [\<number>](CSS-VALUES-4#number-value), the [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is determined as the other type, but with a [percent hint](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-percent-hint) set to that other type.
+
+    Otherwise, the [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is «\[ "percent" → 1 \]», with a [percent hint](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-percent-hint) of "percent".
+
+    anything else
+
+    The [calculation’s](CSS-VALUES-4#calc-calculation) type is failure.
+
+A value **contains a percentage** if its [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is «\[ "percent" → 1 \]», or its type’s [percent hint](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-percent-hint) is non-null.Two or more calculations have a **consistent type** if [adding the types](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-add-two-types) doesn’t result in failure. The [consistent type](CSS-VALUES-4#css-consistent-type) is the result of the type addition.To **make a type *base* consistent** with another type *input*:
+
+1.  If both *base* and *input* have different non-null [percent hints](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-percent-hint), they can’t be made consistent. Return failure.
+
+2.  If *base* has a null [percent hint](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-percent-hint) set *base*’s percent hint to *input*’s percent hint.
+
+3.  Return *base*.
+
+[Math functions](CSS-VALUES-4#math-function) themselves have [types](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type), according to their contained [calculations](CSS-VALUES-4#calc-calculation):
+
+[calc()](CSS-VALUES-4#funcdef-calc) 
+
+[abs()](CSS-VALUES-4#funcdef-abs) 
+
+The [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) of its contained [calculation](CSS-VALUES-4#calc-calculation).
+
+[min()](CSS-VALUES-4#funcdef-min) 
+
+[max()](CSS-VALUES-4#funcdef-max) 
+
+[clamp()](CSS-VALUES-4#funcdef-clamp) 
+
+[hypot()](CSS-VALUES-4#funcdef-hypot) 
+
+[round()](CSS-VALUES-4#funcdef-round) 
+
+[mod()](CSS-VALUES-4#funcdef-mod) 
+
+[rem()](CSS-VALUES-4#funcdef-rem) 
+
+The result of [adding the types](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-add-two-types) of its comma-separated [calculations](CSS-VALUES-4#calc-calculation).
+
+[asin()](CSS-VALUES-4#funcdef-asin) 
+
+[acos()](CSS-VALUES-4#funcdef-acos) 
+
+[atan()](CSS-VALUES-4#funcdef-atan) 
+
+[atan2()](CSS-VALUES-4#funcdef-atan2) 
+
+«\[ "angle" → 1 \]».
+
+[sign()](CSS-VALUES-4#funcdef-sign) 
+
+[sin()](CSS-VALUES-4#funcdef-sin) 
+
+[cos()](CSS-VALUES-4#funcdef-cos) 
+
+[tan()](CSS-VALUES-4#funcdef-tan) 
+
+[pow()](CSS-VALUES-4#funcdef-pow) 
+
+[sqrt()](CSS-VALUES-4#funcdef-sqrt) 
+
+[log()](CSS-VALUES-4#funcdef-log) 
+
+[exp()](CSS-VALUES-4#funcdef-exp) 
+
+«\[ \]» (empty map).
+
+For each of the above, if the [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) is failure, the [math function](CSS-VALUES-4#math-function) is invalid.
+
+A [math function](CSS-VALUES-4#math-function) resolves to [\<number>](CSS-VALUES-4#number-value), [\<length>](CSS-VALUES-4#length-value), [\<angle>](CSS-VALUES-4#angle-value), [\<time>](CSS-VALUES-4#time-value), [\<frequency>](CSS-VALUES-4#frequency-value), [\<resolution>](CSS-VALUES-4#resolution-value), [\<flex>](CSS-GRID-2#typedef-flex), or [\<percentage>](CSS-VALUES-4#percentage-value) according to which of those productions its [type](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-type) [matches](https://drafts.css-houdini.org/css-typed-om-1/#cssnumericvalue-match). (These categories are mutually exclusive.) If it can’t match any of these, the math function is invalid.
+
+> **Note:** Note: Algebraic simplifications do not affect the validity of a [math function](CSS-VALUES-4#math-function) or its resolved type. For example, calc(5px - 5px + 10s) and calc(0 \* 5px + 10s) are both invalid due to the attempt to add a length and a time.
+
+> **Note:** Note: Note that [\<percentage>](CSS-VALUES-4#percentage-value)s relative to [\<number>](CSS-VALUES-4#number-value)s, such as in [opacity](CSS-COLOR-4#propdef-opacity), are not *combinable* with those numbers—​opacity: calc(.25 + 25%) is invalid. Allowing this causes significant problems with "unit algebra" (allowing multiplication/division of [\<dimension>](CSS-VALUES-4#typedef-dimension)s), and in every case so far, doesn’t provide any new functionality. (For example, opacity: 25% is identical to opacity: .25; it’s just a trivial syntax transform.) You can still perform other operations with them, such as opacity: calc(100% / 3);, which is valid.
+
+> **Note:** Note: Because [\<number-token>](CSS-SYNTAX-3#typedef-number-token)s are always interpreted as [\<number>](CSS-VALUES-4#number-value)s or [\<integer>](CSS-VALUES-4#integer-value)s, "unitless 0" [\<length>](CSS-VALUES-4#length-value)s aren’t supported in [math functions](CSS-VALUES-4#math-function). That is, [width: calc(0 + 5px);](CSS-SIZING-3#propdef-width) is invalid, because it’s trying to add a \<number> to a \<length>, even though both width: 0; and width: 5px; are valid.
+
+> **Note:** Note: Although there are a few properties in which a bare [\<number>](CSS-VALUES-4#number-value) becomes a [\<length>](CSS-VALUES-4#length-value) at used-value time (specifically, [line-height](CSS2#propdef-line-height) and [tab-size](CSS-TEXT-4#propdef-tab-size)), \<number>s never become "length-like" in [calc()](CSS-VALUES-4#funcdef-calc). They always stay as \<number>s.
+
+> **Note:** Note: In Quirks Mode \[QUIRKS\], some properties that would normally only accept [\<length>](CSS-VALUES-4#length-value)s are defined to also accept [\<number>](CSS-VALUES-4#number-value)s, interpreting them as [px](CSS-VALUES-4#px) lengths. Like unitless zeroes, this has no effect on the parsing or behavior of [math functions](CSS-VALUES-4#math-function), though a math function that resolves to a \<number> value might become valid in Quirks Mode (and have its result interpreted as a px length).
+
+#### Calculation Contexts
+
+Numeric values can be interpreted in various **calculation contexts**, depending on where they are used, which defines how [\<percentage>](CSS-VALUES-4#percentage-value) values resolve, etc.
+
+> **Example:** For example, in [top](CSS-POSITION-3#propdef-top), a [\<percentage>](CSS-VALUES-4#percentage-value) value is resolved against the size of the containing block, making it act as a [\<length>](CSS-VALUES-4#length-value). A single property can define multiple [calculation contexts](CSS-VALUES-4#calculation-contexts); for example, in [background-size](CSS-BACKGROUNDS-3#propdef-background-size) one value resolves \<percentage>s against the width of the [background positioning area](CSS-BACKGROUNDS-3#background-positioning-area) while the other resolves them against the height.
+
+[Math functions](CSS-VALUES-4#math-function) always inherit the [calculation context](CSS-VALUES-4#calculation-contexts) from wherever they’re used. That is, in [top: calc(25% + 50px)](CSS-POSITION-3#propdef-top), the [\<percentage>](CSS-VALUES-4#percentage-value) is resolved *as normal* for top, as if top: 25% were specified (and then has 50px added to its value).
+
+Unless otherwise defined, all other functions **do not inherit a [calculation context](CSS-VALUES-4#calculation-contexts)**, and instead define their own [calculation contexts](CSS-VALUES-4#calculation-contexts) for their numeric arguments. For example, in [top: anchor(25%)](CSS-POSITION-3#propdef-top), the [\<percentage>](CSS-VALUES-4#percentage-value) in the [anchor()](CSS-ANCHOR-POSITION-1#funcdef-anchor) function is instead defined to resolve in a completely different manner (against the height of the default anchor element).
+
+#### Infinities, NaN, and Signed Zero
+
+[Math functions](CSS-VALUES-4#math-function) follow IEEE-754 semantics, which means they recognize the concepts of positive and negative zero, positive and negative infinity, and NaN (not a number).
+
+However, these concepts are only retained within a [calculation tree](CSS-VALUES-4#calculation-tree); if a **top-level calculation** (a [math function](CSS-VALUES-4#math-function) not nested directly inside of another math function) would result in one of these special values, they’re instead "censored" into a standard representable value, as defined below.
+
+**Signed zeros** (indicated here as 0⁺ or 0⁻) can not be written directly in CSS; 0, +0 and -0 all produce the standard "unsigned" zero, which is considered positive (0⁺) for the purposes of these rules.
+
+[Signed zeroes](CSS-VALUES-4#css-signed-zero) are produced in the following ways:
+
+*   Negative zero (0⁻) can be produced by a multiplication or division that produces zero with exactly one negative argument (such as -5 \* 0 or 1 / -infinity).
+
+*   0⁻ + 0⁻ or 0⁻ - 0⁺ produces 0⁻. All other additions or subtractions that would produce a zero produce 0⁺.
+
+*   Multiplying or dividing 0⁻ with a positive number (including 0⁺) produces a negative result (either 0⁻ or −∞), while multiplying or dividing 0⁻ with a negative number produces a positive result.
+
+    (In other words, multiplying or dividing with 0⁻ follows standard sign rules.)
+
+*   When comparing 0⁺ and 0⁻, 0⁻ is less than 0⁺. For example, min(0⁺, 0⁻) must produce 0⁻, max(0⁺, 0⁻) must produce 0⁺, and clamp(0⁺, 0⁻, 1) must produce 0⁺.
+
+*   Certain argument combinations in [math functions](CSS-VALUES-4#math-function) are defined to produce 0⁻ (for example, round(-1, infinity)). All other operations that produce a zero produce positive zero (0⁺).
+
+[Signed zeroes](CSS-VALUES-4#css-signed-zero) do not escape a [top-level calculation](CSS-VALUES-4#top-level-calculation); they’re censored into the "unsigned" zero.
+
+**Infinities** (indicated here as +∞ or −∞) can be written directly using the [math constants](CSS-VALUES-4#calc-error-constants) [infinity](CSS-VALUES-4#valdef-calc-infinity) and [-infinity](CSS-VALUES-4#valdef-calc--infinity), or produced as a result of some calculations:
+
+*   Dividing a value by zero produces either +∞ or −∞, according to the standard sign rules.
+
+*   Adding or subtracting ±∞ to anything produces the appropriate infinity.
+
+*   Multiplying any value by ±∞ produces the appropriate infinity.
+
+*   Dividing any value by ±∞ produces zero.
+
+*   Certain argument combinations in [math functions](CSS-VALUES-4#math-function) are defined to produce [infinities](CSS-VALUES-4#css-infinity) (for example, pow(0, -1) produces +∞).
+
+> **Note:** Note: The rules for producing [NaN](CSS-VALUES-4#css-nan), below, supersede the above rules for producing [infinities](CSS-VALUES-4#css-infinity).
+
+[Infinities](CSS-VALUES-4#css-infinity) do not escape a [top-level calculation](CSS-VALUES-4#top-level-calculation); they’re clamped to the minimum or maximum value allowed in the context, as defined in [§ 10.12 Range Checking](CSS-VALUES-4#calc-range).
+
+**NaN** (short for "not a number") is the result of certain operations that don’t have a well-defined value. It can be written directly using the [math constants](CSS-VALUES-4#calc-error-constants) [NaN](CSS-VALUES-4#valdef-calc-nan), or produced as a result of some calculations:
+
+*   Dividing zero by zero, dividing ±∞ by ±∞, multiplying 0 by ±∞, adding +∞ to −∞, or subtracting two infinities of the same sign produces NaN.
+
+    These rules override any other result, if there’s a conflict. For example, 0 / 0 is NaN, not +∞.
+
+*   Certain argument combinations in [math functions](CSS-VALUES-4#math-function) are defined to produce [NaN](CSS-VALUES-4#css-nan) (for example, asin(2) produces NaN).
+
+*   Any operation with at least one NaN argument produces NaN.
+
+[NaN](CSS-VALUES-4#css-nan) does not escape a [top-level calculation](CSS-VALUES-4#top-level-calculation); it’s censored into a zero value
+
+> **Example:** For example, calc(-5 \* 0) produces an unsigned zero—​the calculation resolves to 0⁻, but as it’s a [top-level calculation](CSS-VALUES-4#top-level-calculation), it’s then censored to an unsigned zero.On the other hand, calc(1 / calc(-5 \* 0)) produces −∞, same as calc(1 / (-5 \* 0))—​the inner calc resolves to 0⁻, and as it’s not a [top-level calculation](CSS-VALUES-4#top-level-calculation), it passes it up unchanged to the outer calc to produce −∞. If it was censored into an unsigned zero, it would instead produce +∞.
+
+## Navigation
+
+- Parent: `math` — Mathematical Expressions
+- Prev: `calc-syntax` — Syntax
+- Next: `calc-internal` — Internal Representation
+- Children: 6
+  - `determine-the-type-of-a-calculation` — determine the type of a calculation
+  - `css-contain-a-percentage` — contains a percentage
+  - `css-consistent-type` — consistent type
+  - `css-make-a-type-consistent` — make a type base consistent
+  - `calc-context` — Calculation Contexts
+  - `calc-ieee` — Infinities, NaN, and Signed Zero
+
+## Outgoing refs (41)
+
+`webspec-index refs CSS-VALUES-4#calc-type-checking -d outgoing -l 41`
+
+## Incoming refs (5)
+
+`webspec-index refs CSS-VALUES-4#calc-type-checking -d incoming -l 5`
+
+### Possible effects
+
+CSS-VALUES-4#calc-type-checking
+
+Partial analysis: additional effects may exist.
+
+No effects detected by this analysis.
+
+Traces and conditions (bounded): `webspec-index effects "CSS-VALUES-4#calc-type-checking" --format markdown`

@@ -1,0 +1,85 @@
+--- artifacts/css-keyframe-font-unit-publication-v1/publish.py
++++ artifacts/css-selective-cancellation-after-font-publication-v1/publish.py
+@@ -32,7 +32,7 @@
+ 
+ def main():
+     parser = argparse.ArgumentParser()
+-    parser.add_argument('stage', choices=('font-units',))
++    parser.add_argument('stage', choices=('selective-cancellation',))
+     parser.add_argument('action', choices=('install', 'delivery', 'commit'))
+     parser.add_argument('--manifest', required=True)
+     parser.add_argument('--predecessor', type=Path)
+@@ -49,12 +49,12 @@
+         assert sha(ROOT / path) == pin
+     stage = next(s for s in read(HERE / 'STAGES.json')['stages'] if s['stage'] == args.stage)
+     policy['stage'] = args.stage
+-    policy['runtime_output'] = 'artifacts/css-keyframe-font-unit-publication-' + args.stage + '-runtime-1'
++    policy['runtime_output'] = 'artifacts/css-selective-cancellation-publication-' + args.stage + '-runtime-1'
+     for name, record in records.items():
+         policy['references'][str((HERE / name).relative_to(ROOT))] = record['sha256']
+     policy['references'][str((HERE / 'FILES.json').relative_to(ROOT))] = args.manifest
+     output = ROOT / policy['runtime_output']
+-    install_owner = ROOT / ('artifacts/css-keyframe-font-unit-publication-' + args.stage + '-install-v1')
++    install_owner = ROOT / ('artifacts/css-selective-cancellation-publication-' + args.stage + '-install-v1')
+     installed = None
+     assert policy['pair_binding'] is None
+     if args.action != 'install':
+@@ -76,7 +76,10 @@
+         path = args.predecessor.resolve()
+         assert sha(path) == args.predecessor_sha256
+         predecessor = {'path': str(path.relative_to(ROOT)), 'sha256': args.predecessor_sha256}
+-    load('nowrap_pair_evidence', HERE / 'evidence.py').verify(ROOT, policy['pair_binding'], stage)
++    if args.action == 'install':
++        assert policy['pair_binding']['font_native_receipt'] is None
++        policy['pair_binding']['font_native_receipt'] = predecessor
++    load('cancellation_evidence', HERE / 'evidence.py').verify(ROOT, policy['pair_binding'], stage)
+     if args.action == 'delivery':
+         delivery = load('delivery', HERE / 'delivery.py')
+         delivery_policy = dict(policy, files=stage['files'], lint_command=policy['lint_prefix'] + sorted(p for p in stage['files'] if p.startswith('testing/')))
+@@ -91,22 +94,23 @@
+     head = runner.git('rev-parse', 'HEAD').decode().strip()
+     prior = read(ROOT / predecessor['path'])
+     assert sha(ROOT / predecessor['path']) == predecessor['sha256']
+-    assert prior['head'] == head and prior['signature_verified']
++    assert prior['commit'] == head and prior['signature_verified']
+     claims = {p: {'sha256': epoch['pins'][p], 'identity': identity}
+               for p, identity in epoch['installed_identities'].items() if p not in stage['files']}
+     binding = {'head': head, 'branch': runner.git('symbolic-ref', 'HEAD').decode().strip(),
+                'controls': controls, 'snapshot': snapshot, 'predecessor_receipt': predecessor,
+-               'predecessor_kind': 'signed-research',
++               'predecessor_kind': 'signed-font-unit-native',
+                'preserved_claims': claims,
+                'historical_markers': {k:v for k,v in epoch.items() if k.startswith('accepted_')},
+                'absent_metadata': sorted(p.replace('testing/web-platform/tests/', 'testing/web-platform/meta/') + '.ini'
+                                          for p in stage['files'] if p.startswith('testing/'))}
+     if installed is None:
+-        binding['uninstalled_sources'] = {}
++        binding['source_claims'] = {}
+         for path, pin in stage['head_preimages'].items():
+-            assert epoch['pins'].get(path) == pin and path not in epoch['installed_identities']
++            assert epoch['pins'].get(path) == pin
+             assert hashlib.sha256(runner.git('show', head + ':' + path)).hexdigest() == pin
+-            binding['uninstalled_sources'][path] = owner.claim(ROOT, path, pin)
++            captured = owner.claim(ROOT, path, pin)
++            binding['source_claims'][path] = runner.claim_source(owner, ROOT, epoch, read(RUNTIME / 'OWNED.json'), path, pin, captured)
+         creation = load('adoption_parents', ROOT / 'artifacts/css-registered-admission-wpt-install-v1/install.py')
+         binding['adopted_tests'] = {path: {'claim': owner.claim(ROOT, path, record['sha256']), 'parents': creation.parent_pins(ROOT, ROOT / path)} for path, record in stage['files'].items() if path in stage['adopt_existing_tests']}
+         binding['created_test_parents'] = {path: creation.parent_pins(ROOT, ROOT/path) for path in stage['create_tests']}
+@@ -114,7 +118,7 @@
+         for name, record in records.items():
+             assert hashlib.sha256(runner.git('show', head + ':' + str((HERE/name).relative_to(ROOT)))).hexdigest() == record['sha256']
+     else:
+-        binding['uninstalled_sources'] = prior_policy['bindings']['uninstalled_sources']
++        binding['source_claims'] = prior_policy['bindings']['source_claims']
+         binding['adopted_tests'] = prior_policy['bindings']['adopted_tests']
+         binding['created_test_parents'] = prior_policy['bindings']['created_test_parents']
+     if installed is not None:
+@@ -123,7 +127,7 @@
+         path = output / 'delivery/DELIVERY.json'
+         binding['delivery_receipt'] = {'path': str(path.relative_to(ROOT)), 'sha256': sha(path)}
+     policy.update(bindings=binding, enabled_modes=[args.action])
+-    directory = ROOT / ('artifacts/css-keyframe-font-unit-publication-' + args.stage + '-' + args.action + '-v1')
++    directory = ROOT / ('artifacts/css-selective-cancellation-publication-' + args.stage + '-' + args.action + '-v1')
+     directory.mkdir()
+     for name in ('run.py', 'transform.py', 'evidence.py', 'STAGES.json'):
+         with (directory / name).open('xb') as stream:

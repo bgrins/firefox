@@ -1,0 +1,20 @@
+# RFTC instrumentation: Gecko trait and task formatting corrections
+
+This minimal successor preserves sealed instrumentation-v2 (127d1f9f) and changes only candidate servo/components/style/matching.rs. All five e86 base files, all five font-unit-parent files, and the other four candidate files remain byte-identical. PARENT-DELTA.patch contains the two exact corrections; native.patch and INSTRUMENTATION.patch are regenerated cumulative patches.
+
+1. TNode is now imported with TElement unconditionally. Previously its import was gated on the servo feature, but new Gecko logging calls the associated node's TNode::opaque method. The associated type's trait bound does not make that method available without the trait in scope.
+2. animation-task logs tasks.bits() as tasks={:#x}, avoiding a Debug requirement on UpdateAnimationsTasks. Exact e86 style resolves bitflags2.10.0; this flag declaration has no Debug derive or manual implementation. The separate bitflags1.999 compatibility macro does provide Debug, but style does not use that version. No new implementation/derive is added.
+
+The task parser must consume the numeric mask. The Rust u8 constants directly use the generated C++ UpdateAnimationsTasks constants; GeckoElement::update_animations passes tasks.bits() to Gecko_UpdateAnimations. The C++ enum has uint8_t representation and EffectProperties=1<<2 (4). Thus Rust hex0x4 and C++ decimal4 denote the same flag. Compare by numeric value/bit inclusion, not textual equality. Composite masks remain intact. These edits introduce no new membership, traversal, normalization, style or metric lookup and do not evaluate the existing admission predicate again.
+
+The source-only review also checked the remaining logged types: traversal imports TNode already; OpaqueNode has public usize storage; RestyleHint is Copy/Debug, RestyleKind Debug and traversal flags Copy/Debug. The copied child hint is captured before the existing borrow-consuming predicate, which remains evaluated once; root_size still evaluates the original setter argument once. Dirty flags are plain existing flag reads. C++ explicit const void*/nsINode casts, unsigned enum conversions and the stdio/main-thread declarations are retained unchanged. No additional actionable type/lifetime issue was found. Actual native compilation remains necessary; parser acceptance is not typechecking, and stderr logging can change timing or fail on I/O.
+
+## Capture compatibility and interpretation
+
+The running trace capture binds v2 base hashes. They are unchanged, so no new capture or claim mechanism is required solely for these corrections. A future owner must bind the new v3 source manifest and candidate matching hash 5d07813094d966d377415301f18d5142ab6844df1d6215a1d5a2d309e09db00b while retaining the actual capture claims: three canonical roles plus the same two additional Rust roles. This is compatibility of source preimages, not fresh live-state admission or execution authorization.
+
+All v2 interpretation limits remain. The generated pseudo-node→host/pseudo normalization event is unchanged. Ordinary existing-child and root-pseudo traces remain separate; pointer reuse, repeated tasks and mixed-thread output do not establish global order. The unchanged34 probe must reproduce its calibrated first/settled failing observations under logging before interpretation. No endpoint-installation or native scheduling claim follows merely from queue/delivery logs.
+
+## Focused saved checks
+
+Actual3a9853/0 checked exact two-edit correspondence, every role hash and unchanged role/base/parent bytes, exact changed-file logging erasure using the predecessor erasure function, exact e86 type/source excerpts, and all three forward/reverse patch roundtrips. Rustfmt parsed the changed Rust file; output was discarded. Owned scratch was removed. Unchanged C++ parser checks and predecessor suites were not repeated. TYPE-SOURCE.json records the exact Cargo dependency, flag declaration/macro, FFI and C++ mask excerpts used for the type review. No live source/app/index/canonical, browser or native build operation occurred.

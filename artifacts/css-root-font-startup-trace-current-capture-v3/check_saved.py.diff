@@ -1,0 +1,30 @@
+--- artifacts/css-root-font-startup-trace-current-capture-v2/check_saved.py
++++ artifacts/css-root-font-startup-trace-current-capture-v3/check_saved.py
+@@ -71,13 +71,13 @@
+     missing = set(module.__dict__) - {name}
+     rejects('missing-observer-global-'+name, lambda: module.equivalence.require(required <= missing | set(vars(builtins)), 'undefined global'))
+ 
+-previous = ROOT/'artifacts/css-root-font-startup-trace-current-capture-v1'
++previous = ROOT/'artifacts/css-root-font-startup-trace-current-capture-v2'
+ assert (HERE/'capture_current.py').read_bytes() == (previous/'capture_current.py').read_bytes()
+ source = (HERE/'baseline.py').read_text()
+ old_source = (previous/'baseline.py').read_text()
+ def function(text,name):
+     return ast.get_source_segment(text,next(n for n in ast.parse(text).body if isinstance(n,ast.FunctionDef) and n.name==name))
+-assert function(source,'claim_additional_sources') == function(old_source,'claim_additional_sources').replace("'servo/components/style/gecko/traversal.rs'}", "'servo/components/style/gecko/traversal.rs', 'layout/style/ServoStyleSet.cpp'}")
++assert function(source,'claim_additional_sources') == function(old_source,'claim_additional_sources')
+ for name in ('observe','prepare','saved_native_state'):
+     assert function(source,name)==function(old_source,name)
+ assert not any(isinstance(n,ast.Call) and isinstance(n.func,ast.Attribute) and n.func.attr in ('native_head_view','validate_refresh','observe') for n in ast.walk(ast.parse(source)))
+@@ -96,6 +96,11 @@
+ canonical = set(sources) & set(records['current_epoch']['installed_identities'])
+ assert len(canonical) == 6
+ assert set(binding['additional_sources'])==set(sources)-canonical
++assert set(binding['source_preimages']) <= set(records['current_epoch']['installed_identities'])
++assert set(binding['source_preimages']).isdisjoint(binding['additional_sources'])
++assert set(sources) <= set(binding['source_preimages']) | set(binding['additional_sources'])
++misclassified = dict(binding['source_preimages'], **{'layout/style/ServoStyleSet.cpp': sources['layout/style/ServoStyleSet.cpp']['base_sha256']})
++rejects('ordinary-source-in-canonical-preimages', lambda:module.equivalence.require(set(misclassified) <= set(records['current_epoch']['installed_identities']), 'canonical identity required'))
+ for name in canonical:
+     assert binding['source_preimages'][name] == records['current_epoch']['pins'][name] == sources[name]['base_sha256']
+     assert sha(ROOT/binding['source_binding']['directory']/'base'/name) == sources[name]['base_sha256']

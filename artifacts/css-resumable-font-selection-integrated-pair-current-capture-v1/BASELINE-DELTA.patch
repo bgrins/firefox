@@ -1,0 +1,66 @@
+--- artifacts/css-resumable-font-size-integrated-current-capture-v1/baseline.py
++++ artifacts/css-resumable-font-selection-integrated-pair-current-capture-v1/baseline.py
+@@ -76,19 +76,51 @@
+ 
+ def validate_refresh(receipt):
+     record = binding['refresh_validator']
+-    directory = ROOT / record['directory']
+-    assert core.sha(directory / 'commit.py') == record['driver_sha256']
+-    assert core.sha(directory / 'BINDINGS.json') == record['bindings_sha256']
+-    spec = importlib.util.spec_from_file_location('saved_native_raw_bridge', directory / 'commit.py')
+-    module = importlib.util.module_from_spec(spec)
+-    spec.loader.exec_module(module)
+-    assert module.BINDINGS['prior_receipt'] == binding['native_receipt']
+-    assert module.BINDINGS['prior_receipt_sha256'] == core.sha(ROOT / binding['native_receipt'])
+-    assert module.BINDINGS['refresh_binding'] == binding['refresh_binding']
+-    assert module.HEAD == receipt['commit'] and module.EPOCH == binding['current_epoch_sha256']
++    parent_dir = ROOT / record['directory']
++    assert core.sha(parent_dir / 'baseline.py') == record['driver_sha256']
++    assert core.sha(parent_dir / 'BINDINGS.json') == record['bindings_sha256']
++    parent = core.load('previous_native_capture_bridge', str((parent_dir / 'baseline.py').relative_to(ROOT)))
++    assert parent.binding['native_receipt'] == binding['native_receipt']
++    previous = parent.validate_refresh(receipt)
++    refresh = binding['refresh_binding']
++    assert refresh is not None
++    directory = ROOT / refresh['directory']
+     ownership = core.load('capture_refresh_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')
+-    ownership.authenticate(ROOT / binding['refresh_binding']['directory'], binding['refresh_manifest_sha256'])
+-    return module.validate_refresh(receipt)
++    ownership.authenticate(directory, binding['refresh_manifest_sha256'])
++    assert core.sha(directory / 'RESULT.json') == refresh['result_sha256']
++    result = core.read(directory / 'RESULT.json')
++    owner_record = binding['refresh_owner']
++    owner_dir = ROOT / owner_record['directory']
++    ownership.authenticate(owner_dir, owner_record['manifest_sha256'])
++    driver = core.load('completed_integrated_raw_refresh', str((owner_dir / 'run.py').relative_to(ROOT)))
++    policy = core.read(owner_dir / 'POLICY.json')
++    assert policy['output'] == refresh['directory']
++    assert policy['signed_receipt'] == {'path': binding['native_receipt'], 'sha256': core.sha(ROOT / binding['native_receipt'])}
++    assert policy['refresh_parent'] == parent.binding['refresh_binding']
++    _, _, frozen_pre, frozen_post, raw = driver.saved(policy)
++    assert result['updated'] and result['updated_only'] == 'raw_index_observation.current'
++    assert result['preservation_verified'] and result['restoration_independently_verified']
++    assert result['existing_head_signature_verified'] and result['accepted_fix_increment'] == 0
++    assert not result['native_fix_acceptance']
++    assert result['head'] == receipt['commit'] == binding['capacity_commit']
++    assert result['signed_commit_receipt'] == policy['signed_receipt']
++    old_body, new_body = (directory / 'PRE-CURRENT-EPOCH.json').read_bytes(), (directory / 'EPOCH.json').read_bytes()
++    assert hashlib.sha256(old_body).hexdigest() == result['old_epoch_sha256'] == parent.binding['current_epoch_sha256']
++    assert hashlib.sha256(new_body).hexdigest() == result['epoch_sha256'] == binding['current_epoch_sha256']
++    old, new = json.loads(old_body), json.loads(new_body)
++    assert old['raw_index_observation']['current'] == result['before'] == raw['before']
++    expected = json.loads(old_body)
++    expected['raw_index_observation']['current'] = result['after']
++    assert expected == new and new['semantic_index']['head'] == receipt['commit']
++    assert result['frozen_pair_after'] == raw['after']
++    pre, post = core.read(directory / 'PRE.json'), core.read(directory / 'POST.json')
++    assert pre == post and post['index']['raw_index'] == result['after']
++    assert {k:v for k,v in post['index'].items() if k != 'raw_index'} == new['semantic_index']
++    for snapshot in (previous, frozen_pre['snapshot'], frozen_post):
++        projected = json.loads(json.dumps(snapshot))
++        projected['index']['raw_index'] = result['after']
++        assert projected == post
++    return post
+ 
+ 
+ def claim_additional_sources(ownership, state, env, epoch, head):

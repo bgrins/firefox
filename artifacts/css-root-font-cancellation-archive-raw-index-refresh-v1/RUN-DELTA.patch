@@ -1,0 +1,24 @@
+--- artifacts/css-root-font-cancellation-raw-index-refresh-v1/run.py
++++ artifacts/css-root-font-cancellation-archive-raw-index-refresh-v1/run.py
+@@ -85,6 +85,21 @@
+     comparison = load('refresh_pair_comparison', owner_dir / 'comparison.py')
+     assessor = load('refresh_pair_assessor', owner_dir / 'assess.py')
+     build = comparison.build_binding(ROOT, owner_dir, runtime, owner_policy, 'candidate')
++    archive = live['archive_observation']
++    assert archive['status'] == 'verified-retained-candidate' and archive['archive_retained_verified'] is True
++    assert archive['owner_terminal_and_restoration_verified'] is True
++    assert archive['browser_execution_authorized'] is False and archive['native_acceptance'] is False
++    assert archive['native_sources'] == {name: row['candidate_sha256'] for name, row in roles.items()}
++    assert archive['build_receipt_sha256'] == sha(runtime / 'candidate-build/RESULT.json')
++    assert archive['receipt_hashes'] == policy['archive_receipts']
++    assert set(archive['receipt_hashes']) == {'ARCHIVE-OWNERSHIP.json', 'ARCHIVE-SNAPSHOT.json', 'ARCHIVE-VALIDATION.json', 'ARCHIVE-HANDOFF.json'}
++    assert all(sha(runtime / name) == pin for name, pin in archive['receipt_hashes'].items())
++    handoff = read(runtime / 'ARCHIVE-HANDOFF.json')
++    assert handoff['snapshot_sha256'] == archive['receipt_hashes']['ARCHIVE-SNAPSHOT.json']
++    assert handoff['restoration_sha256'] == sha(runtime / 'RESTORATION.json')
++    assert handoff['post_sha256'] == sha(runtime / 'POST.json')
++    assert handoff['application'] == archive['application'] == read(runtime / 'ARCHIVE-SNAPSHOT.json')['application']
++    assert handoff['browser_execution_authorized'] is False and handoff['owner_terminal_and_independent_audit_required'] is True
+     assert sum(owner_policy['wpt_lanes'][lane]['expected_subtest_count'] for lane in owner_policy['lane_order']) == 8
+     assert sum(owner_policy['wpt_lanes'][lane]['expected_page_count'] for lane in owner_policy['lane_order']) == 1
+     for lane in owner_policy['lane_order']:

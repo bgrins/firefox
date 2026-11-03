@@ -1,0 +1,41 @@
+# Computed-size child ownership: bounded state design
+
+The smallest coherent change is an explicit suspended outer action plus a separately authorized computed-size child. It is not a call to prepare_computed_size under the existing action. This is a source proposal, not an implementation or proof of progress. The sealed logging-only minimum_off diagnostic remains unchanged and must establish the actual native branch. The known stream has 25 preceding PASS callbacks, then zero minimum_off callbacks and a terminal Pending assertion; it does not identify the pending action.
+
+## Exact ownership problem
+
+In the sealed integrated-v2 cascade, prepare_computed_size publishes its certificate and unconditionally sets metric_action=None. metric_action_is_current also requires the action's Publish/Pending frame at depth−1. Neither contract authorizes a child targeting an earlier pending FontUnits node while an outer lookup's frames remain active.
+
+Context owns singleton metric_lookup, lookup_reply and metric_references. More importantly, MetricLookup only identifies the outstanding request: the actual selected-declaration cursor, ResumableSubstitution, generation and prepared entries remain in MetricDrain.continuations or font_preparation. Saving the action/lookup and restarting the selector would replay effects. prepare_computed_size has its own size_preparation (size, XTextScale and optional Family selections), but presently shares those same reply slots. SOURCE-EXCERPTS.json pins the actual code, not a facade execution.
+
+## Proposed narrow representation
+
+Keep existing graph frames, Tarjan indices/lowlinks, settled values, AttributeTracker, cache and PriorityCompletion shared. Do not clone or roll them back. Add an optional suspended outer record holding the moved MetricAction, MetricLookup, lookup_reply and metric_references, plus the outer traversal depth/floor and generation/flags. Move ownership with take; do not clone parser continuations.
+
+For this first child path, leave the outer MetricDrain and font_preparation in Context but make them inaccessible while the suspended record exists. The child dispatcher may call only prepare_computed_size and the common provider lookup machinery under child ownership. It must never call the ordinary Metric/Synthesis arms that consume those parked preparers. This guarded parking is smaller than moving the entire drain or reworking every action into a generalized stack. It requires explicit entry guards, not a convention. A later need for nested ordinary actions requires its own extension; this proposal does not claim to handle it.
+
+The child record owns a fresh action identity, size_preparation, current lookup/reply slots, and a ChildSizeAuthorization. Authorization binds the root/session generation, pending FontUnits index and publication state, its owning active/deferred frame, the exact waiting consumer frame/target and ComputedSize demand, the parked outer action/request identity, and the traversal depth/floor at suspension. It records which frame location owns the node; it does not pretend the node is at the current depth−1. The existing ordinary metric_action_is_current remains unchanged. A separate child validator checks these relationships on every child resume, including selected-declaration/flag/readset eligibility.
+
+Existing computed-size eligibility and publication witness remain mandatory. Ownership authorization does not prove numeric finality, available claims, APPEARANCE_BASE stability, minimum-font ordering or an enabled finite child plan.
+
+## Concrete transition boundaries
+
+| Transition | Required behavior |
+| --- | --- |
+| Discover child demand | Both a fresh FontUnits Publish frame and the existing-ComputationPending branch in poll_frames must return a typed child request only for the exact size-consuming frame. Metric consumers cannot use it. Preserve the pending frame/target and semantic floor; no new CSS edge or cycle verdict is inferred. |
+| Suspend outer | In resolve_metric_lookup, the outer lookup is temporarily taken into a local variable. Return it together with the child request to the driver; do not let the existing unconditional nonterminal reinsertion overwrite child state. Require no undelivered graph frame_reply, move the outer slots into the parked record, and activate the child only after authorization succeeds. |
+| Advance child | Resume its retained selector/provider once. Child References authorization and Lookup replies must carry child action identity as well as longhand, raw-value identity, request identity and generation. The current lookup_reply tuple is insufficient to prove separation if both owners select the same longhand; add an action-tagged reply envelope and validate before take. Parked outer drain/preparer cannot be polled. |
+| Child blocks | Retain child and parked outer records exactly. Return a typed blocked reason; do not manufacture Published, mark invalid, choose fallback, or count a poll as progress. Another unresolved child prerequisite is an explicit unfinished route, not acceptable completed CSS behavior. |
+| Publish facet | Move action retirement out of prepare_computed_size into the owning dispatcher, or require an explicit child token at retirement. Consume only the child action. Keep FontUnits publication Pending and preserve ordinary priority/effect ownership. Check the existing certificate/witness before any consumer uses it. |
+| Resume outer lookup | Once child provider frames/replies are drained to their authorized boundary, hand one ComputedSize result to the exact waiting Unit frame. Restore the parked outer slots, then resume the same resolve_metric_lookup continuation. Do not deliver the facet as the provider variable value: the waiting custom/attribute computation must finish and produce that value first. The outer action and whole FontUnits node may still be pending. |
+| Reset/invalidation | Reset must reject retained parked/child records. A flag/generation mismatch cannot silently drop either continuation, replay partial effects, or invalidate an already-consumed value as a repair. Preserve evidence and report the unsupported transition until its correct ordering is implemented. |
+
+A child may target the very FontUnits node that owns the outer action, but receives a distinct identity and only the ComputedSize permission. Shared index does not grant outer completion. Child completion also must not restore an obsolete lookup_reply or consume a stale reply for an identical longhand.
+
+## Diagnostic discriminator and next tests
+
+The existing diagnostic should first distinguish (a) a retained outer Lookup whose nested Unit frame reaches the same pending FontUnits without a ready facet, (b) ComputedSizeReadset rejection, and (c) another GeneratedPrerequisite/Invalidated path. Its root, pending action, frame waits and certificate status are sufficient to guide that split; do not substitute this source design for the actual log. If the new design is implemented, then add explicit suspend/child/resume owner identities to that successor's logging, leaving the already sealed diagnostic intact.
+
+Meaningful implementation tests must exercise the actual moved slots: park a nonempty outer drain parser and its request; let a dynamic child issue its own References/Lookup; publish only the facet; restore the exact outer parser position and resume it once. Reject same-longhand wrong-owner replies before taking them, duplicate handoff, foreign generation/node, stronger metric demand, overwrite-on-nonterminal lookup reinsertion, and child publication clearing the outer owner. An unresolved child plan must retain state and must not satisfy a termination test. Existing semantic-ancestor/cycle and once-only attribute/taint tests remain required.
+
+No extracted test was run here: a miniature action-slot model would not exercise the native Context borrowing, graph location or actual preparer state that is at issue. Implementation/native compilation and source-bound browser controls are still required. This bounded design establishes the state that must be preserved and the specific call sites to change; it does not repair the sealed candidate or establish the browser crash cause.

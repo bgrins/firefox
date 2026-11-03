@@ -1,0 +1,1 @@
+Actual root-bound cancellation8 restoration audit. audit.py is unchanged from sealed v1. Bindings join owner e52027/session91300 and terminal f8e6b4 exit0. The owner observed complete2FAIL6PASS, not a repaired witness. Prior CHECK files document preparation; the live audit has not yet run. No new defect/native acceptance is claimed.

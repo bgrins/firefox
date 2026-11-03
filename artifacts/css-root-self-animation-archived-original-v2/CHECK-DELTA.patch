@@ -1,0 +1,32 @@
+--- artifacts/css-root-self-animation-archived-original-v1/check.py
++++ artifacts/css-root-self-animation-archived-original-v2/check.py
+@@ -16,7 +16,7 @@
+ else:
+     raise AssertionError('Disabled owner admitted')
+ run.pins()
+-parent = ROOT / 'artifacts/css-keyframe-font-unit-dependency-archived-original-v1'
++parent = ROOT / 'artifacts/css-root-self-animation-archived-original-v1'
+ assert (HERE / 'entry.py').read_bytes() == (parent / 'entry.py').read_bytes()
+ assert run.regular_files(HERE / 'support') == run.regular_files(parent / 'support')
+ assert (HERE / 'RUN-DELTA.patch').read_text() == ''.join(difflib.unified_diff((parent / 'run.py').read_text().splitlines(True), (HERE / 'run.py').read_text().splitlines(True), fromfile=str((parent / 'run.py').relative_to(ROOT)), tofile=str((HERE / 'run.py').relative_to(ROOT))))
+@@ -26,9 +26,9 @@
+ old, new = functions(parent / 'run.py'), functions(HERE / 'run.py')
+ assert set(old) == set(new)
+ for name in old:
+-    assert old[name].replace("prefix='css-keyframe-font-units-'", "prefix='css-root-self-fonts-'") == new[name], name
++    assert old[name].replace("prefix='css-root-self-fonts-'", "prefix='css-root-self-fonts-v2-'") == new[name], name
+ binding = policy['fixture_binding']; fixture = ROOT / binding['directory']
+-assert run.sha(fixture / 'FILES.json') == binding['manifest_sha256'] == 'a02a77d0c27092a57e617c3fe9f5ed70e579506089ef46bdd487a8ef4372d234'
++assert run.sha(fixture / 'FILES.json') == binding['manifest_sha256'] == '0416493925d3ef83d175035b17b050818f20cca83d83b6dbca4262fbc7e1b271'
+ inventory = json.loads((fixture / 'FILES.json').read_text())
+ for name, row in inventory.get('files',inventory).items(): assert run.sha(fixture / name) == (row if isinstance(row,str) else row['sha256'])
+ assert policy['settings']['metadata'] == {'mozilla': {}, 'portable': {}}
+@@ -93,7 +93,7 @@
+ rows=copy.deepcopy(events);rows.insert(1,rows.pop(2));negatives.append(rows)
+ assert all(not run.assess(rows,roster,1)['complete'] for rows in negatives)
+ assert not run.assess(events,roster,0)['complete'] and not run.assess(all_pass,roster,1)['complete']
+-scratch=Path(tempfile.mkdtemp(prefix='root-self-archive14-check-',dir='/private/tmp'))
++scratch=Path(tempfile.mkdtemp(prefix='root-self-v2-archive14-check-',dir='/private/tmp'))
+ result={'browser_execution':False,'archive_read':False,'native_operations':False,'saved_positive_streams':2,'saved_negative_streams':len(negatives)+2,'scratch':str(scratch),'pages':1,'callbacks':14,'unchanged_production_functions_except_temporary_prefix':len(old)}
+ try:
+     output=scratch/'stage';output.mkdir();run.prepare(output,policy)

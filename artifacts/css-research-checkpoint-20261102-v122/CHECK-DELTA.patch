@@ -1,0 +1,59 @@
+--- artifacts/css-research-checkpoint-20261102-v121/check.py
++++ artifacts/css-research-checkpoint-20261102-v122/check.py
+@@ -38,11 +38,11 @@
+         assert not Path(name).is_absolute() and '..' not in Path(name).parts
+         full = str((Path(path).parent / name))
+         assert selected[full]['sha256'] == (record['sha256'] if isinstance(record, dict) else record)
+-old = (ROOT / 'artifacts/css-research-checkpoint-20261102-v120/commit.py').read_text()
++old = (ROOT / 'artifacts/css-research-checkpoint-20261102-v121/commit.py').read_text()
+ new = (HERE / 'commit.py').read_text()
+ marker = "    controls = {name: (RUNTIME / name).read_bytes()"
+-assert old[old.index(marker):].replace('v120','v121').replace('V120','V121') == new[new.index(marker):]
+-assert (HERE / 'capture_current.py').read_bytes() == (ROOT / 'artifacts/css-research-checkpoint-20261102-v120/capture_current.py').read_bytes()
++assert old[old.index(marker):].replace('v121','v122').replace('V121','V122') == new[new.index(marker):]
++assert (HERE / 'capture_current.py').read_bytes() == (ROOT / 'artifacts/css-research-checkpoint-20261102-v121/capture_current.py').read_bytes()
+ assert list(m.manifest_items({'files':[{'path':'proof','sha256':'x'}]})) == [('proof',{'path':'proof','sha256':'x'})]
+ try:
+     m.manifest_items({'files':[{'path':'proof','sha256':'x'},{'path':'proof','sha256':'y'}]})
+@@ -54,7 +54,7 @@
+ self_end = new.index("    for path in extras:", self_start)
+ import textwrap
+ self_block = textwrap.dedent(new[self_start:self_end])
+-with tempfile.TemporaryDirectory(prefix='css-research-v121-self-check-', dir='/private/tmp') as temporary:
++with tempfile.TemporaryDirectory(prefix='css-research-v122-self-check-', dir='/private/tmp') as temporary:
+     own = Path(temporary)
+     entries = {}
+     for name in ('commit.py', 'CHECK-FINAL.log', 'SELECTION-ADDITION.json'):
+@@ -89,7 +89,7 @@
+         assert str(exc) == 'Draft signing execution is disabled'
+     else:
+         raise AssertionError('Disabled draft execution accepted')
+-    print(json.dumps({'preparation_only':True,'pending_admission_rejected':True,'disabled_run_rejected':True,'selected':len(selected),'bytes':sum(row['bytes'] for row in selected.values()),'closures':len(bindings['completed_packages']),'exact_v120_tail':True}))
++    print(json.dumps({'preparation_only':True,'pending_admission_rejected':True,'disabled_run_rejected':True,'selected':len(selected),'bytes':sum(row['bytes'] for row in selected.values()),'closures':len(bindings['completed_packages']),'exact_v121_tail':True}))
+     raise SystemExit(0)
+ assert m.saved_admission()['index']['head'] == bindings['head']
+ original_git = m.git
+@@ -111,7 +111,7 @@
+ research = json.loads((ROOT / bindings['prior_research_receipt']).read_bytes())
+ original_refresh = m.validate_refresh
+ refreshed = original_refresh(receipt)
+-with tempfile.TemporaryDirectory(prefix='css-research-v121-refresh-check-') as temporary:
++with tempfile.TemporaryDirectory(prefix='css-research-v122-refresh-check-') as temporary:
+     scratch = Path(temporary)
+     source = ROOT / bindings['refresh_binding']['directory']
+     for name in ['RESULT.json', 'PRE-CURRENT-EPOCH.json', 'EPOCH.json', 'PRE.json', 'POST.json']:
+@@ -138,7 +138,7 @@
+     m.BINDINGS = bindings
+ assert not scratch.exists()
+ m.validate_refresh = lambda receipt: refreshed
+-with tempfile.TemporaryDirectory(prefix='css-research-v121-check-') as temporary:
++with tempfile.TemporaryDirectory(prefix='css-research-v122-check-') as temporary:
+     scratch = Path(temporary)
+     for label, target, field, value in [
+         ('unsigned_native', 'receipt', 'signature_verified', False),
+@@ -174,4 +174,4 @@
+     m.ROOT, m.BINDINGS = ROOT, bindings
+ assert not scratch.exists()
+ m.validate_refresh = original_refresh
+-print(json.dumps({'refresh_copy_positive':True, 'refresh_negatives':4, 'admission_negatives_scope':'native/current schema isolated from separately checked refresh join', 'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'binding_negatives':11, 'disabled_execution_rejected':True, 'exact_v120_publication_tail':True, 'scratch_removed':True}))
++print(json.dumps({'refresh_copy_positive':True, 'refresh_negatives':4, 'admission_negatives_scope':'native/current schema isolated from separately checked refresh join', 'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'binding_negatives':11, 'disabled_execution_rejected':True, 'exact_v121_publication_tail':True, 'scratch_removed':True}))

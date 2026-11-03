@@ -1,0 +1,9 @@
+# Standalone explicit-taint reparse: saved acceptance binding
+
+Actual saved replay7f8a40/0 calls the unchanged publication-v1 evidence.verify with PAIR-BINDING and the exact two-file STAGE. The immutable pending publication template1f67f485 and pinned outcome/audit-v2 preparations remain untouched. The bound v3 outcome and separately authenticated v3 audit use the same reviewed bodies.
+
+The standalone bb13→2bcc build completed. Target4 changes3PASS/1FAIL to4PASS; the original failure reached the intended25% image-policy assertion. All75 control callbacks retain their full original signatures: fallback28 remains17PASS/11FAIL because099e is absent, and existing taint controls47 remain47PASS. Six ending signatures are preserved. Recorded messages, expected/intermittent fields and ordered raw lifecycle, staged fixtures, native source/build/application joins and independent restoration are replayed by the original verifier.
+
+Owner5deb78/session23498/17e363 exited0. Independent auditf620c3/session29050/87f323 exited0; its report authenticates restored source/app/index semantics/controls, absent process groups and removed backup. This is saved-artifact replay, not a fresh live state or archive scan. The frozen runtime and both actual terminals are hash-bound.
+
+STAGE contains only custom_properties.rs bb13→2bcc and attr-taint-registration-transition.html. No combinedbdb3 source, fallback patch, scheduler experiment or extra WPT is included. PAIR-BINDING is ready to copy into a later bound standalone publisher. Native publication has not happened: actual raw refresh/current capture and a valid signed predecessor remain separate requirements. A failed research signing attempt is not signed authority. The source composition plan remains reparse first, followed by explicitly rebased2bcc→bdb3 fallback after actual combined82 validation.

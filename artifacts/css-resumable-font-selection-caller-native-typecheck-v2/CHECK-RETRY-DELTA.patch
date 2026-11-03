@@ -1,0 +1,49 @@
+--- artifacts/css-resumable-font-selection-caller-native-typecheck-v1/check.py
++++ artifacts/css-resumable-font-selection-caller-native-typecheck-v2/check.py
+@@ -7,8 +7,8 @@
+ import sys
+ 
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+-EXPECTED_HEAD = None
+-EXPECTED_CHECKPOINT = None
++EXPECTED_HEAD = 'e86b64866cdc5e2260ba9be08c45756fd96e21bb'
++EXPECTED_CHECKPOINT = '085fcdc6576fea84ef9e43fbc0d0c7f1111d9e7899d8d42f6040442e49d91d16'
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+ read = lambda p: json.loads(p.read_bytes())
+@@ -31,7 +31,7 @@
+ 
+ def validate_policy(policy):
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-resumable-font-selection-caller-native-typecheck-runtime-1'
++    assert policy['runtime_output'] == 'artifacts/css-resumable-font-selection-caller-native-typecheck-runtime-2'
+     assert policy['head'] == EXPECTED_HEAD
+     assert policy['ownership_commit'] == '8870962db02b006791085b73f9e270942e145365'
+     admission = load('admission')
+@@ -51,7 +51,7 @@
+     for name in ('command', 'required_input_hashes', 'fresh_input_revalidation_required'):
+         assert typecheck[name] == prepared[name], name
+     assert typecheck['current_binding'] == policy['current_binding']
+-    assert typecheck['baseline_and_policy_materialization_required'] is True
++    assert typecheck['baseline_and_policy_materialization_required'] is False
+     assert policy['required_typecheck_inputs'] == typecheck['required_input_hashes']
+     roles = read(HERE / 'SOURCE-ROLES.json')
+     assert roles == typecheck['source_roles'] and len(roles) == 3
+@@ -67,7 +67,8 @@
+         for kind in ('base', 'candidate'):
+             assert sha(ROOT / row[kind + '_capture']) == row[kind + '_sha256']
+     assert policy['execution_enabled'] == policy['candidate_execution_enabled'] == typecheck['execution_enabled']
+-    expected_driver = (template / 'run.py').read_text().replace("{'servo/components/style/properties/cascade.rs', 'servo/components/style/custom_properties.rs'}", "{'servo/components/style/properties/cascade.rs', 'servo/components/style/custom_properties.rs', 'servo/components/style/properties/mod.rs'}").replace('font-metric-synthesis-native-typecheck-v1', 'resumable-font-selection-caller-native-typecheck-v1')
++    expected_driver = (template / 'run.py').read_text().replace("{'servo/components/style/properties/cascade.rs', 'servo/components/style/custom_properties.rs'}", "{'servo/components/style/properties/cascade.rs', 'servo/components/style/custom_properties.rs', 'servo/components/style/properties/mod.rs'}").replace('font-metric-synthesis-native-typecheck-v1', 'resumable-font-selection-caller-native-typecheck-v2')
++    expected_driver = expected_driver.replace("        claims[name] = ownership.claim(ROOT, name, record['base_sha256'], epoch['installed_identities'].get(name))", "        admitted = (baseline.current_capture(policy)['payload_claims'] | baseline.current_capture(policy)['additional_sources'])[name]\n        claims[name] = ownership.claim(ROOT, name, record['base_sha256'], admitted['identity'])\n        assert claims[name] == admitted")
+     assert normalized_driver((HERE / 'run.py').read_text(), policy['execution_enabled']) == expected_driver
+     assert (HERE / 'assess.py').read_bytes() == (template / 'assess.py').read_bytes()
+     for name in ('inputs.py', 'intermediate.py', 'review_scope.py'):
+@@ -100,6 +101,7 @@
+     assert not policy['execution_enabled'] and not policy['candidate_execution_enabled']
+     assert not read(HERE / 'TYPECHECK.json')['execution_enabled']
+     runpy.run_path(str(HERE / 'check_assessor.py'), run_name='__main__')
++    runpy.run_path(str(HERE / 'check_identity.py'), run_name='__main__')
+     driver = (HERE / 'run.py').read_text()
+     active = driver.replace('EXECUTION_ENABLED = False', 'EXECUTION_ENABLED = True')
+     assert normalized_driver(active, True) == driver

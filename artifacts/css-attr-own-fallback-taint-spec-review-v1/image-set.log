@@ -1,0 +1,151 @@
+# CSS-IMAGES-4#image-set-notation
+
+**Resolution/Type Negotiation: the image-set() notation** (heading)
+
+**SHA**: hash:916a9c9fd8da8c1f730aa989bb6b62b4d12c972fb656071e80d29f1da5dcb3cc
+
+## Content
+
+Delivering the most appropriate image resolution for a user’s device can be a difficult task. Ideally, images should be in the same resolution as the device they’re being viewed in, which can vary between users. However, other factors can factor into the decision of which image to send; for example, if the user is on a slow mobile connection, they may prefer to receive lower-res images rather than waiting for a large proper-res image to load. The **image-set()** function allows an author to ignore most of these issues, simply providing multiple resolutions of an image and letting the UA decide which is most appropriate in a given situation.
+
+> **Issue:** This solution assumes that resolution is a proxy for filesize, and therefore doesn’t appropriately handle multi-resolution sets of vector images, or mixing vector images with raster ones (e.g. for icons). For example, use a vector for high-res, pixel-optimized bitmap for low-res, and same vector again for low-bandwidth (because it’s much smaller, even though it’s higher resolution).
+
+The syntax for [image-set()](CSS-IMAGES-4#funcdef-image-set) is:
+
+```
+<image-set()> = image-set( <image-set-option># )
+<image-set-option> = [ <image> | <string> ]
+                     [ <resolution> || type(<string>) ]?
+```
+
+> **Issue:** We should add "w" and "h" dimensions as a possibility to match the functionality of HTML’s [picture](HTML#the-picture-element).
+
+Each [\<string>](CSS-VALUES-4#string-value) inside [image-set()](CSS-IMAGES-4#funcdef-image-set) represents a [\<url>](CSS-VALUES-4#url-value).
+
+The [image-set()](CSS-IMAGES-4#funcdef-image-set) function can not be nested inside of itself, either directly or indirectly (as an argument to another [\<image>](CSS-IMAGES-4#typedef-image) type).
+
+Each [\<image-set-option>](CSS-IMAGES-4#typedef-image-set-option) defines a possible image for the [image-set()](CSS-IMAGES-4#funcdef-image-set) function to represent, composed of three parts:
+
+*   An image reference (required). This can be a URL, or a CSS generated image, such as a [linear-gradient()](CSS-IMAGES-3#funcdef-linear-gradient).
+
+*   A [\<resolution>](CSS-VALUES-4#resolution-value) (optional). This is used to help the UA decide which [\<image-set-option>](CSS-IMAGES-4#typedef-image-set-option) to choose. If the image reference is for a raster image, it also specifies the image’s [natural resolution](CSS-IMAGES-4#--natural-resolution), overriding any other source of data that might supply a natural resolution.
+
+    If not specified, it behaves as 1x for the purpose of selecting which [\<image-set-option>](CSS-IMAGES-4#typedef-image-set-option) to use. It also *defaults* the image’s [natural resolution](CSS-IMAGES-4#--natural-resolution) to 1x, but if some other source of data supplies a natural resolution, that resolution must be honored instead.
+
+*   A **type( [\<string>](CSS-VALUES-4#string-value) )** function (optional), specifying the image’s MIME type in the [\<string>](CSS-VALUES-4#string-value).
+
+    If the [\<string>](CSS-VALUES-4#string-value), when parsed as a [valid MIME type string](MIMESNIFF#valid-mime-type), is either not valid, or is valid but doesn’t specify a supported image format, the [\<image-set-option>](CSS-IMAGES-4#typedef-image-set-option) does not define a valid option. (This has no effect on the validity of the [image-set()](CSS-IMAGES-4#funcdef-image-set) function.)
+
+    It does not have any effect on the image itself; an [\<image-set-option>](CSS-IMAGES-4#typedef-image-set-option) like `url("picture.png") 1x type("image/jpeg")` is valid, and if chosen will display the linked PNG image, even though it was declared to be a JPEG.
+
+    If not specified, it has no effect on the [\<image-set-option>](CSS-IMAGES-4#typedef-image-set-option).
+
+Tests
+
+*   [image-set-all-options-invalid.html](https://wpt.fyi/results/css/css-images/image-set/image-set-all-options-invalid.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-all-options-invalid.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-all-options-invalid.html)
+*   [image-set-calc-x-rendering-2.html](https://wpt.fyi/results/css/css-images/image-set/image-set-calc-x-rendering-2.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-calc-x-rendering-2.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-calc-x-rendering-2.html)
+*   [image-set-calc-x-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-calc-x-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-calc-x-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-calc-x-rendering.html)
+*   [image-set-computed.sub.html](https://wpt.fyi/results/css/css-images/image-set/image-set-computed.sub.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-computed.sub.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-computed.sub.html)
+*   [image-set-conic-gradient-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-conic-gradient-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-conic-gradient-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-conic-gradient-rendering.html)
+*   [image-set-content-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-content-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-content-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-content-rendering.html)
+*   [image-set-dpcm-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-dpcm-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-dpcm-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-dpcm-rendering.html)
+*   [image-set-dpi-rendering-2.html](https://wpt.fyi/results/css/css-images/image-set/image-set-dpi-rendering-2.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-dpi-rendering-2.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-dpi-rendering-2.html)
+*   [image-set-dpi-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-dpi-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-dpi-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-dpi-rendering.html)
+*   [image-set-dppx-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-dppx-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-dppx-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-dppx-rendering.html)
+*   [image-set-empty-url-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-empty-url-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-empty-url-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-empty-url-rendering.html)
+*   [image-set-first-match-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-first-match-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-first-match-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-first-match-rendering.html)
+*   [image-set-linear-gradient-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-linear-gradient-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-linear-gradient-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-linear-gradient-rendering.html)
+*   [image-set-negative-resolution-rendering-2.html](https://wpt.fyi/results/css/css-images/image-set/image-set-negative-resolution-rendering-2.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-negative-resolution-rendering-2.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-negative-resolution-rendering-2.html)
+*   [image-set-negative-resolution-rendering-3.html](https://wpt.fyi/results/css/css-images/image-set/image-set-negative-resolution-rendering-3.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-negative-resolution-rendering-3.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-negative-resolution-rendering-3.html)
+*   [image-set-negative-resolution-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-negative-resolution-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-negative-resolution-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-negative-resolution-rendering.html)
+*   [image-set-no-res-rendering-2.html](https://wpt.fyi/results/css/css-images/image-set/image-set-no-res-rendering-2.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-no-res-rendering-2.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-no-res-rendering-2.html)
+*   [image-set-no-res-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-no-res-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-no-res-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-no-res-rendering.html)
+*   [image-set-no-url-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-no-url-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-no-url-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-no-url-rendering.html)
+*   [image-set-parsing.html](https://wpt.fyi/results/css/css-images/image-set/image-set-parsing.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-parsing.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-parsing.html)
+*   [image-set-radial-gradient-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-radial-gradient-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-radial-gradient-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-radial-gradient-rendering.html)
+*   [image-set-rendering-2.html](https://wpt.fyi/results/css/css-images/image-set/image-set-rendering-2.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-rendering-2.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-rendering-2.html)
+*   [image-set-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-rendering.html)
+*   [image-set-repeating-conic-gradient-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-repeating-conic-gradient-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-repeating-conic-gradient-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-repeating-conic-gradient-rendering.html)
+*   [image-set-repeating-linear-gradient-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-repeating-linear-gradient-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-repeating-linear-gradient-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-repeating-linear-gradient-rendering.html)
+*   [image-set-repeating-radial-gradient-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-repeating-radial-gradient-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-repeating-radial-gradient-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-repeating-radial-gradient-rendering.html)
+*   [image-set-resolution-001.html](https://wpt.fyi/results/css/css-images/image-set/image-set-resolution-001.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-resolution-001.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-resolution-001.html)
+*   [image-set-resolution-002.html](https://wpt.fyi/results/css/css-images/image-set/image-set-resolution-002.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-resolution-002.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-resolution-002.html)
+*   [image-set-resolution-003.html](https://wpt.fyi/results/css/css-images/image-set/image-set-resolution-003.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-resolution-003.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-resolution-003.html)
+*   [image-set-type-first-match-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-type-first-match-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-type-first-match-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-type-first-match-rendering.html)
+*   [image-set-type-rendering-2.html](https://wpt.fyi/results/css/css-images/image-set/image-set-type-rendering-2.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-type-rendering-2.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-type-rendering-2.html)
+*   [image-set-type-rendering-3.html](https://wpt.fyi/results/css/css-images/image-set/image-set-type-rendering-3.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-type-rendering-3.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-type-rendering-3.html)
+*   [image-set-type-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-type-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-type-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-type-rendering.html)
+*   [image-set-type-skip-unsupported-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-type-skip-unsupported-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-type-skip-unsupported-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-type-skip-unsupported-rendering.html)
+*   [image-set-type-unsupported-rendering-2.html](https://wpt.fyi/results/css/css-images/image-set/image-set-type-unsupported-rendering-2.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-type-unsupported-rendering-2.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-type-unsupported-rendering-2.html)
+*   [image-set-type-unsupported-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-type-unsupported-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-type-unsupported-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-type-unsupported-rendering.html)
+*   [image-set-unordered-res-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-unordered-res-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-unordered-res-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-unordered-res-rendering.html)
+*   [image-set-zero-resolution-rendering-2.html](https://wpt.fyi/results/css/css-images/image-set/image-set-zero-resolution-rendering-2.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-zero-resolution-rendering-2.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-zero-resolution-rendering-2.html)
+*   [image-set-zero-resolution-rendering.html](https://wpt.fyi/results/css/css-images/image-set/image-set-zero-resolution-rendering.html) [(live test)](http://wpt.live/css/css-images/image-set/image-set-zero-resolution-rendering.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-images/image-set/image-set-zero-resolution-rendering.html)
+
+An [image-set()](CSS-IMAGES-4#funcdef-image-set) function contains a list of one or more [\<image-set-option>](CSS-IMAGES-4#typedef-image-set-option)s, and must select only one of them to determine what image it will represent:
+
+1.  First, remove any [\<image-set-option>](CSS-IMAGES-4#typedef-image-set-option)s from the list that specify an unknown or unsupported MIME type in their [type()](CSS-IMAGES-4#funcdef-image-set-type) value.
+
+2.  Second, remove any [\<image-set-option>](CSS-IMAGES-4#typedef-image-set-option)s from the list that have the same [\<resolution>](CSS-VALUES-4#resolution-value) as a previous option in the list.
+
+3.  If there are no [\<image-set-option>](CSS-IMAGES-4#typedef-image-set-option) left at this point, the function represents an [invalid image](CSS-IMAGES-4#invalid-image).
+
+4.  Finally, among the remaining [\<image-set-option>](CSS-IMAGES-4#typedef-image-set-option)s, make a UA-specific choice of which to load, based on whatever criteria deemed relevant (such as the resolution of the display, connection speed, etc).
+
+5.  The [image-set()](CSS-IMAGES-4#funcdef-image-set) function then represents the [\<image>](CSS-IMAGES-4#typedef-image) of the chosen [\<image-set-option>](CSS-IMAGES-4#typedef-image-set-option).
+
+UAs **may** change which [\<image-set-option>](CSS-IMAGES-4#typedef-image-set-option) they wish to use for a given [image-set()](CSS-IMAGES-4#funcdef-image-set) over the lifetime of the page, if the criteria used to determine which option to choose change significantly enough to make it worthwhile in the UA’s estimation.
+
+> **Example:** This example shows how to use [image-set()](CSS-IMAGES-4#funcdef-image-set) to provide an image in three versions: a "normal" version, a "high-res" version, and an extra-high resolution version for use in high-quality printing (as printers can have *extremely* high resolution):
+>
+> ```
+> background-image: image-set( "foo.png" 1x,
+>                              "foo-2x.png" 2x,
+>                              "foo-print.png" 600dpi );
+> ```
+
+> **Example:** This example shows use of the [type()](CSS-IMAGES-4#funcdef-image-set-type) function to serve multiple versions of the same image in both new, higher-quality formats, and older, more widely-supported formats:
+>
+> ```
+> background-image: image-set( "foo.avif" type("image/avif"),
+>                              "foo.jpg" type("image/jpeg") );
+> ```
+>
+> Note that the AVIF image is given first; since both images have the same resolution (defaulting to 1x since it’s unspecified), the JPEG image, coming second, is automatically dropped in UAs that support AVIF images.
+>
+> In older UAs, however, the AVIF image is ignored (because the UA knows it doesn’t support `"image/avif"` files), and so the JPEG is chosen instead.
+
+> **Example:** Raster images can be mixed with vector images, or even CSS generated images.For example, in this code snippet a high-resolution image with subtle details is used on screens that can do it justice, while an ordinary CSS [linear-gradient()](CSS-IMAGES-3#funcdef-linear-gradient) is used instead for low-resolution situations:
+>
+> ```
+> background-image: image-set( linear-gradient(cornflowerblue, white) 1x,
+>                              url("detailed-gradient.png") 3x );
+> ```
+
+## Navigation
+
+- Parent: `image-values` — 2D Image Values: the <image> type
+- Prev: `fetching-images` — Fetching External Images
+- Next: `image-notation` — Image Fallbacks and Annotations: the image() notation
+- Children: 3
+  - `funcdef-image-set` — image-set()
+  - `typedef-image-set-option` — <image-set-option>
+  - `funcdef-image-set-type` — type( <string> )
+
+## Outgoing refs (16)
+
+`webspec-index refs CSS-IMAGES-4#image-set-notation -d outgoing -l 16`
+
+## Incoming refs (1)
+
+- CSS-IMAGES-4#contents
+
+### Possible effects
+
+CSS-IMAGES-4#image-set-notation
+
+Partial analysis: additional effects may exist.
+
+No effects detected by this analysis.
+
+Traces and conditions (bounded): `webspec-index effects "CSS-IMAGES-4#image-set-notation" --format markdown`

@@ -1,0 +1,22 @@
+--- a/run.py
++++ b/run.py
+@@ -61,7 +61,9 @@
+         candidates[name] = (ROOT / record['candidate_capture']).read_bytes()
+         assert hashlib.sha256(bases[name]).hexdigest() == record['base_sha256']
+         assert hashlib.sha256(candidates[name]).hexdigest() == record['candidate_sha256']
+-        claims[name] = ownership.claim(ROOT, name, record['base_sha256'], epoch['installed_identities'].get(name))
++        admitted = (baseline.current_capture(policy)['payload_claims'] | baseline.current_capture(policy)['additional_sources'])[name]
++        claims[name] = ownership.claim(ROOT, name, record['base_sha256'], admitted['identity'])
++        assert claims[name] == admitted
+         epoch['pins'][name] = record['base_sha256']
+         epoch['installed_identities'][name] = claims[name]['identity']
+     epoch['counts']['roles'] = len(epoch['pins'])
+@@ -104,7 +106,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
+     with lock.open('x') as stream:
+-        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'computed-size-pair21-v1'}, stream)
++        json.dump({'pid': os.getpid(), 'runtime': policy['runtime_output'], 'operation': 'resumable-font-selection-pair39-v1'}, stream)
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     stopped = [False]
+     for sig in (signal.SIGTERM, signal.SIGINT):

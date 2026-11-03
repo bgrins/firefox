@@ -1,0 +1,16 @@
+--- artifacts/css-root-self-animation-native-current-capture-v1/baseline.py
++++ artifacts/css-root-self-smil-native-current-capture-v1/baseline.py
+@@ -84,7 +84,12 @@
+     assert core.sha(parent_dir / 'BINDINGS.json') == record['bindings_sha256']
+     parent = core.load('previous_native_capture_bridge', str((parent_dir / 'baseline.py').relative_to(ROOT)))
+     assert parent.binding['native_receipt'] == binding['native_receipt']
+-    previous = parent.validate_refresh(receipt)
++    memo_record = binding['saved_parent_refresh']
++    memo_dir = ROOT / memo_record['directory']
++    memo_ownership = core.load('parent_refresh_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')
++    memo_ownership.authenticate(memo_dir, memo_record['manifest_sha256'])
++    memo = core.load('known_parent_saved_refresh', str((memo_dir / 'hooks.py').relative_to(ROOT)))
++    previous = memo.validate_refresh(parent, receipt, binding, {})
+     refresh = binding['refresh_binding']
+     assert refresh is not None
+     directory = ROOT / refresh['directory']

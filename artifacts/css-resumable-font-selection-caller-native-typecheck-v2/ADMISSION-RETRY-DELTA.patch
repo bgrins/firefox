@@ -1,0 +1,16 @@
+--- artifacts/css-resumable-font-selection-caller-native-typecheck-v1/admission.py
++++ artifacts/css-resumable-font-selection-caller-native-typecheck-v2/admission.py
+@@ -37,7 +37,12 @@
+     assert receipt['path']==adapter.binding['native_receipt']
+     observed_head=adapter.native_head_view(checkpoint)
+     assert observed_head['head']==policy['head']==capture['snapshot']['index']['head']
+-    assert checkpoint['epoch_sha256']==capture['controls']['CURRENT-EPOCH.json']
++    assert observed_head['epoch_sha256']==capture['controls']['CURRENT-EPOCH.json']
++    assert capture['refresh_lineage_verified'] and capture['additional_sources_match_head']
++    assert capture['refresh_binding']==policy['refresh_lineage']==adapter.binding['refresh_binding']
++    assert capture['refresh_manifest_sha256']==adapter.binding['refresh_manifest_sha256']
++    assert capture['refresh_epoch_sha256']==observed_head['epoch_sha256']
++    assert adapter.validate_refresh(checkpoint)==capture['snapshot']
+     assert capture['controls']==policy['controls'] and set(capture['controls'])=={'CURRENT-EPOCH.json','ROLE.json','OWNED.json'}
+     here=root/policy['owner_directory']
+     def local(name):

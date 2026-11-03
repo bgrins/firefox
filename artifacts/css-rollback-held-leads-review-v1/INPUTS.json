@@ -1,0 +1,45 @@
+{
+  "files": {
+    "artifacts/css-bugfix-summary-20261102-v1/FIXES.json": "fe672a63fdd3b2db39cb2f8e844c3cbad93b5bfde743d97cc85b35216fb1b460",
+    "artifacts/css-layer-cutoff-composition-probe-v1/ROOT-STACK-VALIDATION-v1.json": "d49fec665799c9124d03f024b8970fb8fbf73f75190b34f6e934d4f4322b591a",
+    "artifacts/css-layer-cutoff-composition-probe-v1/ROOT-CAUSE-v1.json": "77543512448543f03f7250d6df8512e90e18f6f396cb4458c0acff5227661aed",
+    "artifacts/css-layer-cutoff-composition-probe-v1/ROOT-NATIVE-WPT-v2.json": "e9c7bc653b4734e4028dc994298f25b607b14d7b89a47a2e4bc3cb5bec88da0e",
+    "artifacts/css-layer-cutoff-composition-probe-v1/fix-a-b-d-v1.patch": "3f058d2d902afee2dde01283a60b39e7244feae64ad751cca1f3c759a18048fa",
+    "artifacts/css-layer-cutoff-composition-probe-v1/fix-c-after-a-b-d-v1.patch": "9402affc9bb4d250b3383f2ba6946fa8a41944a4f984cb786a2a34ef39c8ab6a",
+    "artifacts/css-shadow-context-order-proof-v1/cutoff-without-c-review-v1/REVIEW.md": "e0c2512d48925f27dc8877b32026808affff2698f92348f18edd1f045e9c9f49",
+    "artifacts/css-shadow-context-order-proof-v1/cutoff-native-review-v1/REVIEW.md": "709ef39ad6071128effcdf72096474b3f60fe837b1973f642969a3f319b47588",
+    "artifacts/css-revert-rule-logical-alias-probe-v1/ROOT-NATIVE-WPT-v1.json": "d47b030e891a3374b2fd55ffffa095530b2eb4800e3f23a702b4676fe2e6f584",
+    "artifacts/css-revert-rule-logical-alias-probe-v1/STYLEBENCH-PAIR-v1.json": "d5a8c4d1f49067f7123bf278b50264cfe1d62856e33e8bc0537c7bd26ba77846",
+    "artifacts/css-revert-rule-logical-alias-probe-v1/LAYOUT-WITHOUT-C-v1.json": "b4ae28720b4916b5ce179fbd802474d185be6f50fe6e3e883a096e3c1d93cdb3",
+    "artifacts/css-rollback-compound-fix-v1/ROOT-NATIVE-WPT-v1.json": "92978e3f6e5c6c0adabbed1bdb5074ddb731b60c595d86af0b7298349c5a0dc5",
+    "testing/web-platform/tests/css/css-cascade/revert-rule-logical-physical-same-rule.html": "2ed7a0c423e93996fd2cb0e30753a08e8ab67748f86d35c1d0eb3f5c6f152ace",
+    "testing/web-platform/tests/css/css-cascade/revert-rule-preserves-earlier-rollback.html": "e38241476728b92b7e2be322810409065c41574698967578ef7a9483dd7de0dd",
+    "testing/web-platform/tests/css/css-cascade/revert-layer-preserves-inline-exclusion.html": "9eb74183c0868a5df55697744d5f7214acc6e8cd3ffd3031c24c80b84aeccd99",
+    "testing/web-platform/tests/css/css-cascade/revert-layer-important-inline-part.html": "8cfc018f753da416f686ccb1056f124287e9dc2d771bd1495e3e723761b283f0"
+  },
+  "immutable_git_objects": {
+    "servo/components/style/applicable_declarations.rs": {
+      "sha256": "daf589d65a777c553470d60e71f5c134e919622ae440016e8349563eeb5d1c5c",
+      "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+      "excerpt": "    pub fn allows_when_reverted(&self, other: &Self, kind: RevertKind) -> bool {\n        match kind {\n            RevertKind::Origin => {\n                other.cascade_level.origin().origin() < self.cascade_level.origin().origin()\n            },\n            RevertKind::Layer => other.unimportant() < self.unimportant(),\n            // Any other declaration for the same property we apply in the cascade needs to come\n            // from another rule effectively.\n            RevertKind::Rule => true,\n        }\n    }\n\n"
+    },
+    "servo/components/style/properties/cascade.rs": {
+      "sha256": "832d08549227e20f88f1bede253824b75b66a58b4adb2b7efc357cc52915f1f5",
+      "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+      "facts": [
+        "apply_one_longhand checks one (priority, revert_kind), then replaces it on every rollback including Rule",
+        "cascade_custom_property likewise replaces its single stored cutoff",
+        "apply_properties maps logical ID to physical before apply_one_longhand; no declaration-block provenance passed"
+      ]
+    }
+  },
+  "retrieved": "2026-11-03",
+  "spec_tools": {
+    "manual_primary_web_read": true,
+    "webspec_index_query": "css-cascade-5#revert-layer-keyword",
+    "webspec_index_exit": 1,
+    "webspec_index_error": "attempt to write a readonly database",
+    "initial_cli_syntax_error_preserved_in_tool_receipt": "52775a"
+  },
+  "new_runtime": false
+}

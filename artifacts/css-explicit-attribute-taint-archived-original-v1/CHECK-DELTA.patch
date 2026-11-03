@@ -1,0 +1,85 @@
+--- artifacts/css-attr-fallback-archived-validation-v2/check.py
++++ artifacts/css-explicit-attribute-taint-archived-original-v1/check.py
+@@ -14,25 +14,19 @@
+ spec = importlib.util.spec_from_file_location('isolated_archive_run', HERE / 'run.py')
+ run = importlib.util.module_from_spec(spec)
+ spec.loader.exec_module(run)
+-policies = {role: json.loads((HERE / ('POLICY-' + role + '.json')).read_text()) for role in ['original', 'candidate']}
++policies = {'original': json.loads((HERE/'POLICY-original.json').read_text())}
+ for role, policy in policies.items():
+     assert policy['execution_enabled'] is False
+     assert policy['source_role'] == 'archived-' + role and policy['archive_role'] == role
+-    try:
+-        run.run(policy)
+-    except AssertionError as exc:
+-        assert str(exc) == 'disabled preparation'
+-    else:
+-        raise AssertionError('Disabled run admitted')
++    try: run.run(policy)
++    except AssertionError as exc: assert str(exc) == 'disabled preparation'
++    else: raise AssertionError('Disabled run admitted')
+ run.pins()
+-parent = ROOT / 'artifacts/css-attr-fallback-archived-original-runner-v1'
++parent = ROOT / 'artifacts/css-attr-fallback-archived-validation-v2'
+ assert (HERE / 'entry.py').read_bytes() == (parent / 'entry.py').read_bytes()
+ assert run.regular_files(HERE / 'support') == run.regular_files(parent / 'support')
+ assert (HERE / 'RUN-DELTA.patch').read_text() == ''.join(difflib.unified_diff((parent / 'run.py').read_text().splitlines(True), (HERE / 'run.py').read_text().splitlines(True), fromfile=str((parent / 'run.py').relative_to(ROOT)), tofile=str((HERE / 'run.py').relative_to(ROOT))))
+ policy = policies['original']
+-assert policy['fixture_binding'] == policies['candidate']['fixture_binding']
+-assert policy['settings'] == policies['candidate']['settings']
+-assert policy['roster'] == policies['candidate']['roster']
+ binding = policy['fixture_binding']
+ source = ROOT / binding['directory']
+ assert run.sha(source / 'FILES.json') == binding['manifest_sha256']
+@@ -64,33 +58,23 @@
+     assert audit['independent_live_restoration_verified'] and audit['backup_removed']
+     assert audit['owner_result_sha256'] == terminal['result_sha256']
+     assert audit['raw_wpt_observation']['all_24_pass']
+-ready = json.loads((ROOT / policies['candidate']['snapshot']).read_text())
+-normalization = ready['startup_normalization']
+-before = json.loads((ROOT / normalization['pre_startup_snapshot']).read_text())
+-assert run.sha(ROOT / normalization['pre_startup_snapshot']) == normalization['pre_startup_snapshot_sha256']
+-marker = 'Contents/Resources/browser/.purgecaches'
+-assert set(before['files']) - set(ready['files']) == {marker}
+-assert set(ready['files']) <= set(before['files'])
+-assert all(row == before['files'][name] for name, row in ready['files'].items())
+-assert before['files'][marker] == normalization['removed_by_browser_startup_only'][marker]
+-assert normalization['connector_closed'] and not normalization['manual_archive_writes'] and normalization['retained_payloads_identical']
+-assert before['bytes'] - ready['bytes'] == 1
+-assert len(before['files']) == 8327
+-assert {k: v for k, v in ready.items() if k not in ('files', 'bytes', 'startup_normalization')} == {k: v for k, v in before.items() if k not in ('files', 'bytes')}
+-roster = json.loads((ROOT / policy['roster']).read_text())
+-old = json.loads((ROOT / 'artifacts/css-attr-own-fallback-fix-v1/ROSTER.json').read_text())
++roster = json.loads((ROOT/policy['roster']).read_text())
+ page, names = next(iter(roster.items()))
+-assert len(roster) == 1 and len(names) == 28 and names[:24] == old[page]
+-assert (source / 'tests/css/css-values/attr-fallback-taint.html').read_bytes().startswith((ROOT / 'artifacts/css-attr-own-fallback-fix-v1/tests/css/css-values/attr-fallback-taint.html').read_bytes())
++assert len(roster) == 1 and len(names) == 4
++inputs = json.loads((source/'INPUTS.json').read_text())
++assert inputs['callbacks'] == 4 and inputs['prefs'] == inputs['metadata'] == {}
++assert policy['settings']['resources'] == inputs['resources']
++assert policy['settings']['manifests']['portable'] == inputs['manifest']
++assert policy['settings']['expected_subtests'] == policy['settings']['target_subtests'] == roster
+ events = [{'action': 'suite_start'}, {'action': 'test_start', 'test': page}]
+-events += [{'action': 'test_status', 'test': page, 'subtest': name, 'status': 'FAIL' if i < 9 else 'PASS', 'expected': 'PASS'} for i, name in enumerate(names)]
++events += [{'action': 'test_status', 'test': page, 'subtest': name, 'status': 'FAIL' if i == 0 else 'PASS', 'expected': 'PASS'} for i, name in enumerate(names)]
+ events += [{'action': 'test_end', 'test': page, 'status': 'OK'}, {'action': 'suite_end'}]
+ assert run.assess(events, roster, 1)['complete']
+ all_pass = copy.deepcopy(events)
+ for row in all_pass:
+     if row['action'] == 'test_status':
+         row['status'] = 'PASS'
+-assert run.assess(all_pass, roster, 0)['all_28_pass']
++assert run.assess(all_pass, roster, 0)['all_4_pass']
+ negatives = [events[:-1], events[:2] + events[3:], events + [events[2]], events[:1] + events[2:], events + [{'action': 'crash'}]]
+ for index, field, value in [(2, 'subtest', 'wrong'), (-2, 'status', 'CRASH'), (2, 'status', 'TIMEOUT'), (2, 'test', '/wrong.html')]:
+     mutated = copy.deepcopy(events)
+@@ -99,7 +83,7 @@
+ assert all(not run.assess(rows, roster, 1)['complete'] for rows in negatives)
+ assert not run.assess(events, roster, 0)['complete']
+ assert not run.assess(all_pass, roster, 1)['complete']
+-scratch = Path(tempfile.mkdtemp(prefix='attr-archive28-check-'))
++scratch = Path(tempfile.mkdtemp(prefix='explicit-attr-archive-check-', dir='/private/tmp'))
+ result = {'browser_execution': False, 'archive_read': False, 'saved_positive_streams': 2, 'saved_negative_streams': len(negatives) + 2, 'scratch': str(scratch)}
+ try:
+     output = scratch / 'stage'

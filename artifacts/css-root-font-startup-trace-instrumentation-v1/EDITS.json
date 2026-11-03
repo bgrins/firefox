@@ -1,0 +1,102 @@
+[
+  {
+    "path": "servo/components/style/matching.rs",
+    "old": "use crate::dom::TElement;\n#[cfg(feature = \"servo\")]\nuse crate::dom::TNode;",
+    "new": "use crate::dom::{TElement, TNode};"
+  },
+  {
+    "path": "servo/components/style/matching.rs",
+    "old": "        if context.shared.traversal_flags.for_animation_only() && old_values.is_some() {\n",
+    "new": "        if context.shared.traversal_flags.for_animation_only() && old_values.is_some() {\n            if std::env::var_os(\"MOZ_ROOT_FONT_STARTUP_TRACE\").is_some() {\n                eprintln!(\n                    \"RFST skip-existing-animation node={:#x} flags={:?} thread={:?}\",\n                    self.as_node().opaque().0,\n                    context.shared.traversal_flags,\n                    std::thread::current().id()\n                );\n            }\n"
+  },
+  {
+    "path": "servo/components/style/matching.rs",
+    "old": "        if !tasks.is_empty() {\n",
+    "new": "        if std::env::var_os(\"MOZ_ROOT_FONT_STARTUP_TRACE\").is_some() {\n            eprintln!(\n                \"RFST tasks node={:#x} flags={:?} mask={:#x} thread={:?}\",\n                self.as_node().opaque().0,\n                context.shared.traversal_flags,\n                tasks.bits(),\n                std::thread::current().id()\n            );\n        }\n        if !tasks.is_empty() {\n"
+  },
+  {
+    "path": "servo/components/style/matching.rs",
+    "old": "                device.set_root_font_size(new_primary_style.effective_zoom.unzoom(size.px()));",
+    "new": "                let root_size = new_primary_style.effective_zoom.unzoom(size.px());\n                device.set_root_font_size(root_size);\n                if std::env::var_os(\"MOZ_ROOT_FONT_STARTUP_TRACE\").is_some() {\n                    eprintln!(\n                        \"RFST root-published node={:#x} flags={:?} px={} old_computed_px={:?} device={:p} thread={:?}\",\n                        self.as_node().opaque().0,\n                        context.shared.traversal_flags,\n                        root_size,\n                        old_font_size.map(|size| size.computed_size().px()),\n                        device,\n                        std::thread::current().id()\n                    );\n                }"
+  },
+  {
+    "path": "servo/components/style/matching.rs",
+    "old": "        // Don't accumulate damage if we're in the final animation traversal.\n",
+    "new": "        if std::env::var_os(\"MOZ_ROOT_FONT_STARTUP_TRACE\").is_some() {\n            eprintln!(\n                \"RFST finish node={:#x} flags={:?} hint={:?} thread={:?}\",\n                self.as_node().opaque().0,\n                context.shared.traversal_flags,\n                child_restyle_hint,\n                std::thread::current().id()\n            );\n        }\n        // Don't accumulate damage if we're in the final animation traversal.\n"
+  },
+  {
+    "path": "servo/components/style/traversal.rs",
+    "old": "    let restyle_kind = data.restyle_kind(context.shared, has_animations);\n",
+    "new": "    let restyle_kind = data.restyle_kind(context.shared, has_animations);\n    if std::env::var_os(\"MOZ_ROOT_FONT_STARTUP_TRACE\").is_some() {\n        eprintln!(\n            \"RFST restyle node={:#x} flags={:?} hint={:?} kind={:?} admitted_animation={} thread={:?}\",\n            element.as_node().opaque().0,\n            flags,\n            data.hint,\n            restyle_kind,\n            has_animations,\n            std::thread::current().id()\n        );\n    }\n"
+  },
+  {
+    "path": "servo/components/style/gecko/traversal.rs",
+    "old": "            if self.shared.traversal_flags.for_animation_only()\n",
+    "new": "            if std::env::var_os(\"MOZ_ROOT_FONT_STARTUP_TRACE\").is_some() {\n                eprintln!(\n                    \"RFST returned node={:#x} flags={:?} hint={:?} thread={:?}\",\n                    el.as_node().opaque().0,\n                    self.shared.traversal_flags,\n                    child_hint,\n                    std::thread::current().id()\n                );\n            }\n            if self.shared.traversal_flags.for_animation_only()\n"
+  },
+  {
+    "path": "servo/components/style/gecko/traversal.rs",
+    "old": "                self.normal_descendant_restyle.store(true, Ordering::Relaxed);\n",
+    "new": "                self.normal_descendant_restyle.store(true, Ordering::Relaxed);\n                if std::env::var_os(\"MOZ_ROOT_FONT_STARTUP_TRACE\").is_some() {\n                    eprintln!(\n                        \"RFST signal node={:#x} flags={:?} thread={:?}\",\n                        el.as_node().opaque().0,\n                        self.shared.traversal_flags,\n                        std::thread::current().id()\n                    );\n                }\n"
+  },
+  {
+    "path": "servo/ports/geckolib/glue.rs",
+    "old": "    if !token.should_traverse() {\n",
+    "new": "    let should_traverse = token.should_traverse();\n    if std::env::var_os(\"MOZ_ROOT_FONT_STARTUP_TRACE\").is_some() {\n        eprintln!(\n            \"RFST entry node={:#x} flags={:?} should={} thread={:?}\",\n            element.as_node().opaque().0,\n            traversal_flags,\n            should_traverse,\n            std::thread::current().id()\n        );\n    }\n    if !should_traverse {\n"
+  },
+  {
+    "path": "servo/ports/geckolib/glue.rs",
+    "old": "    if traversal.needs_normal_descendant_restyle() {\n",
+    "new": "    let normal_descendant_restyle = traversal.needs_normal_descendant_restyle();\n    if std::env::var_os(\"MOZ_ROOT_FONT_STARTUP_TRACE\").is_some() {\n        eprintln!(\n            \"RFST joined node={:#x} flags={:?} signal={} thread={:?}\",\n            root.as_node().opaque().0,\n            traversal_flags,\n            normal_descendant_restyle,\n            std::thread::current().id()\n        );\n    }\n    if normal_descendant_restyle {\n"
+  },
+  {
+    "path": "servo/ports/geckolib/glue.rs",
+    "old": "            has_styled_child = true;\n",
+    "new": "            has_styled_child = true;\n            if std::env::var_os(\"MOZ_ROOT_FONT_STARTUP_TRACE\").is_some() {\n                eprintln!(\n                    \"RFST seed root={:#x} child={:#x} hint={:?} thread={:?}\",\n                    root.as_node().opaque().0,\n                    child.as_node().opaque().0,\n                    child_data.hint,\n                    std::thread::current().id()\n                );\n            }\n"
+  },
+  {
+    "path": "servo/ports/geckolib/glue.rs",
+    "old": "            unsafe { root.set_dirty_descendants() };\n",
+    "new": "            unsafe { root.set_dirty_descendants() };\n            if std::env::var_os(\"MOZ_ROOT_FONT_STARTUP_TRACE\").is_some() {\n                eprintln!(\n                    \"RFST normal-dirty node={:#x} thread={:?}\",\n                    root.as_node().opaque().0,\n                    std::thread::current().id()\n                );\n            }\n"
+  },
+  {
+    "path": "servo/ports/geckolib/glue.rs",
+    "old": "                    seen.insert(property);\n\n                    animation_values.push",
+    "new": "                    seen.insert(property);\n\n                    if std::env::var_os(\"MOZ_ROOT_FONT_STARTUP_TRACE\").is_some() {\n                        if let Some(AnimationValue::FontSize(size)) = value.as_ref() {\n                            eprintln!(\n                                \"RFST converted-font node={:#x} keyframe={} px={} thread={:?}\",\n                                element.as_node().opaque().0,\n                                index,\n                                size.px(),\n                                std::thread::current().id()\n                            );\n                        }\n                    }\n\n                    animation_values.push"
+  },
+  {
+    "path": "servo/components/style/values/specified/length.rs",
+    "old": "                (reference_size, length)\n            },\n            LengthUnit::Rlh =>",
+    "new": "                if std::env::var_os(\"MOZ_ROOT_FONT_STARTUP_TRACE\").is_some() {\n                    eprintln!(\n                        \"RFST rem-basis root_context={} media={} reference_px={} factor={} device={:p} thread={:?}\",\n                        context.builder.is_root_element,\n                        context.in_media_query,\n                        reference_size.px(),\n                        length,\n                        context.device(),\n                        std::thread::current().id()\n                    );\n                }\n                (reference_size, length)\n            },\n            LengthUnit::Rlh =>"
+  },
+  {
+    "path": "layout/style/GeckoBindings.cpp",
+    "old": "#include \"mozilla/GeckoBindings.h\"",
+    "new": "#include \"mozilla/GeckoBindings.h\"\n\n#include <cstdio>\n#include <cstdlib>"
+  },
+  {
+    "path": "layout/style/GeckoBindings.cpp",
+    "old": "      AnimationUtils::GetElementPseudoPair(aElement);\n\n  // Handle timeline scopes first, because our own scroll/view-linked animations\n",
+    "new": "      AnimationUtils::GetElementPseudoPair(aElement);\n  if (std::getenv(\"MOZ_ROOT_FONT_STARTUP_TRACE\")) {\n    std::fprintf(stderr, \"RFST delivery input_node=%p target_node=%p pseudo=%u mask=%u style=%p\\n\",\n                 static_cast<const void*>(static_cast<const nsINode*>(aElement)),\n                 static_cast<const void*>(static_cast<const nsINode*>(element)),\n                 unsigned(pseudoRequest.mType),\n                 unsigned(aTasks),\n                 static_cast<const void*>(aComputedData));\n  }\n\n  // Handle timeline scopes first, because our own scroll/view-linked animations\n"
+  },
+  {
+    "path": "layout/style/GeckoBindings.cpp",
+    "old": "  if (aTasks & UpdateAnimationsTasks::EffectProperties) {\n",
+    "new": "  if (aTasks & UpdateAnimationsTasks::EffectProperties) {\n    if (std::getenv(\"MOZ_ROOT_FONT_STARTUP_TRACE\")) {\n      std::fprintf(stderr, \"RFST effect-properties target_node=%p pseudo=%u style=%p\\n\",\n                   static_cast<const void*>(static_cast<const nsINode*>(element)),\n                   unsigned(pseudoRequest.mType),\n                   static_cast<const void*>(aComputedData));\n    }\n"
+  },
+  {
+    "path": "dom/animation/KeyframeEffect.cpp",
+    "old": "#include \"mozilla/dom/KeyframeEffect.h\"",
+    "new": "#include \"mozilla/dom/KeyframeEffect.h\"\n\n#include <cstdio>\n#include <cstdlib>"
+  },
+  {
+    "path": "dom/animation/KeyframeEffect.cpp",
+    "old": "  bool referencesAttributes = false;\n  nsTArray<AnimationProperty> properties = BuildProperties(",
+    "new": "  if (std::getenv(\"MOZ_ROOT_FONT_STARTUP_TRACE\")) {\n    std::fprintf(stderr, \"RFST build-properties effect=%p target_node=%p pseudo=%u style=%p\\n\",\n                 static_cast<const void*>(this),\n                 static_cast<const void*>(static_cast<const nsINode*>(mTarget.mElement.get())),\n                 unsigned(mTarget.mPseudoRequest.mType),\n                 static_cast<const void*>(aStyle));\n  }\n  bool referencesAttributes = false;\n  nsTArray<AnimationProperty> properties = BuildProperties("
+  },
+  {
+    "path": "dom/animation/KeyframeEffect.cpp",
+    "old": "  mReferencesAttributes = referencesAttributes;\n\n  if (!propertiesChanged) {",
+    "new": "  mReferencesAttributes = referencesAttributes;\n\n  if (std::getenv(\"MOZ_ROOT_FONT_STARTUP_TRACE\")) {\n    std::fprintf(stderr, \"RFST built-properties effect=%p changed=%u base_changed=%u count=%zu\\n\",\n                 static_cast<const void*>(this),\n                 unsigned(propertiesChanged),\n                 unsigned(baseStylesChanged),\n                 size_t(properties.Length()));\n  }\n  if (!propertiesChanged) {"
+  }
+]

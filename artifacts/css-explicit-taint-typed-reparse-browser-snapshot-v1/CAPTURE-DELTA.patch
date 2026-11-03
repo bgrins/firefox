@@ -1,0 +1,37 @@
+--- artifacts/css-resumable-minimum-font-diagnostic-browser-snapshot-v1/capture.py
++++ artifacts/css-explicit-taint-typed-reparse-browser-snapshot-v1/capture.py
+@@ -10,13 +10,12 @@
+ 
+ ROOT = Path(__file__).resolve().parents[2]
+ OUT = Path(__file__).resolve().parent
+-RUNTIME = ROOT / "artifacts/css-resumable-minimum-font-crash-diagnostic-browser-runtime-2"
++RUNTIME = ROOT / "artifacts/css-explicit-taint-typed-reparse-candidate-browser-runtime-v1"
+ APP = ROOT / "objdir-full.noindex/dist/Nightly.app"
+ SOURCES = {
+-    "servo/components/style/custom_properties.rs": "52a350227dd89b106c775b99df988b060baa5444c008de85ae7601b0280e4288",
+-    "servo/components/style/properties/cascade.rs": "7523b7c0537358edfed1c6a1816163e18c6c55549b2d33058a4b471809ec938c",
+-    "servo/components/style/properties/mod.rs": "7ae98c9e99e0df2593459ca176107eb7d90cf56c061f42cb783a48e545701733",
++    "servo/components/style/custom_properties.rs": "2bcc5d15479de981d1f97dd0a3e94e05a3e97f9a46512598e904eca585bf6b37",
+ }
++
+ sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+ receipt_path = RUNTIME / "candidate-build/RESULT.json"
+ deadline = time.monotonic() + 2400
+@@ -54,7 +53,7 @@
+ try:
+     before = inventory(APP)
+     assert all(sha(ROOT / name) == pin for name, pin in SOURCES.items())
+-    owned = Path(tempfile.mkdtemp(prefix="css-minimum-diagnostic-browser-"))
++    owned = Path(tempfile.mkdtemp(prefix="css-explicit-taint-browser-"))
+     copy = owned / "Nightly.app"
+     print("Copying completed candidate application", flush=True)
+     shutil.copytree(APP, copy, symlinks=False)
+@@ -72,7 +71,7 @@
+         "build_receipt": str(receipt_path.relative_to(ROOT)),
+         "build_receipt_sha256": hashlib.sha256(receipt_bytes).hexdigest(),
+         "files": copied, "bytes": sum(row["bytes"] for row in copied.values()),
+-        "purpose": "Follow-up diagnosis of the frozen minimum-font scheduler candidate without rebuilding; remove when diagnostic use ends",
++        "purpose": "Follow-up regression and local request observations for the standalone explicit-taint repair without rebuilding; remove after validation",
+         "active_source_application_index_changed": False,
+     }
+     (OUT / "SNAPSHOT.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")

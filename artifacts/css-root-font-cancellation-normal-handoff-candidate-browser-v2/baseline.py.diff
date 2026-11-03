@@ -1,0 +1,14 @@
+--- artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-v1/baseline.py
++++ artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-v2/baseline.py
+@@ -61,7 +61,10 @@
+ 
+ 
+ def require_role(policy, role, epoch):
+-    adapter = load('language_capture_role', policy['capture_owner']['directory'] + '/baseline.py')
++    binding = policy['role_validator']
++    ownership = load('role_leaf_ownership', policy['ownership_helper'])
++    ownership.authenticate(ROOT / binding['directory'], binding['manifest_sha256'])
++    adapter = load('language_capture_role', binding['directory'] + '/baseline.py')
+     assert adapter.binding['ownership_commit'] == policy['ownership_commit']
+     assert adapter.binding['capacity_commit'] == policy['capacity_commit']
+     adapter.require_role(policy, role, epoch)

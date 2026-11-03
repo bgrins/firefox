@@ -1,0 +1,97 @@
+--- v2/tests/web-animations/animation-model/keyframe-effects/root-font-self-reference.html
++++ isolated/tests/web-animations/animation-model/keyframe-effects/root-font-self-reference.html
+@@ -74,23 +74,39 @@
+   inherited.cancel();
+ }
+ 
++async function calibrationReference(t, ctx, size, line) {
++  const reference = await context(t, size, line);
++  assert_approx_equals(reference.initialRem, ctx.initialRem, 0.06, "reference initial font size");
++  assert_approx_equals(reference.initialRlh, ctx.initialRlh, 0.06, "reference initial line height");
++  await calibrateRoot(reference);
++  verifyUnderlyingRoot(reference, size, line);
++  return reference;
++}
++
++function verifyUnderlyingRoot(ctx, size, line) {
++  const style = ctx.win.getComputedStyle(ctx.root);
++  assert_equals(style.fontSize, `${size}px`, "target literal underlying root font size");
++  assert_equals(style.lineHeight, `${line}px`, "target literal underlying root line height");
++}
++
+ for (const unit of ["rem", "rlh"]) {
+   for (const kind of ["root", "child", "root-pseudo"]) {
+     promise_test(async t => {
+       for (const [size, line] of [[23, 37], [31, 47]]) {
+         const ctx = await context(t, size, line);
+-        await calibrateRoot(ctx);
++        const reference = await calibrationReference(t, ctx, size, line);
+         const target = kind === "child" ? ctx.child : ctx.root;
+         const pseudo = kind === "root-pseudo" ? "::before" : null;
+         const base = kind === "root" ?
+           (unit === "rem" ? ctx.initialRem : ctx.initialRlh) :
+           (unit === "rem" ? size : line);
+         if (kind === "root") {
+-          ctx.root.style.fontSize = `2${unit}`;
+-          assert_approx_equals(parseFloat(ctx.win.getComputedStyle(ctx.root).fontSize),
++          reference.root.style.fontSize = `2${unit}`;
++          assert_approx_equals(parseFloat(reference.win.getComputedStyle(reference.root).fontSize),
+             2 * base, 0.06, "ordinary root font-size comparator");
+-          ctx.root.style.fontSize = `${size}px`;
++          reference.root.style.fontSize = `${size}px`;
+         }
++        verifyUnderlyingRoot(ctx, size, line);
+         const animation = paused(target, "fontSize", `1${unit}`, `3${unit}`, pseudo);
+         await observe(t, ctx, target, pseudo, "fontSize", animation, 2 * base,
+           `${kind} font-size ${unit} over ${size}/${line}`);
+@@ -102,6 +118,7 @@
+   promise_test(async t => {
+     for (const [size, line] of [[23, 37], [31, 47]]) {
+       const ctx = await context(t, size, line);
++      verifyUnderlyingRoot(ctx, size, line);
+       const animation = paused(ctx.root, "width", `1${unit}`, `3${unit}`, "::before");
+       await observe(t, ctx, ctx.root, "::before", "width", animation,
+         2 * (unit === "rem" ? size : line), `root-host pseudo width ${unit}`);
+@@ -112,11 +129,13 @@
+   promise_test(async t => {
+     for (const [size, line] of [[23, 37], [31, 47]]) {
+       const ctx = await context(t, size, line);
++      const reference = await calibrationReference(t, ctx, size, line);
+       const base = unit === "rem" ? size : ctx.initialRlh;
+-      ctx.root.style.lineHeight = `2${unit}`;
+-      assert_approx_equals(parseFloat(ctx.win.getComputedStyle(ctx.root).lineHeight),
++      reference.root.style.lineHeight = `2${unit}`;
++      assert_approx_equals(parseFloat(reference.win.getComputedStyle(reference.root).lineHeight),
+         2 * base, 0.06, "ordinary root line-height comparator");
+-      ctx.root.style.lineHeight = `${line}px`;
++      reference.root.style.lineHeight = `${line}px`;
++      verifyUnderlyingRoot(ctx, size, line);
+       const animation = paused(ctx.root, "lineHeight", `1${unit}`, `3${unit}`);
+       await observe(t, ctx, ctx.root, null, "lineHeight", animation,
+         2 * base, `root line-height ${unit}`);
+@@ -127,11 +146,12 @@
+   promise_test(async t => {
+     for (const [size, line] of [[23, 37], [31, 47]]) {
+       const ctx = await context(t, size, line);
+-      await calibrateRoot(ctx);
++      const reference = await calibrationReference(t, ctx, size, line);
+       const style = ctx.doc.createElement("style");
+       style.textContent = `@keyframes root-size { from { font-size: 1${unit}; }
+         to { font-size: 3${unit}; } }
+         html { animation: root-size 1s linear both paused; }`;
++      verifyUnderlyingRoot(ctx, size, line);
+       ctx.doc.head.append(style);
+       const animation = ctx.root.getAnimations().find(a => a.animationName === "root-size");
+       assert_true(!!animation, "generated CSS animation exists");
+@@ -145,9 +165,10 @@
+   promise_test(async t => {
+     for (const [size, line] of [[23, 37], [31, 47]]) {
+       const ctx = await context(t, size, line);
+-      await calibrateRoot(ctx);
++      const reference = await calibrationReference(t, ctx, size, line);
+       ctx.root.style.setProperty("--from-size", `1${unit}`);
+       ctx.root.style.setProperty("--to-size", `3${unit}`);
++      verifyUnderlyingRoot(ctx, size, line);
+       const animation = paused(ctx.root, "fontSize", "var(--from-size)", "var(--to-size)");
+       await observe(t, ctx, ctx.root, null, "fontSize", animation,
+         2 * (unit === "rem" ? ctx.initialRem : ctx.initialRlh), `substituted root font-size ${unit}`);

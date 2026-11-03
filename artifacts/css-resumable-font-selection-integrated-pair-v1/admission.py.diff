@@ -1,0 +1,14 @@
+--- a/admission.py
++++ b/admission.py
+@@ -14,7 +14,10 @@
+     for name,row in manifest.get('files',manifest).items():
+         assert not Path(name).is_absolute() and '..' not in Path(name).parts
+         assert (directory/name).is_file() and not (directory/name).is_symlink()
+-        assert sha(directory/name)==row['sha256'] and (directory/name).stat().st_size==row['bytes']
++        if isinstance(row, str):
++            assert len(row) == 64 and sha(directory/name) == row
++        else:
++            assert sha(directory/name)==row['sha256'] and (directory/name).stat().st_size==row['bytes']
+     return directory
+ 
+ 

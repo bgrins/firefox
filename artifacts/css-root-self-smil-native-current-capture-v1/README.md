@@ -1,0 +1,13 @@
+# SMIL supplemental native current capture
+
+This adapter advances the completed root-self capture lineage from epoch b4 to raw-refresh result aa745d43 and epoch844d55b2. Signed authority remains native e86/085f with signed research parent V114. Failed research signing is not authority. The new capture output is still pending.
+
+`capture_current.py` is byte-identical to the previous root-self capture. Full live source/hash/inode, canonical controls, application/extras/binaries, Git signature/ancestry, flags, process state and final consistency checks remain unchanged and uncached. Additional sources remain exactly empty; glue uses its existing canonical installed identity and ordinary payload claim.
+
+The sole baseline code change authenticates sealed helper9e486e64 and calls its direct refresh API for the exact old root-self parent. The full new binding is passed as the call's scope. The new outer validator, new raw-index projection and completed refresh driver's saved verification are not memoized by this new seam. The old-parent session ends before those operations. No registry entry is added. That completed refresh driver's historical owner already uses the reviewed helper within its own saved admission; its code remains unchanged.
+
+Actual saved check e78a68/session77373/a4fe73 exited0. The unchanged outer algorithm plus this bounded parent call returned the exact aa745 PRE/POST snapshot in19.61 seconds. Four controls reject a changed parent source hash, changed parent bindings hash, changed helper manifest, and a different authentic parent. Global hooks are restored after success and rejection. The existing helper's scope-mutation, escaped-callable and exception-restoration controls remain attributed to its sealed receipts; no new callback wrapper is introduced here.
+
+The first run reached the correct snapshot, then the wrong-manifest control raised the ownership helper's RuntimeError instead of the harness's expected AssertionError. `initial-run` preserves its exact source/log/result/terminal. The correction accepts that RuntimeError only for the wrong-helper label with the manifest-digest message. Production baseline, binding and capture bytes did not change. No live capture, archive scan, browser, build, source, Git or canonical mutation was performed.
+
+Root must execute a fresh capture with four arguments: this adapter's actual FILES hash, the native COMMIT-RESULT path, its exact085f digest, and a new output path. Suggested output: `artifacts/css-root-self-smil-native-current-v1.json`. Candidate owner admission must call this adapter directly; the older helper must not be applied to this new outer function. Actual current output and terminal must be authenticated before enabling any native operation.

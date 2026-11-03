@@ -1,0 +1,176 @@
+--- artifacts/css-attr-fallback-publication-v1/check.py
++++ artifacts/css-attr-fallback-after-reparse-publication-v2/check.py
+@@ -7,6 +7,8 @@
+ from pathlib import Path
+ import sys
+ import tempfile
++import subprocess
++import shutil
+ 
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ sys.dont_write_bytecode = True
+@@ -56,7 +58,8 @@
+ capsule = ROOT / 'artifacts/css-attr-own-fallback-fix-v2'
+ for name, record in read(capsule / 'FILES.json')['files'].items():
+     assert sha(capsule / name) == record['sha256']
+-base = capsule / 'base/servo/components/style/custom_properties.rs'
++typed_capsule = ROOT / 'artifacts/css-explicit-attribute-taint-typed-reparse-fix-v1'
++base = typed_capsule / 'candidate/servo/components/style/custom_properties.rs'
+ assert sha(base) == stage['head_preimages'][source]
+ assert (HERE / 'native.patch').read_bytes() == (capsule / 'native.patch').read_bytes()
+ 
+@@ -65,7 +68,7 @@
+     'pins': dict(stage['head_preimages'], unrelated='untouched'),
+     'staged_working': {}, 'committed_research_working_payloads': {},
+     'installed_identities': {**{n:[1,i+2] for i,n in enumerate(sorted(sources))}, 'unrelated':[1,10]},
+-    'semantic_index': {'head': 'synthetic-research', 'entries': 'same', 'working_diff': ''},
++    'semantic_index': {'head': 'synthetic-research', 'entries': 'same', 'working_diff': hashlib.sha256(b'').hexdigest()},
+     'raw_index_observation': {'current': 'synthetic-before', 'historical': 'preserve'},
+     'modified_native_paths': [], 'counts': {'native_modified_paths': 0, 'roles': 2, 'installed_identities': 2},
+     'prototype_overlay_state': {'installed': False, 'retired_by': 'earlier-publication'},
+@@ -75,12 +78,13 @@
+     'hyphenation_ownership_publication': {'ownership': {'native_commit': 'already-published-ownership'}},
+     'prioritary_declaration_capacity_publication': {'capacity': {'native_commit': 'already-published-capacity'}},
+     'registered_number_transition': {'role': 'published-native'},
++    'explicit_taint_reparse_publication': {'reparse': {'native_commit': 'future-typed-synthetic'}},
+     'accepted_fix_count': 149, 'accepted_records': ['historical'],
+     'canonical_application': {'built': False, 'sha256': 'restored-old-app'},
+     'untracked_native': ['unrelated-native'], 'nested_semantic_index': {'head': 'nested'},
+ }
+ owned = {'unrelated': {'identity': [1, 3]}}
+-role = {'built': False, 'variant': 'language', 'last_build': 'obsolete', 'last_install': 'obsolete'}
++role = {'built': False, 'variant': 'reparse', 'last_build': 'obsolete', 'last_install': 'obsolete'}
+ original = copy.deepcopy((epoch, owned, role))
+ claims = {name: {'path': name, 'identity': [1, 2 if name == source else 4], 'owned_sha256': record['sha256']} for name, record in stage['files'].items()}
+ semantic = dict(epoch['semantic_index'], working_diff='synthetic-ownership-diff')
+@@ -98,12 +102,12 @@
+     bad = copy.deepcopy(claims)
+     bad[name]['owned_sha256'] = 'wrong'
+     reject('wrong postimage claim: ' + name, lambda: t.installed(epoch, owned, role, stage, bad, {}, semantic, 'synthetic', 'synthetic'))
+-final = t.committed(current, 'fallback', {'raw_index': 'synthetic-committed'}, dict(semantic, head='synthetic-commit', working_diff=''), 'synthetic-commit')
++final = t.committed(current, 'fallback', {'raw_index': 'synthetic-committed'}, dict(semantic, head='synthetic-commit', working_diff=hashlib.sha256(b'').hexdigest()), 'synthetic-commit')
+ assert final['modified_native_paths'] == [] and final['counts']['native_modified_paths'] == 0
+ assert final['attr_fallback_publication']['fallback']['native_commit'] == 'synthetic-commit'
+ assert final['registered_number_transition']['paired_head'] == 'synthetic-commit'
+ assert final['pins'] == current['pins'] and final['installed_identities'] == current['installed_identities']
+-for name in ('prototype_overlay_state', 'registered_color_image_publication', 'nowrap_publication', 'language_partition_publication', 'hyphenation_ownership_publication', 'prioritary_declaration_capacity_publication', 'accepted_fix_count', 'accepted_records', 'canonical_application', 'nested_semantic_index', 'untracked_native'):
++for name in ('prototype_overlay_state', 'registered_color_image_publication', 'nowrap_publication', 'language_partition_publication', 'hyphenation_ownership_publication', 'prioritary_declaration_capacity_publication', 'explicit_taint_reparse_publication', 'accepted_fix_count', 'accepted_records', 'canonical_application', 'nested_semantic_index', 'untracked_native'):
+     assert final[name] == epoch[name]
+ 
+ owner = load('checked_owner', ROOT / 'artifacts/css-registered-number-source-transition-v4/transition.py')
+@@ -145,43 +149,76 @@
+     assert not target.exists()
+ assert not scratch.exists()
+ evidence = load('checked_evidence', HERE / 'evidence.py')
+-reject('pending actual pair cannot authorize publication', lambda: evidence.verify(ROOT, None, stage))
+ binding = read(HERE / 'PAIR-BINDING.json')
+-actual = evidence.verify(ROOT, binding, stage)
+-assert actual['original_PASS'] == 17 and actual['original_FAIL'] == 11 and actual['candidate_PASS'] == 28
+-original = read(ROOT / binding['runtimes']['original']['directory'] / 'ASSESSMENT.json')
+-candidate = read(ROOT / binding['runtimes']['candidate']['directory'] / 'ASSESSMENT.json')
+-roster = read(capsule / 'ROSTER.json')
+-for label, side, field, value in [('candidate failure', 'candidate', 'status', 'FAIL'),
+-                                  ('lost original control', 'original', 'status', 'FAIL'),
+-                                  ('wrong callback', 'candidate', 'subtest', 'other')]:
+-    before, after = copy.deepcopy(original), copy.deepcopy(candidate)
+-    (before if side == 'original' else after)['subtests'][0][field] = value
+-    reject(label, lambda: evidence.require_witness(before, after, roster))
+-before = copy.deepcopy(original)
+-before['subtests'][2]['message'] = 'assert_true: unrelated failure'
+-reject('original must reach final taint assertion', lambda: evidence.require_witness(before, candidate, roster))
+-for label, mutate in [('missing callback', lambda x: x['subtests'].pop()),
+-                      ('duplicate callback', lambda x: x['subtests'].__setitem__(0, x['subtests'][1])),
+-                      ('crash ending', lambda x: x['endings'][0].update(status='CRASH')),
+-                      ('incomplete stream', lambda x: x.update(complete=False))]:
+-    after = copy.deepcopy(candidate); mutate(after)
+-    reject(label, lambda: evidence.require_witness(original, after, roster))
+-bad = copy.deepcopy(binding); bad['runtimes']['candidate']['manifest_sha256'] = 'wrong'
+-reject('wrong actual runtime authority', lambda: evidence.verify(ROOT, bad, stage))
+-
+-predecessor = ROOT / 'artifacts/css-prioritary-declaration-capacity-publication-v1'
+-for name in ('run.py', 'publish.py', 'transform.py', 'delivery.py', 'evidence.py'):
+-    expected = ''.join(difflib.unified_diff((predecessor/name).read_text().splitlines(True), (HERE/name).read_text().splitlines(True), fromfile='executed/'+name, tofile='fallback/'+name))
+-    assert (HERE/(name+'.diff')).read_text() == expected
+-old, new = (predecessor/'run.py').read_text(), (HERE/'run.py').read_text()
+-start = '            with tempfile.TemporaryDirectory('
+-end = '    except BaseException as error:'
+-assert new[new.index(start):new.index(end)] == old[old.index(start):old.index(end)].replace('css-prioritary-declaration-capacity-native-', 'css-attr-fallback-native-')
+-assert (HERE/'delivery.py').read_text() == (predecessor/'delivery.py').read_text().replace("['css-cascade']", "['css-values']").replace('[blob, [None, {}]]', "[blob, [None, {'timeout': 'long'}]]")
+-assert "for name in ('run.py', 'transform.py', 'evidence.py', 'STAGES.json')" in (HERE/'publish.py').read_text()
+-print(json.dumps({'references':len(policy['references']), 'pure_install_commit_transforms':2,
+-                  'negative_controls':negatives, 'exclusive_creation_and_owned_cleanup':True,
+-                  'scratch_removed':True, 'signing_tail_preserved':True,
+-                  'actual_pair_evidence':actual,
+-                  'native_git_browser_actions':False}, sort_keys=True))
++reject('pending authority cannot execute', lambda: evidence.verify(ROOT, binding, stage))
++actual = evidence.verify_completed(ROOT, binding, stage)
++assert (actual['candidate_pass'], actual['preserved_pass_signatures'], actual['preserved_ending_signatures'], actual['fail_to_pass']) == (82,69,7,13)
++native_owner = ROOT / 'artifacts/css-explicit-taint-combined-native-candidate-browser-v1'
++native_runtime = ROOT / 'artifacts/css-explicit-taint-combined-native-candidate-browser-runtime-v1'
++assessor = load('checked_combined_assessor', native_owner / 'assess.py')
++baseline = read(native_owner / 'BASELINE82.json')
++rows, ends = [], []
++for lane in ('reparse','fallback','controls','composition'):
++    assessment = read(native_runtime / ('candidate-wpt-'+lane) / 'ASSESSMENT.json')
++    rows.extend(assessor.signature(row) for row in assessment['rows'])
++    ends.extend(assessor.signature(row) for row in assessment['ends'])
++for label, mutate in [
++    ('lost callback', lambda r,e: r.pop()),
++    ('duplicate callback', lambda r,e: r.__setitem__(0,r[1])),
++    ('candidate failure', lambda r,e: r[0].update(status='FAIL')),
++    ('ending metadata changed', lambda r,e: e[0].update(message='changed')),
++    ('old PASS message changed', lambda r,e: r[0].update(message='changed')),
++]:
++    r,e = copy.deepcopy((rows,ends));mutate(r,e)
++    reject(label,lambda:evidence.require_comparison(baseline,r,e))
++source_info=read(typed_capsule/'SOURCE.json')
++future=dict(binding,typed_native_receipt={'path':'synthetic','sha256':'synthetic'},current_capture={'path':'synthetic','sha256':'synthetic'},current_epoch_sha256='synthetic-epoch')
++receipt={'stage':'reparse','signature_verified':True,'files':sorted([source,evidence.TYPED_TEST]),'app_rebuilt':False,'accepted_fix_increment':0,'commit':'a'*40,'parent':'b'*40}
++capture={'full_current_state_verified':True,'source_transition_lock_absent':True,'sources_match_head':True,'controls':{'CURRENT-EPOCH.json':'synthetic-epoch'},'payload_claims':{source:{'path':source,'owned_sha256':stage['head_preimages'][source],'identity':[1,2]}},'snapshot':{'index':{'cached_diff':hashlib.sha256(b'').hexdigest(),'working_diff':hashlib.sha256(b'').hexdigest()}}}
++capture['sources']=copy.deepcopy(capture['payload_claims'])
++capture['installed_identities']={source:[1,2]}
++capture['epoch_payload_pins']=dict(stage['head_preimages'])
++evidence.require_future(future,receipt,capture,source_info)
++for key in ('typed_native_receipt','current_capture','current_epoch_sha256'):
++    bad=dict(future);bad[key]=None
++    reject('missing '+key,lambda:evidence.require_future(bad,receipt,capture,source_info))
++for key,value in [('stage','capacity'),('signature_verified',False),('files',[source]),('app_rebuilt',True)]:
++    bad=dict(receipt);bad[key]=value
++    reject('wrong typed receipt '+key,lambda:evidence.require_future(future,bad,capture,source_info))
++for label,mutate in [
++    ('old source',lambda c:c['payload_claims'][source].update(owned_sha256='bb13')),
++    ('wrong rich schema',lambda c:c['payload_claims'][source].update(sha256=c['payload_claims'][source].pop('owned_sha256'))),
++    ('wrong claim path',lambda c:c['payload_claims'][source].update(path='other')),
++    ('different captured inode',lambda c:c['installed_identities'].update({source:[1,3]})),
++    ('wrong epoch',lambda c:c['controls'].update({'CURRENT-EPOCH.json':'wrong'})),
++    ('dirty index digest',lambda c:c['snapshot']['index'].update(cached_diff=hashlib.sha256(b'dirty').hexdigest())),
++    ('dirty working digest',lambda c:c['snapshot']['index'].update(working_diff=hashlib.sha256(b'dirty').hexdigest())),
++    ('raw empty index schema',lambda c:c['snapshot']['index'].update(cached_diff='')),
++    ('raw empty working schema',lambda c:c['snapshot']['index'].update(working_diff='')),
++    ('missing lock check',lambda c:c.update(source_transition_lock_absent=False)),
++]:
++    bad=copy.deepcopy(capture);mutate(bad)
++    reject(label,lambda:evidence.require_future(future,receipt,bad,source_info))
++with tempfile.TemporaryDirectory(prefix='fallback-after-reparse-patch-',dir='/private/tmp') as directory:
++    patch_scratch=Path(directory);target=patch_scratch/source;target.parent.mkdir(parents=True);shutil.copyfile(base,target)
++    forward=subprocess.run(['patch','--batch','--fuzz=0','-p1','-i',str((HERE/'native.patch').resolve())],cwd=patch_scratch,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
++    assert forward.returncode==0,forward.stdout
++    assert b'fuzz' not in forward.stdout.lower()
++    assert sha(target)==stage['files'][source]['sha256']
++    assert sha(patch_scratch/test)==stage['files'][test]['sha256']
++    reverse=subprocess.run(['patch','--batch','--fuzz=0','-R','-p1','-i',str((HERE/'native.patch').resolve())],cwd=patch_scratch,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
++    assert reverse.returncode==0,reverse.stdout
++    assert b'fuzz' not in reverse.stdout.lower()
++    assert sha(target)==sha(base) and not (patch_scratch/test).exists()
++assert not patch_scratch.exists()
++predecessor=ROOT/'artifacts/css-attr-fallback-publication-v1'
++for name in ('run.py','publish.py','transform.py','delivery.py','evidence.py','check.py','POLICY.json','STAGES.json','PAIR-BINDING.json'):
++    expected=''.join(difflib.unified_diff((predecessor/name).read_text().splitlines(True),(HERE/name).read_text().splitlines(True),fromfile=str((predecessor/name).relative_to(ROOT)),tofile=str((HERE/name).relative_to(ROOT))))
++    assert (HERE/(name+'.diff')).read_text()==expected
++old,new=(predecessor/'run.py').read_text(),(HERE/'run.py').read_text()
++start='            with tempfile.TemporaryDirectory('
++assert new[new.index(start):]==old[old.index(start):]
++for name in ('transform.py','delivery.py'):
++    assert (HERE/name).read_bytes()==(predecessor/name).read_bytes()
++assert (HERE/'publish.py').read_text()==(predecessor/'publish.py').read_text().replace('css-attr-fallback-publication-','css-attr-fallback-after-reparse-publication-')
++print(json.dumps({'references':len(policy['references']),'negative_controls':negatives,'actual_combined':{k:actual[k] for k in ['candidate_pass','preserved_pass_signatures','preserved_ending_signatures','fail_to_pass']},'historical_standalone':[17,11,28],'zero_fuzz_forward_reverse':True,'patch_output':forward.stdout.decode()+reverse.stdout.decode(),'scratch_removed':True,'signing_rollback_tail_exact':True,'delivery_transform_exact':True,'all_future_authority_null':True,'no_native_git_browser_actions':True},sort_keys=True))

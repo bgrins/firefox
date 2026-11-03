@@ -1,0 +1,68 @@
+--- EVIDENCE-BEFORE-ROOT-SELF.py
++++ evidence.py
+@@ -112,7 +112,9 @@
+     assert all(binding[key] == value for key, value in expected.items() if key != 'font_native_receipt')
+     owner = load('saved_ownership', root / 'artifacts/css-registered-number-source-transition-v4/transition.py')
+     for key, record in binding.items():
+-        if key != 'font_native_receipt':
++        if key in ('root_self_policy', 'root_self_roster'):
++            assert sha(root / record['path']) == record['sha256']
++        elif key != 'font_native_receipt':
+             owner.authenticate(root / record['directory'], record['manifest_sha256'])
+     font_dir = root / binding['font_publisher']['directory']
+     font_stage, = read(font_dir / 'STAGES.json')['stages']
+@@ -183,10 +185,53 @@
+     page, = read(root / font_policy['roster'])
+     assert signatures(events(old_raw), page, 14) == signatures(events(font_runtime / 'raw.jsonl'), page, 14)
+     assert sha(font_runtime / 'tests' / page.lstrip('/')) == font_stage['files']['testing/web-platform/tests' + page]['sha256']
++    root_self = verify_root_self(root, binding, snapshot, source_hashes)
+     return {'tested_head': BASE, 'font_stage': font_stage, 'cancellation_depth_pass': 12,
+             'fail_to_pass': 4, 'preserved_pass_signatures': 8, 'preserved_endings': 2,
+             'font_pass_preserved': 14, 'font_endings_preserved': 1,
+-            'root_identity_lane_verified': False, 'startup_fix_claimed': False}
++            'root_identity_lane_verified': True, 'root_identity_preservation': root_self, 'startup_fix_claimed': False}
++
++
++
++def require_root_self_signatures(old, new, old_end, new_end):
++    assert len(old) == len(new) == 14 and old == new and old_end == new_end
++    assert sum(row['status'] == 'PASS' for row in old) == 7
++    assert sum(row['status'] == 'FAIL' for row in old) == 7
++    return {'preserved_pass': 7, 'preserved_fail': 7, 'preserved_ok': 1}
++
++
++def verify_root_self(root, binding, snapshot, source_hashes):
++    owner = load('root_self_saved_ownership', root / 'artifacts/css-registered-number-source-transition-v4/transition.py')
++    record = binding['root_self_runtime']
++    directory = root / record['directory']
++    owner.authenticate(directory, record['manifest_sha256'])
++    for key in ('root_self_policy', 'root_self_roster'):
++        pin = binding[key]
++        assert sha(root / pin['path']) == pin['sha256']
++    policy = read(root / binding['root_self_policy']['path'])
++    assert policy['roster'] == binding['root_self_roster']['path']
++    assert policy['runtime'] == record['directory']
++    assert policy['completed_runtime'] == read(root / binding['font_archive_owner']['directory'] / 'POLICY-candidate.json')['completed_runtime']
++    runner = load('root_self_archive_assessor', root / binding['font_archive_owner']['directory'] / 'run.py')
++    archived(root, directory, policy, runner, snapshot, source_hashes)
++    report = read(directory / 'ROOT-COMPARISON.json')
++    terminal = read(directory / 'ROOT-VERIFICATION-TERMINAL.json')
++    assert terminal['exit'] == 0 and terminal['comparison_sha256'] == sha(directory / 'ROOT-COMPARISON.json')
++    assert report['full_signatures_unchanged'] and report['archive_and_staging_preserved']
++    assert report['owned_group_absent'] == read(directory / 'PROCESS.json')['pgid']
++    assert report['temporary_absent'] == read(directory / 'COMMAND.json')['temporary']
++    original = root / 'artifacts/css-root-self-animation-isolation-archived-original-runtime-v1/raw.jsonl'
++    assert sha(original) == report['original_raw_sha256']
++    assert sha(directory / 'raw.jsonl') == report['candidate_raw_sha256']
++    page, = read(root / policy['roster'])
++    old, old_end = signatures(events(original), page, 14)
++    new, new_end = signatures(events(directory / 'raw.jsonl'), page, 14)
++    result = require_root_self_signatures(old, new, old_end, new_end)
++    assert all(report[key] == value for key, value in result.items())
++    pin = policy['settings']['resources'][page]['sha256']
++    assert sha(directory / 'tests' / page.lstrip('/')) == pin
++    assert sha(original.parent / 'tests' / page.lstrip('/')) == pin
++    return result
+ 
+ 
+ def verify(root, binding, stage):

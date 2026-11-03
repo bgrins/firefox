@@ -1,0 +1,47 @@
+--- artifacts/css-root-font-cancellation-observer-v1/compare.py
++++ artifacts/css-root-font-cancellation-observer-v2/compare.py
+@@ -61,6 +61,15 @@
+     return report
+ 
+ 
++def finish_observation(report, owner_result, phase_results):
++    successful = (owner_result['success'] is True and owner_result['error'] is None
++                  and bool(phase_results)
++                  and all(result['success'] is True and result['execution_error'] is None
++                          for result in phase_results))
++    return dict(report, execution_successful=successful,
++                witness_closed_under_known_fix=report['witness_closed_under_known_fix'] and successful)
++
++
+ def main():
+     bindings = read(HERE / 'BINDINGS.json')
+     assert bindings['execution_enabled'], 'comparison disabled pending actual terminal evidence'
+@@ -88,6 +97,7 @@
+     assert result['restoration_verified'] and result['runtime_controls_unchanged']
+     assert result['publication_errors'] == []
+     owner_error = result['error']
++    owner_result = result
+     assert restored['errors'] == [] and restored['owned_processes'] == {}
+     policy = read(OWNER / 'POLICY.json')
+     assert policy['lane_order'] == ['cancellation']
+@@ -114,10 +124,12 @@
+     assert build['application_metadata']['source_role'] == 'candidate'
+     rows, ends, lanes = [], [], {}
+     complete = True
++    phase_results = []
+     for lane in policy['lane_order']:
+         phase = RUNTIME / ('candidate-wpt-' + lane)
+         result = read(phase / 'RESULT.json')
+         assert result['preservation_verified']
++        phase_results.append(result)
+         metadata = read(phase / 'APPLICATION-METADATA.json')
+         assert metadata == read(phase / 'APPLICATION-METADATA-POST.json') == build['application_metadata']
+         assert read(phase / 'BINARY-PINS.json') == build['binaries']
+@@ -137,6 +149,7 @@
+         ends.extend(assessor.signature(row) for row in actual['ends'])
+         lanes[lane] = {'raw_sha256': sha(phase / 'raw.jsonl'), 'assessment_sha256': sha(phase / 'ASSESSMENT.json'), 'statuses': dict(Counter(row['status'] for row in actual['rows'])), 'complete': actual['complete'], 'errors': actual['errors'], 'execution_error': result['execution_error'], 'crash_events': [row for row in events if row.get('action') == 'crash' or row.get('status') == 'CRASH']}
+     report = compare_signatures(baseline, rows, ends, complete)
++    report = finish_observation(report, owner_result, phase_results)
+     report.update(baseline_projection=True, owner_error=owner_error, candidate_sources=expected_sources,
+                   build_sha256=sha(RUNTIME / 'candidate-build/RESULT.json'),
+                   baseline_sha256=sha(ROOT / bindings['baseline']['path']), lanes=lanes,

@@ -1,0 +1,269 @@
+--- artifacts/css-resumable-font-selection-caller-v2/candidate/servo/components/style/properties/cascade.rs
++++ artifacts/css-resumable-computed-size-selection-v1/candidate/servo/components/style/properties/cascade.rs
+@@ -878,11 +878,13 @@
+ enum FontTarget {
+     Metric(PrioritaryPropertyId),
+     Synthesis(LonghandId),
++    ComputedSize,
+ }
+ 
+ impl FontTarget {
+     fn same_as(self, other: Self) -> bool {
+         match (self, other) {
++            (Self::ComputedSize, Self::ComputedSize) => true,
+             (Self::Metric(left), Self::Metric(right)) => left.to_longhand() == right.to_longhand(),
+             (Self::Synthesis(left), Self::Synthesis(right)) => left == right,
+             _ => false,
+@@ -976,8 +978,71 @@
+ }
+ 
+ struct ComputedSizePreparation<'a, 'b> {
++    index: usize,
+     size: MetricPreparation<'a, 'b>,
+     text_scale: MetricPreparation<'a, 'b>,
++}
++
++impl ComputedSizePreparation<'_, '_> {
++    fn poll(
++        &mut self,
++        cascade: &Cascade,
++        context: &mut computed::Context,
++        cache: &mut ShorthandsWithPropertyReferencesCache,
++        tracker: &mut AttributeTracker,
++        mut reply: Option<(LonghandId, FontSelectionReply)>,
++    ) -> MetricPreparationStep {
++        if reply.as_ref().is_some_and(|(id, _)| {
++            let state = if *id == self.size.longhand {
++                &self.size
++            } else if *id == self.text_scale.longhand {
++                &self.text_scale
++            } else {
++                return true;
++            };
++            state.complete || state.waiting.is_none()
++        }) {
++            return MetricPreparationStep::Invalidated;
++        }
++        for state in [&mut self.size, &mut self.text_scale] {
++            let selected_reply = if reply.as_ref().is_some_and(|(id, _)| *id == state.longhand) {
++                reply.take().map(|(_, value)| value)
++            } else if reply.is_some() && !state.complete {
++                return MetricPreparationStep::Invalidated;
++            } else {
++                None
++            };
++            match cascade.resume_font_selection(context, cache, tracker, state, selected_reply) {
++                MetricPreparationStep::Complete => {}
++                other => return other,
++            }
++        }
++        MetricPreparationStep::Complete
++    }
++}
++
++fn computed_size_selection_flags_stable(
++    declarations: &Declarations,
++    id: PrioritaryPropertyId,
++) -> bool {
++    let mut index = declarations.prioritary_positions[id as usize].most_important;
++    if index == DeclarationIndex::MAX {
++        return true;
++    }
++    loop {
++        let entry = declarations.longhand_declarations[index as usize];
++        if entry
++            .priority
++            .flags()
++            .intersects(RuleCascadeFlags::APPEARANCE_BASE)
++        {
++            return false;
++        }
++        if entry.next_index == 0 {
++            return true;
++        }
++        index = entry.next_index;
++    }
+ }
+ 
+ struct PreparedMetricDeclaration {
+@@ -3560,11 +3625,8 @@
+             ordinary(demand, &self.priority_completion.complete, unprepared)
+         }
+ 
+-        fn prepare_computed_size(&mut self, index: usize, tracker: &mut AttributeTracker) -> bool {
++        fn can_start_computed_size(&self, index: usize) -> bool {
+             use PrioritaryPropertyId::*;
+-            if self.computed_size_ready(index) {
+-                return true;
+-            }
+             if !matches!(
+                 self.var_info[index].publication,
+                 NodePublication::Pending(ClosedValue::Prioritary(FontSize))
+@@ -3581,14 +3643,7 @@
+                 return false;
+             }
+             let flags = self.computed_context.included_cascade_flags;
+-            for id in [
+-                FontSize,
+-                XTextScale,
+-                Zoom,
+-                XLang,
+-                MathDepth,
+-                MozMinFontSizeRatio,
+-            ] {
++            for id in [Zoom, XLang, MathDepth, MozMinFontSizeRatio] {
+                 if !size_input_prefix_is_stable(
+                     self.decls,
+                     id,
+@@ -3602,9 +3657,33 @@
+                     return false;
+                 }
+             }
++            if ![FontSize, XTextScale]
++                .iter()
++                .all(|id| computed_size_selection_flags_stable(self.decls, *id))
++            {
++                return false;
++            }
++            true
++        }
++
++        fn prepare_computed_size(
++            &mut self,
++            index: usize,
++            tracker: &mut AttributeTracker,
++            reply: Option<(LonghandId, FontSelectionReply)>,
++        ) -> MetricActionProgress {
++            use PrioritaryPropertyId::*;
++            if self.computed_size_ready(index) {
++                return MetricActionProgress::AlreadyComplete;
++            }
++            if !self.can_start_computed_size(index) {
++                return MetricActionProgress::Invalidated;
++            }
++            let flags = self.computed_context.included_cascade_flags;
+             let states = self
+                 .size_preparation
+                 .get_or_insert_with(|| ComputedSizePreparation {
++                    index,
+                     size: self.cascade.begin_font_preparation(
+                         self.computed_context,
+                         self.decls,
+@@ -3616,33 +3695,38 @@
+                         LonghandId::XTextScale,
+                     ),
+                 });
+-            for state in [&mut states.size, &mut states.text_scale] {
+-                if !matches!(
+-                    self.cascade.resume_font_selection(
+-                        self.computed_context,
+-                        self.cache,
+-                        tracker,
+-                        state,
+-                        None
+-                    ),
+-                    MetricPreparationStep::Complete
+-                ) {
+-                    return false;
+-                }
++            if states.index != index {
++                return MetricActionProgress::WrongAction;
++            }
++            match states.poll(
++                self.cascade,
++                self.computed_context,
++                self.cache,
++                tracker,
++                reply,
++            ) {
++                MetricPreparationStep::Complete => {}
++                MetricPreparationStep::References(id, value) => {
++                    return MetricActionProgress::References(id, value);
++                }
++                MetricPreparationStep::Lookup(id, value, request) => {
++                    return MetricActionProgress::Lookup(id, value, request);
++                }
++                _ => return MetricActionProgress::Invalidated,
+             }
+             let Some(operation) = states.size.prepared.last().map(|entry| &entry.declaration)
+             else {
+-                return false;
++                return MetricActionProgress::ComputedSizeReadset;
+             };
+             if !matches!(operation, PropertyDeclaration::FontSize(
+                 specified::FontSize::Length(specified::LengthPercentage::Length(length)))
+                 if length.to_px_if_absolute().is_some())
+             {
+-                return false;
++                return MetricActionProgress::ComputedSizeReadset;
+             }
+             for id in [Zoom, XLang, MathDepth, MozMinFontSizeRatio] {
+                 if self.apply_prioritary_property(id, tracker) != ComputationStatus::Ready {
+-                    return false;
++                    return MetricActionProgress::Invalidated;
+                 }
+             }
+             self.import_priority_completion();
+@@ -3651,7 +3735,7 @@
+                 .any(|id| !self.priority_completion.complete.contains(*id))
+                 || flags != self.computed_context.included_cascade_flags
+             {
+-                return false;
++                return MetricActionProgress::Invalidated;
+             }
+             let states = self.size_preparation.take().unwrap();
+             let valid = [&states.size, &states.text_scale].iter().all(|state| {
+@@ -3669,7 +3753,7 @@
+             });
+             if !valid {
+                 self.size_preparation = Some(states);
+-                return false;
++                return MetricActionProgress::Invalidated;
+             }
+             let operation = states.size.prepared.last().unwrap().declaration.clone();
+             for state in [states.text_scale, states.size] {
+@@ -3696,7 +3780,8 @@
+                 flags,
+                 operation,
+             });
+-            true
++            self.metric_action = None;
++            MetricActionProgress::Published(FontTarget::ComputedSize)
+         }
+ 
+         fn import_priority_completion(&mut self) {
+@@ -4021,6 +4106,9 @@
+                 })
+             });
+             let target_id = match action.prerequisite {
++                FontTarget::ComputedSize => {
++                    return self.prepare_computed_size(action.index, attribute_tracker, reference);
++                }
+                 FontTarget::Metric(id) => id,
+                 FontTarget::Synthesis(longhand) => {
+                     return self.perform_synthesis_action(longhand, attribute_tracker, reference);
+@@ -4677,6 +4765,7 @@
+     }
+ 
+     enum MetricActionProgress {
++        ComputedSizeReadset,
+         Published(FontTarget),
+         AlreadyComplete,
+         GeneratedPrerequisite(PrioritaryPropertyId),
+@@ -5040,10 +5129,14 @@
+                                 )
+                             })
+                         {
+-                            if context.prepare_computed_size(self.index, attribute_tracker) {
++                            if context.computed_size_ready(self.index) {
+                                 return FrameStep::ComputedSize;
+                             }
+-                            context.size_preparation = None;
++                            if context.size_preparation.is_some()
++                                || context.can_start_computed_size(self.index)
++                            {
++                                return FrameStep::Pending(Some(FontTarget::ComputedSize));
++                            }
+                         }
+                         let demand = frame_font_demand(
+                             self.registered,

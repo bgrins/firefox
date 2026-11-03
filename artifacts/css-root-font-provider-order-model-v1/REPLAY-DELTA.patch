@@ -1,0 +1,68 @@
+--- artifacts/css-font-settings-conversion-effects-lean-v1/replay.py
++++ artifacts/css-root-font-provider-order-model-v1/replay.py
+@@ -17,23 +17,24 @@
+ assert len(sys.argv) == 2 and Path(sys.argv[1]).name == sys.argv[1]
+ output = HERE / sys.argv[1]
+ output.mkdir()
+-names = re.findall(r"^theorem (\w+)", (HERE / "Settings.lean").read_text(), re.M)
++names = re.findall(r"^theorem (\w+)", (HERE / "Provider.lean").read_text(), re.M)
+ false_cases = {
+-    "DedupBeforeEffects": "effects exampleDone.done = [7, 30]",
+-    "DiscardedScopeIgnored": "(convert complete a).effects = [9, 20]",
+-    "PendingMeansInvalid": "(publish (poll waiting ⟨[], [a]⟩)).isSome = true",
+-    "PublishPartialList": "(publish (poll complete ⟨[], [a, b]⟩)).isSome = true",
+-    "ReplayConvertedPrefix": "effects (run [secondPending, waiting, complete] ⟨[], [a, b]⟩).done = [7, 20, 7, 20, 7, 30]",
+-    "AllFontInputsNeeded": "ready secondPending a = false",
+-    "ProgressWithoutReadiness": "(drain waiting 2 ⟨[], [a, b]⟩).todo = []",
++    "StaleReplyPublished": "provider (finish staleJob) = some animated",
++    "RootUsesCurrent": "read initialMetrics (initial underlying) .root .fontSize .rem = some (.font (.size 23))",
++    "PseudoUsesInitial": "read initialMetrics (initial underlying) .rootPseudo .fontSize .rem = some (.font (.size 16))",
++    "InitialMustWait": "read initialMetrics dirty .root .fontSize .rlh = none",
++    "CancelMakesCurrent": "provider dirty = some underlying",
++    "RootLineRemInitial": "read initialMetrics (initial underlying) .root .lineHeight .rem = some (.font (.size 16))",
++    "PendingMeansCurrent": "provider staleJob = some underlying",
+ }
++
+ 
+ 
+ 
+ 
+ records = []
+ (output / "TOOLCHAIN.txt").write_bytes(subprocess.check_output([str(LEAN), "--version"]))
+-with tempfile.TemporaryDirectory(prefix="font-settings-effects-lean-", dir="/private/tmp") as temporary:
++with tempfile.TemporaryDirectory(prefix="root-font-provider-lean-", dir="/private/tmp") as temporary:
+     scratch = Path(temporary)
+     (output / "SCRATCH.json").write_text(json.dumps({"path": str(scratch)}) + "\n")
+     env = dict(os.environ, LEAN_PATH=str(scratch))
+@@ -44,17 +45,17 @@
+         target = scratch / name
+         target.parent.mkdir(parents=True, exist_ok=True)
+         shutil.copyfile(original, target)
+-    shutil.copyfile(HERE / "Settings.lean", scratch / "Settings.lean")
+-    (scratch / "Audit.lean").write_text("import Settings\n" + "".join(
+-        "#print axioms FontSettingsEffects." + name + "\n" for name in names))
++    shutil.copyfile(HERE / "Provider.lean", scratch / "Provider.lean")
++    (scratch / "Audit.lean").write_text("import Provider\n" + "".join(
++        "#print axioms RootFontProvider." + name + "\n" for name in names))
+     for name, claim in false_cases.items():
+         (scratch / (name + ".lean")).write_text(
+-            "import Settings\nopen FontSettingsEffects\nexample : " + claim + " := by decide\n")
++            "import Provider\nopen RootFontProvider\nexample : " + claim + " := by decide\n")
+     for source in scratch.rglob("*.lean"):
+         target = output / source.relative_to(scratch)
+         target.parent.mkdir(parents=True, exist_ok=True)
+         shutil.copyfile(source, target)
+-    for name, expected in [(name, True) for name in ["Settings", "Audit"]] + [(n, False) for n in false_cases]:
++    for name, expected in [(name, True) for name in ["FontDemand", "Provider", "Audit"]] + [(n, False) for n in false_cases]:
+         result = subprocess.run([str(LEAN), "-o", name + ".olean", name + ".lean"],
+                                 cwd=scratch, env=env, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, timeout=60)
+@@ -76,7 +77,7 @@
+ assert not scratch.exists()
+ (output / "CHECK.json").write_text(json.dumps({
+     "success": True, "audited_theorems": names, "false_controls_rejected": len(false_cases),
+-    "source_sha256": sha(HERE / "Settings.lean"), "lean_sha256": sha(LEAN),
++    "source_sha256": sha(HERE / "Provider.lean"), "lean_sha256": sha(LEAN),
+     "scratch_removed": True, "canonical_coverage_increment": 0,
+     "native_refinement_proved": False, "native_scheduling_refinement_proved": False, "cycle_policy_or_convergence_proved": False,
+ }, indent=2, sort_keys=True) + "\n")

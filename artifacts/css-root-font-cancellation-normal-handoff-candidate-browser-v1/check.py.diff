@@ -1,0 +1,91 @@
+--- artifacts/css-root-font-cancellation-trace-candidate-browser-v3/check.py
++++ artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-v1/check.py
+@@ -24,7 +24,7 @@
+ 
+ def validate_policy(policy):
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-root-font-cancellation-trace-candidate-browser-runtime-v1'
++    assert policy['runtime_output'] == 'artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-runtime-v1'
+     assert policy['execution_enabled'] == policy['candidate_execution_enabled']
+     assert policy['archive'] == {'application_name': 'Nightly.app', 'minimum_free_after_copy': 28991029248, 'prefix': 'css-font-unit-candidate-', 'temporary_parent': '/private/tmp', 'validator': 'artifacts/css-root-self-smil-archived-original-v1/run.py', 'validator_sha256': '268a201122782c997cdeb566db7651200c58a669cb69821e4c94e5c01995a3ea'}
+     assert policy['authority_kind'] == 'signed-native-publication'
+@@ -43,53 +43,35 @@
+         assert policy['capture_binding'] and policy['references'][policy['capture_binding']['path']] == policy['capture_binding']['sha256']
+         assert sha(ROOT/policy['capture_binding']['path']) == policy['capture_binding']['sha256']
+         terminal = read(ROOT/policy['capture_binding']['path'])
+-        assert terminal['launch_chunk'] == conditions['capture_terminal_fields']['launch_chunk']
+-        assert terminal['session_id'] == conditions['capture_terminal_fields']['session_id']
+-        assert terminal['terminal_chunk'] == conditions['capture_terminal_fields']['terminal_chunk']
+-        assert terminal['exit_code'] == 0 and terminal['full_current_state_verified'] is True
+-        assert terminal['capture_owner_manifest'] == policy['capture_owner']['manifest_sha256']
+-        assert terminal['additional_source_claims'] == capture['additional_sources']
+-        assert set(terminal['additional_source_claims']) == set(policy['additional_source_paths'])
+-        assert terminal['canonical_source_claims'] == {name: capture['payload_claims'][name] for name in ('servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'layout/style/GeckoBindings.cpp')}
+-        assert terminal['glue_claim'] == capture['payload_claims']['servo/ports/geckolib/glue.rs']
+-        assert terminal['glue_claim']['owned_sha256'] == '83cc1e6f6d27aa92d34377564aa6969dbdda838dd880b401e35de08f250d5027'
+-        assert terminal['capture_path'] == policy['current_binding']['path'] and terminal['capture_sha256'] == policy['current_binding']['sha256']
++        assert terminal == conditions['capture_terminal_fields']
++        assert terminal['launch'] == '2654a0' and terminal['session'] == 40083 and terminal['terminal'] == 'dcc6e4'
++        assert type(terminal['exit']) is int and terminal['exit'] == 0
++        assert terminal['actual_snapshot_matches_completed_refresh_post'] is True
++        assert terminal['capture_manifest'] == policy['capture_owner']['manifest_sha256']
++        assert terminal['capture_sha256'] == policy['current_binding']['sha256']
++        assert terminal['epoch_sha256'] == policy['controls']['CURRENT-EPOCH.json']
++        assert set(terminal['candidate_roles_verified']) == set(read(HERE/'SOURCE-ROLES.json'))
+         capture = load('admission').validate_current(ROOT, policy, read(HERE/'SOURCE-ROLES.json'))
+         assert capture['controls']['CURRENT-EPOCH.json'] == conditions['epoch_sha256']
+-    assert policy['capture_reuse'] == conditions['capture_reuse']
+-    for record in policy['capture_reuse'].values():
+-        assert sha(ROOT/record['path']) == record['sha256']
+-    failed = read(ROOT/policy['capture_reuse']['failure']['path'])
+-    verification = read(ROOT/policy['capture_reuse']['verification']['path'])
+-    assert failed['active_manifest_sha256'] == policy['references']['artifacts/css-root-font-cancellation-trace-candidate-browser-v2/FILES.json']
+-    assert failed['run_launch'] == '15846c' and failed['run_session'] == 74508 and failed['run_terminal'] == '54b321' and failed['run_exit'] == 1
+-    assert failed['capture_sha256'] == policy['current_binding']['sha256'] == verification['matches_actual_capture']
+-    assert failed['head'] == policy['head'] and failed['raw_index'] == capture['snapshot']['index']['raw_index']
+-    for key in ('failure_before_runtime_creation', 'flags_controls_unchanged', 'full_current_state_verified', 'process_group_absent', 'runtime_absent', 'snapshot_matches_capture', 'sources_and_identities_unchanged', 'transition_lock_absent', 'app_extras_binaries_unchanged'):
+-        assert failed[key] is True
+-    assert failed['build_started'] is False and failed['source_transition_started'] is False
+-    assert verification['failed_run_terminal'] == policy['capture_reuse']['failure']
+-    assert verification['launch_chunk'] == '92ffd8' and verification['session_id'] == 7504 and verification['terminal_chunk'] == '2f72d6'
+-    assert type(verification['exit_code']) is int and verification['exit_code'] == 0
+-    assert verification['full_current_state_and_app_verified'] is True and verification['native_transition_started'] is False
++    assert policy['capture_reuse'] == conditions['capture_reuse'] == {}
+     assert policy['direct_equivalence'] == conditions['direct_equivalence']
+     assert policy['compile_prerequisite'] is policy['native_owner_binding'] is policy['typecheck_binding'] is policy['predecessor_binding'] is None
+     assert policy['required_typecheck_inputs'] == {}
+     admission = load('admission')
+     source = admission.authenticate(ROOT, policy['source_binding'])
+-    assert source == ROOT / 'artifacts/css-root-font-cancellation-trace-instrumentation-v3'
+-    assert policy['source_binding']['manifest_sha256'] == 'e88c9c53f34afc3c775444c68db22cf4329c821c60ef4e1521e4e9aba30c7fe7'
++    assert source == ROOT / 'artifacts/css-root-font-cancellation-normal-handoff-fix-v1'
++    assert policy['source_binding']['manifest_sha256'] == '6e00efb65e78c74fb2917b66afaeaaad1577edb8b367656d61a5a79dbd3f5c9a'
+     assert not policy['control_suite_pending']
+     assert policy['suite_bindings']['cancellation'] == {'directory': 'artifacts/css-root-self-animation-isolation-followup-v1', 'manifest_sha256': 'e467889baca270157fe52aefc61eb38af5735eda546dbd0b4b931885a62493a4'}
+     assert set(policy['suite_bindings']) == set(policy['wpt_lanes']) == {'cancellation'}
+     assert policy['lane_order'] == ['cancellation'] and policy['diagnostic_lane_order'] == []
+     roles = read(HERE / 'SOURCE-ROLES.json')
+-    source_roles = read(source / 'SOURCE-ROLES.json')
++    source_roles = read(source / 'SOURCE-ROLES.json')['roles']
+     expected_roles = {name: {'base_capture': str((source/'base'/name).relative_to(ROOT)), 'candidate_capture': str((source/'candidate'/name).relative_to(ROOT)), 'base_sha256': row['base_sha256'], 'candidate_sha256': row['candidate_sha256']} for name,row in source_roles.items()}
+-    assert roles == expected_roles and set(roles) == {'servo/components/style/traversal.rs', 'servo/components/style/data.rs', 'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'layout/style/GeckoBindings.cpp'}
+-    assert set(policy['additional_source_paths']) == {'servo/components/style/data.rs', 'servo/components/style/traversal.rs'}
++    assert roles == expected_roles and set(roles) == {'servo/components/style/gecko/traversal.rs', 'servo/components/style/traversal.rs', 'servo/ports/geckolib/glue.rs'}
++    assert set(policy['additional_source_paths']) == {'servo/components/style/gecko/traversal.rs', 'servo/components/style/traversal.rs'}
+     canonical_roles = set(roles) - set(policy['additional_source_paths'])
+-    assert canonical_roles == {'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'layout/style/GeckoBindings.cpp'}
++    assert canonical_roles == {'servo/ports/geckolib/glue.rs'}
+     assert all(policy['source_context_pins'][name] == roles[name]['base_sha256'] for name in canonical_roles)
+     assert policy['committed_source_preimages'] == {name: row['base_sha256'] for name, row in roles.items()}
+     for row in roles.values():
+@@ -98,7 +80,9 @@
+     old = read(ROOT / 'artifacts/css-resumable-font-selection-integrated-pair-v1/POLICY.json')
+     for name in ('image_commit','nowrap_commit','language_commit','ownership_commit','ownership_helper','phase_helper','process_helper','state_helper','bundle_helper','bundle_path','extra_backup_paths','rebuilt_binaries','restored_application_revision','timeout_seconds','metadata_current_pins','preserved_absent_metadata','preserved_absent_resources','capture_source_owner'):
+         assert policy[name] == old[name], name
+-    assert policy['source_context_pins'] == dict(old['source_context_pins'], **{'layout/style/GeckoBindings.cpp': roles['layout/style/GeckoBindings.cpp']['base_sha256']})
++    assert policy['source_context_pins'] == conditions['source_context_pins']
++    assert all(policy['source_context_pins'][name] == pin for name, pin in old['source_context_pins'].items())
++    assert policy['source_context_pins']['servo/components/style/data.rs'] == '6a7df6b05846e59d564ed4b31999bb3c865f1f7979c80477afd9901231e5fb4f'
+     free = read(ROOT/policy['current_binding']['path'])['free_bytes'] if policy['current_binding'] else None
+     assert policy['resource_policy'] == dict(old['resource_policy'], captured_free_bytes=free)
+     for lane,binding in policy['suite_bindings'].items():

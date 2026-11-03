@@ -1,0 +1,22 @@
+--- artifacts/css-root-font-cancellation-selective-handoff-root-audit-v1/audit.py
++++ artifacts/css-root-font-startup-trace-root-audit-v1/audit.py
+@@ -9,8 +9,8 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ ROOT = Path(__file__).resolve().parents[2]
+ HERE = Path(__file__).resolve().parent
+-OWNER = ROOT / "artifacts/css-root-font-cancellation-selective-handoff-candidate-browser-v1"
+-RUNTIME = ROOT / "artifacts/css-root-font-cancellation-selective-handoff-candidate-browser-runtime-v1"
++OWNER = ROOT / "artifacts/css-root-font-startup-trace-candidate-browser-v1"
++RUNTIME = ROOT / "artifacts/css-root-font-startup-trace-candidate-browser-runtime-v1"
+ CANONICAL = ROOT / "artifacts/css-registered-number-native-runtime-v1"
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+ read = lambda path: json.loads(path.read_bytes())
+@@ -75,7 +75,7 @@
+ policy, ownership, roles = baseline.prepare(sha(OWNER / "FILES.json"))
+ env = baseline.environment()
+ capture = baseline.current_capture(policy)
+-assert set(roles) == {'servo/components/style/data.rs', 'servo/components/style/traversal.rs', 'servo/components/style/gecko/traversal.rs', 'servo/ports/geckolib/glue.rs'}
++assert set(roles) == {'dom/animation/KeyframeEffect.cpp', 'layout/style/GeckoBindings.cpp', 'servo/components/style/data.rs', 'servo/components/style/gecko/traversal.rs', 'servo/components/style/matching.rs', 'servo/components/style/traversal.rs', 'servo/components/style/values/specified/length.rs', 'servo/ports/geckolib/glue.rs'}
+ assert policy['lane_order'] == ['cancellation']
+ assert sum(policy['wpt_lanes'][lane]['expected_subtest_count'] for lane in policy['lane_order']) == 8
+ assert sum(policy['wpt_lanes'][lane]['expected_page_count'] for lane in policy['lane_order']) == 1

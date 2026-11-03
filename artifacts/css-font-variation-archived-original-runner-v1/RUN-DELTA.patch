@@ -1,0 +1,70 @@
+--- artifacts/css-attr-fallback-archived-validation-v2/run.py
++++ artifacts/css-font-variation-archived-original-runner-v1/run.py
+@@ -121,30 +121,37 @@
+ 
+ 
+ def assess(events, roster, code=None):
+-    assert len(roster) == 1
+-    page, names = next(iter(roster.items()))
+-    assert len(names) == len(set(names)) == 28
++    assert len(roster) == 3 and all(len(names) == len(set(names)) == 12 for names in roster.values())
++    expected = {(page, name) for page, names in roster.items() for name in names}
++    assert len(expected) == 36
+     statuses = [e for e in events if e.get('action') == 'test_status']
+     endings = [e for e in events if e.get('action') == 'test_end']
++    starts = [e for e in events if e.get('action') == 'test_start']
++    identities = [(e.get('test'), e.get('subtest')) for e in statuses]
+     counts = {}
++    pages = {page: {} for page in roster}
+     for event in statuses:
+-        counts[event['status']] = counts.get(event['status'], 0) + 1
+-    complete = (len(statuses) == 28 and len({e['subtest'] for e in statuses}) == 28
+-                and {e['subtest'] for e in statuses} == set(names)
+-                and all(e['test'] == page and e['status'] in ['PASS', 'FAIL'] for e in statuses)
+-                and len(endings) == 1 and endings[0]['test'] == page and endings[0]['status'] == 'OK'
++        status = event.get('status')
++        counts[status] = counts.get(status, 0) + 1
++        if event.get('test') in pages:
++            current = pages[event['test']]
++            current[status] = current.get(status, 0) + 1
++    complete = (len(statuses) == len(set(identities)) == 36 and set(identities) == expected
++                and all(e.get('status') in ['PASS', 'FAIL'] for e in statuses)
++                and len(starts) == 3 and {e.get('test') for e in starts} == set(roster)
++                and len(endings) == 3 and {e.get('test') for e in endings} == set(roster)
++                and all(e.get('status') == 'OK' for e in endings)
+                 and sum(e.get('action') == 'suite_start' for e in events) == 1
+                 and sum(e.get('action') == 'suite_end' for e in events) == 1)
+     checks = load('archived_wpt_checks', ROOT / 'artifacts/css-accepted-119-121-122-install-runtime-v1/tests.py')
+-    complete = complete and checks.lifecycle(events, {'expected_subtests': {page: []}, 'reftests': []})
++    complete = complete and checks.lifecycle(events, {'expected_subtests': {page: [] for page in roster}, 'reftests': []})
+     complete = complete and not checks.infrastructure_faults(events)
+-    complete = complete and sum(e.get('action') == 'test_start' and e.get('test') == page for e in events) == 1
+-    complete = complete and sum(e.get('action') == 'test_start' for e in events) == 1
+     complete = complete and not any(e.get('action') == 'crash' for e in events)
+     if code is not None:
+         complete = complete and checks.exit_matches_results(code, statuses + endings)
+-    return {'complete': bool(complete), 'counts': counts, 'subtests': statuses, 'endings': endings,
+-            'all_28_pass': bool(complete and all(e['status'] == 'PASS' for e in statuses)),
++    return {'complete': bool(complete), 'counts': counts, 'page_counts': pages,
++            'subtests': statuses, 'endings': endings,
++            'all_36_pass': bool(complete and all(e['status'] == 'PASS' for e in statuses)),
+             'prediction': None, 'prediction_is_acceptance_gate': False,
+             'native_fix_acceptance': False}
+ 
+@@ -176,7 +183,7 @@
+                     ['tests', 'metadata', 'mozilla-tests', 'mozilla-metadata', 'support', 'run-info']}
+     save(output / 'STAGED.json', staged)
+     save(output / 'STAGED-TREES.json', staged_trees)
+-    temporary = Path(tempfile.mkdtemp(prefix='css-attr-fallback-' + policy['archive_role'] + '-', dir='/private/tmp'))
++    temporary = Path(tempfile.mkdtemp(prefix='css-font-variation-' + policy['archive_role'] + '-', dir='/private/tmp'))
+     identity = (temporary.stat().st_dev, temporary.stat().st_ino)
+     args, env = command(output, temporary, policy, snapshot)
+     save(output / 'COMMAND.json', {'command': args, 'temporary': str(temporary),
+@@ -231,6 +238,6 @@
+ if __name__ == '__main__':
+     parser = argparse.ArgumentParser()
+     parser.add_argument('--run', action='store_true', required=True)
+-    parser.add_argument('--role', choices=['original','candidate'], required=True)
++    parser.add_argument('--role', choices=['original'], required=True)
+     args = parser.parse_args()
+     run(json.loads((HERE / ('POLICY-' + args.role + '.json')).read_text()))

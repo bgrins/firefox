@@ -1,0 +1,49 @@
+--- artifacts/css-root-self-animation-publication-v1/delivery.py
++++ artifacts/css-root-self-animation-publication-v2/delivery.py
+@@ -16,17 +16,28 @@
+         stream.write('\n')
+ 
+ 
++TESTHARNESS = frozenset(['testing/web-platform/tests/web-animations/animation-model/keyframe-effects/root-font-self-reference.html', 'testing/web-platform/tests/svg/animations/root-font-self-reference.html'])
++SUPPORT = frozenset(['testing/web-platform/tests/svg/animations/resources/root-font-reference.svg', 'testing/web-platform/tests/svg/animations/resources/root-font-target.svg'])
++
++
+ def verify_entries(serialized, tests_root, files):
+-    assert set(serialized['items']) == {'testharness'}
+-    entries = serialized['items']['testharness']['web-animations']['animation-model']['keyframe-effects']
+-    assert set(entries) == {Path(name).name for name in files}
+-    for name, pin in files.items():
+-        path = ROOT / name
+-        body = path.read_bytes()
+-        assert sha(path) == pin
+-        blob = hashlib.sha1(b'blob ' + str(len(body)).encode() + b'\0' + body).hexdigest()
+-        assert entries[path.name] == [blob, [None, {'timeout': 'long'}]]
+-    return sorted('/' + str((ROOT / name).relative_to(tests_root)) for name in files)
++    assert set(files) == TESTHARNESS | SUPPORT and not TESTHARNESS & SUPPORT
++    assert serialized['version'] == 9 and serialized['url_base'] == '/'
++    expected = {'testharness': {}, 'support': {}}
++    for kind, paths in (('testharness', TESTHARNESS), ('support', SUPPORT)):
++        for name in paths:
++            path = ROOT / name
++            body = path.read_bytes()
++            assert sha(path) == files[name]
++            blob = hashlib.sha1(b'blob ' + str(len(body)).encode() + b'\0' + body).hexdigest()
++            relative = path.relative_to(tests_root)
++            entries = expected[kind]
++            for part in relative.parts[:-1]:
++                entries = entries.setdefault(part, {})
++            entries[relative.name] = ([blob, [None, {'timeout': 'long'}]]
++                                      if kind == 'testharness' else [blob, []])
++    assert serialized['items'] == expected
++    return sorted('/' + str((ROOT / name).relative_to(tests_root)) for name in TESTHARNESS)
+ 
+ 
+ def run(policy, installation_manifest):
+@@ -55,6 +66,7 @@
+     evidence = {str(p.relative_to(ROOT)): sha(p) for p in output.iterdir()}
+     save(output / 'DELIVERY.json', {'lint_exit': 0, 'lint_errors': 0, 'files': files,
+          'lint_command': policy['lint_command'], 'registered_urls': urls,
++         'support_files': {name: files[name] for name in sorted(SUPPORT)},
+          'manifest_entries_verified': True, 'browser_executed': False,
+          'manifest_command': json.loads((output / 'COMMANDS.json').read_bytes())['manifest'],
+          'evidence': evidence, 'installation_manifest': installation_manifest})

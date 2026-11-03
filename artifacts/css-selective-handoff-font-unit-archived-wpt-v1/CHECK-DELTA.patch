@@ -1,0 +1,81 @@
+--- executed-original14-check.py
++++ selective14-check.py
+@@ -5,10 +5,10 @@
+ ROOT = HERE.parents[1]
+ spec = importlib.util.spec_from_file_location('variation_archive_run', HERE / 'run.py')
+ run = importlib.util.module_from_spec(spec); spec.loader.exec_module(run)
+-policy = json.loads((HERE / 'POLICY-original.json').read_text())
++policy = json.loads((HERE / 'POLICY-candidate.json').read_text())
+ assert policy['execution_enabled'] is False
+-assert policy['required_completed_owner'] == 'artifacts/css-explicit-taint-combined-native-candidate-browser-runtime-v1'
+-assert policy['source_role'] == 'archived-original' and policy['archive_role'] == 'original'
++assert policy['required_completed_owner'] == 'artifacts/css-root-font-cancellation-selective-handoff-candidate-browser-runtime-v1'
++assert policy['source_role'] == 'archived-candidate' and policy['archive_role'] == 'candidate'
+ try:
+     run.run(policy)
+ except AssertionError as exc:
+@@ -16,7 +16,7 @@
+ else:
+     raise AssertionError('Disabled owner admitted')
+ run.pins()
+-parent = ROOT / 'artifacts/css-font-variation-archived-original-runner-v1'
++parent = ROOT / 'artifacts/css-keyframe-font-unit-dependency-archived-original-v1'
+ assert (HERE / 'entry.py').read_bytes() == (parent / 'entry.py').read_bytes()
+ assert run.regular_files(HERE / 'support') == run.regular_files(parent / 'support')
+ assert (HERE / 'RUN-DELTA.patch').read_text() == ''.join(difflib.unified_diff((parent / 'run.py').read_text().splitlines(True), (HERE / 'run.py').read_text().splitlines(True), fromfile=str((parent / 'run.py').relative_to(ROOT)), tofile=str((HERE / 'run.py').relative_to(ROOT))))
+@@ -26,8 +26,7 @@
+ old, new = functions(parent / 'run.py'), functions(HERE / 'run.py')
+ assert set(old) == set(new)
+ for name in old:
+-    if name != 'assess':
+-        assert old[name].replace("prefix='css-font-variation-'", "prefix='css-keyframe-font-units-'") == new[name], name
++    assert old[name].replace("prefix='css-keyframe-font-units-'", "prefix='css-selective-font-units-'") == new[name], name
+ binding = policy['fixture_binding']; fixture = ROOT / binding['directory']
+ assert run.sha(fixture / 'FILES.json') == binding['manifest_sha256'] == 'bc7076009df8acddb197dd00675b8a9f62483d3e5ec11adb2e49e6864815e754'
+ inventory = json.loads((fixture / 'FILES.json').read_text())
+@@ -36,12 +35,12 @@
+ assert len(policy['settings']['resources']) == 3 and not any('pending/' in k for k in policy['settings']['resources'])
+ snapshot = json.loads((ROOT / policy['snapshot']).read_text())
+ assert run.sha(ROOT / policy['snapshot']) == policy['snapshot_sha256']
+-assert snapshot['source_role'] == 'original' and snapshot['application'] == policy['archive_application']
++assert snapshot['source_role'] == 'candidate' and snapshot['application'] == policy['archive_application']
+ assert len(snapshot['files']) == policy['archive_files'] == 8326 and snapshot['native_sources'] == policy['native_sources']
+ assert run.sha(ROOT / snapshot['build_receipt']) == snapshot['build_receipt_sha256']
+ build = json.loads((ROOT / snapshot['build_receipt']).read_text())
+ assert build['native_sources'] == policy['native_sources']
+-assert build['application_metadata']['source_role'] == 'original'
++assert build['application_metadata']['source_role'] == 'candidate'
+ assert build['application_metadata']['revision'] == policy['build_revision'] == 'e86b64866cdc5e2260ba9be08c45756fd96e21bb'
+ assert build['browser_build_performed'] and build['command_success'] and build['preservation_verified'] and build['error'] is None
+ if policy['pending_binding']:
+@@ -56,7 +55,7 @@
+     assert run.sha(runtime/'FILES.json') == policy['completed_runtime']['manifest_sha256']
+     frozen = json.loads((runtime/'FILES.json').read_text())
+     for name,row in frozen.get('files',frozen).items(): assert run.sha(runtime/name) == (row if isinstance(row,str) else row['sha256'])
+-    expected_links = [f'candidate-wpt-{lane}/tests/tools' for lane in ('composition','controls','fallback','reparse')]
++    expected_links = [f'candidate-wpt-{lane}/tests/tools' for lane in ('cancellation',)]
+     assert frozen['verified_staging_tool_links'] == expected_links
+     for name in expected_links:
+         link = runtime/name
+@@ -66,8 +65,8 @@
+     terminal = json.loads((runtime/'ROOT-OWNER-TERMINAL.json').read_text())
+     audit = json.loads((runtime/'ROOT-LIVE-RESTORATION.json').read_text())
+     at = json.loads((runtime/'ROOT-AUDIT-TERMINAL.json').read_text())
+-    assert terminal['terminal'] and terminal['exit'] in (0,1) and terminal['session'] == 97438
+-    assert at['terminal'] and at['exit'] == 0 and at['restoration_report_sha256'] == policy['prior_owner_audit']['sha256']
++    assert terminal['terminal'] and terminal['exit'] in (0,1) and terminal['session'] == 24023
++    assert at['terminal'] and at['exit'] == 0 and at['report_sha256'] == policy['prior_owner_audit']['sha256']
+     assert audit['independent_live_restoration_verified'] and audit['owner_terminal'] == terminal
+     assert audit['owner_result_sha256'] == terminal['result_sha256'] == run.sha(runtime/'RESULT.json')
+ roster = json.loads((ROOT / policy['roster']).read_text())
+@@ -94,8 +93,8 @@
+ rows=copy.deepcopy(events);rows.insert(1,rows.pop(2));negatives.append(rows)
+ assert all(not run.assess(rows,roster,1)['complete'] for rows in negatives)
+ assert not run.assess(events,roster,0)['complete'] and not run.assess(all_pass,roster,1)['complete']
+-scratch=Path(tempfile.mkdtemp(prefix='keyframe-font-unit-archive14-check-',dir='/private/tmp'))
+-result={'browser_execution':False,'archive_read':False,'native_operations':False,'saved_positive_streams':2,'saved_negative_streams':len(negatives)+2,'scratch':str(scratch),'pages':1,'callbacks':14,'unchanged_production_functions_except_assess':len(old)-1}
++scratch=Path(tempfile.mkdtemp(prefix='selective-font-unit-archive14-check-',dir='/private/tmp'))
++result={'browser_execution':False,'archive_read':False,'native_operations':False,'saved_positive_streams':2,'saved_negative_streams':len(negatives)+2,'scratch':str(scratch),'pages':1,'callbacks':14,'unchanged_assessor_and_production_functions_except_tmp_label':len(old)}
+ try:
+     output=scratch/'stage';output.mkdir();run.prepare(output,policy)
+     for url,record in policy['settings']['resources'].items():assert run.sha(output/'tests'/url.lstrip('/'))==record['sha256']

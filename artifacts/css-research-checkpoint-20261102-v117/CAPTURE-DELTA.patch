@@ -1,0 +1,23 @@
+--- artifacts/css-research-checkpoint-20261102-v116/capture_current.py
++++ artifacts/css-research-checkpoint-20261102-v117/capture_current.py
+@@ -24,7 +24,11 @@
+ receipt = json.loads(receipt_body)
+ assert set(receipt) == {'stage', 'commit', 'parent', 'signature_verified', 'files', 'epoch_sha256', 'accepted', 'accepted_fix_increment', 'app_rebuilt'}
+ assert receipt['stage'] == 'capacity' and receipt['signature_verified'] is True
+-assert receipt['commit'] == bindings['head'] and receipt['epoch_sha256'] == bindings['epoch_sha256']
++assert receipt['commit'] == bindings['head']
++spec = importlib.util.spec_from_file_location('checkpoint_refresh', HERE / 'commit.py')
++checkpoint = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(checkpoint)
++refreshed = checkpoint.validate_refresh(receipt)
+ assert receipt['accepted'] is False and receipt['accepted_fix_increment'] == 0
+ assert receipt['app_rebuilt'] is False
+ assert receipt['files'] == ['servo/components/style/properties/cascade.rs', 'testing/web-platform/tests/css/css-cascade/prioritary-after-many-unrelated-declarations.html']
+@@ -48,6 +52,7 @@
+ state = importlib.util.module_from_spec(spec)
+ spec.loader.exec_module(state)
+ audit = state.a.verify_current(state.h, ROOT, ENV, json.loads(controls['CURRENT-EPOCH.json']))
++assert audit == refreshed
+ assert audit['index']['head'] == bindings['head']
+ assert audit['index']['working_diff'] == audit['index']['cached_diff'] == sha(b'')
+ assert all((directory / name).read_bytes() == body for name, body in controls.items())

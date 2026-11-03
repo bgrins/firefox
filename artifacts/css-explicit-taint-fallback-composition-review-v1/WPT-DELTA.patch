@@ -1,0 +1,97 @@
+--- artifacts/css-explicit-attribute-taint-typed-reparse-fix-v1/tests/css/css-values/attr-taint-registration-transition.html
++++ artifacts/css-explicit-taint-fallback-composition-review-v1/tests/css/css-values/attr-fallback-taint-registration-transition.html
+@@ -1,6 +1,6 @@
+ <!doctype html>
+ <meta charset="utf-8">
+-<title>Attribute taint survives a custom property registration transition</title>
++<title>Selected attribute fallback taint survives registration transitions</title>
+ <meta name="timeout" content="long">
+ <link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-security">
+ <link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#animation-behavior">
+@@ -15,22 +15,31 @@
+ ];
+ const registration = typed => `@property --source { syntax: "${typed ? "<string>" : "*"}"; inherits: false; ${typed ? 'initial-value: "initial";' : ""} }`;
+ 
+-async function checkTransition(t, { flip, literal, behavior }) {
++async function checkTransition(t, mode) {
++  const flip = true;
++  const literal = mode === "unused";
++  const behavior = "allow-discrete";
++  const expression = image => {
++    const quoted = JSON.stringify(image);
++    if (mode === "missing") return `attr(data-absent raw-string, ${quoted})`;
++    if (mode === "invalid") return `attr(data-number type(<number>), ${quoted})`;
++    return `var(--clean, attr(data-absent raw-string, ${quoted}))`;
++  };
+   const frame = document.createElement("iframe");
+   t.add_cleanup(() => frame.remove());
+   const loaded = new Promise(resolve => frame.addEventListener("load", resolve, { once: true }));
+   frame.srcdoc = `<!doctype html><meta charset="utf-8">
+     <style id="registration">${registration(!flip)}</style>
+     <style>
+-      #target { --source: ${literal ? JSON.stringify(images[0]) : "attr(data-ticket)"};
++      #target { --clean: ${JSON.stringify(images[0])}; --source: ${expression(images[0])};
+         background-image: image-set(var(--source));
+         transition: --source 100s linear; transition-behavior: ${behavior}; }
+-      #target.changed { --source: ${JSON.stringify(images[1])}; }
++      #target.changed { --clean: ${JSON.stringify(images[1])}; --source: ${expression(images[1])}; }
+       #registration-control { --source: 17px; }
+       #literal-a { background-image: image-set(${JSON.stringify(images[0])}); }
+       #literal-b { background-image: image-set(${JSON.stringify(images[1])}); }
+     </style>
+-    <div id="target" data-ticket="${images[0]}"></div>
++    <div id="target" data-number="not-a-number"></div>
+     <div id="registration-control"></div><div id="literal-a"></div><div id="literal-b"></div>`;
+   document.body.append(frame);
+   await loaded;
+@@ -46,6 +55,9 @@
+     };
+   };
+   assert_equals(doc.compatMode, "CSS1Compat");
++  assert_false(target.hasAttribute("data-absent"), "Fallback primary is absent");
++  assert_equals(target.getAttribute("data-number"), "not-a-number", "Typed primary cannot parse as a number");
++  assert_true(win.CSS.supports("opacity", "attr(data-number type(<number>), 0.5)"), "Typed attribute syntax is supported");
+   const literalImages = ["literal-a", "literal-b"].map(id => win.getComputedStyle(doc.getElementById(id)).backgroundImage);
+   assert_true(literalImages.every(image => image !== "none"), "Both literal image controls are valid");
+   values();
+@@ -58,20 +70,10 @@
+   if (flip) {
+     doc.getElementById("registration").textContent = registration(true);
+   }
+-  if (literal) {
+-    target.classList.add("changed");
+-  } else {
+-    target.setAttribute("data-ticket", images[1]);
+-  }
++  target.classList.add("changed");
+   const afterChange = values();
+   assert_equals(afterChange.registration, '"initial"', "The string registration is effective");
+   const animations = target.getAnimations();
+-  if (behavior === "normal") {
+-    assert_equals(animations.length, 0, "Normal behavior does not transition string values");
+-    assert_equals(afterChange.source, JSON.stringify(images[1]));
+-    assert_equals(afterChange.image, "none");
+-    return;
+-  }
+   assert_equals(animations.length, 1, "An actual transition must exist");
+   const transition = animations[0];
+   assert_true(transition instanceof win.CSSTransition, "The animation is a CSS transition");
+@@ -102,12 +104,10 @@
+   }
+ }
+ 
+-promise_test(t => checkTransition(t, { flip: true, literal: false, behavior: "allow-discrete" }),
+-  "Primary attribute taint survives universal-to-string registration during a transition");
+-promise_test(t => checkTransition(t, { flip: false, literal: false, behavior: "allow-discrete" }),
+-  "Primary attribute taint survives a stable string registration transition");
+-promise_test(t => checkTransition(t, { flip: true, literal: true, behavior: "allow-discrete" }),
+-  "Clean literals remain usable in images across a registration transition");
+-promise_test(t => checkTransition(t, { flip: true, literal: false, behavior: "normal" }),
+-  "Normal transition behavior preserves blocking without a discrete transition");
++promise_test(t => checkTransition(t, "missing"),
++  "Selected missing-attribute fallback taint survives registration reparse");
++promise_test(t => checkTransition(t, "invalid"),
++  "Selected invalid-typed fallback taint survives registration reparse");
++promise_test(t => checkTransition(t, "unused"),
++  "Unused attribute fallback leaves the transitioning clean primary untainted");
+ </script>

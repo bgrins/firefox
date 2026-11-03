@@ -1,0 +1,104 @@
+--- artifacts/css-research-checkpoint-20261102-v116/commit.py
++++ artifacts/css-research-checkpoint-20261102-v117/commit.py
+@@ -76,6 +76,47 @@
+     return module
+ 
+ 
++def validate_refresh(receipt):
++    binding = BINDINGS['refresh_binding']
++    assert binding is not None
++    directory = ROOT / binding['directory']
++    body = (directory / 'RESULT.json').read_bytes()
++    assert sha(body) == binding['result_sha256']
++    result = json.loads(body)
++    assert result['updated'] and result['updated_only'] == 'raw_index_observation.current'
++    assert result['preservation_verified'] and result['restoration_independently_verified']
++    assert result['existing_head_signature_verified'] and result['accepted_fix_increment'] == 0
++    assert not result['native_fix_acceptance']
++    assert result['head'] == receipt['commit'] == HEAD
++    assert result['signed_commit_receipt'] == {'path': BINDINGS['prior_receipt'], 'sha256': BINDINGS['prior_receipt_sha256']}
++    parent_binding = BINDINGS['refresh_parent']
++    parent_dir = ROOT / parent_binding['directory']
++    assert sha((parent_dir / 'commit.py').read_bytes()) == parent_binding['driver_sha256']
++    assert sha((parent_dir / 'BINDINGS.json').read_bytes()) == parent_binding['bindings_sha256']
++    parent = load('previous_verified_raw_refresh', str((parent_dir / 'commit.py').relative_to(ROOT)))
++    assert parent.BINDINGS['prior_receipt'] == BINDINGS['prior_receipt']
++    assert parent.BINDINGS['prior_receipt_sha256'] == BINDINGS['prior_receipt_sha256']
++    previous = parent.saved_admission()
++    assert parent.BINDINGS['head'] == HEAD
++    assert receipt['epoch_sha256'] == parent.BINDINGS['epoch_sha256']
++    old_body, new_body = (directory / 'PRE-CURRENT-EPOCH.json').read_bytes(), (directory / 'EPOCH.json').read_bytes()
++    assert sha(old_body) == result['old_epoch_sha256'] == parent.BINDINGS['epoch_sha256']
++    assert sha(new_body) == result['epoch_sha256'] == EPOCH
++    old, new = json.loads(old_body), json.loads(new_body)
++    assert old['raw_index_observation']['current'] == result['before']
++    expected = copy.deepcopy(old)
++    expected['raw_index_observation']['current'] = result['after']
++    assert expected == new
++    assert new['semantic_index']['head'] == HEAD
++    pre, post = json.loads((directory / 'PRE.json').read_bytes()), json.loads((directory / 'POST.json').read_bytes())
++    assert pre == post and post['index']['raw_index'] == result['after']
++    assert {k:v for k,v in post['index'].items() if k != 'raw_index'} == new['semantic_index']
++    projected_previous = copy.deepcopy(previous)
++    projected_previous['index']['raw_index'] = result['after']
++    assert projected_previous == post
++    return post
++
++
+ def saved_admission():
+     assert not BINDINGS['pending_current_admission']
+     body = (ROOT / BINDINGS['prior_receipt']).read_bytes()
+@@ -83,7 +124,8 @@
+     receipt = json.loads(body)
+     assert set(receipt) == {'stage', 'commit', 'parent', 'signature_verified', 'files', 'epoch_sha256', 'accepted', 'accepted_fix_increment', 'app_rebuilt'}
+     assert receipt['stage'] == 'capacity' and receipt['signature_verified'] is True
+-    assert receipt['commit'] == HEAD and receipt['epoch_sha256'] == EPOCH
++    assert receipt['commit'] == HEAD
++    refreshed = validate_refresh(receipt)
+     assert receipt['accepted'] is False and receipt['accepted_fix_increment'] == 0
+     assert receipt['app_rebuilt'] is False
+     assert receipt['files'] == ['servo/components/style/properties/cascade.rs', 'testing/web-platform/tests/css/css-cascade/prioritary-after-many-unrelated-declarations.html']
+@@ -102,6 +144,7 @@
+     assert current['full_current_state_verified'] and current['source_transition_lock_absent']
+     assert current['tracked_modified_paths'] == [] and current['staged_paths'] == []
+     audit = current['audit']
++    assert audit == refreshed
+     assert audit['index']['head'] == HEAD
+     assert audit['index']['working_diff'] == audit['index']['cached_diff'] == sha(b'')
+     assert audit['current_raw_stable_during_check'] and audit['working_sources_binaries_research_preserved']
+@@ -136,7 +179,7 @@
+             path = str((manifest.parent / name).relative_to(ROOT))
+             expected = record['sha256'] if isinstance(record, dict) else record
+             assert selected[path]['sha256'] == expected
+-    extras = [HERE / name for name in ['commit.py', 'README.md', 'RUN-DELTA.patch', 'BINDINGS.json', 'CHECK.json', 'FILES.json', 'SELECTION.json', 'check.py', 'capture_current.py']]
++    extras = [HERE / name for name in ['commit.py', 'README.md', 'RUN-DELTA.patch', 'BINDINGS.json', 'CHECK.json', 'FILES.json', 'SELECTION.json', 'check.py', 'capture_current.py', 'CAPTURE-DELTA.patch', 'CHECK-DELTA.patch', 'CHECK-PREPARATION.log']]
+     for path in extras:
+         selected[str(path.relative_to(ROOT))] = {'sha256': sha(path.read_bytes()), 'bytes': path.stat().st_size}
+     for path, record in selected.items():
+@@ -146,7 +189,7 @@
+         assert file.stat().st_size == record['bytes'] and sha(file.read_bytes()) == record['sha256'], path
+     tracked = set(git('ls-files', '-z').decode().split('\0'))
+     skipped = [path for path in selected if path in tracked]
+-    assert not skipped, 'V116 must not reselect already committed payloads'
++    assert not skipped, 'V117 must not reselect already committed payloads'
+     for path in skipped:
+         del selected[path]
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+@@ -170,7 +213,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v116-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v117-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)
+@@ -183,7 +226,7 @@
+             tree = git('write-tree', env=index_env).decode().strip()
+             assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+             message = directory / 'message'
+-            message.write_text('No bug - Record signed declaration capacity publication and diagnostic preparation. r?#firefox-style-system-reviewers\n')
++            message.write_text('No bug - Record retained substitution diagnostics and protocol research. r?#firefox-style-system-reviewers\n')
+             with (HERE / 'signing.log').open('x') as stream:
+                 result = subprocess.run(GIT + ['commit', '--quiet', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
+             if result.returncode:

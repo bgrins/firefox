@@ -1,0 +1,7 @@
+# Unresolved orientation oracle: excluded from staged WPT
+
+orientation-oracle-proposal.js preserves the exact unrun fixture proposal before bounded review. Its final registration function describes twelve additional cases: ordinary and animation ex/ch/cap/ic/lh with parent vertical-rl/upright and child horizontal-tb/mixed, plus normal-lh in that context. This file is not in INTEGRATION resources or the WPT manifest and has not run.
+
+The draft checker assumes the complete parent reference, including its axis, supplies the expected metric. That is a hypothesis, not an established conformance oracle. Values4's parent font-metric rule must be reconciled with ch's inline-axis definition and the consumer's writing mode. Native inherited font queries, ch fallback and calc_line_height do not by themselves settle that normative question; the old font-size conversion path also mixes these inputs.
+
+Before enabling these cases, trace the relevant font-base versus axis rule. A discriminating diagnostic should retain parent-axis and consumer-axis references at the SAME parent font/size, plus the different child-size reference, so axis choice is not conflated with child-font selection. Missing-zero-glyph fallback additionally needs calibrated font coverage. Record both candidate outcomes without treating either as a passing oracle until that trace is resolved. Existing explicit-lh/fixed-horizontal core cases are unaffected.

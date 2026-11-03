@@ -1,0 +1,67 @@
+--- artifacts/css-research-checkpoint-20261102-v122/commit.py
++++ artifacts/css-research-checkpoint-20261103-v123/commit.py
+@@ -15,7 +15,7 @@
+ BINDINGS = json.loads((HERE / 'BINDINGS.json').read_bytes())
+ HEAD = BINDINGS['head']
+ EPOCH = BINDINGS['epoch_sha256']
+-EXECUTION_ENABLED = True
++EXECUTION_ENABLED = False
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+@@ -88,7 +88,8 @@
+     assert parent.BINDINGS['prior_receipt_sha256'] == BINDINGS['prior_receipt_sha256']
+     previous = parent.saved_admission()
+     assert parent.BINDINGS['head'] == HEAD
+-    for binding, old_epoch, new_epoch in [(binding, parent.BINDINGS['epoch_sha256'], EPOCH)]:
++    old_epoch = parent.BINDINGS['epoch_sha256']
++    for binding in BINDINGS['refresh_prefix'] + [binding]:
+         directory = ROOT / binding['directory']
+         body = (directory / 'RESULT.json').read_bytes()
+         assert sha(body) == binding['result_sha256']
+@@ -101,7 +102,8 @@
+         assert result['signed_commit_receipt'] == {'path': BINDINGS['prior_receipt'], 'sha256': BINDINGS['prior_receipt_sha256']}
+         old_body, new_body = (directory / 'PRE-CURRENT-EPOCH.json').read_bytes(), (directory / 'EPOCH.json').read_bytes()
+         assert sha(old_body) == result['old_epoch_sha256'] == old_epoch
+-        assert sha(new_body) == result['epoch_sha256'] == new_epoch
++        new_epoch = result['epoch_sha256']
++        assert sha(new_body) == new_epoch
+         old, new = json.loads(old_body), json.loads(new_body)
+         assert old['raw_index_observation']['current'] == result['before']
+         expected = copy.deepcopy(old)
+@@ -115,6 +117,8 @@
+         projected_previous['index']['raw_index'] = result['after']
+         assert projected_previous == post
+         previous = post
++        old_epoch = new_epoch
++    assert old_epoch == EPOCH
+     return previous
+ 
+ 
+@@ -207,7 +211,7 @@
+         assert file.stat().st_size == record['bytes'] and sha(file.read_bytes()) == record['sha256'], path
+     tracked = set(git('ls-files', '-z').decode().split('\0'))
+     skipped = [path for path in selected if path in tracked]
+-    assert not skipped, 'V122 must not reselect already committed payloads'
++    assert not skipped, 'V123 must not reselect already committed payloads'
+     for path in skipped:
+         del selected[path]
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+@@ -231,7 +235,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v122-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v123-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)
+@@ -244,7 +248,7 @@
+             tree = git('write-tree', env=index_env).decode().strip()
+             assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+             message = directory / 'message'
+-            message.write_text('No bug - Record retained substitution diagnostics and protocol research. r?#firefox-style-system-reviewers\n')
++            message.write_text('No bug - Record validated attribute taint repairs and publication evidence. r?#firefox-style-system-reviewers\n')
+             with (HERE / 'signing.log').open('x') as stream:
+                 result = subprocess.run(GIT + ['commit', '--quiet', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
+             if result.returncode:

@@ -1,0 +1,7 @@
+These are unchanged copies of the four committed taint-control pages identified by root at native e86: map equality (#76), CSS-wide keyframe replacement (#78), animation underlying values (#79), and registered-number interpolation (#80).
+
+The roster contains 47 callbacks across four pages: 9, 6, 8, and 24 respectively (51 callback/ending signatures). Assertions, document structure, resources and default timeouts are unchanged. No preferences or expected-failure metadata are added. The actual archived e86 run must establish the baseline; this capsule does not claim all callbacks pass.
+
+Preparation uses the existing isolated WPT library helper with four-page counts and inert `test` registration in addition to `promise_test`. Genuine WPT path/content lint reports zero findings; Manifest v9 recognizes all four testharness pages; Node enumerates callback names without invoking their bodies. Saved preparation 6a69e5/0 removed its owned scratch. No browser, native build, Git operation or live WPT installation occurred.
+
+SOURCE.json records exact local-copy hashes and root-supplied committed provenance. Its native role mapping is reused from the standalone typed-reparse source capsule for archive/source joins; these test copies do not change any source role. The baseline is separate from target4 and final fallback28. Results must be compared case by case, preserving actual failures rather than silently expecting allPASS.

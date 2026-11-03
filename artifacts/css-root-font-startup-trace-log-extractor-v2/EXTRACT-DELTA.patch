@@ -1,0 +1,39 @@
+--- artifacts/css-root-font-startup-trace-log-extractor-v1/extract.py
++++ artifacts/css-root-font-startup-trace-log-extractor-v2/extract.py
+@@ -6,18 +6,25 @@
+ 
+ MARKER = re.compile(r'\bRFST (?P<event>[a-z-]+)(?: |$)')
+ FIELD = re.compile(r'(?<!\S)([a-z_]+)=')
+-IDENTITIES = {'node', 'input_node', 'target_node', 'root', 'child', 'effect', 'device'}
++IDENTITIES = {'node', 'input_node', 'target_node', 'root', 'child', 'effect', 'device',
++              'root_node', 'normalized_node', 'set', 'compositor', 'document'}
+ EVENTS = {
+     'entry', 'restyle', 'returned', 'finish', 'root-published', 'signal',
+     'joined', 'seed', 'normal-dirty', 'tasks', 'skip-existing-animation',
+     'delivery', 'effect-properties', 'build-properties', 'rem-basis',
+     'converted-font', 'built-properties',
++    'request', 'request-post', 'post-deferred', 'post-shell',
++    'pre-enter', 'pre-queue', 'pre-selected', 'pre-remaining', 'pre-exit',
++    'document-enter', 'document-no-root', 'document-pre', 'document-pass-begin',
++    'document-subtree', 'document-new-subtree', 'document-pass-end',
++    'document-between-pre', 'document-exit',
+ }
+ 
+ 
+ def extract(data):
+     rows = []
+-    indexes = {'event': {}, 'node': {}, 'effect': {}, 'device': {}, 'thread': {}}
++    indexes = {'event': {}, 'node': {}, 'effect': {}, 'device': {}, 'thread': {},
++               'set': {}, 'compositor': {}, 'document': {}}
+     for number, raw in enumerate(data.splitlines(keepends=True), 1):
+         if b'RFST' not in raw:
+             continue
+@@ -50,7 +57,7 @@
+                     indexes['thread'].setdefault(value, []).append(number)
+                 elif key in IDENTITIES and re.fullmatch(r'0x[0-9a-fA-F]+', value):
+                     normalized = hex(int(value, 16))
+-                    kind = key if key in ('effect', 'device') else 'node'
++                    kind = key if key in ('effect', 'device', 'set', 'compositor', 'document') else 'node'
+                     indexes[kind].setdefault(normalized, []).append({'line': number, 'field': key})
+         rows.append(row)
+     return {'input_sha256': hashlib.sha256(data).hexdigest(), 'input_bytes': len(data),

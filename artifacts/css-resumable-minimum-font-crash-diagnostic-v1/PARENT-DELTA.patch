@@ -1,0 +1,204 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -3915,6 +3915,7 @@
+             if !states.size.stable_for_appearance_addition()
+                 || !states.text_scale.stable_for_appearance_addition()
+             {
++                eprintln!("CSS_MINIMUM_PENDING readset=selection-flags");
+                 return MetricActionProgress::ComputedSizeReadset;
+             }
+             let reads_writing_mode = size_reads_writing_mode(
+@@ -3968,11 +3969,13 @@
+                             .copied(),
+                     )
+                 {
++                    eprintln!("CSS_MINIMUM_PENDING readset=static-prerequisite-prefix");
+                     return MetricActionProgress::ComputedSizeReadset;
+                 }
+                 if id.to_longhand() != LonghandId::MozMinFontSizeRatio
+                     && self.apply_prioritary_property(id, tracker) != ComputationStatus::Ready
+                 {
++                    eprintln!("CSS_MINIMUM_PENDING readset=static-prerequisite-application");
+                     return MetricActionProgress::ComputedSizeReadset;
+                 }
+             }
+@@ -3982,6 +3985,7 @@
+                 && self.priority_completion.complete.contains(FontFamily)
+                 && !self.priority_completion.complete.contains(Appearance)
+             {
++                eprintln!("CSS_MINIMUM_PENDING readset=family-complete-before-appearance");
+                 return MetricActionProgress::ComputedSizeReadset;
+             }
+             if needs_family && !self.priority_completion.complete.contains(FontFamily) {
+@@ -3990,6 +3994,7 @@
+                     || self.cascade.ensured_prioritary.contains(FontFamily)
+                     || self.cascade.seen.longhands.contains(LonghandId::FontFamily)
+                 {
++                    eprintln!("CSS_MINIMUM_PENDING readset=family-claimed-active-or-applied");
+                     return MetricActionProgress::ComputedSizeReadset;
+                 }
+                 let family = states.family.get_or_insert_with(|| {
+@@ -4023,6 +4028,7 @@
+                 .as_ref()
+                 .is_some_and(|family| !family.stable_for_appearance_addition())
+             {
++                eprintln!("CSS_MINIMUM_PENDING readset=family-selection-flags");
+                 return MetricActionProgress::ComputedSizeReadset;
+             }
+             if reads_writing_mode {
+@@ -4040,6 +4046,7 @@
+                         )
+                         || self.apply_prioritary_property(id, tracker) != ComputationStatus::Ready
+                     {
++                        eprintln!("CSS_MINIMUM_PENDING readset=orientation-prefix-or-application");
+                         return MetricActionProgress::ComputedSizeReadset;
+                     }
+                 }
+@@ -4048,6 +4055,7 @@
+                     .iter()
+                     .any(|id| !self.priority_completion.complete.contains(*id))
+                 {
++                    eprintln!("CSS_MINIMUM_PENDING readset=orientation-incomplete");
+                     return MetricActionProgress::ComputedSizeReadset;
+                 }
+             }
+@@ -6276,7 +6284,39 @@
+                     &mut font_publication_demand,
+                 ) {
+                     MetricActionProgress::Published(_) | MetricActionProgress::AlreadyComplete => {}
+-                    _ => break result,
++                    progress => {
++                        let label = match &progress {
++                            MetricActionProgress::ComputedSizeReadset => "ComputedSizeReadset",
++                            MetricActionProgress::GeneratedPrerequisite(id) => {
++                                eprintln!(
++                                    "CSS_MINIMUM_PENDING prerequisite={:?}",
++                                    id.to_longhand()
++                                );
++                                "GeneratedPrerequisite"
++                            }
++                            MetricActionProgress::References(id, _) => {
++                                eprintln!("CSS_MINIMUM_PENDING references={:?}", id);
++                                "References"
++                            }
++                            MetricActionProgress::Lookup(id, _, request) => {
++                                eprintln!(
++                                    "CSS_MINIMUM_PENDING lookup={:?} kind={:?} name={:?}",
++                                    id, request.kind, request.name
++                                );
++                                "Lookup"
++                            }
++                            MetricActionProgress::Invalidated => "Invalidated",
++                            MetricActionProgress::Unsupported => "Unsupported",
++                            MetricActionProgress::WrongAction => "WrongAction",
++                            MetricActionProgress::Published(_)
++                            | MetricActionProgress::AlreadyComplete => unreachable!(),
++                        };
++                        eprintln!(
++                            "CSS_MINIMUM_PENDING progress={} action_root={:?} owner={:?} index={} target={:?}",
++                            label, action.root, action.owner, action.index, action.prerequisite
++                        );
++                        break result;
++                    }
+                 }
+             }
+         } else {
+@@ -6287,6 +6327,98 @@
+                 attr_tracker,
+             )
+         };
++        if !matches!(result, VisitResult::Complete | VisitResult::CycleSettled) {
++            eprintln!(
++                "CSS_MINIMUM_PENDING result={:?} root={:?} frames={} stack={:?} action={} lookup={} references={} size_node={:?} facet={} deferred={} finished={:?}",
++                result,
++                context.frame_root,
++                context.frames.len(),
++                context.stack,
++                context.metric_action.is_some(),
++                context.metric_lookup.is_some(),
++                context.metric_references.is_some(),
++                context.size_node,
++                context.priority_completion.computed_size.is_some(),
++                context.deferred_size.is_some(),
++                context.finished_root
++            );
++            if let Some(lookup) = context.metric_lookup.as_ref() {
++                eprintln!(
++                    "CSS_MINIMUM_PENDING retained_lookup={:?} kind={:?} name={:?} depth={} floor={}",
++                    lookup.longhand,
++                    lookup.request.kind,
++                    lookup.request.name,
++                    lookup.depth,
++                    lookup.semantic_floor
++                );
++            }
++            for frame in &context.frames {
++                let phase = match frame.phase {
++                    FramePhase::References => "References",
++                    FramePhase::Prepare => "Prepare",
++                    FramePhase::Units => "Units",
++                    FramePhase::PrioritySize => "PrioritySize",
++                    FramePhase::PriorityReferences => "PriorityReferences",
++                    FramePhase::LateDefault => "LateDefault",
++                    FramePhase::Close => "Close",
++                    FramePhase::Publish => "Publish",
++                };
++                eprintln!(
++                    "CSS_MINIMUM_PENDING frame={:?} index={} lowlink={} phase={} registered={} waiting={:?}",
++                    frame.var,
++                    frame.index,
++                    frame.lowlink,
++                    phase,
++                    frame.registered,
++                    frame.waiting.as_ref().map(|(var, _)| var)
++                );
++            }
++            if let Some(states) = context.size_preparation.as_ref() {
++                eprintln!(
++                    "CSS_MINIMUM_PENDING size_preparation={} size_omitted={} size_complete={} size_waiting={} text_scale_complete={} text_scale_waiting={} family={}",
++                    states.index,
++                    states.operation().is_none(),
++                    states.size.complete,
++                    states.size.waiting.is_some(),
++                    states.text_scale.complete,
++                    states.text_scale.waiting.is_some(),
++                    states.family.is_some()
++                );
++                for state in [&states.size, &states.text_scale]
++                    .into_iter()
++                    .chain(states.family.iter())
++                {
++                    eprintln!(
++                        "CSS_MINIMUM_PENDING selection={:?} complete={} waiting={} cursor={:?} prepared={} flags_unchanged={}",
++                        state.longhand,
++                        state.complete,
++                        state.waiting.is_some(),
++                        state.cursor,
++                        state.prepared.len(),
++                        state.observed_flags == context.computed_context.included_cascade_flags
++                    );
++                }
++            }
++            for id in [
++                PrioritaryPropertyId::FontSize,
++                PrioritaryPropertyId::FontFamily,
++                PrioritaryPropertyId::Appearance,
++                PrioritaryPropertyId::XLang,
++                PrioritaryPropertyId::XTextScale,
++                PrioritaryPropertyId::MozMinFontSizeRatio,
++                PrioritaryPropertyId::Zoom,
++            ] {
++                eprintln!(
++                    "CSS_MINIMUM_PENDING priority={:?} complete={} active={} claimed={} ensured={} seen={}",
++                    id.to_longhand(),
++                    context.priority_completion.complete.contains(id),
++                    context.priority_completion.active.contains(id),
++                    context.priority_completion.claimed.contains(id),
++                    context.cascade.ensured_prioritary.contains(id),
++                    context.cascade.seen.longhands.contains(id.to_longhand())
++                );
++            }
++        }
+         assert!(matches!(
+             result,
+             VisitResult::Complete | VisitResult::CycleSettled

@@ -1,0 +1,35 @@
+--- artifacts/css-root-font-startup-trace-current-capture-v1/baseline.py
++++ artifacts/css-root-font-startup-trace-current-capture-v2/baseline.py
+@@ -77,16 +77,18 @@
+     normalized['index']['raw_index'] = original_capture['audit']['index']['raw_index']
+     equal(original_capture['audit']['index']['raw_index'], original['raw_index_observation']['current'], 'original snapshot raw join')
+     equal(normalized, original_capture['audit'], 'whole original snapshot equality')
+-    terminal = records['terminal']
+-    equal({k:terminal[k] for k in ('launch','session','terminal','exit')}, {'launch':'029ee4','session':19339,'terminal':'561470','exit':0}, 'actual refresh terminal')
+-    equal(terminal['result_sha256'], binding['refresh_binding']['result_sha256'], 'refresh terminal result')
+-    equal(terminal['active_manifest'], 'c3abab4582f1f01a099b3ea89fdcc419b3fb1821a62ceac82ef4aa4c9ddbee95', 'executed refresh manifest')
++    terminal = records['terminal']['refresh']
++    equal({k:terminal[k] for k in ('launch','session','terminal','exit')}, {'launch':'761647','session':25987,'terminal':'e149b6','exit':0}, 'actual refresh terminal')
++    equal(sorted(terminal), sorted(['launch','session','terminal','exit','active_manifest']), 'actual refresh terminal fields')
++    equal(terminal['active_manifest'], '8c5273502b3b5ebaa872e900a35bcacfb73020b2dad7e3188bca2298076c4d86', 'executed refresh manifest')
+     verification = records['verification']
+     assert verification['raw_only_epoch_change'] is True
+     assert verification['source_app_flags_controls_verified'] is True
+     equal(verification['snapshot'], post, 'verified whole POST')
+     equal(verification['result_sha256'], binding['refresh_binding']['result_sha256'], 'verified result')
+-    equal(records['verification_terminal'], {'launch':'04c9ce','session':52392,'terminal':'686a3c','exit':0,'report_sha256':binding['references'][binding['saved_inputs']['verification']], 'script_sha256':verification['script_sha256']}, 'actual independent verification terminal')
++    equal(sorted(records['terminal']), ['refresh','verification'], 'actual combined terminal fields')
++    equal(records['verification_terminal'], records['terminal'], 'same actual combined receipt')
++    equal(records['verification_terminal']['verification'], {'launch':'a7bdbc','session':4423,'terminal':'8ccc6d','exit':0,'verifier_sha256':verification['script_sha256']}, 'actual independent verification terminal')
+     return post
+ 
+ 
+@@ -120,7 +122,7 @@
+ 
+ 
+ def claim_additional_sources(ownership, state, env, epoch, head):
+-    assert set(binding['additional_sources']) == {'servo/components/style/data.rs', 'servo/components/style/traversal.rs', 'servo/components/style/gecko/traversal.rs'}
++    assert set(binding['additional_sources']) == {'servo/components/style/data.rs', 'servo/components/style/traversal.rs', 'servo/components/style/gecko/traversal.rs', 'layout/style/ServoStyleSet.cpp'}
+     result = {}
+     for name, record in binding['additional_sources'].items():
+         assert name not in epoch['installed_identities']

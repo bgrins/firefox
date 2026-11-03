@@ -1,0 +1,101 @@
+--- artifacts/css-attr-fallback-candidate-root-audit-v2/audit.py
++++ artifacts/css-explicit-taint-typed-reparse-root-audit-v2/audit.py
+@@ -9,8 +9,8 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ ROOT = Path(__file__).resolve().parents[2]
+ HERE = Path(__file__).resolve().parent
+-OWNER = ROOT / "artifacts/css-attr-fallback-candidate-browser-v2"
+-RUNTIME = ROOT / "artifacts/css-attr-fallback-candidate-browser-runtime-v2"
++OWNER = ROOT / "artifacts/css-explicit-taint-typed-reparse-candidate-browser-v1"
++RUNTIME = ROOT / "artifacts/css-explicit-taint-typed-reparse-candidate-browser-runtime-v1"
+ CANONICAL = ROOT / "artifacts/css-registered-number-native-runtime-v1"
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+ read = lambda path: json.loads(path.read_bytes())
+@@ -31,12 +31,22 @@
+     suite_ends = [i for i, row in enumerate(events) if row.get('action') == 'suite_end']
+     names = [(row.get('test'), row.get('subtest')) for row in rows]
+     wanted = [(page, name) for page, names in expected.items() for name in names]
+-    exact = len(wanted) == 24 and Counter(names) == Counter(wanted)
+-    complete_end = len(starts) == len(ends) == len(expected) == 1 and starts[0][1].get('test') == ends[0][1].get('test') == next(iter(expected)) and ends[0][1].get('status') == 'OK'
+-    ordered = complete_end and len(suite_starts) == len(suite_ends) == 1 and suite_starts[0] < starts[0][0] < ends[0][0] < suite_ends[0] and all(starts[0][0] < i < ends[0][0] for i, row in enumerate(events) if row.get('action') == 'test_status')
++    exact = Counter(names) == Counter(wanted)
++    complete_end = (len(starts) == len(ends) == len(expected)
++                    and Counter(row.get('test') for _, row in starts) == Counter(expected.keys())
++                    and Counter(row.get('test') for _, row in ends) == Counter(expected.keys())
++                    and all(row.get('status') == 'OK' for _, row in ends))
++    ordered = complete_end and len(suite_starts) == len(suite_ends) == 1
++    if ordered:
++        for page in expected:
++            start = next(i for i, row in starts if row['test'] == page)
++            end = next(i for i, row in ends if row['test'] == page)
++            ordered = ordered and suite_starts[0] < start < end < suite_ends[0]
++            ordered = ordered and all(start < i < end for i, row in enumerate(events)
++                                      if row.get('action') == 'test_status' and row.get('test') == page)
+     crashes = [row for row in events if row.get('action') == 'crash' or row.get('status') == 'CRASH']
+     valid = exact and ordered and not crashes and all(row.get('status') in ('PASS','FAIL') for row in rows)
+-    return {'callbacks': len(rows), 'statuses': dict(Counter(row.get('status') for row in rows)), 'expected_24_names_exact': exact, 'expected_start_and_OK_ending': complete_end, 'ordered_suite': bool(ordered), 'crash_events': len(crashes), 'complete_raw_roster': bool(valid), 'all_24_pass': bool(valid and all(row.get('status') == 'PASS' for row in rows))}
++    return {'callbacks': len(rows), 'statuses': dict(Counter(row.get('status') for row in rows)), 'expected_names_exact': exact, 'expected_start_and_OK_ending': complete_end, 'ordered_suite': bool(ordered), 'crash_events': len(crashes), 'complete_raw_roster': bool(valid), 'all_callbacks_pass': bool(valid and all(row.get('status') == 'PASS' for row in rows))}
+ 
+ 
+ binding = read(HERE / 'BINDINGS.json')
+@@ -48,7 +58,8 @@
+ assert binding['terminal_sha256'] == sha(RUNTIME / 'ROOT-OWNER-TERMINAL.json')
+ 
+ 
+-assert sha(OWNER / "FILES.json") == "a53d33fe9c3a0e9bb129a1ae29d11f98cfbd310f6824d09cf0ef773bfd3edcf9"
++assert isinstance(binding["owner_manifest_sha256"], str) and len(binding["owner_manifest_sha256"]) == 64
++assert sha(OWNER / "FILES.json") == binding["owner_manifest_sha256"]
+ terminal = read(RUNTIME / "ROOT-OWNER-TERMINAL.json")
+ result = read(RUNTIME / "RESULT.json")
+ assert terminal["terminal"] and terminal["exit"] == (0 if result["success"] else 1)
+@@ -61,21 +72,26 @@
+ env = baseline.environment()
+ capture = baseline.current_capture(policy)
+ assert set(roles) == {'servo/components/style/custom_properties.rs'}
+-phase = RUNTIME / 'candidate-wpt-fallback'
+-raw_observation = None
+-assessment_replayed = False
+-if (phase / 'raw.jsonl').is_file():
+-    events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
+-    raw_observation = raw_summary(events, policy['wpt_lanes']['fallback']['expected_subtests'])
+-    raw_observation['raw_sha256'] = sha(phase / 'raw.jsonl')
+-    if (phase / 'ASSESSMENT.json').is_file():
+-        assessor = load('audit_wpt_assessor', OWNER / 'assess.py')
+-        checks = load('audit_wpt_checks', ROOT / policy['wpt']['checks_helper'])
+-        assessment = assessor.assess(events, read(phase / 'RESULT.json')['exit'], read(phase / 'ASSESSMENT-POLICY.json'), checks, run_binding=read(phase / 'APPLICATION-METADATA.json'))
+-        assert assessment == read(phase / 'ASSESSMENT.json')
+-        assessment_replayed = True
+-if result['success']:
+-    assert raw_observation and raw_observation['complete_raw_roster'] and assessment_replayed
++assert policy['lane_order'] == ['reparse', 'fallback', 'controls']
++assert sum(policy['wpt_lanes'][lane]['expected_subtest_count'] for lane in policy['lane_order']) == 79
++assert sum(policy['wpt_lanes'][lane]['expected_page_count'] for lane in policy['lane_order']) == 6
++raw_observation, assessment_replayed = {}, {}
++for lane in policy['lane_order']:
++    phase = RUNTIME / ('candidate-wpt-' + lane)
++    raw_observation[lane] = None
++    assessment_replayed[lane] = False
++    if (phase / 'raw.jsonl').is_file():
++        events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
++        raw_observation[lane] = raw_summary(events, policy['wpt_lanes'][lane]['expected_subtests'])
++        raw_observation[lane]['raw_sha256'] = sha(phase / 'raw.jsonl')
++        if (phase / 'ASSESSMENT.json').is_file():
++            assessor = load('audit_wpt_assessor', OWNER / 'assess.py')
++            checks = load('audit_wpt_checks', ROOT / policy['wpt']['checks_helper'])
++            assessment = assessor.assess(events, read(phase / 'RESULT.json')['exit'], read(phase / 'ASSESSMENT-POLICY.json'), checks, run_binding=read(phase / 'APPLICATION-METADATA.json'))
++            assert assessment == read(phase / 'ASSESSMENT.json')
++            assessment_replayed[lane] = True
++    if result['success']:
++        assert raw_observation[lane] and raw_observation[lane]['complete_raw_roster'] and assessment_replayed[lane]
+ processes = []
+ for path in sorted(RUNTIME.rglob("*PROCESS.json")):
+     record = read(path)
+@@ -148,7 +164,7 @@
+           "audit_script_sha256": sha(Path(__file__)), "owner_terminal": terminal,
+           "restored_source_claims": {name: claims[name] for name in roles},
+           "raw_wpt_observation": raw_observation, "saved_assessment_replayed": assessment_replayed,
+-          "owner_success_scope": "complete observation and restoration; all_24_pass is separate",
++          "owner_success_scope": "complete observation and restoration; callback PASS and baseline comparison are separate",
+           "native_acceptance": False}
+ with (RUNTIME / "ROOT-LIVE-RESTORATION.json").open("x") as stream:
+     json.dump(report, stream, indent=2)

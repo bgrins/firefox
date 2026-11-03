@@ -1,0 +1,11 @@
+# Historical animation update boundaries
+
+Primary Bugzilla records checked on 3 November 2026. These are related architectural history, not proof that the current cancellation witness duplicates an existing report.
+
+- [bug 1254424](https://bugzilla.mozilla.org/show_bug.cgi?id=1254424) reported an em-based animation failing to respond to a parent font change. Its WONTFIX resolution reflects removal of the old style system: comment 4 says the case works in Stylo. This is not a decision that stale font-relative animations are acceptable.
+- [bug 1350754 comment 0](https://bugzilla.mozilla.org/show_bug.cgi?id=1350754#c0) identifies updating effect properties when computed style changes as a required Stylo operation. The landed series introduced animation membership checks and sequential animation tasks. This supports examining the delivery boundary, without establishing today's native execution path.
+- [bug 1524480 comment 0](https://bugzilla.mozilla.org/show_bug.cgi?id=1524480#c0) explains the intentional no-flush animation creation design: use available computed style initially and update effect properties when pending style changes are processed. [bug 1524480 comment 15](https://bugzilla.mozilla.org/show_bug.cgi?id=1524480#c15) explains why adding a flush changes transition behavior and can force repeated work when creating animations. Its investigation also found style-sharing, change-hint and frame-registration failures exposed by removing that flush.
+
+The current root cancellation witness is therefore a test of the promised later update, not a reason to restore unconditional flushing in SetKeyframes. Once a repair is identified, targeted regressions should retain no-flush creation behavior, visibility/style-sharing correctness and transition behavior. This is a recommended validation direction, not a claim that those suites have run on a new repair.
+
+Bug 1254424 was read from the primary web page. The web fetches for bugs 1350754 and 1524480 failed; both full records and numbered comments were then retrieved successfully through the moz Bugzilla connector. No bug was filed or changed. Search results did not establish an exact duplicate; absence of a result does not establish novelty.

@@ -1,0 +1,48 @@
+--- artifacts/css-root-font-startup-trace-current-capture-v1/check_saved.py
++++ artifacts/css-root-font-startup-trace-current-capture-v2/check_saved.py
+@@ -44,9 +44,9 @@
+     ('snapshot-nested-raw', ['post','nested_index','raw_index'], '0'*64),
+     ('current-raw-join', ['current_epoch','raw_index_observation','current'], '0'*64),
+     ('original-capture-join', ['original_capture','prior_receipt_sha256'], '0'*64),
+-    ('refresh-result-join', ['terminal','result_sha256'], '0'*64),
++    ('refresh-active-manifest-join', ['terminal','refresh','active_manifest'], '0'*64),
+     ('verification-post-join', ['verification','snapshot','index','raw_index'], '0'*64),
+-    ('terminal-bool-as-int', ['verification_terminal','exit'], False),
++    ('terminal-bool-as-int', ['verification_terminal','verification','exit'], False),
+ ):
+     changed = copy.deepcopy(records)
+     target = changed
+@@ -71,13 +71,13 @@
+     missing = set(module.__dict__) - {name}
+     rejects('missing-observer-global-'+name, lambda: module.equivalence.require(required <= missing | set(vars(builtins)), 'undefined global'))
+ 
+-previous = ROOT/'artifacts/css-root-font-cancellation-selective-handoff-current-capture-v1'
++previous = ROOT/'artifacts/css-root-font-startup-trace-current-capture-v1'
+ assert (HERE/'capture_current.py').read_bytes() == (previous/'capture_current.py').read_bytes()
+ source = (HERE/'baseline.py').read_text()
+ old_source = (previous/'baseline.py').read_text()
+ def function(text,name):
+     return ast.get_source_segment(text,next(n for n in ast.parse(text).body if isinstance(n,ast.FunctionDef) and n.name==name))
+-assert function(source,'claim_additional_sources') == function(old_source,'claim_additional_sources')
++assert function(source,'claim_additional_sources') == function(old_source,'claim_additional_sources').replace("'servo/components/style/gecko/traversal.rs'}", "'servo/components/style/gecko/traversal.rs', 'layout/style/ServoStyleSet.cpp'}")
+ for name in ('observe','prepare','saved_native_state'):
+     assert function(source,name)==function(old_source,name)
+ assert not any(isinstance(n,ast.Call) and isinstance(n.func,ast.Attribute) and n.func.attr in ('native_head_view','validate_refresh','observe') for n in ast.walk(ast.parse(source)))
+@@ -92,9 +92,9 @@
+ ownership=module.core.load('real_capture_ownership','artifacts/css-registered-number-source-transition-v4/transition.py')
+ ownership.authenticate(ROOT/binding['source_binding']['directory'],binding['source_binding']['manifest_sha256'])
+ sources=read(ROOT/binding['source_binding']['directory']/'SOURCE-ROLES.json')['roles']
+-assert set(sources)=={'servo/components/style/data.rs','servo/components/style/traversal.rs','servo/components/style/gecko/traversal.rs','servo/ports/geckolib/glue.rs','servo/components/style/matching.rs','servo/components/style/values/specified/length.rs','layout/style/GeckoBindings.cpp','dom/animation/KeyframeEffect.cpp'}
++assert set(sources)=={'servo/components/style/data.rs','servo/components/style/traversal.rs','servo/components/style/gecko/traversal.rs','servo/ports/geckolib/glue.rs','servo/components/style/matching.rs','servo/components/style/values/specified/length.rs','layout/style/GeckoBindings.cpp','dom/animation/KeyframeEffect.cpp','dom/animation/EffectCompositor.cpp','layout/style/ServoStyleSet.cpp'}
+ canonical = set(sources) & set(records['current_epoch']['installed_identities'])
+-assert len(canonical) == 5
++assert len(canonical) == 6
+ assert set(binding['additional_sources'])==set(sources)-canonical
+ for name in canonical:
+     assert binding['source_preimages'][name] == records['current_epoch']['pins'][name] == sources[name]['base_sha256']
+@@ -124,4 +124,4 @@
+     finally:
+         module.ROOT=ROOT
+ assert not scratch.exists()
+-print(json.dumps({'success':True,'saved_direct_epoch_and_snapshot_verified':True,'references':len(binding['references']),'source_roles':8,'additional_claims':sorted(binding['additional_sources']),'negative_controls':negative,'ordinary_claim_body_preserved':True,'live_observer_byte_identical':True,'explicit_role_leaf_actual_policy_and_self_capture_policy_checked':True,'resolved_observer_globals':sorted(required),'capture_script_byte_identical':True,'git_test_double':True,'scratch_removed':True,'live_observe_or_capture_executed':False,'tested_inputs':{n:sha(HERE/n) for n in ('baseline.py','capture_current.py','BINDINGS.json','check_saved.py')}},indent=2,sort_keys=True))
++print(json.dumps({'success':True,'saved_direct_epoch_and_snapshot_verified':True,'references':len(binding['references']),'source_roles':10,'additional_claims':sorted(binding['additional_sources']),'negative_controls':negative,'ordinary_claim_loop_preserved_exact_set_expanded':True,'live_observer_byte_identical':True,'explicit_role_leaf_actual_policy_and_self_capture_policy_checked':True,'resolved_observer_globals':sorted(required),'capture_script_byte_identical':True,'git_test_double':True,'scratch_removed':True,'live_observe_or_capture_executed':False,'tested_inputs':{n:sha(HERE/n) for n in ('baseline.py','capture_current.py','BINDINGS.json','check_saved.py')}},indent=2,sort_keys=True))

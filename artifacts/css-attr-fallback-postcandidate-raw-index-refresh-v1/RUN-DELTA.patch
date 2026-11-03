@@ -1,0 +1,179 @@
+--- artifacts/css-resumable-font-selection-integrated-pair-raw-index-refresh-v1/run.py
++++ artifacts/css-attr-fallback-postcandidate-raw-index-refresh-v1/run.py
+@@ -43,6 +43,43 @@
+     expected = copy.deepcopy(post)
+     expected['index']['raw_index'] = actual_index['raw_index']
+     return current, expected
++
++
++def archived_saved(policy, owner):
++    binding = policy['archived_validation']
++    directory = ROOT / binding['owner']
++    owner.authenticate(directory, binding['manifest_sha256'])
++    runner = load('refresh_archived_assessor', directory / 'run.py')
++    for role in ('original', 'candidate'):
++        row = binding[role]
++        runtime = ROOT / row['runtime']
++        owner.authenticate(runtime, row['manifest_sha256'])
++        p = read(directory / ('POLICY-' + role + '.json'))
++        assert p['runtime'] == row['runtime'] and p['archive_role'] == role
++        assert p['build_revision'] == policy['head'] and not p['pending_binding']
++        assert p['prior_owner_audit'] == policy['live_audit'] and p['prior_owner_terminal'] == policy['owner_terminal']
++        result = read(runtime / 'RESULT.json')
++        terminal = read(runtime / 'ROOT-OWNER-TERMINAL.json')
++        assert terminal['terminal'] and terminal['exit'] == 0 and terminal['wpt_exit'] == result['exit']
++        assert terminal['result_sha256'] == sha(runtime / 'RESULT.json')
++        assert result['success'] and result['execution_error'] is None
++        assert result['archive_preserved'] and result['staged_preserved']
++        assert result['source_role'] == p['source_role'] == 'archived-' + role
++        assert not result['native_fix_acceptance']
++        events = [json.loads(line) for line in (runtime / 'raw.jsonl').read_text().splitlines()]
++        assessment = runner.assess(events, read(ROOT / p['roster']), result['exit'])
++        assert assessment == read(runtime / 'ASSESSMENT.json') and assessment['complete']
++        assert assessment['counts'] == ({'PASS': 17, 'FAIL': 11} if role == 'original' else {'PASS': 28})
++        assert assessment['all_28_pass'] is (role == 'candidate')
++        assert sha(ROOT / p['snapshot']) == p['snapshot_sha256']
++        snapshot = read(ROOT / p['snapshot'])
++        assert read(runtime / 'ARCHIVE-PRE.json') == read(runtime / 'ARCHIVE-POST.json')
++        archive = read(runtime / 'ARCHIVE-PRE.json')
++        assert archive['application'] == p['archive_application'] and archive['files'] == p['archive_files'] == 8326
++        assert archive['manifest_sha256'] == digest(json.dumps(snapshot['files'], sort_keys=True).encode())
++        assert all(sha(runtime / name) == pin for name, pin in read(runtime / 'STAGED.json').items())
++        cleanup = read(runtime / 'CLEANUP.json')
++        assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
+ 
+ 
+ def saved(policy):
+@@ -58,80 +95,58 @@
+         assert policy[key] and sha(ROOT / policy[key]['path']) == policy[key]['sha256']
+     terminal = read(ROOT / policy['owner_terminal']['path'])
+     assert terminal == read(runtime / 'ROOT-OWNER-TERMINAL.json')
+-    assert (terminal['session_id'], terminal['launch_chunk'], terminal['terminal_chunk']) == (1002, '0c3472', '36b5f4')
++    assert (terminal['session'], terminal['launch_tool'], terminal['terminal_tool']) == (14079, 'b69f41', '8d60f3')
+     assert terminal['terminal'] and terminal['result_sha256'] == sha(runtime / 'RESULT.json')
+     result = read(runtime / 'RESULT.json')
+-    assert result['success'] is False and terminal['exit'] == 1
+-    assert set(result['phase']) == {'original'} and result['publication_errors'] == []
+-    assert result['restoration_verified'] and result['runtime_controls_unchanged'] and result['empty_staging_preserved']
++    assert result['success'] is True and terminal['exit'] == 0
++    assert set(result['phase']) == {'candidate'} and result['publication_errors'] == []
++    assert result['error'] is None and result['restoration_verified']
++    assert result['runtime_controls_unchanged'] and result['empty_staging_preserved']
+     assert not result['native_fix_acceptance']
+-    if result['success']:
+-        assert result['error'] is None and result['publication_errors'] == []
+-        assert set(result['phase']) == {'original'}
+-    else:
+-        assert result['error'] or result['publication_errors']
+-        if result['error']:
+-            assert read(runtime / 'FAILURE-TRACEBACK.json')['error'] == result['error']
+     live = read(ROOT / policy['live_audit']['path'])
+     assert live == read(runtime / 'ROOT-LIVE-RESTORATION.json')
+     audit_terminal = read(ROOT / policy['audit_terminal']['path'])
+-    assert (audit_terminal['session_id'], audit_terminal['launch'], audit_terminal['terminal']) == (78962, 'f6e010', '818ac8')
++    assert (audit_terminal['session'], audit_terminal['launch_tool'], audit_terminal['terminal_tool']) == (23976, 'cac524', '802c5e')
+     assert audit_terminal['terminal'] and audit_terminal['exit'] == 0
+-    assert audit_terminal['restoration_sha256'] == policy['live_audit']['sha256']
++    assert audit_terminal['report_sha256'] == policy['live_audit']['sha256']
+     for key in ('independent_live_restoration_verified','application_and_extras_semantically_restored','source_and_binary_hashes_restored','flags_restored','controls_unchanged'):
+         assert live[key] is True
+     assert live['owner_terminal'] == terminal
+     assert live['owner_result_sha256'] == sha(runtime / 'RESULT.json') and not live['native_acceptance']
+     assert live['audit_script_sha256'] == sha(ROOT / policy['audit_script'])
+     owner_policy = read(owner_dir / 'POLICY.json')
+-    assert owner_policy['head'] == policy['head'] and owner_policy['lane_order'] == ['metric', 'phase', 'typedattr'] and owner_policy['diagnostic_lane_order'] == ['sizeforms', 'minimum_off', 'minimum_on', 'inputs']
++    assert owner_policy['head'] == policy['head']
++    assert owner_policy['lane_order'] == ['fallback'] and owner_policy['diagnostic_lane_order'] == []
+     roles = read(owner_dir / 'SOURCE-ROLES.json')
+-    assert set(roles) == {'servo/components/style/properties/cascade.rs', 'servo/components/style/custom_properties.rs', 'servo/components/style/properties/mod.rs'}
++    assert set(roles) == {'servo/components/style/custom_properties.rs'}
+     comparison = load('refresh_pair_comparison', owner_dir / 'comparison.py')
+     assessor = load('refresh_pair_assessor', owner_dir / 'assess.py')
+-    builds = {role: comparison.build_binding(ROOT, owner_dir, runtime, owner_policy, role) for role in ('original', 'candidate')}
+-    original = {}
+-    reached = []
+-    for lane in owner_policy['lane_order'] + owner_policy['diagnostic_lane_order']:
+-        settings = owner_policy['wpt_lanes'][lane]
+-        checks = load('refresh_lane_checks', ROOT / settings['checks_helper'])
+-        original[lane] = comparison.replay_original(ROOT, owner_dir, runtime, owner_policy, lane, assessor, checks)
+-        phase = runtime / ('candidate-wpt-' + lane)
+-        if not phase.exists():
+-            assert lane in ('minimum_on', 'inputs')
+-            continue
+-        reached.append(lane)
+-        lane_result = read(phase / 'RESULT.json')
+-        assert lane_result['preservation_verified'] and lane_result['execution_error'] is None
+-        expected = comparison.phase_policy(settings, builds, policy['head'])
+-        assert read(phase / 'ASSESSMENT-POLICY.json') == expected
+-        events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
+-        assessment = assessor.assess(events, lane_result['exit'], expected, checks, original=original[lane], run_binding=builds['candidate']['application_metadata'])
+-        assert assessment == read(phase / 'ASSESSMENT.json')
+-        behavior = comparison.behavior(original[lane], assessment, assessor.signature)
+-        assert behavior == read(phase / 'BEHAVIOR-COMPARISON.json')
+-        if lane == 'minimum_off':
+-            assert not lane_result['success'] and lane_result['exit'] == 1
+-            assert not assessment['complete'] and assessment['rows'] == []
+-            assert len(assessment['ends']) == 1 and assessment['ends'][0]['status'] == 'CRASH'
+-            assert not behavior['publication_observation_gate']
+-        else:
+-            assert lane_result['success'] and lane_result['exit'] == 0
+-            assert assessment['complete'] and len(assessment['rows']) == settings['expected_subtest_count']
+-            assert all(row['status'] == 'PASS' for row in assessment['rows'])
+-            assert behavior['publication_observation_gate']
+-        assert read(phase / 'APPLICATION-METADATA.json') == read(phase / 'APPLICATION-METADATA-POST.json') == builds['candidate']['application_metadata']
+-        assert read(phase / 'BINARY-PINS.json') == builds['candidate']['binaries']
+-        assert read(phase / 'PRE.json') == read(phase / 'POST.json') == builds['candidate']['snapshot']
+-        assert all(sha(phase / name) == pin for name, pin in read(phase / 'STAGED-RESOURCES.json').items())
+-        cleanup = read(phase / 'CLEANUP.json')
+-        assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
+-    assert reached == ['metric', 'phase', 'typedattr', 'sizeforms', 'minimum_off']
+-    assert not (runtime / 'candidate-OUTCOMES.json').exists()
++    build = comparison.build_binding(ROOT, owner_dir, runtime, owner_policy, 'candidate')
++    settings = owner_policy['wpt_lanes']['fallback']
++    checks = load('refresh_lane_checks', ROOT / settings['checks_helper'])
++    phase = runtime / 'candidate-wpt-fallback'
++    lane_result = read(phase / 'RESULT.json')
++    assert lane_result['preservation_verified'] and lane_result['execution_error'] is None
++    expected = comparison.phase_policy(settings, {'candidate': build}, policy['head'])
++    assert read(phase / 'ASSESSMENT-POLICY.json') == expected
++    events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
++    assessment = assessor.assess(events, lane_result['exit'], expected, checks, run_binding=build['application_metadata'])
++    assert assessment == read(phase / 'ASSESSMENT.json')
++    assert read(phase / 'BEHAVIOR-COMPARISON.json') is None
++    assert lane_result['success'] and lane_result['exit'] == 0
++    assert assessment['complete'] and len(assessment['rows']) == 24
++    assert all(row['status'] == 'PASS' for row in assessment['rows'])
++    assert read(phase / 'APPLICATION-METADATA.json') == read(phase / 'APPLICATION-METADATA-POST.json') == build['application_metadata']
++    assert read(phase / 'BINARY-PINS.json') == build['binaries']
++    assert read(phase / 'PRE.json') == read(phase / 'POST.json') == build['snapshot']
++    assert all(sha(phase / name) == pin for name, pin in read(phase / 'STAGED-RESOURCES.json').items())
++    cleanup = read(phase / 'CLEANUP.json')
++    assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
++    archived_saved(policy, owner)
+     process_paths = [path for path in read(runtime/'FILES.json') if path.endswith(('PROCESS.json','WAKE-PROCESS.json'))]
+     groups = [read(runtime/path)['pgid'] for path in process_paths]
+     assert len(groups) == len(set(groups))
+-    assert set(groups) | {62896} == set(live['independently_absent_process_groups'])
++    assert set(groups) | {35872} == set(live['independently_absent_process_groups'])
+     assert {row['path']: row['pgid'] for row in live['process_records']} == {path: read(runtime/path)['pgid'] for path in process_paths}
+     pre = read(runtime / 'PAIR-PRE.json')
+     post, raw = read(runtime / 'POST.json'), read(runtime / 'RAW-INDEX-OBSERVATION.json')
+@@ -234,6 +249,9 @@
+     state.h.git(ROOT,env,'-c','gpg.ssh.allowedSignersFile='+str(ROOT/'artifacts/css-local-signing-20261027-v1/allowed-signers'),'verify-commit',policy['head'])
+     lock = CONTROL / 'SOURCE-TRANSITION.lock'
+     assert not lock.exists() and not lock.is_symlink()
++    if actual_index['raw_index'] == epoch['raw_index_observation']['current']:
++        print(json.dumps({'updated': False, 'reason': 'raw observation already current', 'head': policy['head'], 'epoch_sha256': digest(controls['CURRENT-EPOCH.json']), 'raw_index': actual_index['raw_index'], 'preservation_verified': True}))
++        return
+     output = ROOT / policy['output']
+     assert output.parent == ROOT/'artifacts' and not output.exists() and not output.is_symlink()
+     claims = {n:owner.claim(ROOT,str((CONTROL/n).relative_to(ROOT)),digest(b)) for n,b in controls.items()}
+@@ -241,7 +259,7 @@
+     (output/'PRE-CURRENT-EPOCH.json').write_bytes(controls['CURRENT-EPOCH.json'])
+     state.save(output/'PRE.json',before)
+     state.save(output/'ADMISSION-RAW.json', {'canonical_before': raw['before'], 'frozen_pair_after': raw['after'], 'actual_after': actual_index['raw_index'], 'semantic_index_unchanged': True, 'full_frozen_post_equal_except_raw': True})
+-    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'native-authority integrated browser pair restored raw observation refresh'})+'\n')
++    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'native-authority fallback candidate restored raw observation refresh'})+'\n')
+     lock_identity = (lock.stat().st_dev,lock.stat().st_ino)
+     def check_controls(body):
+         for name,claim in claims.items():

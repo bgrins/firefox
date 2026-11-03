@@ -1,0 +1,178 @@
+diff --git a/servo/components/style/custom_properties.rs b/servo/components/style/custom_properties.rs
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -2360,7 +2360,7 @@
+         return Err(());
+     };
+ 
+-    do_substitute_chunk(
++    let mut substitution = do_substitute_chunk(
+         css,
+         fallback.start.get(),
+         reference.end - 1, // Skip the closing parenthesis of the reference value.
+@@ -2375,7 +2375,9 @@
+         attribute_tracker,
+         seen,
+         /* attr_taint */ None,
+-    )
++    )?;
++    substitution.attr_tainted |= reference.substitution_kind == SubstitutionFunctionKind::Attr;
++    Ok(substitution)
+ }
+ 
+ /// Replace `var()`, `env()`, and `attr()` functions. Return `Err(..)` for invalid at computed time.
+diff --git a/testing/web-platform/tests/css/css-values/attr-fallback-taint.html b/testing/web-platform/tests/css/css-values/attr-fallback-taint.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-values/attr-fallback-taint.html
+@@ -0,0 +1,150 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Attribute fallback results remain attr-tainted in URL contexts</title>
++<meta name="timeout" content="long">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-security">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#replace-an-attr-function">
++<link rel="help" href="https://drafts.csswg.org/css-images-4/#image-set-notation">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++  const url = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
++  const literal = JSON.stringify(url);
++  const cases = [
++    { name: "literal", expression: literal, tainted: false },
++    { name: "raw-primary", expression: `attr(data-value raw-string, ${literal})`, value: url, tainted: true },
++    { name: "missing-raw-fallback", expression: `attr(data-absent raw-string, ${literal})`, tainted: true },
++    { name: "invalid-typed-fallback", expression: `attr(data-value type(<length>), ${literal})`, value: url, tainted: true },
++    { name: "missing-typed-fallback", expression: `attr(data-absent type(<string>), ${literal})`, tainted: true },
++    { name: "typed-primary", expression: `attr(data-value type(<string>), ${literal})`, value: literal, tainted: true },
++    { name: "var-literal-fallback", expression: `var(--missing, ${literal})`, tainted: false },
++    { name: "nested-attr-fallback", expression: "attr(data-absent raw-string, attr(data-value raw-string))", value: url, tainted: true },
++  ];
++
++  for (const mode of ["direct", "unregistered", "registered"]) {
++    for (const scenario of cases) {
++      promise_test(async t => {
++        const iframe = document.createElement("iframe");
++        document.body.append(iframe);
++        t.add_cleanup(() => iframe.remove());
++        const doc = iframe.contentDocument;
++        doc.open();
++        doc.write("<!doctype html><meta charset=utf-8><title>Fallback taint</title><body>");
++        doc.close();
++        const win = iframe.contentWindow;
++        assert_equals(doc.compatMode, "CSS1Compat");
++        assert_true(win.CSS.supports("content", 'attr(data-value raw-string, "fallback")'));
++        assert_true(win.CSS.supports("width", "attr(data-value type(<length>), 1px)"));
++        if (mode === "registered") {
++          win.CSS.registerProperty({name: "--source", syntax: "<string>", inherits: false,
++                                    initialValue: '"clean"'});
++        }
++        const target = doc.createElement("div");
++        if (scenario.value !== undefined) {
++          target.setAttribute("data-value", scenario.value);
++        }
++        if (mode !== "direct") {
++          target.style.setProperty("--source", scenario.expression);
++        }
++        target.style.backgroundImage = `image-set(${mode === "direct" ? scenario.expression : "var(--source)"})`;
++        const control = doc.createElement("div");
++        control.style.backgroundImage = `image-set(${literal})`;
++        doc.body.append(target, control);
++        assert_not_equals(target.style.backgroundImage, "", "Target declaration parses");
++        assert_not_equals(control.style.backgroundImage, "", "Literal control parses");
++        const controlValue = win.getComputedStyle(control).backgroundImage;
++        assert_not_equals(controlValue, "none", "Literal data URL remains valid");
++        assert_equals(win.getComputedStyle(target).backgroundImage,
++                      scenario.tainted ? "none" : controlValue,
++                      "Only values produced by attr() are rejected as URLs");
++      }, `${mode}: ${scenario.name}`);
++    }
++  }
++</script>
++<script>
++"use strict";
++
++const attrFallbackSupplementCases = [
++  "empty-selected-direct",
++  "empty-selected-unregistered",
++  "empty-selected-universal",
++  "unused-tainted-fallback",
++];
++
++function runAttrFallbackSupplementCase(name) {
++  const iframe = document.createElement("iframe");
++  iframe.title = name;
++  document.body.append(iframe);
++  try {
++    const doc = iframe.contentDocument;
++    doc.open();
++    doc.write("<!doctype html><meta charset=utf-8><title>Fallback supplement</title><body>");
++    doc.close();
++    const win = iframe.contentWindow;
++    const quotedURL = '"data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"';
++    const image = `image-set(${quotedURL})`;
++    const unused = name === "unused-tainted-fallback";
++    let registered = false;
++    if (name === "empty-selected-universal") {
++      win.CSS.registerProperty({ name: "--source", syntax: "*", inherits: false });
++      registered = true;
++    }
++    const style = doc.createElement("style");
++    const expression = `${image} var(--empty)`;
++    style.textContent = `
++      #control { background-image: ${image}; }
++      #target {
++        ${unused ? `--clean: ${quotedURL};
++          background-image: image-set(var(--clean, attr(data-absent raw-string, ${quotedURL})));`
++          : `--empty: attr(data-absent type(*),);
++          --source: ${expression};
++          padding-left: calc(3px var(--empty, + 13px));
++          background-image: ${name === "empty-selected-direct" ? expression : "var(--source)"};`}
++      }`;
++    doc.head.append(style);
++    const target = doc.createElement("div");
++    target.id = "target";
++    const control = doc.createElement("div");
++    control.id = "control";
++    doc.body.append(target, control);
++    const computed = win.getComputedStyle(target);
++    const actual = computed.backgroundImage;
++    const literal = win.getComputedStyle(control).backgroundImage;
++    const padding = unused ? null : computed.paddingLeft;
++    const expected = unused || name === "empty-selected-direct" ? literal : "none";
++    return {
++      name, actual, expected, literal, padding, registered,
++      standards: doc.compatMode === "CSS1Compat",
++      typedAttr: win.CSS.supports("padding-left", "attr(data-absent type(<length>), 3px)"),
++      missingAttribute: !target.hasAttribute("data-absent"),
++      empty: unused ? null : computed.getPropertyValue("--empty"),
++      source: unused ? null : computed.getPropertyValue("--source"),
++      matchesExpected: actual === expected,
++      validEmpty: unused ? null : padding === "3px",
++      literalValid: literal !== "none",
++    };
++  } finally {
++    iframe.remove();
++  }
++}
++
++</script>
++<script>
++  for (const name of attrFallbackSupplementCases) {
++    promise_test(async () => {
++      const row = runAttrFallbackSupplementCase(name);
++      assert_true(row.standards, "Standards document");
++      assert_true(row.typedAttr, "Typed attributes supported");
++      assert_true(row.missingAttribute, "Primary attribute is absent");
++      assert_true(row.literalValid, "Literal image remains valid");
++      if (name === "empty-selected-universal") {
++        assert_true(row.registered, "Universal registration succeeded");
++      }
++      if (row.padding !== null) {
++        assert_equals(row.padding, "3px", "Valid empty fallback, not invalid +13px fallback");
++      }
++      assert_equals(row.actual, row.expected, "Selected provenance and direct ranges stay distinct");
++    }, name);
++  }
++</script>

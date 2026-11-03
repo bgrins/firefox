@@ -1,0 +1,13 @@
+--- artifacts/css-root-font-cancellation-trace-candidate-browser-v1/run.py
++++ artifacts/css-root-font-cancellation-trace-candidate-browser-v2/run.py
+@@ -42,8 +42,8 @@
+         return
+     assert policy['execution_enabled'] and policy['candidate_execution_enabled']
+     assert policy['activation_pending'] == []
+-    baseline.require_ready(policy)
+-    state, env, controls, original, flags, original_verify = baseline.guard(policy, ownership, roles)
++    baseline.require_ready(policy, ownership, sys.argv[2])
++    state, env, controls, original, flags, original_verify = baseline.guard(policy, ownership, roles, sys.argv[2])
+     original_before = original_verify()
+     intermediate = load('owner_intermediate', str((HERE / 'intermediate.py').relative_to(ROOT)))
+     input_binding = load('owner_input_binding', str((HERE / 'inputs.py').relative_to(ROOT)))

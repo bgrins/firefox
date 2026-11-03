@@ -1,0 +1,13 @@
+# Native caller typecheck, bound successor v2
+
+Disabled three-source Cargo check of sealed caller-v2 (84634e85): cascade420bdbd0, provider e65737e7 and properties/mod.rs b69ea968. The published capacity u32 base remains832d0854. This checks real Rust types and lifetimes; it does not establish caller correctness, browser behavior, multi-context publication or nested-wait completion.
+
+Actual capture55078/8f50bb/cd00ac/0 (89bfdbac) binds signed native HEAD e86b6486 and unchanged native receipt085fcdc6. The separate verified raw-only bridgeaa4fe721 derives current epoch1b37eed2 from native epoch8fecf2c4. Failed V117 supplies pinned saved validation code only; no research signing success is claimed. The sealed capture adapter172e461e and pending typecheck-v1 remain immutable.
+
+All three source roles must match captured bytes and inode identities, including additional properties/mod.rs outside canonical pins. The final pre-overlay claim now requires the exact admitted claim, closing the reviewed gap where a same-byte replacement inode could otherwise be accepted. Its test executes the actual three claim statements using the existing ownership helper against isolated temporary files. Local epoch extension and the complete restoration tail remain unchanged.
+
+The command remains the executed offline geckoservo Cargo check. The assessor requires exactly one successful Cargo build-finished record, both style and geckoservo libraries and no error diagnostics. Mach exit0 alone is insufficient; warnings are retained. Source/app/extras/index/flags/control restoration follows the existing lifecycle. Success deletes the verified owned backup; failure retains it for root's independent audit and cleanup.
+
+Saved validation: acf4fa/0 authenticates310 consumed inputs, seven binding negatives, three parser positives/twenty negatives, exact disabled/active literal normalization and changed-inode rejection. The initial b19713 attempt rejected the leftover pending authority label; CHECK-INITIAL.log is retained, and the final policy labels the unchanged native authority exactly. No live operation was performed by these checks.
+
+Root activation changes only four booleans in three files: run.py EXECUTION_ENABLED, POLICY.json execution_enabled and candidate_execution_enabled, TYPECHECK.json execution_enabled. Preserve disabled preimages and reseal FILES.json. Disabled validation is `python3 -I -S -B <owner>/check.py`; after activation the supported driver commands are `python3 -I -S -B <owner>/run.py --check <active FILES sha256>` and `--run <active FILES sha256>`. The driver checks its execution gate before either command. Runtime output is artifacts/css-resumable-font-selection-caller-native-typecheck-runtime-2; it must be absent at execution.

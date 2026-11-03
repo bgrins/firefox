@@ -1,0 +1,25 @@
+--- artifacts/css-root-self-animation-publication-v2/check.py
++++ artifacts/css-root-self-animation-publication-v3/check.py
+@@ -134,9 +134,10 @@
+     assert committed[marker] == epoch[marker]
+ evidence = load('publication_evidence', HERE / 'evidence.py')
+ binding = read(HERE / 'PAIR-BINDING.json')
+-assert binding['smil_outcome'] is None and binding['smil_restoration_verifier'] is None
++assert binding['smil_outcome'] and binding['smil_restoration_verifier']
+ reject('missing actual evidence', lambda:evidence.verify(ROOT,None,stage))
+-reject('pending SMIL evidence', lambda:evidence.verify(ROOT,binding,stage))
++pending=copy.deepcopy(binding);pending['smil_outcome']=None
++reject('pending SMIL evidence', lambda:evidence.verify(ROOT,pending,stage))
+ evidence.verify_stage(ROOT,binding,stage)
+ for label,mutate in [
+     ('missing SVG stage',lambda s:s['files'].pop(s['support_paths'][0])),
+@@ -154,7 +155,8 @@
+ assert new[new.index(start):] == old[old.index(start):]
+ assert (HERE/'transform.py').read_bytes()==(PARENT/'transform.py').read_bytes()
+ assert (HERE/'delivery.py').read_bytes()==(ROOT/'artifacts/css-root-self-smil-delivery-preparation-v1/delivery.py').read_bytes()
+-print(json.dumps({'smil_actual_evidence_pending': True, 'prior_native61_replay_inherited': True, 'negative_controls': negatives, 'references': len(policy['references']),
++actual=evidence.verify(ROOT,binding,stage)
++print(json.dumps({'actual_evidence':actual, 'smil_actual_evidence_pending': False, 'prior_native61_replayed_now': True, 'negative_controls': negatives, 'references': len(policy['references']),
+                   'five_stage_paths': sorted(stage['files']), 'zero_fuzz_roundtrip': True, 'genuine_manifest_shape': True,
+                   'canonical_installed_claim_inode_controls': True, 'scratch_removed': str(scratch), 'private_signing_rollback_tail_exact': True,
+                   'future_publication_authority_pending': True, 'native_git_browser_actions': False}, sort_keys=True))

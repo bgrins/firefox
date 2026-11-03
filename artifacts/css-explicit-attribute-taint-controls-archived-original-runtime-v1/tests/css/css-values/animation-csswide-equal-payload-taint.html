@@ -1,0 +1,79 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Replacing computed custom property endpoints preserves attribute taint</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-security">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#dom-keyframeeffect-setkeyframes">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const imageA = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+const imageB = imageA + "#other";
+let serial = 0;
+function setup(t, literalText, parentText) {
+  const name = `--csswide-taint-${serial++}`;
+  CSS.registerProperty({name, syntax: "<string>", inherits: true,
+                        initialValue: JSON.stringify(literalText)});
+  const grandparent = document.createElement("div");
+  const parent = document.createElement("div");
+  const element = document.createElement("div");
+  const reference = document.createElement("div");
+  grandparent.style.setProperty(name, JSON.stringify(imageA + "#grandparent"));
+  parent.setAttribute("data-image", parentText);
+  parent.style.setProperty(name, "attr(data-image)");
+  parent.style.backgroundImage = `image-set(var(${name}))`;
+  element.style.backgroundImage = `image-set(var(${name}))`;
+  parent.append(element);
+  grandparent.append(parent);
+  document.body.append(grandparent, reference);
+  t.add_cleanup(() => { grandparent.remove(); reference.remove(); });
+  reference.style.setProperty(name, JSON.stringify(parentText));
+  assert_equals(getComputedStyle(parent).getPropertyValue(name),
+                getComputedStyle(reference).getPropertyValue(name), "Parent computed payload");
+  assert_equals(getComputedStyle(parent).backgroundImage, "none", "Parent URL taint");
+  return {name, element, reference};
+}
+function frames(name, tainted) {
+  const value = tainted ? "inherit" : "initial";
+  return [{[name]: value}, {[name]: value}];
+}
+function observe(element, reference, name, text, tainted, label) {
+  reference.style.setProperty(name, JSON.stringify(text));
+  reference.style.backgroundImage = `image-set(${JSON.stringify(text)})`;
+  const literalImage = getComputedStyle(reference).backgroundImage;
+  assert_not_equals(literalImage, "none", "Literal image calibration");
+  assert_equals(getComputedStyle(element).getPropertyValue(name),
+                getComputedStyle(reference).getPropertyValue(name), label + " computed payload");
+  assert_equals(getComputedStyle(element).backgroundImage,
+                tainted ? "none" : literalImage, label + " URL taint");
+}
+function start(t, element, name, tainted) {
+  const animation = element.animate(frames(name, tainted), {duration: 1000, fill: "both"});
+  t.add_cleanup(() => { animation.cancel(); });
+  animation.pause();
+  animation.currentTime = 500;
+  return animation;
+}
+for (const initialTainted of [false, true]) {
+  for (const samePayload of [true, false]) {
+    test(t => {
+      const finalText = samePayload ? imageA : imageB;
+      const literalText = initialTainted ? finalText : imageA;
+      const parentText = initialTainted ? imageA : finalText;
+      const {name, element, reference} = setup(t, literalText, parentText);
+      const animation = start(t, element, name, initialTainted);
+      observe(element, reference, name, imageA, initialTainted, "Initial effect");
+      animation.effect.setKeyframes(frames(name, !initialTainted));
+      assert_equals(animation.effect.getKeyframes()[0][name],
+                    initialTainted ? "initial" : "inherit", "New raw keyframes stored");
+      animation.currentTime = 501;
+      observe(element, reference, name, finalText, !initialTainted, "Updated effect");
+    }, `CSS-wide ${initialTainted ? "inherit to initial" : "initial to inherit"}, ${samePayload ? "same" : "different"} payload`);
+  }
+  test(t => {
+    const {name, element, reference} = setup(t, imageA, imageA);
+    start(t, element, name, initialTainted);
+    observe(element, reference, name, imageA, initialTainted, "Fresh effect");
+  }, `Fresh CSS-wide ${initialTainted ? "inherit" : "initial"} effect`);
+}
+</script>

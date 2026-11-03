@@ -1,0 +1,38 @@
+--- artifacts/css-root-self-animation-raw-index-refresh-v1/run.py
++++ artifacts/css-root-self-smil-raw-index-refresh-v1/run.py
+@@ -61,7 +61,7 @@
+     assert terminal['terminal'] and terminal['result_sha256'] == sha(runtime / 'RESULT.json')
+     result = read(runtime / 'RESULT.json')
+     assert result['success'] is True and terminal['exit'] == 0
+-    assert set(result['phase']) == {'candidate'} and set(result['phase']['candidate']) == {'root_identity', 'controls'}
++    assert set(result['phase']) == {'candidate'} and set(result['phase']['candidate']) == {'smil'}
+     assert result['publication_errors'] == []
+     assert result['error'] is None and result['restoration_verified']
+     assert result['runtime_controls_unchanged'] and result['empty_staging_preserved']
+@@ -80,14 +80,14 @@
+     assert live['audit_script_sha256'] == sha(ROOT / policy['audit_script'])
+     owner_policy = read(owner_dir / 'POLICY.json')
+     assert owner_policy['head'] == policy['head']
+-    assert owner_policy['lane_order'] == ['root_identity', 'controls'] and owner_policy['diagnostic_lane_order'] == []
++    assert owner_policy['lane_order'] == ['smil'] and owner_policy['diagnostic_lane_order'] == []
+     roles = read(owner_dir / 'SOURCE-ROLES.json')
+     assert set(roles) == {'servo/ports/geckolib/glue.rs'}
+     comparison = load('refresh_pair_comparison', owner_dir / 'comparison.py')
+     assessor = load('refresh_pair_assessor', owner_dir / 'assess.py')
+     build = comparison.build_binding(ROOT, owner_dir, runtime, owner_policy, 'candidate')
+-    assert sum(owner_policy['wpt_lanes'][lane]['expected_subtest_count'] for lane in owner_policy['lane_order']) == 61
+-    assert sum(owner_policy['wpt_lanes'][lane]['expected_page_count'] for lane in owner_policy['lane_order']) == 5
++    assert sum(owner_policy['wpt_lanes'][lane]['expected_subtest_count'] for lane in owner_policy['lane_order']) == 7
++    assert sum(owner_policy['wpt_lanes'][lane]['expected_page_count'] for lane in owner_policy['lane_order']) == 1
+     for lane in owner_policy['lane_order']:
+         settings = owner_policy['wpt_lanes'][lane]
+         checks = load('refresh_lane_checks', ROOT / settings['checks_helper'])
+@@ -231,7 +231,7 @@
+     (output/'PRE-CURRENT-EPOCH.json').write_bytes(controls['CURRENT-EPOCH.json'])
+     state.save(output/'PRE.json',before)
+     state.save(output/'ADMISSION-RAW.json', {'canonical_before': raw['before'], 'frozen_pair_after': raw['after'], 'actual_after': actual_index['raw_index'], 'semantic_index_unchanged': True, 'full_frozen_post_equal_except_raw': True})
+-    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'native-authority root-self-animation candidate restored raw observation refresh'})+'\n')
++    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'native-authority root-self-smil candidate restored raw observation refresh'})+'\n')
+     lock_identity = (lock.stat().st_dev,lock.stat().st_ino)
+     def check_controls(body):
+         for name,claim in claims.items():

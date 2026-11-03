@@ -1,0 +1,755 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -11,7 +11,7 @@
+ use crate::custom_properties_map::{CustomPropertiesMap, OwnMap};
+ use crate::device::Device;
+ use crate::dom::AttributeTracker;
+-use crate::properties::{CSSWideKeyword, PrioritaryPropertyId, PropertyIdRef};
++use crate::properties::{CSSWideKeyword, PrioritaryPropertyId, PropertyId, PropertyIdRef};
+ use crate::properties_and_values::{
+     rule::Descriptors as PropertyDescriptors,
+     syntax::Descriptor as SyntaxDescriptor,
+@@ -1975,6 +1975,42 @@
+         last_token_type: value.last_token_type,
+         attr_tainted: value.attr_tainted,
+     });
++    prepare_custom_substitution(name, url_data, substitution, stylist, context)
++}
++
++pub(crate) fn prepare_completed_custom_value(
++    name: &Name,
++    url_data: &UrlExtraData,
++    result: Result<SubstitutionResult<'static>, ()>,
++    stylist: &Stylist,
++    context: &computed::Context,
++) -> (PreparedCustomValue, ReferenceFlags) {
++    let mut flags = ReferenceFlags::empty();
++    let substitution = result.and_then(|result| {
++        let mut parser = Parser::new(&result.css);
++        let parsed = VariableValue::parse(&mut parser, None, url_data).map_err(|_| ())?;
++        drop(parser);
++        flags = parsed.references.flags;
++        Ok(Substitution {
++            css: result.css,
++            first_token_type: parsed.first_token_type,
++            last_token_type: parsed.last_token_type,
++            attr_tainted: !result.attr_taint.is_empty(),
++        })
++    });
++    (
++        prepare_custom_substitution(name, url_data.clone(), substitution, stylist, context),
++        flags,
++    )
++}
++
++fn prepare_custom_substitution(
++    name: &Name,
++    url_data: UrlExtraData,
++    substitution: Result<Substitution<'static>, ()>,
++    stylist: &Stylist,
++    context: &computed::Context,
++) -> PreparedCustomValue {
+     let registration = stylist.get_custom_property_registration(name);
+     let mut kind = match substitution.as_ref() {
+         Err(()) => PreparedCustomKind::Invalid,
+@@ -2011,7 +2047,7 @@
+     }
+     PreparedCustomValue {
+         substitution,
+-        url_data: value.url_data.clone(),
++        url_data,
+         kind,
+     }
+ }
+@@ -2515,7 +2551,9 @@
+ 
+ #[derive(Clone)]
+ pub(crate) struct SubstitutionLookup {
++    pub guards: Vec<SubstitutionGuard>,
+     pub identity: Arc<()>,
++    pub attribute_attempt: Option<Arc<()>>,
+     pub kind: SubstitutionLookupKind,
+     pub name: Name,
+     pub namespace: Option<Namespace>,
+@@ -2527,6 +2565,7 @@
+     Invalid,
+     Value(VariableValue, bool),
+     Expand(VariableValue, bool),
++    AttributeSource(VariableValue),
+     Attribute(Option<String>),
+ }
+ 
+@@ -2599,6 +2638,7 @@
+     Start,
+     Lookup(SubstitutionLookupKind),
+     Alias(bool),
++    AttributeBody(Arc<()>),
+     Fallback,
+ }
+ 
+@@ -2614,9 +2654,51 @@
+     Reference(SubstitutionReferenceFrame),
+ }
+ 
++#[derive(Clone, PartialEq)]
++pub(crate) enum SubstitutionGuardKey {
++    Attribute(Name, Namespace),
++    Property(PropertyId),
++}
++
++#[derive(Clone)]
++pub(crate) struct SubstitutionGuard {
++    pub identity: Arc<()>,
++    pub key: SubstitutionGuardKey,
++    marked: Arc<std::sync::atomic::AtomicBool>,
++}
++
++impl SubstitutionGuard {
++    pub(crate) fn new(key: SubstitutionGuardKey) -> Self {
++        Self {
++            identity: Arc::new(()),
++            key,
++            marked: Arc::new(std::sync::atomic::AtomicBool::new(false)),
++        }
++    }
++
++    pub(crate) fn marked(&self) -> bool {
++        self.marked.load(std::sync::atomic::Ordering::Relaxed)
++    }
++
++    pub(crate) fn mark_reentry(guards: &[Self], key: &SubstitutionGuardKey) -> bool {
++        let Some(start) = guards.iter().position(|guard| &guard.key == key) else {
++            return false;
++        };
++        for guard in &guards[start..] {
++            guard
++                .marked
++                .store(true, std::sync::atomic::Ordering::Relaxed);
++        }
++        true
++    }
++}
++
+ pub(crate) struct ResumableSubstitution<'a> {
+     frames: Vec<SubstitutionFrame>,
+     seen: Vec<Name>,
++    guards: Vec<SubstitutionGuard>,
++    root_guard: Option<SubstitutionGuard>,
++    owned_property_id: Option<PropertyId>,
+     returned: Option<Result<Substitution<'static>, ()>>,
+     request: Option<SubstitutionLookup>,
+     lookup_value: Option<SubstitutionLookupValue>,
+@@ -2637,6 +2719,9 @@
+                 value, true,
+             ))],
+             seen: Vec::new(),
++            guards: Vec::new(),
++            root_guard: None,
++            owned_property_id: None,
+             returned: None,
+             request: None,
+             lookup_value: None,
+@@ -2647,10 +2732,56 @@
+         }
+     }
+ 
++    pub(crate) fn for_custom(
++        value: VariableValue,
++        name: Name,
++        guards: Vec<SubstitutionGuard>,
++    ) -> Self {
++        Self::for_guarded_property(value, PropertyId::Custom(name), guards, false)
++    }
++
++    pub(crate) fn for_property(
++        value: VariableValue,
++        property: PropertyIdRef,
++        in_container_query: bool,
++    ) -> Self {
++        let property = match property {
++            PropertyIdRef::Custom(name) => PropertyId::Custom(name.clone()),
++            PropertyIdRef::NonCustom(id) => PropertyId::NonCustom(id),
++        };
++        Self::for_guarded_property(value, property, Vec::new(), in_container_query)
++    }
++
++    fn for_guarded_property(
++        value: VariableValue,
++        property: PropertyId,
++        mut guards: Vec<SubstitutionGuard>,
++        in_container_query: bool,
++    ) -> Self {
++        let guard = SubstitutionGuard::new(SubstitutionGuardKey::Property(property.clone()));
++        guards.push(guard.clone());
++        let mut state = Self::new(value, None, in_container_query);
++        state.guards = guards;
++        state.root_guard = Some(guard);
++        state.owned_property_id = Some(property);
++        state
++    }
++
++    pub(crate) fn body_marked(&self) -> bool {
++        self.root_guard
++            .as_ref()
++            .is_some_and(SubstitutionGuard::marked)
++    }
++
+     fn request(&mut self, frame: &mut SubstitutionReferenceFrame, kind: SubstitutionLookupKind) {
+         let namespace = frame.reference.attribute_data.namespace().cloned();
+         self.request = Some(SubstitutionLookup {
+             identity: Arc::new(()),
++            guards: self.guards.clone(),
++            attribute_attempt: self.guards.iter().rev().find_map(|guard| {
++                matches!(guard.key, SubstitutionGuardKey::Attribute(..))
++                    .then(|| guard.identity.clone())
++            }),
+             kind,
+             name: frame.reference.name.clone(),
+             namespace,
+@@ -2676,6 +2807,28 @@
+         frame.stage = SubstitutionReferenceStage::Fallback;
+         self.frames.push(SubstitutionFrame::Reference(frame));
+         self.frames.push(SubstitutionFrame::Chunk(child));
++    }
++
++    fn begin_attribute_body(
++        &mut self,
++        mut frame: SubstitutionReferenceFrame,
++        value: VariableValue,
++    ) {
++        let namespace = frame.reference.attribute_data.namespace().unwrap().clone();
++        let key = SubstitutionGuardKey::Attribute(frame.reference.name.clone(), namespace);
++        if SubstitutionGuard::mark_reentry(&self.guards, &key) {
++            self.invalid_primary(frame);
++            return;
++        }
++        let guard = SubstitutionGuard::new(key);
++        let identity = guard.identity.clone();
++        self.guards.push(guard);
++        frame.stage = SubstitutionReferenceStage::AttributeBody(identity);
++        self.frames.push(SubstitutionFrame::Reference(frame));
++        self.frames
++            .push(SubstitutionFrame::Chunk(SubstitutionChunk::whole(
++                value, false,
++            )));
+     }
+ 
+     fn attribute_value(
+@@ -2701,7 +2854,14 @@
+             AttributeType::Type(_) => {
+                 let value = reference
+                     .attribute_data
+-                    .parse_typed_value(&mut parser, &frame.value.url_data, self.property_id)
++                    .parse_typed_value(
++                        &mut parser,
++                        &frame.value.url_data,
++                        self.owned_property_id
++                            .as_ref()
++                            .map(PropertyIdRef::from)
++                            .or(self.property_id),
++                    )
+                     .ok()?;
+                 Some(Substitution::from_value(value.to_variable_value(), true))
+             }
+@@ -2735,6 +2895,10 @@
+                 }
+                 (SubstitutionLookupKind::RawAttribute, _) => false,
+                 (SubstitutionLookupKind::Variable, SubstitutionLookupValue::Expand(..)) => true,
++                (
++                    SubstitutionLookupKind::TypedAttribute,
++                    SubstitutionLookupValue::AttributeSource(value),
++                ) => value.url_data == request.url_data,
+                 (SubstitutionLookupKind::Variable, SubstitutionLookupValue::Value(value, _)) => {
+                     !value.has_references()
+                 }
+@@ -2753,7 +2917,10 @@
+         loop {
+             let Some(frame) = self.frames.pop() else {
+                 self.finished = true;
+-                let result = self.returned.take().expect("root substitution completed");
++                let mut result = self.returned.take().expect("root substitution completed");
++                if self.body_marked() {
++                    result = Err(());
++                }
+                 return SubstitutionPoll::Complete(result.map(|value| SubstitutionResult {
+                     css: value.css,
+                     attr_taint: std::mem::take(&mut self.taint),
+@@ -2876,6 +3043,30 @@
+                             }
+                             continue;
+                         }
++                        SubstitutionReferenceStage::AttributeBody(ref identity) => {
++                            let attempt = self.guards.pop().expect("attribute body completed");
++                            assert!(Arc::ptr_eq(&attempt.identity, identity));
++                            assert!(
++                                attempt.key
++                                    == SubstitutionGuardKey::Attribute(
++                                        frame.reference.name.clone(),
++                                        frame.reference.attribute_data.namespace().unwrap().clone(),
++                                    )
++                            );
++                            let result = self.returned.take().expect("attribute body result");
++                            let value = if attempt.marked() {
++                                None
++                            } else {
++                                result
++                                    .ok()
++                                    .and_then(|value| self.attribute_value(&frame, &value.css))
++                            };
++                            match value {
++                                Some(value) => self.returned = Some(Ok(value)),
++                                None => self.invalid_primary(frame),
++                            }
++                            continue;
++                        }
+                         SubstitutionReferenceStage::Fallback => continue,
+                         SubstitutionReferenceStage::Lookup(kind) => {
+                             match self.lookup_value.take().expect("reply consumed once") {
+@@ -2917,6 +3108,10 @@
+                                         continue;
+                                     }
+                                 }
++                                SubstitutionLookupValue::AttributeSource(value) => {
++                                    self.begin_attribute_body(frame, value);
++                                    continue;
++                                }
+                                 SubstitutionLookupValue::Value(value, tainted)
+                                 | SubstitutionLookupValue::Expand(value, tainted) => {
+                                     if kind == SubstitutionLookupKind::TypedAttribute {
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -12,11 +12,12 @@
+     CapturedAttributeInput, ComputedCustomProperties, ComputedSubstitutionFunctions,
+     ComputedValue as ComputedPropertyValue, FontDependencyDemand, Name, NonCustomReferenceMap,
+     PreparedCustomValue, ReferenceFlags, References, ResumableSubstitution,
+-    SingleNonCustomReference, SubstitutionFunctionKind, SubstitutionLookup, SubstitutionLookupKind,
+-    SubstitutionLookupReply, SubstitutionLookupValue, SubstitutionPoll, VariableValue,
+-    get_attr_value_for_cycle_resolution, handle_invalid_at_computed_value_time,
+-    invalid_custom_value_depends_on_color_scheme, prepare_custom_value,
+-    remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
++    SingleNonCustomReference, SubstitutionFunctionKind, SubstitutionGuard, SubstitutionGuardKey,
++    SubstitutionLookup, SubstitutionLookupKind, SubstitutionLookupReply, SubstitutionLookupValue,
++    SubstitutionPoll, VariableValue, get_attr_value_for_cycle_resolution,
++    handle_invalid_at_computed_value_time, invalid_custom_value_depends_on_color_scheme,
++    prepare_completed_custom_value, prepare_custom_value, remove_and_insert_initial_value,
++    substitute_references_if_needed_and_apply,
+ };
+ use crate::dom::{AttributeTracker, DummyElementContext, ElementContext, TElement};
+ #[cfg(feature = "gecko")]
+@@ -27,7 +28,7 @@
+     PropertyDeclarationId, PropertyFlags, PropertyIdRef, ShorthandsWithPropertyReferencesCache,
+     StyleBuilder, property_counts,
+ };
+-use crate::properties::{CustomDeclaration, CustomDeclarationValue, UnparsedValue};
++use crate::properties::{CustomDeclaration, CustomDeclarationValue, PropertyId, UnparsedValue};
+ use crate::properties_and_values::rule::Descriptors as PropertyDescriptors;
+ use crate::properties_and_values::value::ComputedValue as ComputedRegisteredValue;
+ use crate::rule_cache::{RuleCache, RuleCacheConditions};
+@@ -3547,53 +3548,32 @@
+                     value
+                 }
+                 SubstitutionLookupKind::TypedAttribute => {
+-                    let Some(namespace) = &request.namespace else {
+-                        return Err(());
+-                    };
+-                    if self
+-                        .cascade
+-                        .attribute_value_urls
+-                        .get(&(request.name.clone(), namespace.clone()))
+-                        .is_some_and(|url| url != &request.url_data)
+-                    {
+-                        return Err(());
+-                    }
+-                    if let Some(result) =
+-                        self.visited(&VarType::Attr(request.name.clone(), namespace.clone()))
+-                    {
+-                        if !matches!(result, VisitResult::Complete | VisitResult::CycleSettled) {
+-                            return Ok(None);
+-                        }
+-                    }
+-                    if let Some(value) = self
+-                        .settled_attributes
+-                        .get(&(request.name.clone(), namespace.clone()))
+-                    {
+-                        value.clone()
+-                    } else {
+-                        let input = self.capture_attribute_input(
+-                            &request.name,
+-                            namespace,
+-                            &request.url_data,
+-                            tracker,
+-                        );
+-                        if input.raw.is_none() {
+-                            return Err(());
+-                        }
+-                        match input.parse(&request.url_data) {
+-                            Err(()) => return Ok(Some(SubstitutionLookupValue::Invalid)),
+-                            Ok(value) => {
+-                                if !self.map().contains_attr(&request.name, namespace) {
+-                                    self.cascade.attribute_value_urls.insert(
+-                                        (request.name.clone(), namespace.clone()),
+-                                        request.url_data.clone(),
+-                                    );
+-                                    self.map_mut().insert_attr(&request.name, namespace, value);
+-                                }
++                    let namespace = request.namespace.as_ref().ok_or(())?;
++                    if request.guards.is_empty() {
++                        match self.visited(&VarType::Attr(request.name.clone(), namespace.clone()))
++                        {
++                            Some(VisitResult::CycleSettled) => return Err(()),
++                            Some(result) if !matches!(result, VisitResult::Complete) => {
+                                 return Ok(None);
+                             }
++                            _ => {}
+                         }
+                     }
++                    let input = self.capture_attribute_input(
++                        &request.name,
++                        namespace,
++                        &request.url_data,
++                        tracker,
++                    );
++                    if input.raw.is_none() {
++                        return Err(());
++                    }
++                    return Ok(Some(match input.parse(&request.url_data) {
++                        Ok(value) => {
++                            SubstitutionLookupValue::AttributeSource(value.to_variable_value())
++                        }
++                        Err(()) => SubstitutionLookupValue::Invalid,
++                    }));
+                 }
+             };
+             Ok(Some(match value {
+@@ -3657,7 +3637,10 @@
+                 assert!(self.frames.is_empty() && self.frame_reply.is_none());
+                 self.frame_root = Some(var.clone());
+                 match start_frame(var, self, attribute_tracker) {
+-                    Ok(frame) => self.frames.push(frame),
++                    Ok(mut frame) => {
++                        frame.enter_guarded_custom(Vec::new(), self);
++                        self.frames.push(frame);
++                    }
+                     Err(result) => {
+                         self.frame_root = None;
+                         return result;
+@@ -3669,7 +3652,7 @@
+             }
+             loop {
+                 let result =
+-                    self.poll_frames(references, attribute_tracker, publication_ready, 0, 0);
++                    self.poll_frames(references, attribute_tracker, publication_ready, 0, 0, None);
+                 if matches!(result, VisitResult::ComputationPending(_)) {
+                     return result;
+                 }
+@@ -3695,11 +3678,20 @@
+             ) -> PublicationDemand,
+             depth: usize,
+             semantic_floor: usize,
++            attribute_attempt: Option<&Arc<()>>,
+         ) -> VisitResult {
+             loop {
+                 assert!(self.frames.len() > depth);
+                 let mut frame = self.frames.pop().expect("Active root owns a frame");
+                 if let Some((target, _)) = &frame.waiting {
++                    if attribute_attempt.is_some()
++                        && frame.guarded_custom.is_none()
++                        && matches!(target, VarType::Attr(..))
++                    {
++                        let index = frame.index;
++                        self.frames.push(frame);
++                        return VisitResult::ComputationPending(index);
++                    }
+                     if let Some((_, VisitResult::SemanticOpen(index))) = &self.frame_reply {
+                         if *index < semantic_floor {
+                             let index = *index;
+@@ -3711,9 +3703,19 @@
+                         assert!(frame.receive(target, result, self));
+                     } else {
+                         let target = target.clone();
++                        let guards = frame
++                            .guarded_custom
++                            .as_ref()
++                            .and_then(|state| state.request.as_ref())
++                            .map(|request| request.guards.clone());
+                         self.frames.push(frame);
+                         match start_frame(target.clone(), self, attribute_tracker) {
+-                            Ok(child) => self.frames.push(child),
++                            Ok(mut child) => {
++                                if let Some(guards) = guards {
++                                    child.enter_guarded_custom(guards, self);
++                                }
++                                self.frames.push(child);
++                            }
+                             Err(VisitResult::ComputationPending(index))
+                                 if self.frames.last().is_some_and(|parent| {
+                                     parent.accepts_computed_size(
+@@ -4248,13 +4250,17 @@
+                         publication_ready,
+                         state.depth,
+                         state.semantic_floor,
++                        state.request.attribute_attempt.as_ref(),
+                     )
+                 } else {
+                     if self.frames.len() != state.depth || self.frame_reply.is_some() {
+                         return Err(());
+                     }
+                     match start_frame(target, self, tracker) {
+-                        Ok(frame) => {
++                        Ok(mut frame) => {
++                            if state.request.attribute_attempt.is_some() {
++                                frame.enter_guarded_custom(state.request.guards.clone(), self);
++                            }
+                             self.frames.push(frame);
+                             self.poll_frames(
+                                 references,
+@@ -4262,6 +4268,7 @@
+                                 publication_ready,
+                                 state.depth,
+                                 state.semantic_floor,
++                                state.request.attribute_attempt.as_ref(),
+                             )
+                         }
+                         Err(result) => result,
+@@ -4288,6 +4295,33 @@
+                 },
+             ));
+             Ok(true)
++        }
++
++        fn authorize_metric_substitution(
++            &mut self,
++            action: &MetricAction,
++            longhand: LonghandId,
++            value: Arc<UnparsedValue>,
++        ) -> bool {
++            if !self.metric_action_is_current(action, self.frames.len())
++                || self.metric_references.is_some()
++                || self.frame_reply.is_some()
++                || self.lookup_reply.is_some()
++                || !self
++                    .lookup_bindings
++                    .valid_for(self.computed_context.included_cascade_flags)
++            {
++                return false;
++            }
++            self.lookup_reply = Some((
++                longhand,
++                FontSelectionReply {
++                    value,
++                    generation: self.lookup_bindings.root.clone(),
++                    lookup: None,
++                },
++            ));
++            true
+         }
+ 
+         fn drive_metric_action(
+@@ -4342,19 +4376,9 @@
+                 }
+                 match self.perform_metric_action(action, attribute_tracker) {
+                     MetricActionProgress::References(longhand, value) => {
+-                        assert!(self.metric_references.is_none());
+-                        assert!(self.frame_reply.is_none());
+-                        self.metric_references = Some(MetricReferences {
+-                            action: action.clone(),
+-                            longhand,
+-                            walk: ReferenceWalk::new(&value.variable_value.references),
+-                            value,
+-                            reply: None,
+-                            depth: self.frames.len(),
+-                            semantic_floor: self.count,
+-                            flags: self.computed_context.included_cascade_flags,
+-                            complete: false,
+-                        });
++                        if !self.authorize_metric_substitution(action, longhand, value) {
++                            return MetricActionProgress::Invalidated;
++                        }
+                     }
+                     MetricActionProgress::Lookup(longhand, value, request) => {
+                         assert!(self.metric_lookup.is_none() && self.lookup_reply.is_none());
+@@ -4406,6 +4430,7 @@
+                                 publication_ready,
+                                 state.depth,
+                                 state.semantic_floor,
++                                None,
+                             )
+                         } else {
+                             assert_eq!(self.frames.len(), state.depth);
+@@ -4419,6 +4444,7 @@
+                                         publication_ready,
+                                         state.depth,
+                                         state.semantic_floor,
++                                        None,
+                                     )
+                                 }
+                                 Err(result) => result,
+@@ -5192,7 +5218,15 @@
+         LateDefault,
+     }
+ 
++    struct GuardedCustomFrame {
++        substitution: ResumableSubstitution<'static>,
++        request: Option<SubstitutionLookup>,
++        flags: RuleCascadeFlags,
++        generation: Arc<()>,
++    }
++
+     struct TraversalFrame {
++        guarded_custom: Option<GuardedCustomFrame>,
+         var: VarType,
+         index: usize,
+         lowlink: usize,
+@@ -5219,6 +5253,107 @@
+     }
+ 
+     impl TraversalFrame {
++        fn enter_guarded_custom(&mut self, guards: Vec<SubstitutionGuard>, context: &Context) {
++            let VarType::Custom(name) = &self.var else {
++                return;
++            };
++            assert!(self.guarded_custom.is_none());
++            self.guarded_custom = Some(GuardedCustomFrame {
++                substitution: ResumableSubstitution::for_custom(
++                    (**self.value.as_ref().unwrap()).clone(),
++                    name.clone(),
++                    guards,
++                ),
++                request: None,
++                flags: context.computed_context.included_cascade_flags,
++                generation: context.lookup_bindings.root.clone(),
++            });
++        }
++
++        fn guarded_references(
++            &mut self,
++            context: &mut Context,
++            tracker: &mut AttributeTracker,
++        ) -> Option<FrameStep> {
++            let state = self.guarded_custom.as_mut().unwrap();
++            if state.flags != context.computed_context.included_cascade_flags
++                || !Arc::ptr_eq(&state.generation, &context.lookup_bindings.root)
++            {
++                return Some(FrameStep::Pending(None));
++            }
++            if state.substitution.body_marked()
++                || self
++                    .reference_reply
++                    .as_ref()
++                    .is_some_and(|(_, reply)| matches!(reply, ReferenceReadiness::SemanticOpen))
++            {
++                self.reference_reply = None;
++                self.self_ref |= state.substitution.body_marked();
++                self.phase = FramePhase::LateDefault;
++                return None;
++            }
++            self.reference_reply = None;
++            let mut reply = None;
++            loop {
++                if let Some(request) = state.request.as_ref() {
++                    let value = match context.owned_lookup_value(request, tracker) {
++                        Ok(Some(value)) => value,
++                        Ok(None) => {
++                            if request.kind != SubstitutionLookupKind::Variable {
++                                return Some(FrameStep::Pending(None));
++                            }
++                            SubstitutionGuard::mark_reentry(
++                                &request.guards,
++                                &SubstitutionGuardKey::Property(PropertyId::Custom(
++                                    request.name.clone(),
++                                )),
++                            );
++                            let target = VarType::Custom(request.name.clone());
++                            return Some(self.link(target, LinkPurpose::Reference));
++                        }
++                        Err(()) => return Some(FrameStep::Pending(None)),
++                    };
++                    reply = Some(SubstitutionLookupReply {
++                        identity: request.identity.clone(),
++                        value,
++                    });
++                    state.request = None;
++                }
++                match state.substitution.poll(reply.take()) {
++                    SubstitutionPoll::Lookup(request) => state.request = Some(request),
++                    SubstitutionPoll::Complete(result) => {
++                        if state.substitution.body_marked() {
++                            self.self_ref = true;
++                            self.phase = FramePhase::LateDefault;
++                            return None;
++                        }
++                        let VarType::Custom(name) = &self.var else {
++                            unreachable!()
++                        };
++                        let (prepared, flags) = prepare_completed_custom_value(
++                            name,
++                            &self.value.as_ref().unwrap().url_data,
++                            result,
++                            context.stylist,
++                            context.computed_context,
++                        );
++                        self.value_non_custom_refs |= flags;
++                        self.value_non_custom_refs
++                            .remove(ReferenceFlags::COLOR_SCHEME);
++                        if prepared.depends_on_color_scheme() {
++                            self.value_non_custom_refs |= ReferenceFlags::COLOR_SCHEME;
++                        }
++                        self.prepared_custom = Some(prepared);
++                        self.phase = FramePhase::Prepare;
++                        return None;
++                    }
++                    SubstitutionPoll::WrongReply | SubstitutionPoll::Finished => {
++                        unreachable!("Guarded frame owns its exact lookup reply")
++                    }
++                }
++            }
++        }
++
+         fn accepts_computed_size(&self, is_root: bool) -> bool {
+             matches!(
+                 self.waiting,
+@@ -5301,6 +5436,13 @@
+             loop {
+                 match self.phase {
+                     FramePhase::References => {
++                        if self.guarded_custom.is_some() {
++                            if let Some(step) = self.guarded_references(context, attribute_tracker)
++                            {
++                                return step;
++                            }
++                            continue;
++                        }
+                         let value = self.value.as_ref().unwrap();
+                         let name = match &self.var {
+                             VarType::Custom(name) | VarType::Attr(name, _) => name,
+@@ -5330,7 +5472,7 @@
+                     }
+                     FramePhase::Prepare => {
+                         if let VarType::Custom(ref name) = self.var {
+-                            if self.selected_dependency_eligible {
++                            if self.selected_dependency_eligible && self.prepared_custom.is_none() {
+                                 let may_compute_color = self
+                                     .value_non_custom_refs
+                                     .intersects(ReferenceFlags::COLOR_SCHEME);
+@@ -5708,6 +5850,7 @@
+             FramePhase::PrioritySize
+         };
+         Ok(TraversalFrame {
++            guarded_custom: None,
+             var,
+             index,
+             lowlink: index,
+--- a/servo/components/style/properties/mod.rs
++++ b/servo/components/style/properties/mod.rs
+@@ -1714,9 +1714,9 @@
+                 }
+             }
+         }
+-        Ok(custom_properties::ResumableSubstitution::new(
++        Ok(custom_properties::ResumableSubstitution::for_property(
+             self.value.variable_value.clone(),
+-            Some(self.value.substitution_property_id(longhand_id)),
++            self.value.substitution_property_id(longhand_id),
+             computed_context.in_container_query,
+         ))
+     }

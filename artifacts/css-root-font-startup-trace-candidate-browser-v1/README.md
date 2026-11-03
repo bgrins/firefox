@@ -1,0 +1,21 @@
+# Native startup trace: eight-source diagnostic owner
+
+Disabled, bound to actual fresh capture3b503e/session75776/b1144d/0 (3183ce10) and root terminalf5ae9146, current canonicalc0c849f1/raw4f9978f1. The completed selective build/restoration and actual raw refresh92901c remain separate predecessors. Native authority is e86/085f; no failed research signing is authority. There is no future result, current-state fiction or new accepted repair.
+
+Source6d6c56bc is the full eight-file cumulative trace from original e86: data.rs, traversal.rs, gecko/traversal.rs, glue.rs, matching.rs, specified/length.rs, GeckoBindings.cpp and KeyframeEffect.cpp. Its parent is selective8c89, including the font-unit membership prerequisite. Five canonical installed claims plus three ordinary additional claims are joined to actual capture hashes/inodes; the unchanged driver reclaims every exact admitted identity before replacing source. Original source_context_pins remain separate from active candidate roles. Archive unchanged_source_preimages projects context minus all eight active roles, never labels modified files unchanged.
+
+The successful selective owner supplies all15 production/identity files. Only check.py changes: unique output/source/capture assertions, eight-role and exact parent checks, plus rejecting the presence of MOZ_ROOT_FONT_STARTUP_TRACE. The other14 bodies, including admission, explicit nonrouting role leaf, full live guard, build/WPT, new archive copier/validation and restoration finally, are byte-identical. Structured ORIGINS and exact deltas authenticate this. No new lifecycle framework, copied native authority object, historical recursive admission or new cache is introduced.
+
+Cancellation8 smoke is exactly the existing fixture/roster/resources/metadata and original bare-e8622-to8 projection (six PASS/two FAIL/one OK). Full original22 events are replayed before projection. No old61 or unrelated suite is rerun. Completion preserves actual FAIL observations; native build/browser acceptance is not inferred. This owner builds and archives; later root-owned standalone single-late startup observation is separate and must reproduce its symptom under logging.
+
+Logging must be off during this smoke: the public production check rejects MOZ_ROOT_FONT_STARTUP_TRACE even if its value is empty, and root launch explicitly unsets it. The later archived startup probe must set the variable because presence enables RFST. No native behavior or fixtures are changed merely to get diagnostics. The WPT lifecycle, owned processes/temporary roots, archive publication after restoration, backup cleanup and failure accounting remain unchanged.
+
+Actual saved preparationc19bdb/session35586/25c099/0 ran the entire production validate_policy in1.27s:1590 reference pins/1652 consumed inputs; real role entry under the new policy;13 rejects including malformed origins/wrong diff-base and empty-but-present logging env; eight real changed-inode rejects using the actual driver claim statements in owned scratch; full original baseline projection; actual archive context expression. No native/browser/observer was executed; unchanged stream/staging/copier suites were authenticated rather than rerun. CHECK records exact11 tested inputs. Fresh signatures, full current source/app/index/flags/controls/identity checks and resource measurement still run during actual execution.
+
+After flat sealing, run the public disabled check and production flat-manifest consumer once, storing their receipts outside this immutable owner. Root then preserves disabled POLICY/FILES, changes only execution_enabled and candidate_execution_enabled, regenerates flat FILES, rechecks that manifest with check_manifest.py, and invokes:
+
+```
+env -u MOZ_ROOT_FONT_STARTUP_TRACE python3 -I -S -B artifacts/css-root-font-startup-trace-candidate-browser-v1/run.py --run ACTIVE_FILES_SHA256 > artifacts/css-root-font-startup-trace-root-run-v1.log 2>&1
+```
+
+Unique future output: artifacts/css-root-font-startup-trace-candidate-browser-runtime-v1. Root alone executes/monitors and independently audits it; actual archive receipt and later observation remain pending. No activation is performed by this preparation.

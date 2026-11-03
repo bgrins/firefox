@@ -1,0 +1,183 @@
+--- a/servo/components/style/data.rs
++++ b/servo/components/style/data.rs
+@@ -433,7 +433,11 @@
+         .intersects(ComputedValueFlags::DEPENDS_ON_CONTAINER_STYLE_QUERY)
+ }
+ 
+-fn needs_to_recascade_self(hint: RestyleHint, style: &ComputedValues) -> bool {
++fn needs_to_recascade_self(
++    hint: RestyleHint,
++    style: &ComputedValues,
++    has_animations: bool,
++) -> bool {
+     if hint.intersects(RestyleHint::RECASCADE_SELF) {
+         return true;
+     }
+@@ -445,9 +449,10 @@
+         return true;
+     }
+     if hint.intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
+-        && style
+-            .flags
+-            .contains(ComputedValueFlags::USES_FONT_OR_WM_RELATIVE_UNITS)
++        && (has_animations
++            || style
++                .flags
++                .contains(ComputedValueFlags::USES_FONT_OR_WM_RELATIVE_UNITS))
+     {
+         return true;
+     }
+@@ -551,7 +556,11 @@
+ 
+     /// Returns the kind of restyling that we're going to need to do on this
+     /// element, based of the stored restyle hint.
+-    pub fn restyle_kind(&self, shared_context: &SharedStyleContext) -> Option<RestyleKind> {
++    pub fn restyle_kind(
++        &self,
++        shared_context: &SharedStyleContext,
++        has_animations: bool,
++    ) -> Option<RestyleKind> {
+         let style = match self.styles.primary {
+             Some(ref s) => s,
+             None => return Some(RestyleKind::MatchAndCascade),
+@@ -580,7 +589,7 @@
+             ));
+         }
+ 
+-        if needs_to_recascade_self(hint, style) {
++        if needs_to_recascade_self(hint, style, has_animations) {
+             return Some(RestyleKind::CascadeOnly);
+         }
+ 
+@@ -617,7 +626,7 @@
+             ));
+         }
+ 
+-        if needs_to_recascade_self(hint, style) {
++        if needs_to_recascade_self(hint, style, false) {
+             return Some(RestyleKind::CascadeOnly);
+         }
+         None
+--- a/servo/components/style/traversal.rs
++++ b/servo/components/style/traversal.rs
+@@ -333,7 +333,7 @@
+     styles
+ }
+ 
+-/// Calculates the style for a single node.
++/// Calculates the style for a single node and returns its new child restyle hint.
+ #[inline]
+ #[allow(unsafe_code)]
+ pub fn recalc_style_at<E, D, F>(
+@@ -342,7 +342,8 @@
+     element: E,
+     data: &mut ElementData,
+     note_child: F,
+-) where
++) -> RestyleHint
++where
+     E: TElement,
+     D: DomTraversal<E>,
+     F: FnMut(E::ConcreteNode),
+@@ -359,7 +360,12 @@
+         "Should've handled snapshots here already"
+     );
+ 
+-    let restyle_kind = data.restyle_kind(context.shared);
++    let has_animations = !flags.for_animation_only()
++        && data
++            .hint
++            .intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
++        && element.has_animations(context.shared);
++    let restyle_kind = data.restyle_kind(context.shared, has_animations);
+     debug!(
+         "recalc_style_at: {:?} (restyle_kind={:?}, dirty_descendants={:?}, data={:?})",
+         element,
+@@ -463,6 +469,7 @@
+     }
+ 
+     clear_state_after_traversing(element, data, flags);
++    child_restyle_hint
+ }
+ 
+ fn clear_state_after_traversing<E>(element: E, data: &mut ElementData, flags: TraversalFlags)
+--- a/servo/components/style/gecko/traversal.rs
++++ b/servo/components/style/gecko/traversal.rs
+@@ -7,18 +7,29 @@
+ use crate::context::{SharedStyleContext, StyleContext};
+ use crate::dom::{TElement, TNode};
+ use crate::gecko::wrapper::{GeckoElement, GeckoNode};
++use crate::invalidation::element::restyle_hints::RestyleHint;
+ use crate::traversal::{DomTraversal, recalc_style_at};
++use std::sync::atomic::{AtomicBool, Ordering};
+ 
+ /// This is the simple struct that Gecko uses to encapsulate a DOM traversal for
+ /// styling.
+ pub struct RecalcStyleOnly<'a> {
+     shared: SharedStyleContext<'a>,
++    normal_descendant_restyle: AtomicBool,
+ }
+ 
+ impl<'a> RecalcStyleOnly<'a> {
+     /// Create a `RecalcStyleOnly` traversal from a `SharedStyleContext`.
+     pub fn new(shared: SharedStyleContext<'a>) -> Self {
+-        RecalcStyleOnly { shared }
++        RecalcStyleOnly {
++            shared,
++            normal_descendant_restyle: AtomicBool::new(false),
++        }
++    }
++
++    /// Whether animation styling produced descendant font-dependent work.
++    pub fn needs_normal_descendant_restyle(&self) -> bool {
++        self.normal_descendant_restyle.load(Ordering::Relaxed)
+     }
+ }
+ 
+@@ -33,7 +44,12 @@
+     {
+         if let Some(el) = node.as_element() {
+             let mut data = unsafe { el.ensure_data() };
+-            recalc_style_at(self, context, el, &mut data, note_child);
++            let child_hint = recalc_style_at(self, context, el, &mut data, note_child);
++            if self.shared.traversal_flags.for_animation_only()
++                && child_hint.intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
++            {
++                self.normal_descendant_restyle.store(true, Ordering::Relaxed);
++            }
+         }
+     }
+ 
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -321,7 +321,29 @@
+     };
+ 
+     let traversal = RecalcStyleOnly::new(shared_style_context);
+-    driver::traverse_dom(&traversal, token, thread_pool);
++    let root = driver::traverse_dom(&traversal, token, thread_pool);
++    if traversal.needs_normal_descendant_restyle() {
++        let mut has_styled_child = false;
++        for child_node in root.traversal_children() {
++            let Some(child) = child_node.as_element() else {
++                continue;
++            };
++            let mut child_data = child.mutate_data();
++            let Some(child_data) = child_data.as_mut() else {
++                continue;
++            };
++            if !child_data.has_styles() {
++                continue;
++            }
++            child_data
++                .hint
++                .insert(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT);
++            has_styled_child = true;
++        }
++        if has_styled_child {
++            unsafe { root.set_dirty_descendants() };
++        }
++    }
+ }
+ 
+ /// Traverses the subtree rooted at `root` for restyling.

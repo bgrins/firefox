@@ -1,0 +1,51 @@
+--- artifacts/css-root-font-cancellation-normal-handoff-raw-refresh-verify-v1.py
++++ artifacts/css-root-font-cancellation-selective-handoff-raw-refresh-verify-v1.py
+@@ -8,8 +8,8 @@
+ 
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ ROOT = Path(__file__).resolve().parent.parent
+-REFRESH = ROOT / 'artifacts/css-root-font-cancellation-normal-handoff-raw-index-refresh-runtime-1'
+-NATIVE = ROOT / 'artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-runtime-v2'
++REFRESH = ROOT / 'artifacts/css-root-font-cancellation-selective-handoff-raw-index-refresh-runtime-1'
++NATIVE = ROOT / 'artifacts/css-root-font-cancellation-selective-handoff-candidate-browser-runtime-v1'
+ CONTROL = ROOT / 'artifacts/css-registered-number-native-runtime-v1'
+ read = lambda p: json.loads(p.read_bytes())
+ sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+@@ -22,8 +22,24 @@
+     return module
+ 
+ 
+-policy = read(ROOT / 'artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-v2/POLICY.json')
++assert len(sys.argv) == 2 and len(sys.argv[1]) == 64
++ownership = load('refresh_verify_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')
++refresh_owner = ROOT / 'artifacts/css-root-font-cancellation-selective-handoff-raw-index-refresh-v1'
++ownership.authenticate(refresh_owner, 'c3abab4582f1f01a099b3ea89fdcc419b3fb1821a62ceac82ef4aa4c9ddbee95')
++refresh_policy = read(refresh_owner / 'POLICY.json')
++assert sha(REFRESH / 'RESULT.json') == sys.argv[1]
++native_policy_path = 'artifacts/css-root-font-cancellation-selective-handoff-candidate-browser-v1/POLICY.json'
++assert sha(ROOT / native_policy_path) == refresh_policy['references'][native_policy_path]
++assert sha(NATIVE / 'ROOT-LIVE-RESTORATION.json') == refresh_policy['live_audit']['sha256']
++policy = read(ROOT / native_policy_path)
+ result = read(REFRESH / 'RESULT.json')
++assert result['old_epoch_sha256'] == refresh_policy['controls']['CURRENT-EPOCH.json'] == sha(REFRESH / 'PRE-CURRENT-EPOCH.json')
++assert result['before'] == refresh_policy['raw_before']
++assert result['frozen_pair_after'] == refresh_policy['raw_after']
++assert result['head'] == refresh_policy['head'] and result['preservation_verified']
++assert result['signed_commit_receipt'] == refresh_policy['signed_receipt']
++assert result['existing_head_signature_verified'] and result['restoration_independently_verified']
++assert not result['native_fix_acceptance']
+ epoch = read(CONTROL / 'CURRENT-EPOCH.json')
+ expected = read(REFRESH / 'PRE-CURRENT-EPOCH.json')
+ expected['raw_index_observation']['current'] = result['after']
+@@ -33,7 +49,10 @@
+ assert result['accepted_fix_increment'] == 0
+ for name in ('ROLE.json', 'OWNED.json'):
+     assert sha(CONTROL / name) == policy['controls'][name]
+-assert not (CONTROL / 'SOURCE-TRANSITION.lock').exists()
++assert not (CONTROL / 'SOURCE-TRANSITION.lock').exists() and not (CONTROL / 'SOURCE-TRANSITION.lock').is_symlink()
++for pgid in read(NATIVE / 'ROOT-LIVE-RESTORATION.json')['independently_absent_process_groups']:
++    ownership.group_absent(pgid)
++assert not (NATIVE / 'backups').exists() and not (NATIVE / 'backups').is_symlink()
+ state = load('refresh_verify_state', policy['state_helper'])
+ env = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ snapshot = state.a.verify_current(state.h, ROOT, env, epoch)

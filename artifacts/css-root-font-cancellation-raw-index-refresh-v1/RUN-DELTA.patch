@@ -1,0 +1,47 @@
+--- artifacts/css-keyframe-font-unit-raw-index-refresh-v2/run.py
++++ artifacts/css-root-font-cancellation-raw-index-refresh-v1/run.py
+@@ -61,7 +61,7 @@
+     assert terminal['terminal'] and terminal['result_sha256'] == sha(runtime / 'RESULT.json')
+     result = read(runtime / 'RESULT.json')
+     assert result['success'] is True and terminal['exit'] == 0
+-    assert set(result['phase']) == {'candidate'} and set(result['phase']['candidate']) == {'font_units', 'controls'}
++    assert set(result['phase']) == {'candidate'} and set(result['phase']['candidate']) == {'cancellation'}
+     assert result['publication_errors'] == []
+     assert result['error'] is None and result['restoration_verified']
+     assert result['runtime_controls_unchanged'] and result['empty_staging_preserved']
+@@ -71,7 +71,7 @@
+     audit_terminal = read(ROOT / policy['audit_terminal']['path'])
+     assert audit_terminal == policy['actual_audit_terminal']
+     assert audit_terminal['terminal'] and audit_terminal['exit'] == 0
+-    assert audit_terminal['restoration_report_sha256'] == policy['live_audit']['sha256']
++    assert audit_terminal['report_sha256'] == policy['live_audit']['sha256']
+     for key in ('independent_live_restoration_verified','application_and_extras_semantically_restored','source_and_binary_hashes_restored','flags_restored','controls_unchanged'):
+         assert live[key] is True
+     assert live['owner_terminal'] == terminal
+@@ -79,14 +79,14 @@
+     assert live['audit_script_sha256'] == sha(ROOT / policy['audit_script'])
+     owner_policy = read(owner_dir / 'POLICY.json')
+     assert owner_policy['head'] == policy['head']
+-    assert owner_policy['lane_order'] == ['font_units', 'controls'] and owner_policy['diagnostic_lane_order'] == []
++    assert owner_policy['lane_order'] == ['cancellation'] and owner_policy['diagnostic_lane_order'] == []
+     roles = read(owner_dir / 'SOURCE-ROLES.json')
+     assert set(roles) == {'servo/components/style/data.rs', 'servo/components/style/traversal.rs'}
+     comparison = load('refresh_pair_comparison', owner_dir / 'comparison.py')
+     assessor = load('refresh_pair_assessor', owner_dir / 'assess.py')
+     build = comparison.build_binding(ROOT, owner_dir, runtime, owner_policy, 'candidate')
+-    assert sum(owner_policy['wpt_lanes'][lane]['expected_subtest_count'] for lane in owner_policy['lane_order']) == 61
+-    assert sum(owner_policy['wpt_lanes'][lane]['expected_page_count'] for lane in owner_policy['lane_order']) == 5
++    assert sum(owner_policy['wpt_lanes'][lane]['expected_subtest_count'] for lane in owner_policy['lane_order']) == 8
++    assert sum(owner_policy['wpt_lanes'][lane]['expected_page_count'] for lane in owner_policy['lane_order']) == 1
+     for lane in owner_policy['lane_order']:
+         settings = owner_policy['wpt_lanes'][lane]
+         checks = load('refresh_lane_checks', ROOT / settings['checks_helper'])
+@@ -229,7 +229,7 @@
+     (output/'PRE-CURRENT-EPOCH.json').write_bytes(controls['CURRENT-EPOCH.json'])
+     state.save(output/'PRE.json',before)
+     state.save(output/'ADMISSION-RAW.json', {'canonical_before': raw['before'], 'frozen_pair_after': raw['after'], 'actual_after': actual_index['raw_index'], 'semantic_index_unchanged': True, 'full_frozen_post_equal_except_raw': True})
+-    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'native-authority keyframe-font-unit candidate restored raw observation refresh'})+'\n')
++    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'native-authority root-font-cancellation candidate restored raw observation refresh'})+'\n')
+     lock_identity = (lock.stat().st_dev,lock.stat().st_ino)
+     def check_controls(body):
+         for name,claim in claims.items():

@@ -1,0 +1,25 @@
+# Initial CSS font animations: final-pass boundary
+
+Three proposed WPT callbacks, **not browser-executed and not demonstrated regressions**, cover initial root/child CSS animations, a constant-root control, and a pre-styled late-start comparison. No native source, browser configuration, ownership runner, index, or application is changed.
+
+The initial lane puts an absolute root font animation (constant32px over underlying23px) and a child animation (constant2rem over underlying11px) in the initial stylesheet of a fresh iframe. The control has literal root32px and the same child animation. The late-start lane first confirms root23px/child11px with no animations, then adds one class to start both animations. Constant identical endpoints and paused positive-duration animations avoid progress-dependent expected values and avoid root-self relative keyframes.
+
+After load/class activation the getter order is target first → two requestAnimationFrame callbacks → target settled. No root/ordinary-consumer style getter or animation enumeration intervenes. Root32px, ordinary2rem64px, actual CSSAnimation identities/counts/names, ordinary targets, paused state, non-null effective timing progress, and standards mode are checked afterward. Both target samples and every calibration are retained in `window.rootFontInitialAnimationObservations` before assertions. Removing the fresh iframe cleans up its animations. Initial means present in the initial stylesheet; it does not claim the first getter preceded every browser rendering opportunity.
+
+The expected target is64px when the root's animation is effective at32px. CSS animations affect computed property values; rem uses the root's computed font size ([CSS Animations model](https://drafts.csswg.org/css-animations-1/#animations), [CSS Values font-relative lengths](https://drafts.csswg.org/css-values-4/#font-relative-lengths), current primary drafts read2026-11-03). An observed46px would be compatible with an earlier23px basis, but would not alone prove that causal history.
+
+## Native call-site finding
+
+Searchfox discovery757e78/face8f followed by exact e86 object reads identifies `ServoStyleSet::StyleNewSubtree` as the production setter of FinalAnimationTraversal in the searched layout/Servo sources. It requires an unstyled root, performs initial normal styling, and, if `EffectCompositor::PreTraverseInSubtree` finds newly started animations, invokes Servo_TraverseSubtree with both AnimationOnly and FinalAnimationTraversal. Call paths include an unstyled document root, synchronous initial frame construction, native anonymous subtrees, and non-lazy StyleNewChildRange. SOURCE.json and FINAL-FLAG-CALLERS.txt pin the exact source and caller search.
+
+`finish_restyle` can update root metrics and form a fresh ancestor-font child hint, then its final-pass early return replaces that result with RECASCADE_SELF. Existing-style `process_animations` also returns early during AnimationOnly. Consequently neither route-only6e00 nor selective8c89 receives that fresh signal through the returned child hint. Existing final cleanup preserves already-pending normal hints/dirty flags; this does not prove delivery of newly suppressed work.
+
+The caller contract matters too: Servo_TraverseSubtree receives AnimationOnly in its raw flags here. Its later unconditional traversal therefore remains animation-only, rather than becoming the ordinary pass relied on by the two proposals. StyleNewSubtree expects no post-traversal work. A future repair cannot simply remove the early return, set normal flags, or assume this caller will perform normal delivery without checking that lifecycle.
+
+Cancellation8 and depth4 style/calibrate root and existing descendants before their WAAPI cancellation history. The new-child variants do not require newly starting CSS animations in this final-pass branch. Incidental initial styling is possible, but those tests do not establish coverage of it.
+
+## Coverage reservation and checks
+
+This fixture is a small observable lead. Fresh document/parser/presentation timing may route its work through ordinary restyling instead of the final branch. **A pass does not close FinalAnimationTraversal unless a native trace confirms that exact branch/cohort.** Existing RFTC animation_only output alone cannot distinguish the final flag. A later diagnostic could log the existing flag at StyleNewSubtree/finish_restyle; this package adds no instrumentation. The late-start lane intentionally compares an ordinary pre-styled history and is not a final-pass witness.
+
+Actual focused source check **3c5a30 / exit0** authenticates references, exact e86 source excerpts and fixture/resource hashes, parses JavaScript, inertly registers the three exact callback names without executing bodies, verifies first/settled ordering in the source, and removes scratch. Genuine WPT lint/manifest preparation, browser baseline/candidate runs, actual final-branch coverage and any native correction remain pending. INPUTS binds the two already-sealed harness resources; no support script is added.

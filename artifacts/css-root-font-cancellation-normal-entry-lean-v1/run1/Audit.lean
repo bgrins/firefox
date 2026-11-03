@@ -1,0 +1,8 @@
+import Entry
+#print axioms CancellationEntry.animation_visit_preserves_normal_gate
+#print axioms CancellationEntry.denied_entry_visits_nothing
+#print axioms CancellationEntry.reserved_work_has_entry
+#print axioms CancellationEntry.no_work_does_not_add_dirtiness
+#print axioms CancellationEntry.scheduled_entry_reaches_route
+#print axioms CancellationEntry.retained_descendant_counterexample
+#print axioms CancellationEntry.reserved_route_control

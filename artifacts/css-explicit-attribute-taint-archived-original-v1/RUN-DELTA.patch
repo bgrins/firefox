@@ -1,0 +1,44 @@
+--- artifacts/css-attr-fallback-archived-validation-v2/run.py
++++ artifacts/css-explicit-attribute-taint-archived-original-v1/run.py
+@@ -123,13 +123,13 @@
+ def assess(events, roster, code=None):
+     assert len(roster) == 1
+     page, names = next(iter(roster.items()))
+-    assert len(names) == len(set(names)) == 28
++    assert len(names) == len(set(names)) == 4
+     statuses = [e for e in events if e.get('action') == 'test_status']
+     endings = [e for e in events if e.get('action') == 'test_end']
+     counts = {}
+     for event in statuses:
+         counts[event['status']] = counts.get(event['status'], 0) + 1
+-    complete = (len(statuses) == 28 and len({e['subtest'] for e in statuses}) == 28
++    complete = (len(statuses) == 4 and len({e['subtest'] for e in statuses}) == 4
+                 and {e['subtest'] for e in statuses} == set(names)
+                 and all(e['test'] == page and e['status'] in ['PASS', 'FAIL'] for e in statuses)
+                 and len(endings) == 1 and endings[0]['test'] == page and endings[0]['status'] == 'OK'
+@@ -144,7 +144,7 @@
+     if code is not None:
+         complete = complete and checks.exit_matches_results(code, statuses + endings)
+     return {'complete': bool(complete), 'counts': counts, 'subtests': statuses, 'endings': endings,
+-            'all_28_pass': bool(complete and all(e['status'] == 'PASS' for e in statuses)),
++            'all_4_pass': bool(complete and all(e['status'] == 'PASS' for e in statuses)),
+             'prediction': None, 'prediction_is_acceptance_gate': False,
+             'native_fix_acceptance': False}
+ 
+@@ -176,7 +176,7 @@
+                     ['tests', 'metadata', 'mozilla-tests', 'mozilla-metadata', 'support', 'run-info']}
+     save(output / 'STAGED.json', staged)
+     save(output / 'STAGED-TREES.json', staged_trees)
+-    temporary = Path(tempfile.mkdtemp(prefix='css-attr-fallback-' + policy['archive_role'] + '-', dir='/private/tmp'))
++    temporary = Path(tempfile.mkdtemp(prefix='css-explicit-attr-taint-' + policy['archive_role'] + '-', dir='/private/tmp'))
+     identity = (temporary.stat().st_dev, temporary.stat().st_ino)
+     args, env = command(output, temporary, policy, snapshot)
+     save(output / 'COMMAND.json', {'command': args, 'temporary': str(temporary),
+@@ -231,6 +231,6 @@
+ if __name__ == '__main__':
+     parser = argparse.ArgumentParser()
+     parser.add_argument('--run', action='store_true', required=True)
+-    parser.add_argument('--role', choices=['original','candidate'], required=True)
++    parser.add_argument('--role', choices=['original'], required=True)
+     args = parser.parse_args()
+     run(json.loads((HERE / ('POLICY-' + args.role + '.json')).read_text()))

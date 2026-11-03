@@ -1,0 +1,9 @@
+# Pending selective-handoff independent audit
+
+Disabled adaptation of successfully executed `css-root-font-cancellation-normal-handoff-root-audit-v1`. The only executable changes are owner/runtime constants and the exact role set: data.rs, style/traversal.rs, style/gecko/traversal.rs and geckolib/glue.rs. Expected owner is `css-root-font-cancellation-selective-handoff-candidate-browser-v1`; expected runtime is `css-root-font-cancellation-selective-handoff-candidate-browser-runtime-v1`.
+
+The complete restoration/authority/process/source identity/app/index/flag/control/WPT/archive checks are inherited unchanged. Archive unchanged-source preimages remain every policy source-context pin minus active roles. Candidate data and glue are authenticated through role/build/source-claim maps, while matching and every other non-role context remain original. Eight cancellation callbacks and one ending remain observations; successful audit does not imply PASS or native acceptance. The selective four-file source includes the font-unit membership prerequisite, unlike the broad three-file parent.
+
+Future owner manifest, result, terminal, launch/session/group and archive-receipt fields are null; execution is false. Root supplies actual terminal evidence after completion and authenticates runtime records, including the exact owner archive.py reference required by the helper. Root preserves this preparation before binding/activation and alone executes the live audit. No future result or source claim is invented.
+
+Focused source checking authenticates the parent, both exact deltas and Python syntax, then exercises the unchanged archive assertion for four roles: one valid projection and rejecting candidate-data-as-unchanged/missing-original-matching controls. It does not execute audit bodies, read a future runtime or repeat inherited suites. Actual saved receipt is in CHECK.json. No native, browser, Git/index or canonical mutation was performed.

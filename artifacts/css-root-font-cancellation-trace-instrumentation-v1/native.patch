@@ -1,0 +1,197 @@
+--- a/dom/animation/EffectCompositor.cpp
++++ b/dom/animation/EffectCompositor.cpp
+@@ -3,6 +3,8 @@
+  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ 
+ #include "EffectCompositor.h"
++
++#include <cstdio>
+ 
+ #include "mozilla/AnimationComparator.h"
+ #include "mozilla/AnimationPerformanceWarning.h"
+@@ -30,6 +32,7 @@
+ #include "nsDisplayItemTypes.h"
+ #include "nsLayoutUtils.h"
+ #include "nsTArray.h"
++#include "nsThreadUtils.h"
+ 
+ using mozilla::dom::Animation;
+ using mozilla::dom::Element;
+@@ -301,6 +304,11 @@
+     const ComputedStyle* aStyle, Element* aElement,
+     const PseudoStyleRequest& aPseudoRequest) {
+   EffectSet* effectSet = EffectSet::Get(aElement, aPseudoRequest);
++  fprintf(stderr, "RFTC delivery element=%p node=%p pseudo=%u style=%p effect_set=%p main=%d\n",
++          static_cast<const void*>(aElement),
++          static_cast<const void*>(static_cast<const nsINode*>(aElement)),
++          unsigned(aPseudoRequest.mType), static_cast<const void*>(aStyle),
++          static_cast<const void*>(effectSet), NS_IsMainThread());
+   if (!effectSet) {
+     return;
+   }
+@@ -311,7 +319,13 @@
+   effectSet->MarkCascadeNeedsUpdate();
+ 
+   for (KeyframeEffect* effect : *effectSet) {
++    fprintf(stderr, "RFTC deliver-effect effect=%p element=%p pseudo=%u\n",
++            static_cast<const void*>(effect), static_cast<const void*>(aElement),
++            unsigned(aPseudoRequest.mType));
+     effect->UpdateProperties(aStyle);
++    fprintf(stderr, "RFTC delivered-effect effect=%p element=%p pseudo=%u\n",
++            static_cast<const void*>(effect), static_cast<const void*>(aElement),
++            unsigned(aPseudoRequest.mType));
+   }
+ }
+ 
+--- a/servo/components/style/data.rs
++++ b/servo/components/style/data.rs
+@@ -433,7 +433,11 @@
+         .intersects(ComputedValueFlags::DEPENDS_ON_CONTAINER_STYLE_QUERY)
+ }
+ 
+-fn needs_to_recascade_self(hint: RestyleHint, style: &ComputedValues) -> bool {
++fn needs_to_recascade_self(
++    hint: RestyleHint,
++    style: &ComputedValues,
++    has_animations: bool,
++) -> bool {
+     if hint.intersects(RestyleHint::RECASCADE_SELF) {
+         return true;
+     }
+@@ -445,9 +449,10 @@
+         return true;
+     }
+     if hint.intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
+-        && style
+-            .flags
+-            .contains(ComputedValueFlags::USES_FONT_OR_WM_RELATIVE_UNITS)
++        && (has_animations
++            || style
++                .flags
++                .contains(ComputedValueFlags::USES_FONT_OR_WM_RELATIVE_UNITS))
+     {
+         return true;
+     }
+@@ -551,7 +556,11 @@
+ 
+     /// Returns the kind of restyling that we're going to need to do on this
+     /// element, based of the stored restyle hint.
+-    pub fn restyle_kind(&self, shared_context: &SharedStyleContext) -> Option<RestyleKind> {
++    pub fn restyle_kind(
++        &self,
++        shared_context: &SharedStyleContext,
++        has_animations: bool,
++    ) -> Option<RestyleKind> {
+         let style = match self.styles.primary {
+             Some(ref s) => s,
+             None => return Some(RestyleKind::MatchAndCascade),
+@@ -580,7 +589,7 @@
+             ));
+         }
+ 
+-        if needs_to_recascade_self(hint, style) {
++        if needs_to_recascade_self(hint, style, has_animations) {
+             return Some(RestyleKind::CascadeOnly);
+         }
+ 
+@@ -617,7 +626,7 @@
+             ));
+         }
+ 
+-        if needs_to_recascade_self(hint, style) {
++        if needs_to_recascade_self(hint, style, false) {
+             return Some(RestyleKind::CascadeOnly);
+         }
+         None
+--- a/servo/components/style/matching.rs
++++ b/servo/components/style/matching.rs
+@@ -448,6 +448,7 @@
+ 
+         let old_values = &old_styles.primary;
+         if context.shared.traversal_flags.for_animation_only() && old_values.is_some() {
++            eprintln!("RFTC animation-only-skip element={:#x} flags={:?} thread={:?} device={:p}", self.as_node().opaque().0, context.shared.traversal_flags, std::thread::current().id(), context.shared.stylist.device());
+             return;
+         }
+ 
+@@ -531,6 +532,7 @@
+         }
+ 
+         if !tasks.is_empty() {
++            eprintln!("RFTC animation-task element={:#x} flags={:?} tasks={:?} thread={:?} device={:p}", self.as_node().opaque().0, context.shared.traversal_flags, tasks, std::thread::current().id(), context.shared.stylist.device());
+             let task = crate::context::SequentialTask::update_animations(
+                 *self,
+                 before_change_style,
+@@ -1043,7 +1045,9 @@
+             // Update root font size for rem units
+             if font_size_changed {
+                 let size = new_font_size.computed_size();
+-                device.set_root_font_size(new_primary_style.effective_zoom.unzoom(size.px()));
++                let root_size = new_primary_style.effective_zoom.unzoom(size.px());
++                device.set_root_font_size(root_size);
++                eprintln!("RFTC root-write element={:#x} device={:p} flags={:?} size={:?} thread={:?}", self.as_node().opaque().0, device, context.shared.traversal_flags, root_size, std::thread::current().id());
+             }
+ 
+             // Update root line height for rlh units
+@@ -1086,6 +1090,10 @@
+             // Needed for the "inherit from body" quirk.
+             let text_color = *new_primary_style.get_inherited_text().get_color();
+             device.set_body_text_color(text_color);
++        }
++
++        if is_root {
++            eprintln!("RFTC root-hint element={:#x} device={:p} flags={:?} accumulated={:?} thread={:?}", self.as_node().opaque().0, device, context.shared.traversal_flags, child_restyle_hint, std::thread::current().id());
+         }
+ 
+         // Don't accumulate damage if we're in the final animation traversal.
+--- a/servo/components/style/traversal.rs
++++ b/servo/components/style/traversal.rs
+@@ -155,6 +155,8 @@
+ 
+         let should_traverse =
+             Self::element_needs_traversal(root, traversal_flags, data.as_mut().map(|d| &**d));
++
++        eprintln!("RFTC pre-traverse root={:#x} flags={:?} should={} hint={:?} dirty={} animation_dirty={} thread={:?} device={:p}", root.as_node().opaque().0, traversal_flags, should_traverse, data.as_ref().map(|d| d.hint), root.has_dirty_descendants(), root.has_animation_only_dirty_descendants(), std::thread::current().id(), shared_context.stylist.device());
+ 
+         // If we're not going to traverse at all, we may need to clear some state
+         // off the root (which would normally be done at the end of recalc_style_at).
+@@ -359,7 +361,15 @@
+         "Should've handled snapshots here already"
+     );
+ 
+-    let restyle_kind = data.restyle_kind(context.shared);
++    let has_animations = !flags.for_animation_only()
++        && data
++            .hint
++            .intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
++        && element.has_animations(context.shared);
++    let restyle_kind = data.restyle_kind(context.shared, has_animations);
++    if has_animations || data.hint.intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT) {
++        eprintln!("RFTC admission element={:#x} flags={:?} hint={:?} member_operand={} kind={:?} thread={:?} device={:p}", element.as_node().opaque().0, flags, data.hint, has_animations, restyle_kind, std::thread::current().id(), context.shared.stylist.device());
++    }
+     debug!(
+         "recalc_style_at: {:?} (restyle_kind={:?}, dirty_descendants={:?}, data={:?})",
+         element,
+@@ -423,6 +433,9 @@
+ 
+     // Integrate the child cascade requirement into the propagated hint.
+     propagated_hint |= child_restyle_hint;
++    if propagated_hint.intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT) || !child_restyle_hint.is_empty() {
++        eprintln!("RFTC propagate element={:#x} flags={:?} returned={:?} propagated={:?} thread={:?} device={:p}", element.as_node().opaque().0, flags, child_restyle_hint, propagated_hint, std::thread::current().id(), context.shared.stylist.device());
++    }
+ 
+     let has_dirty_descendants_for_this_restyle = if flags.for_animation_only() {
+         element.has_animation_only_dirty_descendants()
+@@ -706,7 +719,12 @@
+             );
+         }
+ 
+-        if D::element_needs_traversal(child, flags, child_data.map(|d| &*d)) {
++        let child_hint = child_data.as_ref().map(|d| d.hint);
++        let should_traverse = D::element_needs_traversal(child, flags, child_data.map(|d| &*d));
++        if propagated_hint.intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT) {
++            eprintln!("RFTC child-decision parent={:#x} child={:#x} flags={:?} stored={:?} should={} parent_dirty={} parent_animation_dirty={} thread={:?} device={:p}", element.as_node().opaque().0, child.as_node().opaque().0, flags, child_hint, should_traverse, element.has_dirty_descendants(), element.has_animation_only_dirty_descendants(), std::thread::current().id(), context.shared.stylist.device());
++        }
++        if should_traverse {
+             note_child(child_node);
+ 
+             // Set the dirty descendants bit on the parent as needed, so that we

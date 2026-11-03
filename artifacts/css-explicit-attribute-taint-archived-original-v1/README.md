@@ -1,0 +1,9 @@
+# Archived e86 baseline for explicit-taint registration transition
+
+Disabled, bound original-only preparation for the sealed four-case WPT in css-explicit-attribute-taint-typed-reparse-fix-v1 (21d43edd). The immutable e86 original archive/source/build inventory is the same one used by the completed28-case fallback validation. This is a new baseline run: earlier connector observations do not substitute for its callbacks, and no all-pass outcome is assumed.
+
+The executed archived-validation-v2 run.py is retained with only fixed28→4 count/result label, owned temporary prefix and original-only CLI changes. Entry script and private profile/cert/support inputs are byte-identical. The full archive before/after inventory, source/build/application joins, raw ordered test lifecycle/exit checks, process-group cleanup and isolated staging are unchanged. Existing completed fallback owner terminal/audit remain historical isolation evidence; they do not authorize a concurrent browser. Root serializes this run after the current signing/owner terminal.
+
+Saved401782/0 authenticates the exact sealed fixture and original8326-file snapshot/build source map without reading the archive. It passes two synthetic complete streams,11 incomplete/wrong-identity/crash/exit controls, genuine isolated wptrunner argument parsing and staged inputs; temporary scratch is absent. No browser, Mach, Git, native source/app/index/canonical operation was performed here.
+
+Root preserves disabled POLICY-original.json and FILES, changes only execution_enabled to true, reseals, then runs: python3 -I -S -B artifacts/css-explicit-attribute-taint-archived-original-v1/run.py --role original --run. Output is css-explicit-attribute-taint-archived-original-runtime-v1. Complete FAIL observations can yield owner success while WPT exits1; all_4_pass is a separate field. Candidate build and regression controls are separate later owners.

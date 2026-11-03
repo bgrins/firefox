@@ -1,0 +1,20 @@
+--- artifacts/css-attr-fallback-after-reparse-publication-v1/evidence.py
++++ artifacts/css-attr-fallback-after-reparse-publication-v2/evidence.py
+@@ -39,7 +39,7 @@
+ 
+ def verify_completed(root, binding, stage):
+     assert binding is not None
+-    expected = read(root / 'artifacts/css-attr-fallback-after-reparse-publication-v1/PAIR-BINDING.json')
++    expected = read(root / 'artifacts/css-attr-fallback-after-reparse-publication-v2/PAIR-BINDING.json')
+     assert set(binding) == set(expected)
+     for key in ('historical_standalone', 'combined_refresh_owner', 'combined_outcome'):
+         assert binding[key] == expected[key]
+@@ -104,7 +104,7 @@
+     assert claim == capture['sources'][ROLE]
+     assert claim['identity'] == capture['installed_identities'][ROLE]
+     assert claim['owned_sha256'] == capture['epoch_payload_pins'][ROLE]
+-    assert capture['snapshot']['index']['cached_diff'] == capture['snapshot']['index']['working_diff'] == ''
++    assert capture['snapshot']['index']['cached_diff'] == capture['snapshot']['index']['working_diff'] == hashlib.sha256(b'').hexdigest()
+ 
+ 
+ def verify(root, binding, stage):

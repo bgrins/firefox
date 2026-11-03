@@ -1,0 +1,44 @@
+--- artifacts/css-root-font-cancellation-trace-candidate-browser-v1/check.py
++++ artifacts/css-root-font-cancellation-trace-candidate-browser-v2/check.py
+@@ -50,6 +50,7 @@
+         assert terminal['capture_owner_manifest'] == policy['capture_owner']['manifest_sha256']
+         assert terminal['additional_source_claims'] == capture['additional_sources']
+         assert set(terminal['additional_source_claims']) == set(policy['additional_source_paths'])
++        assert terminal['canonical_source_claims'] == {name: capture['payload_claims'][name] for name in ('servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'layout/style/GeckoBindings.cpp')}
+         assert terminal['glue_claim'] == capture['payload_claims']['servo/ports/geckolib/glue.rs']
+         assert terminal['glue_claim']['owned_sha256'] == '83cc1e6f6d27aa92d34377564aa6969dbdda838dd880b401e35de08f250d5027'
+         assert terminal['capture_path'] == policy['current_binding']['path'] and terminal['capture_sha256'] == policy['current_binding']['sha256']
+@@ -59,8 +60,8 @@
+     assert policy['required_typecheck_inputs'] == {}
+     admission = load('admission')
+     source = admission.authenticate(ROOT, policy['source_binding'])
+-    assert source == ROOT / 'artifacts/css-root-font-cancellation-trace-instrumentation-v1'
+-    assert policy['source_binding']['manifest_sha256'] == '4cee0e2fc3334a17d34453c0b4957716ae0ea7b197a36b255883d817fb309ab3'
++    assert source == ROOT / 'artifacts/css-root-font-cancellation-trace-instrumentation-v3'
++    assert policy['source_binding']['manifest_sha256'] == 'e88c9c53f34afc3c775444c68db22cf4329c821c60ef4e1521e4e9aba30c7fe7'
+     assert not policy['control_suite_pending']
+     assert policy['suite_bindings']['cancellation'] == {'directory': 'artifacts/css-root-self-animation-isolation-followup-v1', 'manifest_sha256': 'e467889baca270157fe52aefc61eb38af5735eda546dbd0b4b931885a62493a4'}
+     assert set(policy['suite_bindings']) == set(policy['wpt_lanes']) == {'cancellation'}
+@@ -68,18 +69,19 @@
+     roles = read(HERE / 'SOURCE-ROLES.json')
+     source_roles = read(source / 'SOURCE-ROLES.json')
+     expected_roles = {name: {'base_capture': str((source/'base'/name).relative_to(ROOT)), 'candidate_capture': str((source/'candidate'/name).relative_to(ROOT)), 'base_sha256': row['base_sha256'], 'candidate_sha256': row['candidate_sha256']} for name,row in source_roles.items()}
+-    assert roles == expected_roles and set(roles) == {'servo/components/style/traversal.rs', 'servo/components/style/data.rs', 'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp'}
++    assert roles == expected_roles and set(roles) == {'servo/components/style/traversal.rs', 'servo/components/style/data.rs', 'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'layout/style/GeckoBindings.cpp'}
+     assert set(policy['additional_source_paths']) == {'servo/components/style/data.rs', 'servo/components/style/traversal.rs'}
+     canonical_roles = set(roles) - set(policy['additional_source_paths'])
+-    assert canonical_roles == {'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp'}
++    assert canonical_roles == {'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'layout/style/GeckoBindings.cpp'}
+     assert all(policy['source_context_pins'][name] == roles[name]['base_sha256'] for name in canonical_roles)
+     assert policy['committed_source_preimages'] == {name: row['base_sha256'] for name, row in roles.items()}
+     for row in roles.values():
+         for kind in ('base', 'candidate'):
+             assert sha(ROOT / row[kind + '_capture']) == row[kind + '_sha256']
+     old = read(ROOT / 'artifacts/css-resumable-font-selection-integrated-pair-v1/POLICY.json')
+-    for name in ('image_commit','nowrap_commit','language_commit','ownership_commit','ownership_helper','phase_helper','process_helper','state_helper','bundle_helper','bundle_path','extra_backup_paths','rebuilt_binaries','source_context_pins','restored_application_revision','timeout_seconds','metadata_current_pins','preserved_absent_metadata','preserved_absent_resources','capture_source_owner'):
++    for name in ('image_commit','nowrap_commit','language_commit','ownership_commit','ownership_helper','phase_helper','process_helper','state_helper','bundle_helper','bundle_path','extra_backup_paths','rebuilt_binaries','restored_application_revision','timeout_seconds','metadata_current_pins','preserved_absent_metadata','preserved_absent_resources','capture_source_owner'):
+         assert policy[name] == old[name], name
++    assert policy['source_context_pins'] == dict(old['source_context_pins'], **{'layout/style/GeckoBindings.cpp': roles['layout/style/GeckoBindings.cpp']['base_sha256']})
+     free = read(ROOT/policy['current_binding']['path'])['free_bytes'] if policy['current_binding'] else None
+     assert policy['resource_policy'] == dict(old['resource_policy'], captured_free_bytes=free)
+     for lane,binding in policy['suite_bindings'].items():

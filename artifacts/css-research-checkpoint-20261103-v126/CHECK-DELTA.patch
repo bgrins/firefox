@@ -1,0 +1,135 @@
+--- artifacts/css-research-checkpoint-20261103-v125/check.py
++++ artifacts/css-research-checkpoint-20261103-v126/check.py
+@@ -54,11 +54,11 @@
+     assert str(Path(nested['repository']) / record['nested_path']) == path
+     assert len(record['blob']) == 40 and set(record['blob']) <= set('0123456789abcdef')
+     assert not any(Path(path).is_relative_to(Path(item).parent) for item in bindings['completed_packages'])
+-old = (ROOT / 'artifacts/css-research-checkpoint-20261103-v124/commit.py').read_text()
++old = (ROOT / 'artifacts/css-research-checkpoint-20261103-v125/commit.py').read_text()
+ new = (HERE / 'commit.py').read_text()
+ marker = "    controls = {name: (RUNTIME / name).read_bytes()"
+-assert old[old.index(marker):].replace('v124','v125').replace('V124','V125').replace('No bug - Record validated attribute taint repairs and publication evidence.', 'No bug - Record validated attribute-taint and root-font animation repair research.') == new[new.index(marker):]
+-assert (HERE / 'capture_current.py').read_bytes() == (ROOT / 'artifacts/css-research-checkpoint-20261103-v124/capture_current.py').read_bytes()
++assert old[old.index(marker):].replace('v125','v126').replace('V125','V126').replace('No bug - Record validated attribute-taint and root-font animation repair research.', 'No bug - Record CSS substitution and animation verification research.') == new[new.index(marker):]
++assert (HERE / 'capture_current.py').read_bytes() == (ROOT / 'artifacts/css-research-checkpoint-20261103-v125/capture_current.py').read_bytes()
+ assert list(m.manifest_items({'files':[{'path':'proof','sha256':'x'}]})) == [('proof',{'path':'proof','sha256':'x'})]
+ try:
+     m.manifest_items({'files':[{'path':'proof','sha256':'x'},{'path':'proof','sha256':'y'}]})
+@@ -70,7 +70,7 @@
+ self_end = new.index("    for path in extras:", self_start)
+ import textwrap
+ self_block = textwrap.dedent(new[self_start:self_end])
+-with tempfile.TemporaryDirectory(prefix='css-research-v125-self-check-', dir='/private/tmp') as temporary:
++with tempfile.TemporaryDirectory(prefix='css-research-v126-self-check-', dir='/private/tmp') as temporary:
+     own = Path(temporary)
+     entries = {}
+     for name in ('commit.py', 'CHECK-FINAL.log', 'SELECTION-ADDITION.json'):
+@@ -90,50 +90,10 @@
+     except AssertionError: pass
+     else: raise AssertionError('Changed owner payload accepted')
+ assert not own.exists()
+-if bindings['pending_current_admission']:
+-    assert bindings['current_capture_sha256'] is None and bindings['controls'] == {}
+-    conditions = json.loads((HERE / 'PRECONDITIONS.json').read_bytes())
+-    assert conditions['pending_new_raw_refresh'] is False
+-    assert bindings['epoch_sha256'] == conditions['current_epoch_sha256']
+-    assert bindings['refresh_binding'] == conditions['actual_new_refresh']
+-    receipt = json.loads((ROOT / bindings['prior_receipt']).read_bytes())
+-    assert m.validate_refresh(receipt)['index']['head'] == bindings['head']
+-    try:
+-        m.saved_admission()
+-    except AssertionError:
+-        pass
+-    else:
+-        raise AssertionError('Pending admission accepted')
+-    sys.argv = [str(HERE / 'commit.py'), '--run']
+-    try:
+-        m.main()
+-    except AssertionError as exc:
+-        assert str(exc) == 'Draft signing execution is disabled'
+-    else:
+-        raise AssertionError('Disabled draft execution accepted')
+-    print(json.dumps({'preparation_only':True,'pending_current_admission_rejected':True,'actual_completed_refresh_verified':True,'disabled_run_rejected':True,'selected':len(selected),'bytes':sum(row['bytes'] for row in selected.values()),'closures':len(bindings['completed_packages']),'exact_v124_tail':True}))
+-    raise SystemExit(0)
+-assert m.saved_admission()['index']['head'] == bindings['head']
+-original_git = m.git
+-m.git = lambda *a, **k: (_ for _ in ()).throw(AssertionError('Unexpected live Git invocation'))
+-saved_argv = sys.argv
+-try:
+-    sys.argv = [str(HERE / 'commit.py'), '--run']
+-    try:
+-        m.main()
+-    except AssertionError as exc:
+-        assert str(exc) == 'Draft signing execution is disabled'
+-    else:
+-        raise AssertionError('Disabled execution accepted')
+-finally:
+-    sys.argv = saved_argv
+-    m.git = original_git
+-current = json.loads((ROOT / bindings['current_capture']).read_bytes())
+ receipt = json.loads((ROOT / bindings['prior_receipt']).read_bytes())
+-research = json.loads((ROOT / bindings['prior_research_receipt']).read_bytes())
+ original_refresh = m.validate_refresh
+ refreshed = original_refresh(receipt)
+-with tempfile.TemporaryDirectory(prefix='css-research-v125-refresh-check-') as temporary:
++with tempfile.TemporaryDirectory(prefix='css-research-v126-refresh-check-') as temporary:
+     scratch = Path(temporary)
+     source = ROOT / bindings['refresh_binding']['directory']
+     for name in ['RESULT.json', 'PRE-CURRENT-EPOCH.json', 'EPOCH.json', 'PRE.json', 'POST.json']:
+@@ -159,8 +119,49 @@
+             raise AssertionError('Accepted refresh mutation: ' + field)
+     m.BINDINGS = bindings
+ assert not scratch.exists()
++if bindings['pending_current_admission']:
++    assert bindings['current_capture_sha256'] is None and bindings['controls'] == {}
++    conditions = json.loads((HERE / 'PRECONDITIONS.json').read_bytes())
++    assert conditions['pending_new_raw_refresh'] is False
++    assert bindings['epoch_sha256'] == conditions['current_epoch_sha256']
++    assert bindings['refresh_binding'] == conditions['actual_new_refresh']
++    receipt = json.loads((ROOT / bindings['prior_receipt']).read_bytes())
++    assert refreshed['index']['head'] == bindings['head']
++    try:
++        m.saved_admission()
++    except AssertionError:
++        pass
++    else:
++        raise AssertionError('Pending admission accepted')
++    sys.argv = [str(HERE / 'commit.py'), '--run']
++    try:
++        m.main()
++    except AssertionError as exc:
++        assert str(exc) == 'Draft signing execution is disabled'
++    else:
++        raise AssertionError('Disabled draft execution accepted')
++    print(json.dumps({'preparation_only':True,'pending_current_admission_rejected':True,'actual_completed_refresh_verified':True,'disabled_run_rejected':True,'selected':len(selected),'bytes':sum(row['bytes'] for row in selected.values()),'closures':len(bindings['completed_packages']),'exact_v125_tail':True,'refresh_copy_positive':True,'refresh_negatives':4,'scratch_removed':True}))
++    raise SystemExit(0)
++assert m.saved_admission()['index']['head'] == bindings['head']
++original_git = m.git
++m.git = lambda *a, **k: (_ for _ in ()).throw(AssertionError('Unexpected live Git invocation'))
++saved_argv = sys.argv
++try:
++    sys.argv = [str(HERE / 'commit.py'), '--run']
++    try:
++        m.main()
++    except AssertionError as exc:
++        assert str(exc) == 'Draft signing execution is disabled'
++    else:
++        raise AssertionError('Disabled execution accepted')
++finally:
++    sys.argv = saved_argv
++    m.git = original_git
++current = json.loads((ROOT / bindings['current_capture']).read_bytes())
++receipt = json.loads((ROOT / bindings['prior_receipt']).read_bytes())
++research = json.loads((ROOT / bindings['prior_research_receipt']).read_bytes())
+ m.validate_refresh = lambda receipt: refreshed
+-with tempfile.TemporaryDirectory(prefix='css-research-v125-check-') as temporary:
++with tempfile.TemporaryDirectory(prefix='css-research-v126-check-') as temporary:
+     scratch = Path(temporary)
+     for label, target, field, value in [
+         ('unsigned_native', 'receipt', 'signature_verified', False),
+@@ -196,4 +197,4 @@
+     m.ROOT, m.BINDINGS = ROOT, bindings
+ assert not scratch.exists()
+ m.validate_refresh = original_refresh
+-print(json.dumps({'refresh_copy_positive':True, 'refresh_negatives':4, 'admission_negatives_scope':'native/current schema isolated from separately checked refresh join', 'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'binding_negatives':11, 'disabled_execution_rejected':True, 'exact_v124_publication_tail':True, 'scratch_removed':True}))
++print(json.dumps({'refresh_copy_positive':True, 'refresh_negatives':4, 'admission_negatives_scope':'native/current schema isolated from separately checked refresh join', 'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'binding_negatives':11, 'disabled_execution_rejected':True, 'exact_v125_publication_tail':True, 'scratch_removed':True}))

@@ -1,0 +1,19 @@
+--- executed/delivery.py
++++ fallback/delivery.py
+@@ -18,14 +18,14 @@
+ 
+ def verify_entries(serialized, tests_root, files):
+     assert set(serialized['items']) == {'testharness'}
+-    entries = serialized['items']['testharness']['css']['css-cascade']
++    entries = serialized['items']['testharness']['css']['css-values']
+     assert set(entries) == {Path(name).name for name in files}
+     for name, pin in files.items():
+         path = ROOT / name
+         body = path.read_bytes()
+         assert sha(path) == pin
+         blob = hashlib.sha1(b'blob ' + str(len(body)).encode() + b'\0' + body).hexdigest()
+-        assert entries[path.name] == [blob, [None, {}]]
++        assert entries[path.name] == [blob, [None, {'timeout': 'long'}]]
+     return sorted('/' + str((ROOT / name).relative_to(tests_root)) for name in files)
+ 
+ 

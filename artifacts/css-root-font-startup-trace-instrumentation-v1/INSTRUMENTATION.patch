@@ -1,0 +1,316 @@
+--- a/servo/components/style/traversal.rs
++++ b/servo/components/style/traversal.rs
+@@ -366,6 +366,17 @@
+             .intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
+         && element.has_animations(context.shared);
+     let restyle_kind = data.restyle_kind(context.shared, has_animations);
++    if std::env::var_os("MOZ_ROOT_FONT_STARTUP_TRACE").is_some() {
++        eprintln!(
++            "RFST restyle node={:#x} flags={:?} hint={:?} kind={:?} admitted_animation={} thread={:?}",
++            element.as_node().opaque().0,
++            flags,
++            data.hint,
++            restyle_kind,
++            has_animations,
++            std::thread::current().id()
++        );
++    }
+     debug!(
+         "recalc_style_at: {:?} (restyle_kind={:?}, dirty_descendants={:?}, data={:?})",
+         element,
+--- a/servo/components/style/gecko/traversal.rs
++++ b/servo/components/style/gecko/traversal.rs
+@@ -45,10 +45,27 @@
+         if let Some(el) = node.as_element() {
+             let mut data = unsafe { el.ensure_data() };
+             let child_hint = recalc_style_at(self, context, el, &mut data, note_child);
++            if std::env::var_os("MOZ_ROOT_FONT_STARTUP_TRACE").is_some() {
++                eprintln!(
++                    "RFST returned node={:#x} flags={:?} hint={:?} thread={:?}",
++                    el.as_node().opaque().0,
++                    self.shared.traversal_flags,
++                    child_hint,
++                    std::thread::current().id()
++                );
++            }
+             if self.shared.traversal_flags.for_animation_only()
+                 && child_hint.intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
+             {
+                 self.normal_descendant_restyle.store(true, Ordering::Relaxed);
++                if std::env::var_os("MOZ_ROOT_FONT_STARTUP_TRACE").is_some() {
++                    eprintln!(
++                        "RFST signal node={:#x} flags={:?} thread={:?}",
++                        el.as_node().opaque().0,
++                        self.shared.traversal_flags,
++                        std::thread::current().id()
++                    );
++                }
+             }
+         }
+     }
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -305,7 +305,17 @@
+ 
+     let token = RecalcStyleOnly::pre_traverse(element, &shared_style_context);
+ 
+-    if !token.should_traverse() {
++    let should_traverse = token.should_traverse();
++    if std::env::var_os("MOZ_ROOT_FONT_STARTUP_TRACE").is_some() {
++        eprintln!(
++            "RFST entry node={:#x} flags={:?} should={} thread={:?}",
++            element.as_node().opaque().0,
++            traversal_flags,
++            should_traverse,
++            std::thread::current().id()
++        );
++    }
++    if !should_traverse {
+         return;
+     }
+ 
+@@ -322,7 +332,17 @@
+ 
+     let traversal = RecalcStyleOnly::new(shared_style_context);
+     let root = driver::traverse_dom(&traversal, token, thread_pool);
+-    if traversal.needs_normal_descendant_restyle() {
++    let normal_descendant_restyle = traversal.needs_normal_descendant_restyle();
++    if std::env::var_os("MOZ_ROOT_FONT_STARTUP_TRACE").is_some() {
++        eprintln!(
++            "RFST joined node={:#x} flags={:?} signal={} thread={:?}",
++            root.as_node().opaque().0,
++            traversal_flags,
++            normal_descendant_restyle,
++            std::thread::current().id()
++        );
++    }
++    if normal_descendant_restyle {
+         let mut has_styled_child = false;
+         for child_node in root.traversal_children() {
+             let Some(child) = child_node.as_element() else {
+@@ -339,9 +359,25 @@
+                 .hint
+                 .insert(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT);
+             has_styled_child = true;
++            if std::env::var_os("MOZ_ROOT_FONT_STARTUP_TRACE").is_some() {
++                eprintln!(
++                    "RFST seed root={:#x} child={:#x} hint={:?} thread={:?}",
++                    root.as_node().opaque().0,
++                    child.as_node().opaque().0,
++                    child_data.hint,
++                    std::thread::current().id()
++                );
++            }
+         }
+         if has_styled_child {
+             unsafe { root.set_dirty_descendants() };
++            if std::env::var_os("MOZ_ROOT_FONT_STARTUP_TRACE").is_some() {
++                eprintln!(
++                    "RFST normal-dirty node={:#x} thread={:?}",
++                    root.as_node().opaque().0,
++                    std::thread::current().id()
++                );
++            }
+         }
+     }
+ }
+@@ -7652,6 +7688,18 @@
+                     }
+                     seen.insert(property);
+ 
++                    if std::env::var_os("MOZ_ROOT_FONT_STARTUP_TRACE").is_some() {
++                        if let Some(AnimationValue::FontSize(size)) = value.as_ref() {
++                            eprintln!(
++                                "RFST converted-font node={:#x} keyframe={} px={} thread={:?}",
++                                element.as_node().opaque().0,
++                                index,
++                                size.px(),
++                                std::thread::current().id()
++                            );
++                        }
++                    }
++
+                     animation_values.push(structs::PropertyStyleAnimationValuePair {
+                         mProperty: property.to_gecko_css_property_id(),
+                         mValue: structs::AnimationValue {
+--- a/servo/components/style/matching.rs
++++ b/servo/components/style/matching.rs
+@@ -13,9 +13,7 @@
+ use crate::context::{ElementCascadeInputs, QuirksMode};
+ use crate::context::{SharedStyleContext, StyleContext};
+ use crate::data::{ElementData, ElementStyles};
+-use crate::dom::TElement;
+-#[cfg(feature = "servo")]
+-use crate::dom::TNode;
++use crate::dom::{TElement, TNode};
+ use crate::invalidation::element::restyle_hints::RestyleHint;
+ use crate::properties::ComputedValues;
+ use crate::properties::PropertyDeclarationBlock;
+@@ -448,6 +446,14 @@
+ 
+         let old_values = &old_styles.primary;
+         if context.shared.traversal_flags.for_animation_only() && old_values.is_some() {
++            if std::env::var_os("MOZ_ROOT_FONT_STARTUP_TRACE").is_some() {
++                eprintln!(
++                    "RFST skip-existing-animation node={:#x} flags={:?} thread={:?}",
++                    self.as_node().opaque().0,
++                    context.shared.traversal_flags,
++                    std::thread::current().id()
++                );
++            }
+             return;
+         }
+ 
+@@ -530,6 +536,15 @@
+             }
+         }
+ 
++        if std::env::var_os("MOZ_ROOT_FONT_STARTUP_TRACE").is_some() {
++            eprintln!(
++                "RFST tasks node={:#x} flags={:?} mask={:#x} thread={:?}",
++                self.as_node().opaque().0,
++                context.shared.traversal_flags,
++                tasks.bits(),
++                std::thread::current().id()
++            );
++        }
+         if !tasks.is_empty() {
+             let task = crate::context::SequentialTask::update_animations(
+                 *self,
+@@ -1043,7 +1058,19 @@
+             // Update root font size for rem units
+             if font_size_changed {
+                 let size = new_font_size.computed_size();
+-                device.set_root_font_size(new_primary_style.effective_zoom.unzoom(size.px()));
++                let root_size = new_primary_style.effective_zoom.unzoom(size.px());
++                device.set_root_font_size(root_size);
++                if std::env::var_os("MOZ_ROOT_FONT_STARTUP_TRACE").is_some() {
++                    eprintln!(
++                        "RFST root-published node={:#x} flags={:?} px={} old_computed_px={:?} device={:p} thread={:?}",
++                        self.as_node().opaque().0,
++                        context.shared.traversal_flags,
++                        root_size,
++                        old_font_size.map(|size| size.computed_size().px()),
++                        device,
++                        std::thread::current().id()
++                    );
++                }
+             }
+ 
+             // Update root line height for rlh units
+@@ -1088,6 +1115,15 @@
+             device.set_body_text_color(text_color);
+         }
+ 
++        if std::env::var_os("MOZ_ROOT_FONT_STARTUP_TRACE").is_some() {
++            eprintln!(
++                "RFST finish node={:#x} flags={:?} hint={:?} thread={:?}",
++                self.as_node().opaque().0,
++                context.shared.traversal_flags,
++                child_restyle_hint,
++                std::thread::current().id()
++            );
++        }
+         // Don't accumulate damage if we're in the final animation traversal.
+         if context
+             .shared
+--- a/servo/components/style/values/specified/length.rs
++++ b/servo/components/style/values/specified/length.rs
+@@ -860,6 +860,17 @@
+                         .root_font_size()
+                         .zoom(context.builder.effective_zoom)
+                 };
++                if std::env::var_os("MOZ_ROOT_FONT_STARTUP_TRACE").is_some() {
++                    eprintln!(
++                        "RFST rem-basis root_context={} media={} reference_px={} factor={} device={:p} thread={:?}",
++                        context.builder.is_root_element,
++                        context.in_media_query,
++                        reference_size.px(),
++                        length,
++                        context.device(),
++                        std::thread::current().id()
++                    );
++                }
+                 (reference_size, length)
+             },
+             LengthUnit::Rlh => {
+--- a/layout/style/GeckoBindings.cpp
++++ b/layout/style/GeckoBindings.cpp
+@@ -5,6 +5,9 @@
+ /* FFI functions for Servo to call into Gecko */
+ 
+ #include "mozilla/GeckoBindings.h"
++
++#include <cstdio>
++#include <cstdlib>
+ 
+ #include "AnchorPositioningUtils.h"
+ #include "ChildIterator.h"
+@@ -536,6 +539,14 @@
+ 
+   const auto [element, pseudoRequest] =
+       AnimationUtils::GetElementPseudoPair(aElement);
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    std::fprintf(stderr, "RFST delivery input_node=%p target_node=%p pseudo=%u mask=%u style=%p\n",
++                 static_cast<const void*>(static_cast<const nsINode*>(aElement)),
++                 static_cast<const void*>(static_cast<const nsINode*>(element)),
++                 unsigned(pseudoRequest.mType),
++                 unsigned(aTasks),
++                 static_cast<const void*>(aComputedData));
++  }
+ 
+   // Handle timeline scopes first, because our own scroll/view-linked animations
+   // may be affected.
+@@ -586,6 +597,12 @@
+   }
+ 
+   if (aTasks & UpdateAnimationsTasks::EffectProperties) {
++    if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++      std::fprintf(stderr, "RFST effect-properties target_node=%p pseudo=%u style=%p\n",
++                   static_cast<const void*>(static_cast<const nsINode*>(element)),
++                   unsigned(pseudoRequest.mType),
++                   static_cast<const void*>(aComputedData));
++    }
+     presContext->EffectCompositor()->UpdateEffectProperties(
+         aComputedData, const_cast<Element*>(element), pseudoRequest);
+   }
+--- a/dom/animation/KeyframeEffect.cpp
++++ b/dom/animation/KeyframeEffect.cpp
+@@ -3,6 +3,9 @@
+  * You can obtain one at http://mozilla.org/MPL/2.0/. */
+ 
+ #include "mozilla/dom/KeyframeEffect.h"
++
++#include <cstdio>
++#include <cstdlib>
+ 
+ #include "mozilla/dom/Animation.h"
+ #include "mozilla/dom/DocumentInlines.h"
+@@ -440,6 +443,13 @@
+                                       const AnimationTimeline* aTimeline) {
+   MOZ_ASSERT(aStyle);
+ 
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    std::fprintf(stderr, "RFST build-properties effect=%p target_node=%p pseudo=%u style=%p\n",
++                 static_cast<const void*>(this),
++                 static_cast<const void*>(static_cast<const nsINode*>(mTarget.mElement.get())),
++                 unsigned(mTarget.mPseudoRequest.mType),
++                 static_cast<const void*>(aStyle));
++  }
+   bool referencesAttributes = false;
+   nsTArray<AnimationProperty> properties = BuildProperties(
+       aStyle,
+@@ -480,6 +490,13 @@
+ 
+   mReferencesAttributes = referencesAttributes;
+ 
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    std::fprintf(stderr, "RFST built-properties effect=%p changed=%u base_changed=%u count=%zu\n",
++                 static_cast<const void*>(this),
++                 unsigned(propertiesChanged),
++                 unsigned(baseStylesChanged),
++                 size_t(properties.Length()));
++  }
+   if (!propertiesChanged) {
+     if (baseStylesChanged) {
+       RequestRestyle(EffectCompositor::RestyleType::Layer);

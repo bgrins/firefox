@@ -1,0 +1,88 @@
+--- artifacts/css-keyframe-font-unit-publication-v1/run.py
++++ artifacts/css-selective-cancellation-after-font-publication-v1/run.py
+@@ -52,6 +52,22 @@
+     claim = owner.claim(root, path, pin, captured['identity'])
+     assert claim == captured
+     return claim
++
++
++INSTALLED_SOURCES = {'servo/components/style/traversal.rs', 'servo/ports/geckolib/glue.rs'}
++UNINSTALLED_SOURCE = 'servo/components/style/gecko/traversal.rs'
++
++
++def claim_source(owner, root, epoch, ownership, path, pin, captured):
++    if path == UNINSTALLED_SOURCE:
++        return claim_uninstalled_source(owner, root, epoch, ownership, path, pin, captured)
++    assert path in INSTALLED_SOURCES
++    assert epoch['pins'][path] == pin
++    assert captured['path'] == path and captured['owned_sha256'] == pin
++    assert epoch['installed_identities'][path] == captured['identity']
++    assert ownership[path] == captured
++    assert owner.claim(root, path, pin, captured['identity']) == captured
++    return captured
+ 
+ 
+ def main():
+@@ -79,15 +95,12 @@
+     assert git('rev-parse', 'HEAD').decode().strip() == binding['head']
+     assert git('symbolic-ref', 'HEAD').decode().strip() == binding['branch']
+     prior = authenticated_receipt(binding, 'predecessor_receipt')
+-    assert prior['head'] == binding['head'] and prior['signature_verified']
+-    assert prior['committed'] and prior['accepted_fix_increment'] == 0 and prior['native_working_diff_preserved']
+-    assert binding['predecessor_kind'] == 'signed-research' and stage['stage'] == 'font-units'
+-    evidence = load('nowrap_pair_evidence', HERE / 'evidence.py')
++    assert binding['predecessor_kind'] == 'signed-font-unit-native' and stage['stage'] == 'selective-cancellation'
++    evidence = load('cancellation_evidence', HERE / 'evidence.py')
+     observed = evidence.verify(ROOT, policy['pair_binding'], stage)
+-    pair_head = observed['pair_head']
+-    assert not git('merge-base', '--is-ancestor', pair_head, binding['head'])
+-    assert all(path.startswith('artifacts/') for path in git('diff', '--name-only', pair_head, binding['head']).decode().splitlines())
+-    git('-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / policy['allowed_signers']), 'verify-commit', binding['head'])
++    evidence.require_font_receipt(prior, observed['font_stage'])
++    assert prior == observed['font_native'] and prior['commit'] == binding['head']
++    evidence.verify_font_history(git, policy['allowed_signers'], prior, observed['font_stage'], observed['tested_head'])
+     controls = {n: (RUNTIME / n).read_bytes() for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+     assert {n: digest(b) for n, b in controls.items()} == binding['controls']
+     epoch, ownership, role = (json.loads(controls[n]) for n in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json'))
+@@ -106,7 +119,7 @@
+     owner.quiescent(RUNTIME)
+     owner.quiescent(ROOT / 'artifacts/css-page-selector-native-runtime-v1')
+     output = ROOT / policy['runtime_output']
+-    assert output.parent == ROOT / 'artifacts' and output.name.startswith('css-keyframe-font-unit-publication-')
++    assert output.parent == ROOT / 'artifacts' and output.name.startswith('css-selective-cancellation-publication-')
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not os.path.lexists(lock)
+     sources = set(stage['head_preimages'])
+@@ -121,11 +134,11 @@
+         assert prior['epoch_sha256'] == binding['controls']['CURRENT-EPOCH.json']
+         assert set(binding['adopted_tests']) == adopted_paths
+         assert set(binding['created_test_parents']) == created_paths
+-        assert set(binding['uninstalled_sources']) == sources
++        assert set(binding['source_claims']) == sources
+         for path in sources:
+             pin = stage.get('working_preimages', stage['head_preimages'])[path]
+-            source_claims[path] = claim_uninstalled_source(owner, ROOT, epoch, ownership, path,
+-                                                          pin, binding['uninstalled_sources'][path])
++            source_claims[path] = claim_source(owner, ROOT, epoch, ownership, path,
++                                               pin, binding['source_claims'][path])
+         for path in tests:
+             assert epoch['pins'].get(path) is None
+             assert path not in epoch['installed_identities'] and path not in ownership
+@@ -144,7 +157,7 @@
+         assert installed['stage'] == stage['stage'] and installed['installed'] and not installed['app_rebuilt']
+         assert installed['manifest_sha256'] == binding['installation_manifest']
+         assert installed['epoch_sha256'] == binding['controls']['CURRENT-EPOCH.json']
+-        assert epoch['keyframe_font_unit_publication'][stage['stage']]['installation_manifest'] == binding['installation_manifest']
++        assert epoch['selective_cancellation_publication'][stage['stage']]['installation_manifest'] == binding['installation_manifest']
+         assert epoch['modified_native_paths'] == sorted(sources)
+         for path, record in stage['files'].items():
+             assert epoch['pins'][path] == record['sha256']
+@@ -216,7 +229,7 @@
+                  'files': sorted(stage['files']), 'app_rebuilt': False, 'existing_tests_adopted_without_write': sorted(adopted_paths), 'new_tests_created': sorted(created_paths)})
+             safe = True
+         else:
+-            with tempfile.TemporaryDirectory(prefix='css-keyframe-font-unit-native-', dir='/private/tmp') as temporary:
++            with tempfile.TemporaryDirectory(prefix='css-selective-cancellation-native-', dir='/private/tmp') as temporary:
+                 temporary = Path(temporary)
+                 index_env = dict(ENV, GIT_INDEX_FILE=str(temporary / 'index'))
+                 git('read-tree', binding['head'], env=index_env)

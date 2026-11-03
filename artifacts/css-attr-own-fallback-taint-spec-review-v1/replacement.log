@@ -1,0 +1,49 @@
+# CSS-VALUES-5#replace-an-attr-function
+
+**replace an attr() function** (algorithm)
+
+**SHA**: hash:7df0e6d52900e24c676072c1398b10403261e3a0f92ec146af8e5b038f4ed621
+
+## Content
+
+To **[replace an attr() function](CSS-VALUES-5#replace-an-arbitrary-substitution-function)**, given a list of *arguments*:
+
+1. Let *el* be the element that the style containing the [attr()](CSS-VALUES-5#funcdef-attr) function is being applied to. Let *first arg* be the first [\<declaration-value>](CSS-SYNTAX-3#typedef-declaration-value) in *arguments*. Let *second arg* be the \<declaration-value>? passed after the comma, or null if there was no comma.
+2. [Substitute arbitrary substitution functions](CSS-VALUES-5#substitute-arbitrary-substitution-function) in *first arg*, then [parse](CSS-SYNTAX-3#css-parse-something-according-to-a-css-grammar) it as [\<attr-name>](CSS-VALUES-5#typedef-attr-name) [\<attr-type>](CSS-VALUES-5#typedef-attr-type)?. If that returns failure, jump to the last step (labeled FAILURE). Otherwise, let *attr name* and *syntax* be the results of parsing (with *syntax* being null if [\<attr-type>](CSS-VALUES-5#typedef-attr-type) was omitted), processed as specified in the definition of those arguments.
+3. If *attr name* exists as an attribute on *el*, let *attr value* be its value; otherwise jump to the last step (labeled FAILURE).
+4. If *syntax* is the keyword number or an [\<attr-unit>](CSS-VALUES-5#typedef-attr-unit) value, parse *attr value* against [\<attr-type>](CSS-VALUES-5#typedef-attr-type). If that succeeds, return the result; otherwise, jump to the last step (labeled FAILURE).
+
+    > **Note:** Note: No parsing or modification of any kind is performed on the value.
+5. If *syntax* is null or the keyword raw-string, return a CSS [\<string>](CSS-VALUES-4#string-value) whose value is *attr value*.
+
+    > **Note:** Note: No parsing or modification of any kind is performed on the value.
+6. [Substitute arbitrary substitution functions](CSS-VALUES-5#substitute-arbitrary-substitution-function) in *attr value*, with «"attribute", *attr name*» as the [substitution context](CSS-VALUES-5#substitution-context), then [parse with a \<syntax>](CSS-VALUES-5#parse-with-a-syntax) *attr value*, with *syntax* and *el*. If that succeeds, return the result; otherwise, jump to the last step (labeled FAILURE).
+7. **FAILURE:**
+
+    1. If *second arg* is null, and *syntax* was omitted, return an empty CSS [\<string>](CSS-VALUES-4#string-value).
+    2. If *second arg* is null, return the [guaranteed-invalid value](CSS-VARIABLES-2#guaranteed-invalid-value).
+    3. [Substitute arbitrary substitution functions](CSS-VALUES-5#substitute-arbitrary-substitution-function) in *second arg*, and return the result.
+
+## Navigation
+
+- Parent: `attr-substitution` — Substitution
+
+## Outgoing refs (12)
+
+`webspec-index refs CSS-VALUES-5#replace-an-attr-function -d outgoing -l 12`
+
+## Incoming refs (1)
+
+- CSS-VALUES-5#index-defined-here
+
+### Possible effects
+
+CSS-VALUES-5#replace-an-attr-function
+
+Partial analysis: additional effects may exist.
+
+No effects detected by this analysis.
+
+Traces and conditions (bounded): `webspec-index effects "CSS-VALUES-5#replace-an-attr-function" --format markdown`
+
+Makes 5 calls: `webspec-index state CSS-VALUES-5#replace-an-attr-function --calls`

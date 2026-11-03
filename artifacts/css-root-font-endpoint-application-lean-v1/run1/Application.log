@@ -1,0 +1,58 @@
+Application.lean:53:4: error: Type mismatch: After simplification, term
+  ⟨installed, ⟨jobs, covered⟩⟩
+ has type
+  s.installed.generation ≤ s.endpoint.generation ∧
+    (∀ (r : Version),
+        r ∈ s.queue → r.generation ≤ s.endpoint.generation ∧ (r.generation = s.endpoint.generation → r = s.endpoint)) ∧
+      (s.installed = s.endpoint ∨ s.endpoint ∈ s.queue)
+but is expected to have type
+  valid s
+Application.lean:83:13: error: Application type mismatch: The argument
+  jobValid.left
+has type
+  job.generation ≤ { endpoint := endpoint, installed := installed, queue := job :: rest }.endpoint.generation
+but is expected to have type
+  endpoint.generation ≤ endpoint.generation
+in the application
+  And.intro jobValid.left
+Application.lean:129:28: error: Application type mismatch: The argument
+  trivial
+has type
+  True
+but is expected to have type
+  ∀ (r : Version), True
+in the application
+  And.intro trivial
+Application.lean:129:16: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  (drain s).installed
+in the target expression
+  (drainValues s.endpoint s.installed s.queue).generation ≤ s.endpoint.generation
+
+s : State
+h : valid s
+installed : (drain s).installed = (drain s).endpoint
+⊢ (drainValues s.endpoint s.installed s.queue).generation ≤ s.endpoint.generation
+Application.lean:128:60: warning: This simp argument is unused:
+  forall_const
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [valid, drain, List.not_mem_nil, false_implies]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+Application.lean:184:2: error: failed to synthesize
+  Decidable
+    (valid twoPasses ∧
+      twoPasses.endpoint.value = 64 ∧
+        twoPasses.installed.value = 46 ∧ twoPasses.queue = [{ generation := 1, value := 64 }] ∧ ¬ready twoPasses)
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+Application.lean:196:2: error: failed to synthesize
+  Decidable (ready (pass none twoPasses) ∧ (pass none twoPasses).installed.value = 64)
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+Application.lean:204:2: error: failed to synthesize
+  Decidable
+    ((dispatch staleThenCurrent).installed.value = 46 ∧
+      ready (dispatch (dispatch staleThenCurrent)) ∧ (dispatch (dispatch staleThenCurrent)).installed.value = 64)
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.

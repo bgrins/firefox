@@ -1,0 +1,22 @@
+--- artifacts/css-root-font-cancellation-native-root-audit-v2/audit.py
++++ artifacts/css-root-font-cancellation-archive-root-audit-v1/audit.py
+@@ -9,8 +9,8 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ ROOT = Path(__file__).resolve().parents[2]
+ HERE = Path(__file__).resolve().parent
+-OWNER = ROOT / "artifacts/css-root-font-cancellation-candidate-browser-v2"
+-RUNTIME = ROOT / "artifacts/css-root-font-cancellation-candidate-browser-runtime-v1"
++OWNER = ROOT / "artifacts/css-root-font-cancellation-archive-candidate-browser-v2"
++RUNTIME = ROOT / "artifacts/css-root-font-cancellation-archive-candidate-browser-runtime-v1"
+ CANONICAL = ROOT / "artifacts/css-registered-number-native-runtime-v1"
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+ read = lambda path: json.loads(path.read_bytes())
+@@ -166,6 +166,8 @@
+           "raw_wpt_observation": raw_observation, "saved_assessment_replayed": assessment_replayed,
+           "owner_success_scope": "complete observation and restoration; callback PASS and baseline comparison are separate",
+           "native_acceptance": False}
++archive_audit = load('archive_handoff_audit', HERE / 'archive_audit.py')
++report['archive_observation'] = archive_audit.verify_archive(ROOT, RUNTIME, policy, roles, claims, result, binding)
+ with (RUNTIME / "ROOT-LIVE-RESTORATION.json").open("x") as stream:
+     json.dump(report, stream, indent=2)
+     stream.write("\n")

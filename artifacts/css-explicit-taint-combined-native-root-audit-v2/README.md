@@ -1,0 +1,1 @@
+Root-bound execution of the unchanged reviewed audit-v1 script, following actual owner terminal e92cbf/session97438/4dee11/exit0. Root read the complete audit in36bcd4. Only actual terminal/result/group/active-owner bindings replace the disabled template. This audit checks restoration and raw replay; native acceptance remains separate.

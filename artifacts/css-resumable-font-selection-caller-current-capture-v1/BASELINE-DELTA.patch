@@ -1,0 +1,52 @@
+--- artifacts/css-font-size-form-diagnostic-native-current-capture-v1/baseline.py
++++ artifacts/css-resumable-font-selection-caller-current-capture-v1/baseline.py
+@@ -68,9 +68,39 @@
+     research = core.read(ROOT / binding['research_parent_receipt'])
+     assert research['committed'] and research['signature_verified']
+     assert receipt['parent'] == research['head'] == binding['native_parent']
+-    return {'head': receipt['commit'], 'epoch_sha256': receipt['epoch_sha256'],
++    expected = validate_refresh(receipt)
++    return {'head': receipt['commit'], 'epoch_sha256': binding['current_epoch_sha256'],
+             'committed': True, 'signature_verified': True,
+-            'authority_kind': 'internal-observed-head-from-native-receipt'}
++            'authority_kind': 'internal-observed-head-from-native-receipt-and-raw-refresh'}
++
++
++def validate_refresh(receipt):
++    record = binding['refresh_validator']
++    directory = ROOT / record['directory']
++    assert core.sha(directory / 'commit.py') == record['driver_sha256']
++    assert core.sha(directory / 'BINDINGS.json') == record['bindings_sha256']
++    spec = importlib.util.spec_from_file_location('saved_native_raw_bridge', directory / 'commit.py')
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    assert module.BINDINGS['prior_receipt'] == binding['native_receipt']
++    assert module.BINDINGS['prior_receipt_sha256'] == core.sha(ROOT / binding['native_receipt'])
++    assert module.BINDINGS['refresh_binding'] == binding['refresh_binding']
++    assert module.HEAD == receipt['commit'] and module.EPOCH == binding['current_epoch_sha256']
++    ownership = core.load('capture_refresh_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')
++    ownership.authenticate(ROOT / binding['refresh_binding']['directory'], binding['refresh_manifest_sha256'])
++    return module.validate_refresh(receipt)
++
++
++def claim_additional_sources(ownership, state, env, epoch, head):
++    assert set(binding['additional_sources']) == {'servo/components/style/properties/mod.rs'}
++    result = {}
++    for name, record in binding['additional_sources'].items():
++        assert name not in epoch['pins'] and name not in epoch['installed_identities']
++        assert core.sha(ROOT / record['base_capture']) == record['base_sha256']
++        result[name] = ownership.claim(ROOT, name, record['base_sha256'])
++        assert hashlib.sha256(state.h.git(ROOT, env, 'show', head + ':' + name)).hexdigest() == record['base_sha256']
++    return result
++
+ 
+ 
+ def observe(policy, ownership, roles, checkpoint):
+@@ -78,6 +108,7 @@
+     checkpoint = native_head_view(native_receipt)
+     result = core.observe(policy, ownership, roles, checkpoint)
+     state, env, controls, epoch, role, sources, flags, snapshot = result
++    assert snapshot == validate_refresh(native_receipt)
+     assert state.h.git(ROOT, env, 'rev-parse', checkpoint['head'] + '^').decode().strip() == binding['native_parent']
+     assert state.h.git(ROOT, env, 'diff-tree', '--no-commit-id', '--name-only', '-r', checkpoint['head']).decode().splitlines() == native_receipt['files']
+     state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', binding['native_parent'])

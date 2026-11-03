@@ -1,0 +1,13 @@
+{
+  "cascade": "artifacts/css-resumable-minimum-font-crash-diagnostic-v1/candidate/servo/components/style/properties/cascade.rs",
+  "cascade_sha256": "7523b7c0537358edfed1c6a1816163e18c6c55549b2d33058a4b471809ec938c",
+  "provider": "artifacts/css-resumable-minimum-font-crash-diagnostic-v1/candidate/servo/components/style/custom_properties.rs",
+  "provider_sha256": "52a350227dd89b106c775b99df988b060baa5444c008de85ae7601b0280e4288",
+  "exact_items": [
+    "fn is_synthesis_longhand(id: LonghandId) -> bool {\n    matches!(\n        id,\n        LonghandId::FontSynthesisWeight\n            | LonghandId::FontSynthesisStyle\n            | LonghandId::FontSynthesisSmallCaps\n            | LonghandId::FontSynthesisPosition\n    )\n}",
+    "fn font_publication_demand(\n        demand: FontDependencyDemand,\n        complete: &PrioritaryPropertyIdSet,\n        unprepared_font_inputs: Option<LonghandId>,\n    ) -> PublicationDemand {\n        use PrioritaryPropertyId::*;\n        if demand == FontDependencyDemand::None {\n            return PublicationDemand::Ready;\n        }\n        if !complete.contains(FontSize) {\n            return PublicationDemand::Unresolved;\n        }\n        if demand >= FontDependencyDemand::FontMetrics {\n            for id in [FontWeight, FontWidth, FontStyle, FontSizeAdjust] {\n                if !complete.contains(id) {\n                    return PublicationDemand::Metric(id);\n                }\n            }\n        }\n        if demand == FontDependencyDemand::OrientedMetrics {\n            for id in [Direction, WritingMode, TextOrientation] {\n                if !complete.contains(id) {\n                    return PublicationDemand::Metric(id);\n                }\n            }\n        }\n        if demand >= FontDependencyDemand::FontMetrics\n            && let Some(id) = unprepared_font_inputs\n        {\n            return if is_synthesis_longhand(id) {\n                PublicationDemand::Synthesis(id)\n            } else {\n                PublicationDemand::Unresolved\n            };\n        }\n        PublicationDemand::Ready\n    }",
+    "enum PublicationDemand {\n        Ready,\n        Metric(PrioritaryPropertyId),\n        Synthesis(LonghandId),\n        Unresolved,\n    }",
+    "pub enum FontDependencyDemand {\n    /// No font inputs.\n    #[default]\n    None,\n    /// The computed font size.\n    ComputedSize,\n    /// Computed size and current font metrics.\n    FontMetrics,\n    /// Font metrics and writing-mode-dependent orientation.\n    OrientedMetrics,\n}"
+  ],
+  "scope": "Exact two policy functions and demand enums; set/type facades only. No Context, native conversion, graph or browser reproduction."
+}

@@ -1,0 +1,41 @@
+--- artifacts/css-keyframe-font-unit-dependency-archived-original-v1/check.py
++++ artifacts/css-root-self-animation-archived-original-v1/check.py
+@@ -16,7 +16,7 @@
+ else:
+     raise AssertionError('Disabled owner admitted')
+ run.pins()
+-parent = ROOT / 'artifacts/css-font-variation-archived-original-runner-v1'
++parent = ROOT / 'artifacts/css-keyframe-font-unit-dependency-archived-original-v1'
+ assert (HERE / 'entry.py').read_bytes() == (parent / 'entry.py').read_bytes()
+ assert run.regular_files(HERE / 'support') == run.regular_files(parent / 'support')
+ assert (HERE / 'RUN-DELTA.patch').read_text() == ''.join(difflib.unified_diff((parent / 'run.py').read_text().splitlines(True), (HERE / 'run.py').read_text().splitlines(True), fromfile=str((parent / 'run.py').relative_to(ROOT)), tofile=str((HERE / 'run.py').relative_to(ROOT))))
+@@ -26,10 +26,9 @@
+ old, new = functions(parent / 'run.py'), functions(HERE / 'run.py')
+ assert set(old) == set(new)
+ for name in old:
+-    if name != 'assess':
+-        assert old[name].replace("prefix='css-font-variation-'", "prefix='css-keyframe-font-units-'") == new[name], name
++    assert old[name].replace("prefix='css-keyframe-font-units-'", "prefix='css-root-self-fonts-'") == new[name], name
+ binding = policy['fixture_binding']; fixture = ROOT / binding['directory']
+-assert run.sha(fixture / 'FILES.json') == binding['manifest_sha256'] == 'bc7076009df8acddb197dd00675b8a9f62483d3e5ec11adb2e49e6864815e754'
++assert run.sha(fixture / 'FILES.json') == binding['manifest_sha256'] == 'a02a77d0c27092a57e617c3fe9f5ed70e579506089ef46bdd487a8ef4372d234'
+ inventory = json.loads((fixture / 'FILES.json').read_text())
+ for name, row in inventory.get('files',inventory).items(): assert run.sha(fixture / name) == (row if isinstance(row,str) else row['sha256'])
+ assert policy['settings']['metadata'] == {'mozilla': {}, 'portable': {}}
+@@ -94,8 +93,8 @@
+ rows=copy.deepcopy(events);rows.insert(1,rows.pop(2));negatives.append(rows)
+ assert all(not run.assess(rows,roster,1)['complete'] for rows in negatives)
+ assert not run.assess(events,roster,0)['complete'] and not run.assess(all_pass,roster,1)['complete']
+-scratch=Path(tempfile.mkdtemp(prefix='keyframe-font-unit-archive14-check-',dir='/private/tmp'))
+-result={'browser_execution':False,'archive_read':False,'native_operations':False,'saved_positive_streams':2,'saved_negative_streams':len(negatives)+2,'scratch':str(scratch),'pages':1,'callbacks':14,'unchanged_production_functions_except_assess':len(old)-1}
++scratch=Path(tempfile.mkdtemp(prefix='root-self-archive14-check-',dir='/private/tmp'))
++result={'browser_execution':False,'archive_read':False,'native_operations':False,'saved_positive_streams':2,'saved_negative_streams':len(negatives)+2,'scratch':str(scratch),'pages':1,'callbacks':14,'unchanged_production_functions_except_temporary_prefix':len(old)}
+ try:
+     output=scratch/'stage';output.mkdir();run.prepare(output,policy)
+     for url,record in policy['settings']['resources'].items():assert run.sha(output/'tests'/url.lstrip('/'))==record['sha256']
+@@ -111,4 +110,4 @@
+     result.update(success=True,staged_files=len(run.regular_files(output)),disabled_gate_rejected=True,owner_terminal_pending=policy['pending_binding'],reference_count=len(json.loads((HERE/'REFERENCES.json').read_text())))
+ finally:
+     shutil.rmtree(scratch);result['scratch_removed']=not scratch.exists()
+-    (HERE/'CHECK.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result))
++    print(json.dumps(result))

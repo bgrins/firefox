@@ -1,0 +1,182 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="timeout" content="long">
+<title>Root font dependencies across keyframe lifecycle changes</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#the-effect-value-of-a-keyframe-animation-effect">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+const settle = win => new Promise(resolve =>
+  win.requestAnimationFrame(() => win.requestAnimationFrame(resolve)));
+async function frameFor(t) {
+  const frame = document.createElement("iframe");
+  const loaded = new Promise(resolve => { frame.onload = resolve; });
+  frame.srcdoc = `<!doctype html><style>
+    html { font:23px/37px monospace; }
+    #parent { font:30px/61px monospace; }
+    .target { display:block; font:60px/99px monospace; width:7px; opacity:1;
+      font-variation-settings:"wdth" 7; height:0; border:0; padding:0; }
+    #reference { width:100rem; height:100rlh; }
+  </style><div id="parent"><div id="a" class="target"></div>
+  <div id="b" class="target"></div><div id="reference"></div></div>`;
+  document.body.append(frame);
+  t.add_cleanup(() => frame.remove());
+  await loaded;
+  return frame.contentWindow;
+}
+const properties = [
+  { name:"width", relative:(n, u) => `${n}${u}`, literal:n => `${n}px`,
+    read:s => parseFloat(s.width), baseline:7 },
+  { name:"fontVariationSettings", relative:(n, u) => `"wdth" calc(${n}${u} / 1px)`,
+    literal:n => `"wdth" ${n}`, read:s => {
+      const match = /^"wdth"\s+([\d.]+)$/.exec(s.fontVariationSettings);
+      return match ? Number(match[1]) : NaN;
+    }, baseline:7 },
+  { name:"opacity", relative:(n, u) => `calc(${n}${u} / 1000px)`,
+    literal:n => String(n / 1000), read:s => Number(s.opacity) * 1000,
+    baseline:1000 }
+];
+for (const unit of ["rem", "rlh"]) {
+  for (const property of properties) {
+    promise_test(async t => {
+      const win = await frameFor(t), doc = win.document;
+      const a = doc.getElementById("a"), b = doc.getElementById("b");
+      const root = doc.documentElement;
+      const base = unit === "rem" ? 23 : 37;
+      const frames = values => values.map(value => ({ [property.name]:value }));
+      const relative = frames([1, 3].map(n => property.relative(n, unit)));
+      const literals = n => frames([n, 3 * n].map(property.literal));
+      const animation = a.animate(relative, { duration:1000, fill:"both" });
+      t.add_cleanup(() => animation.cancel());
+      animation.pause(); animation.currentTime = 500;
+      const observations = [];
+      const sample = async (name, target, expected) => {
+        const first = property.read(win.getComputedStyle(target));
+        await settle(win);
+        observations.push({ name, first, value:property.read(win.getComputedStyle(target)), expected });
+      };
+      const setRoot = value => {
+        root.style[unit === "rem" ? "fontSize" : "lineHeight"] = `${value}px`;
+      };
+      await sample("initial", a, 2 * base);
+      setRoot(47);
+      await sample("root mutation", a, 94);
+      animation.currentTime = 250;
+      setRoot(43);
+      await sample("root mutation coalesced with seek", a, 64.5);
+      animation.currentTime = 500;
+      setRoot(47);
+      await sample("restore half progress", a, 94);
+      animation.effect.setKeyframes(literals(47));
+      await sample("equal-valued literal replacement", a, 94);
+      setRoot(53);
+      await sample("literal replacement stays constant", a, 94);
+      animation.effect.setKeyframes(literals(53));
+      await sample("literal before relative replacement", a, 106);
+      animation.effect.setKeyframes(relative);
+      await sample("equal-valued relative replacement", a, 106);
+      setRoot(59);
+      await sample("replacement restored dependency", a, 118);
+      animation.effect.target = b;
+      await sample("old target after retarget", a, property.baseline);
+      setRoot(61);
+      await sample("new target after retarget", b, 122);
+      animation.effect.target = null;
+      animation.effect.setKeyframes(relative);
+      setRoot(67);
+      animation.effect.target = a;
+      await sample("unbound effect rebound", a, 134);
+      animation.currentTime = 1000;
+      await sample("after-phase fill", a, 201);
+      setRoot(71);
+      await sample("filled effect dependency", a, 213);
+      animation.cancel();
+      await sample("cancel restores ordinary value", a, property.baseline);
+      const reference = doc.getElementById("reference").getBoundingClientRect();
+      assert_approx_equals((unit === "rem" ? reference.width : reference.height) / 100,
+        71, 0.02, "root metric control");
+      assert_equals(win.getComputedStyle(a).fontSize, "60px", "fixed target font size");
+      for (const row of observations) {
+        assert_approx_equals(row.first, row.expected, 0.04, row.name + " first");
+        assert_approx_equals(row.value, row.expected, 0.04, row.name + " settled");
+      }
+    }, `${property.name}: ${unit} keyframe replacement, retarget and removal`);
+  }
+  promise_test(async t => {
+    const win = await frameFor(t), doc = win.document;
+    const target = doc.getElementById("a");
+    target.style.marginLeft = `1${unit}`;
+    const animation = target.animate({ width:[`1${unit}`, `3${unit}`] }, { duration:1000, fill:"both" });
+    t.add_cleanup(() => animation.cancel());
+    animation.pause(); animation.currentTime = 500;
+    assert_approx_equals(parseFloat(win.getComputedStyle(target).width), unit === "rem" ? 46 : 74, 0.03);
+    doc.documentElement.style[unit === "rem" ? "fontSize" : "lineHeight"] = "47px";
+    const first = parseFloat(win.getComputedStyle(target).width);
+    await settle(win);
+    assert_approx_equals(first, 94, 0.03, "first ordinary-relative control");
+    assert_approx_equals(parseFloat(win.getComputedStyle(target).width), 94, 0.03);
+    assert_approx_equals(parseFloat(win.getComputedStyle(target).marginLeft), 47, 0.03);
+  }, `ordinary ${unit} declaration preserves animation invalidation`);
+  promise_test(async t => {
+    const win = await frameFor(t), doc = win.document;
+    const style = doc.createElement("style");
+    style.textContent = '#a::before { content:""; display:block; font:60px/99px monospace; }';
+    doc.head.append(style);
+    const target = doc.getElementById("a");
+    const animation = target.animate({ width:[`1${unit}`, `3${unit}`] },
+      { duration:1000, fill:"both", pseudoElement:"::before" });
+    t.add_cleanup(() => animation.cancel());
+    animation.pause(); animation.currentTime = 500;
+    assert_approx_equals(parseFloat(win.getComputedStyle(target, "::before").width),
+      unit === "rem" ? 46 : 74, 0.03, "initial pseudo width");
+    doc.documentElement.style[unit === "rem" ? "fontSize" : "lineHeight"] = "47px";
+    const first = parseFloat(win.getComputedStyle(target, "::before").width);
+    await settle(win);
+    assert_approx_equals(first, 94, 0.03, "first pseudo root dependency");
+    assert_approx_equals(parseFloat(win.getComputedStyle(target, "::before").width),
+      94, 0.03, "pseudo root dependency");
+  }, `pseudo-element ${unit} keyframe invalidation`);
+  promise_test(async t => {
+    const win = await frameFor(t), doc = win.document;
+    const style = doc.createElement("style");
+    style.textContent = `@keyframes root-unit { from { width:1${unit}; } to { width:3${unit}; } }
+      #a { animation:root-unit 1000s linear -500s both paused; }`;
+    doc.head.append(style);
+    const target = doc.getElementById("a");
+    assert_approx_equals(parseFloat(win.getComputedStyle(target).width),
+      unit === "rem" ? 46 : 74, 0.03, "initial CSS animation");
+    const animations = target.getAnimations();
+    assert_equals(animations.length, 1);
+    assert_equals(animations[0].animationName, "root-unit");
+    t.add_cleanup(() => animations[0].cancel());
+    doc.documentElement.style[unit === "rem" ? "fontSize" : "lineHeight"] = "47px";
+    const first = parseFloat(win.getComputedStyle(target).width);
+    await settle(win);
+    assert_approx_equals(first, 94, 0.03, "first CSS animation root dependency");
+    assert_approx_equals(parseFloat(win.getComputedStyle(target).width), 94, 0.03);
+  }, `CSS animation ${unit} generated keyframes retain root dependency`);
+  promise_test(async t => {
+    const win = await frameFor(t), doc = win.document;
+    const target = doc.getElementById("a");
+    const width = target.animate({ width:[`1${unit}`, `3${unit}`] }, { duration:1000, fill:"both" });
+    const opacity = target.animate({ opacity:[0.2, 0.8] }, { duration:1000, fill:"both" });
+    t.add_cleanup(() => { width.cancel(); opacity.cancel(); });
+    for (const animation of [width, opacity]) {
+      animation.pause(); animation.currentTime = 500;
+    }
+    assert_approx_equals(parseFloat(win.getComputedStyle(target).width),
+      unit === "rem" ? 46 : 74, 0.03, "initial surviving effect");
+    assert_equals(target.getAnimations().length, 2);
+    opacity.cancel();
+    assert_equals(target.getAnimations().length, 1);
+    doc.documentElement.style[unit === "rem" ? "fontSize" : "lineHeight"] = "47px";
+    const first = parseFloat(win.getComputedStyle(target).width);
+    await settle(win);
+    assert_approx_equals(first, 94, 0.03, "first surviving effect");
+    assert_approx_equals(parseFloat(win.getComputedStyle(target).width), 94, 0.03);
+    assert_equals(win.getComputedStyle(target).opacity, "1", "cancelled effect removed");
+  }, `surviving ${unit} effect retains invalidation after another effect is cancelled`);
+}
+</script>

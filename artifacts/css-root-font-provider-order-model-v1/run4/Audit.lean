@@ -1,0 +1,17 @@
+import Provider
+#print axioms RootFontProvider.initial_valid
+#print axioms RootFontProvider.invalidate_valid
+#print axioms RootFontProvider.begin_valid
+#print axioms RootFontProvider.finish_valid
+#print axioms RootFontProvider.step_valid
+#print axioms RootFontProvider.run_valid
+#print axioms RootFontProvider.provider_current
+#print axioms RootFontProvider.history_read_sound
+#print axioms RootFontProvider.stale_finish_no_publication
+#print axioms RootFontProvider.cancellation_dirties_provider
+#print axioms RootFontProvider.finish_begin_current
+#print axioms RootFontProvider.discard_then_refresh
+#print axioms RootFontProvider.root_font_independent
+#print axioms RootFontProvider.root_line_rem_uses_root
+#print axioms RootFontProvider.pseudo_requires_current
+#print axioms RootFontProvider.identity_and_freshness_independent

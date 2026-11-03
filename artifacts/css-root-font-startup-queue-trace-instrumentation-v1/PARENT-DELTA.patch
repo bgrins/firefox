@@ -1,0 +1,194 @@
+--- a/dom/animation/EffectCompositor.cpp
++++ b/dom/animation/EffectCompositor.cpp
+@@ -3,6 +3,9 @@
+  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ 
+ #include "EffectCompositor.h"
++
++#include <cstdio>
++#include <cstdlib>
+ 
+ #include "mozilla/AnimationComparator.h"
+ #include "mozilla/AnimationPerformanceWarning.h"
+@@ -214,6 +217,9 @@
+   PseudoElementHashEntry::KeyType key = {aElement, aPseudoRequest};
+ 
+   bool& restyleEntry = elementsToRestyle.LookupOrInsert(key, false);
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    std::fprintf(stderr, "RFST request compositor=%p target_node=%p pseudo=%u level=%u type=%u posted_before=%d\n", static_cast<void*>(this), static_cast<const void*>(static_cast<const nsINode*>(aElement)), static_cast<unsigned>(aPseudoRequest.mType), static_cast<unsigned>(aCascadeLevel), static_cast<unsigned>(aRestyleType), int(restyleEntry));
++  }
+   if (aRestyleType == RestyleType::Throttled) {
+     mPresContext->PresShell()->SetNeedThrottledAnimationFlush();
+   } else {
+@@ -221,6 +227,9 @@
+     // and invalidates the restyleEntry reference.
+     // (It shouldn't, but just to be sure.)
+     bool skipRestyle = std::exchange(restyleEntry, true);
++    if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++      std::fprintf(stderr, "RFST request-post compositor=%p target_node=%p pseudo=%u level=%u skip=%d\n", static_cast<void*>(this), static_cast<const void*>(static_cast<const nsINode*>(aElement)), static_cast<unsigned>(aPseudoRequest.mType), static_cast<unsigned>(aCascadeLevel), int(skipRestyle));
++    }
+     if (!skipRestyle) {
+       PostRestyleForAnimation(aElement, aPseudoRequest, aCascadeLevel);
+     }
+@@ -260,6 +269,9 @@
+              "Restyle request during restyling should be requested only on "
+              "the main-thread. e.g. after the parallel traversal");
+   if (ServoStyleSet::IsInServoTraversal() || mIsInPreTraverse) {
++    if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++      std::fprintf(stderr, "RFST post-deferred compositor=%p target_node=%p normalized_node=%p pseudo=%u level=%u pretraverse=%d\n", static_cast<void*>(this), static_cast<const void*>(static_cast<const nsINode*>(aElement)), static_cast<const void*>(static_cast<const nsINode*>(element)), static_cast<unsigned>(aPseudoRequest.mType), static_cast<unsigned>(aCascadeLevel), int(mIsInPreTraverse));
++    }
+     MOZ_ASSERT(hint == RestyleHint::RESTYLE_CSS_ANIMATIONS ||
+                hint == RestyleHint::RESTYLE_CSS_TRANSITIONS);
+ 
+@@ -276,6 +288,9 @@
+ 
+   MOZ_ASSERT(!mPresContext->RestyleManager()->IsInStyleRefresh());
+ 
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    std::fprintf(stderr, "RFST post-shell compositor=%p target_node=%p normalized_node=%p pseudo=%u level=%u\n", static_cast<void*>(this), static_cast<const void*>(static_cast<const nsINode*>(aElement)), static_cast<const void*>(static_cast<const nsINode*>(element)), static_cast<unsigned>(aPseudoRequest.mType), static_cast<unsigned>(aCascadeLevel));
++  }
+   mPresContext->PresShell()->RestyleForAnimation(element, hint);
+ }
+ 
+@@ -798,6 +813,14 @@
+ 
+ bool EffectCompositor::PreTraverseInSubtree(ServoTraversalFlags aFlags,
+                                             Element* aRoot) {
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    std::fprintf(stderr, "RFST pre-enter compositor=%p root_node=%p flags=%u\n", static_cast<void*>(this), static_cast<const void*>(static_cast<const nsINode*>(aRoot)), static_cast<unsigned>(aFlags));
++  }
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    for (size_t i = 0; i < kCascadeLevelCount; ++i) {
++      std::fprintf(stderr, "RFST pre-queue compositor=%p level=%zu count=%u\n", static_cast<void*>(this), i, unsigned(mElementsToRestyle[CascadeLevel(i)].Count()));
++    }
++  }
+   MOZ_ASSERT(NS_IsMainThread());
+   MOZ_ASSERT(!aRoot || nsContentUtils::GetPresShellForContent(aRoot),
+              "Traversal root, if provided, should be bound to a display "
+@@ -902,6 +925,9 @@
+         continue;
+       }
+ 
++      if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++        std::fprintf(stderr, "RFST pre-selected compositor=%p target_node=%p pseudo=%u level=%u posted=%d\n", static_cast<void*>(this), static_cast<const void*>(static_cast<const nsINode*>(target.mElement)), static_cast<unsigned>(target.mPseudoRequest.mType), static_cast<unsigned>(cascadeLevel), int(iter.Data()));
++      }
+       // We need to post restyle hints even if the target is not in EffectSet to
+       // ensure the final restyling for removed animations.
+       // We can't call PostRestyleEvent directly here since we are still in the
+@@ -939,6 +965,14 @@
+     }
+   }
+ 
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    for (size_t i = 0; i < kCascadeLevelCount; ++i) {
++      std::fprintf(stderr, "RFST pre-remaining compositor=%p level=%zu count=%u\n", static_cast<void*>(this), i, unsigned(mElementsToRestyle[CascadeLevel(i)].Count()));
++    }
++  }
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    std::fprintf(stderr, "RFST pre-exit compositor=%p found=%d\n", static_cast<void*>(this), int(foundElementsNeedingRestyle));
++  }
+   return foundElementsNeedingRestyle;
+ }
+ 
+--- a/layout/style/ServoStyleSet.cpp
++++ b/layout/style/ServoStyleSet.cpp
+@@ -3,6 +3,9 @@
+  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ 
+ #include "mozilla/ServoStyleSet.h"
++
++#include <cstdio>
++#include <cstdlib>
+ 
+ #include "COLRFonts.h"
+ #include "PseudoStyleType.h"
+@@ -802,13 +805,22 @@
+ }
+ 
+ bool ServoStyleSet::StyleDocument(ServoTraversalFlags aFlags) {
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    std::fprintf(stderr, "RFST document-enter set=%p document=%p flags=%u\n", static_cast<void*>(this), static_cast<void*>(mDocument), static_cast<unsigned>(aFlags));
++  }
+   AUTO_PROFILER_LABEL_CATEGORY_PAIR_RELEVANT_FOR_JS(LAYOUT_StyleComputation);
+   MOZ_ASSERT(GetPresContext(), "Styling a document without a shell?");
+ 
+   if (!mDocument->GetServoRestyleRoot()) {
++    if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++      std::fprintf(stderr, "RFST document-no-root set=%p\n", static_cast<void*>(this));
++    }
+     return false;
+   }
+ 
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    std::fprintf(stderr, "RFST document-pre set=%p\n", static_cast<void*>(this));
++  }
+   PreTraverse(aFlags);
+   const SnapshotTable& snapshots = Snapshots();
+ 
+@@ -820,6 +832,9 @@
+     aFlags |= ServoTraversalFlags::ParallelTraversal;
+   }
+ 
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    std::fprintf(stderr, "RFST document-pass-begin set=%p pass=1\n", static_cast<void*>(this));
++  }
+   // Do the first traversal.
+   DocumentStyleRootIterator iter(mDocument->GetServoRestyleRoot());
+   while (Element* root = iter.GetNextStyleRoot()) {
+@@ -830,11 +845,17 @@
+                   !parent->HasAnyOfFlags(Element::kAllServoDescendantBits));
+ 
+     if (MOZ_UNLIKELY(!root->HasServoData()) && !parent) {
++      if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++        std::fprintf(stderr, "RFST document-new-subtree set=%p pass=1 root_node=%p\n", static_cast<void*>(this), static_cast<const void*>(static_cast<const nsINode*>(root)));
++      }
+       StyleNewSubtree(root);
+       postTraversalRequired = true;
+       continue;
+     }
+ 
++    if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++      std::fprintf(stderr, "RFST document-subtree set=%p pass=1 root_node=%p\n", static_cast<void*>(this), static_cast<const void*>(static_cast<const nsINode*>(root)));
++    }
+     AutoPrepareTraversal guard(this);
+ 
+     postTraversalRequired |=
+@@ -863,6 +884,9 @@
+     }
+   }
+ 
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    std::fprintf(stderr, "RFST document-pass-end set=%p pass=1 post_required=%d\n", static_cast<void*>(this), int(postTraversalRequired));
++  }
+   // If there are still animation restyles needed, trigger a second traversal to
+   // update CSS animations or transitions' styles.
+   //
+@@ -875,9 +899,18 @@
+   // values once at the begin of a tick. As a result, even if the previous
+   // traversal caused, for example, the font-size to change, the SMIL style
+   // won't be updated until the next tick anyway.
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    std::fprintf(stderr, "RFST document-between-pre set=%p\n", static_cast<void*>(this));
++  }
+   if (GetPresContext()->EffectCompositor()->PreTraverse(aFlags)) {
++    if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++      std::fprintf(stderr, "RFST document-pass-begin set=%p pass=2\n", static_cast<void*>(this));
++    }
+     DocumentStyleRootIterator iter(mDocument->GetServoRestyleRoot());
+     while (Element* root = iter.GetNextStyleRoot()) {
++      if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++        std::fprintf(stderr, "RFST document-subtree set=%p pass=2 root_node=%p\n", static_cast<void*>(this), static_cast<const void*>(static_cast<const nsINode*>(root)));
++      }
+       AutoPrepareTraversal guard(this);
+       postTraversalRequired |=
+           Servo_TraverseSubtree(root, mRawData.get(), &snapshots, aFlags) ||
+@@ -886,6 +919,9 @@
+     }
+   }
+ 
++  if (std::getenv("MOZ_ROOT_FONT_STARTUP_TRACE")) {
++    std::fprintf(stderr, "RFST document-exit set=%p post_required=%d\n", static_cast<void*>(this), int(postTraversalRequired));
++  }
+   return postTraversalRequired;
+ }
+ 

@@ -1,0 +1,69 @@
+--- artifacts/css-keyframe-font-unit-native61-outcome-v2/compare.py
++++ artifacts/css-root-self-animation-native61-outcome-v1/compare.py
+@@ -6,8 +6,8 @@
+ 
+ ROOT = Path(__file__).resolve().parents[2]
+ HERE = Path(__file__).resolve().parent
+-OWNER = ROOT / 'artifacts/css-keyframe-font-unit-candidate-browser-v3'
+-RUNTIME = ROOT / 'artifacts/css-keyframe-font-unit-candidate-browser-runtime-v1'
++OWNER = ROOT / 'artifacts/css-root-self-animation-candidate-browser-v1'
++RUNTIME = ROOT / 'artifacts/css-root-self-animation-candidate-browser-runtime-v1'
+ read = lambda p: json.loads(p.read_bytes())
+ sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+ 
+@@ -39,15 +39,15 @@
+     assert all(row['status'] == 'PASS' for row in rows)
+     assert all(row['status'] == 'OK' for row in ends)
+     preserved = [identity for identity, row in old.items() if row['status'] == 'PASS' or row['kind'] == 'test_end']
+-    assert len(preserved) == 54 and all(old[identity] == new[identity] for identity in preserved)
++    assert len(preserved) == 59 and all(old[identity] == new[identity] for identity in preserved)
+     differences = [{'identity': identity, 'original': old[identity], 'candidate': new[identity]} for identity in sorted(old) if old[identity] != new[identity]]
+-    assert len(differences) == 12
++    assert len(differences) == 7
+     assert all(row['original']['status'] == 'FAIL' and row['candidate']['status'] == 'PASS' for row in differences)
+     assert Counter(row['candidate']['test'] for row in differences) == Counter({
+-        '/web-animations/animation-model/keyframe-effects/root-font-unit-invalidation.html': 12,
++        '/web-animations/animation-model/keyframe-effects/root-font-self-reference.html': 7,
+     })
+-    return {'comparison_passed': True, 'candidate_pass': 61, 'preserved_pass_signatures': 49,
+-            'preserved_ending_signatures': 5, 'fail_to_pass': 12, 'differences': differences}
++    return {'comparison_passed': True, 'candidate_pass': 61, 'preserved_pass_signatures': 54,
++            'preserved_ending_signatures': 5, 'fail_to_pass': 7, 'differences': differences}
+ 
+ 
+ def main():
+@@ -76,9 +76,16 @@
+     assert result['error'] is None and result['publication_errors'] == []
+     assert restored['errors'] == [] and restored['owned_processes'] == {}
+     policy = read(OWNER / 'POLICY.json')
++    assert policy['lane_order'] == ['root_identity', 'controls']
++    assert read(OWNER / 'SOURCE-ROLES.json') == read(ROOT / bindings['baseline']['directory'] / 'SOURCE-ROLES.json')
+     assessor = load('combined_assessor', OWNER / 'assess.py')
+     checks = load('combined_checks', ROOT / policy['wpt']['checks_helper'])
+-    baseline = read(ROOT / bindings['baseline']['path'])
++    original = read(ROOT / bindings['baseline']['path'])
++    assert original['counts'] == {'PASS': 54, 'FAIL': 7} and original['projection_only']
++    for path, pin in original['input_runtime_manifests'].items():
++        authenticate((ROOT / path).parent, pin)
++    baseline = {'rows': [assessor.signature(row) for row in original['rows']],
++                'ends': [assessor.signature(row) for row in original['endings']]}
+     build = read(RUNTIME / 'candidate-build/RESULT.json')
+     command = read(RUNTIME / 'candidate-build/COMMAND.json')
+     assert build['browser_build_performed'] and build['command_success'] and build['preservation_verified']
+@@ -107,14 +114,14 @@
+         ends.extend(assessor.signature(row) for row in actual['ends'])
+         lanes[lane] = {'raw_sha256': sha(phase / 'raw.jsonl'), 'assessment_sha256': sha(phase / 'ASSESSMENT.json'), 'statuses': dict(Counter(row['status'] for row in actual['rows']))}
+     report = compare_signatures(baseline, rows, ends)
+-    report.update(baseline_head=baseline['head'], candidate_sources=expected_sources,
++    report.update(baseline_projection=True, candidate_sources=expected_sources,
+                   build_sha256=sha(RUNTIME / 'candidate-build/RESULT.json'),
+                   baseline_sha256=sha(ROOT / bindings['baseline']['path']), lanes=lanes,
+                   native_acceptance=False, independent_restoration_audit_required=True)
+     with (HERE / 'RESULT.json').open('x') as stream:
+         json.dump(report, stream, indent=2)
+         stream.write('\n')
+-    print('61 PASS; 49 prior PASS and five endings unchanged; exactly 12 FAIL-to-PASS improvements')
++    print('61 PASS; 54 prior PASS and five endings unchanged; exactly 7 FAIL-to-PASS improvements')
+ 
+ 
+ if __name__ == '__main__':

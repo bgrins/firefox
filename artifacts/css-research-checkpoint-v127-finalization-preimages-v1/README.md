@@ -1,0 +1,1 @@
+Exact disabled V127 pre-finalization bytes, including original selection/bindings/FILES and saved receipts. Preserved before the root-authorized single completed-evidence cutoff. No signing or live state operation. The before/FILES.json is the historical owner manifest, not this package manifest.

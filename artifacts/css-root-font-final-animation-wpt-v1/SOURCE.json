@@ -1,0 +1,75 @@
+{
+  "revision": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+  "sources": {
+    "layout/style/ServoStyleSet.cpp": {
+      "sha256": "9c44b15945c9eba8d82f16d4980e76cc4ad1d9ffd330bb14cc3a2d131dc4caf5",
+      "excerpts": [
+        {
+          "start": 804,
+          "end": 843,
+          "text": "bool ServoStyleSet::StyleDocument(ServoTraversalFlags aFlags) {\n  AUTO_PROFILER_LABEL_CATEGORY_PAIR_RELEVANT_FOR_JS(LAYOUT_StyleComputation);\n  MOZ_ASSERT(GetPresContext(), \"Styling a document without a shell?\");\n\n  if (!mDocument->GetServoRestyleRoot()) {\n    return false;\n  }\n\n  PreTraverse(aFlags);\n  const SnapshotTable& snapshots = Snapshots();\n\n  // Restyle the document from the root element and each of the document level\n  // NAC subtree roots.\n  bool postTraversalRequired = false;\n\n  if (ShouldTraverseInParallel()) {\n    aFlags |= ServoTraversalFlags::ParallelTraversal;\n  }\n\n  // Do the first traversal.\n  DocumentStyleRootIterator iter(mDocument->GetServoRestyleRoot());\n  while (Element* root = iter.GetNextStyleRoot()) {\n    MOZ_ASSERT(MayTraverseFrom(root));\n\n    Element* parent = root->GetFlattenedTreeParentElementForStyle();\n    MOZ_ASSERT_IF(parent,\n                  !parent->HasAnyOfFlags(Element::kAllServoDescendantBits));\n\n    if (MOZ_UNLIKELY(!root->HasServoData()) && !parent) {\n      StyleNewSubtree(root);\n      postTraversalRequired = true;\n      continue;\n    }\n\n    AutoPrepareTraversal guard(this);\n\n    postTraversalRequired |=\n        Servo_TraverseSubtree(root, mRawData.get(), &snapshots, aFlags) ||\n        root->HasAnyOfFlags(Element::kAllServoDescendantBits |\n                            NODE_NEEDS_FRAME);"
+        },
+        {
+          "start": 892,
+          "end": 923,
+          "text": "void ServoStyleSet::StyleNewSubtree(Element* aRoot) {\n  MOZ_ASSERT(GetPresContext());\n  MOZ_ASSERT(!aRoot->HasServoData());\n  MOZ_ASSERT(aRoot->GetFlattenedTreeParentNodeForStyle(),\n             \"Not in the flat tree? Fishy!\");\n  PreTraverseSync();\n  AutoPrepareTraversal guard(this);\n\n  // Do the traversal. The snapshots will not be used.\n  const SnapshotTable& snapshots = Snapshots();\n  auto flags = ServoTraversalFlags::Empty;\n  if (ShouldTraverseInParallel()) {\n    flags |= ServoTraversalFlags::ParallelTraversal;\n  }\n\n  DebugOnly<bool> postTraversalRequired =\n      Servo_TraverseSubtree(aRoot, mRawData.get(), &snapshots, flags);\n  MOZ_ASSERT(!postTraversalRequired);\n\n  // Annoyingly, the newly-styled content may have animations that need\n  // starting, which requires traversing them again. Mark the elements\n  // that need animation processing, then do a forgetful traversal to\n  // update the styles and clear the animation bits.\n  if (GetPresContext()->EffectCompositor()->PreTraverseInSubtree(flags,\n                                                                 aRoot)) {\n    postTraversalRequired =\n        Servo_TraverseSubtree(aRoot, mRawData.get(), &snapshots,\n                              ServoTraversalFlags::AnimationOnly |\n                                  ServoTraversalFlags::FinalAnimationTraversal);\n    MOZ_ASSERT(!postTraversalRequired);\n  }\n}"
+        }
+      ]
+    },
+    "layout/base/nsCSSFrameConstructor.cpp": {
+      "sha256": "a734b74982745b81213f531c6c6976a6d1cee3abe45879b2e8f83cbdf4a3d891",
+      "excerpts": [
+        {
+          "start": 2298,
+          "end": 2311,
+          "text": "nsIFrame* nsCSSFrameConstructor::ConstructDocElementFrame(\n    Element* aDocElement) {\n  MOZ_ASSERT(GetRootFrame(),\n             \"No viewport?  Someone forgot to call ConstructRootFrame!\");\n  MOZ_ASSERT(!mDocElementContainingBlock,\n             \"Shouldn't have a doc element containing block here\");\n\n  // Ensure the document element is styled at this point.\n  // FIXME(emilio, bug 1852735): This is only needed because of the sync frame\n  // construction from PresShell::Initialize.\n  if (!aDocElement->HasServoData()) {\n    mPresShell->StyleSet()->StyleNewSubtree(aDocElement);\n  }\n  aDocElement->UnsetFlags(NODE_DESCENDANTS_NEED_FRAMES | NODE_NEEDS_FRAME);"
+        },
+        {
+          "start": 6075,
+          "end": 6106,
+          "text": "void nsCSSFrameConstructor::StyleNewChildRange(nsIContent* aStartChild,\n                                               nsIContent* aEndChild) {\n  ServoStyleSet* styleSet = mPresShell->StyleSet();\n\n  for (nsIContent* child = aStartChild; child != aEndChild;\n       child = child->GetNextSibling()) {\n    if (!child->IsElement()) {\n      continue;\n    }\n\n    Element* childElement = child->AsElement();\n\n    // We only come in here from non-lazy frame construction, so the children\n    // should be unstyled.\n    MOZ_ASSERT(!childElement->HasServoData());\n\n#ifdef DEBUG\n    {\n      // Furthermore, all of them should have the same flattened tree parent\n      // (GetRangeInsertionPoint ensures it). And that parent should be styled,\n      // otherwise we would've never found an insertion point at all.\n      Element* parent = childElement->GetFlattenedTreeParentElement();\n      MOZ_ASSERT(parent);\n      MOZ_ASSERT(parent->HasServoData());\n      MOZ_ASSERT(\n          IsFlattenedTreeChild(parent, child),\n          \"GetFlattenedTreeParent and ChildIterator don't agree, fix this!\");\n    }\n#endif\n\n    styleSet->StyleNewSubtree(childElement);\n  }"
+        }
+      ]
+    },
+    "servo/components/style/matching.rs": {
+      "sha256": "41e95acc6e2903963df96bee70c260aeebffdd9b4d5dfc18bd6e875f9352035d",
+      "excerpts": [
+        {
+          "start": 439,
+          "end": 452,
+          "text": "    #[cfg(feature = \"gecko\")]\n    fn process_animations(\n        &self,\n        context: &mut StyleContext<Self>,\n        old_styles: &mut ElementStyles,\n        new_styles: &mut ResolvedElementStyles,\n        important_rules_changed: bool,\n    ) {\n        use crate::context::UpdateAnimationsTasks;\n\n        let old_values = &old_styles.primary;\n        if context.shared.traversal_flags.for_animation_only() && old_values.is_some() {\n            return;\n        }"
+        },
+        {
+          "start": 1037,
+          "end": 1075,
+          "text": "        // Update root font-relative units. If any of these unit values changed\n        // since last time, ensure that we recascade the entire tree.\n        if is_root {\n            debug_assert!(self.owner_doc_matches_for_testing(device));\n            device.set_root_style(new_primary_style);\n\n            // Update root font size for rem units\n            if font_size_changed {\n                let size = new_font_size.computed_size();\n                device.set_root_font_size(new_primary_style.effective_zoom.unzoom(size.px()));\n            }\n\n            // Update root line height for rlh units\n            if line_height_likely_changed {\n                let new_line_height = device\n                    .calc_line_height(\n                        new_primary_style.get_font(),\n                        new_primary_style.writing_mode,\n                        None,\n                    )\n                    .0;\n                device.set_root_line_height(\n                    new_primary_style\n                        .effective_zoom\n                        .unzoom(new_line_height.px()),\n                );\n            }\n\n            // Update root font metrics for rcap, rch, rex, ric units. Since querying\n            // font metrics can be an expensive call, they are only updated if these\n            // units are used in the document.\n            if device.used_root_font_metrics() && device.update_root_font_metrics() {\n                child_restyle_hint |= RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT;\n            }\n        }\n\n        if font_size_changed || line_height_likely_changed {\n            child_restyle_hint |= RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT;\n        }"
+        },
+        {
+          "start": 1091,
+          "end": 1104,
+          "text": "        // Don't accumulate damage if we're in the final animation traversal.\n        if context\n            .shared\n            .traversal_flags\n            .contains(TraversalFlags::FinalAnimationTraversal)\n        {\n            return RestyleHint::RECASCADE_SELF;\n        }\n\n        // Also, don't do anything if there was no style.\n        let old_primary_style = match old_styles.primary {\n            Some(s) => s,\n            None => return RestyleHint::RECASCADE_SELF,\n        };"
+        }
+      ]
+    },
+    "servo/components/style/traversal.rs": {
+      "sha256": "736920121fc8700a2a7e37ff900a5bb9ea9725dc001b5f4a5435fbe1a815345f",
+      "excerpts": [
+        {
+          "start": 469,
+          "end": 480,
+          "text": "where\n    E: TElement,\n{\n    if flags.intersects(TraversalFlags::FinalAnimationTraversal) {\n        debug_assert!(flags.for_animation_only());\n        data.clear_restyle_flags_and_damage();\n        unsafe {\n            element.unset_animation_only_dirty_descendants();\n        }\n    }\n}\n"
+        }
+      ]
+    },
+    "servo/ports/geckolib/glue.rs": {
+      "sha256": "83cc1e6f6d27aa92d34377564aa6969dbdda838dd880b401e35de08f250d5027",
+      "excerpts": [
+        {
+          "start": 358,
+          "end": 391,
+          "text": "    let needs_animation_only_restyle =\n        element.has_animation_only_dirty_descendants() || element.has_animation_restyle_hints();\n\n    let per_doc_data = raw_data.borrow();\n    debug_assert!(!per_doc_data.stylist.stylesheets_have_changed());\n\n    let global_style_data = &*GLOBAL_STYLE_DATA;\n    let guard = global_style_data.shared_lock.read();\n\n    let was_initial_style = !element.has_data();\n\n    if needs_animation_only_restyle {\n        debug!(\n            \"Servo_TraverseSubtree doing animation-only restyle (aodd={})\",\n            element.has_animation_only_dirty_descendants()\n        );\n        traverse_subtree(\n            element,\n            &global_style_data,\n            &per_doc_data,\n            &guard,\n            traversal_flags | TraversalFlags::AnimationOnly,\n            unsafe { &*snapshots },\n        );\n    }\n\n    traverse_subtree(\n        element,\n        &global_style_data,\n        &per_doc_data,\n        &guard,\n        traversal_flags,\n        unsafe { &*snapshots },\n    );"
+        }
+      ]
+    }
+  }
+}

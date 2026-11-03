@@ -1,0 +1,11 @@
+# Attribute fallback taint: standalone candidate v2
+
+The native change is byte-identical to fix-v1: custom_properties.rs bb13b61a→099e4bb5. Only the WPT grows from24 to28 callbacks on the same /css/css-values/attr-fallback-taint.html page. Original24 HTML is an exact prefix; names/order and document metadata are unchanged. Four supplemental cases follow, with their exact case function inlined; the unused standalone run wrapper is omitted. The four adapters use promise_test to queue after the original24. There is no external supportJS in the native commit.
+
+Added cases cover selected empty attr fallback directly versus through unregistered/universal custom values, and a valid var primary with an unused attr fallback. Empty cases calibrate padding3px versus16px for an invalid value selecting +13px. All cases check literal image validity; universal registration succeeds explicitly through CSS.registerProperty. Direct empty output adds no URL-overlapping bytes; custom publication retains aggregate taint. Unused fallback contributes no provenance.
+
+Final preparation/check0479ae/0: genuine WPT lint0, Manifestv9 one long-timeout page, inert28 unique callbacks/29 signatures, exact forward/reverse two-file patch with zero fuzz/offsets and removed scratch. Structural checks verify original24 plus exactfour roster, exact supplemental case function and unchanged Rust/base/candidate/patch hunk. Earlier f3c29e preparation logs are retained as INITIAL, before omission of the unused wrapper. Configured Rustfmt remains attributed to identical v1 source, not a new run.
+
+Root separately observed the original archived binary on the standalone four-case probe:2PASS/2FAIL, all empty/literal controls passed (observation fc3cab3a). This is not execution of the combined WPT. Expected combined original17PASS/11FAIL and candidate28PASS still require actual archived-binary WPT validation. No browser or native compilation was performed for this package. Existing active v1 owner and24-case fixture remain untouched.
+
+Only custom_properties.rs and attr-fallback-taint.html are proposed native commit payloads. Constant data-image policy checks demonstrate neither unknown-secret disclosure nor external exfiltration. The experimental retained engine and its separate aggregate repair are not included.

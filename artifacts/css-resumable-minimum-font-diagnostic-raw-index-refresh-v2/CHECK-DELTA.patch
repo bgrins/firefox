@@ -1,0 +1,59 @@
+--- artifacts/css-attr-fallback-postcandidate-raw-index-refresh-v1/check.py
++++ artifacts/css-resumable-minimum-font-diagnostic-raw-index-refresh-v2/check.py
+@@ -17,9 +17,13 @@
+  try:m.saved(p)
+  except AssertionError as exc:assert str(exc)=='Completed paired runtime binding is pending'
+  else:raise AssertionError('pending runtime admitted')
+- print(json.dumps({'pending_runtime_rejected':True,'execution_disabled':True,'live_state_read':False}))
+- raise SystemExit(0)
+-owner,review,pre,post,raw=m.saved(p)
++ for path,pin in p['references'].items(): assert m.sha(m.ROOT/path)==pin
++ runtime=m.ROOT/p['runtime']
++ pre,post,raw=(m.read(runtime/name) for name in ('PAIR-PRE.json','POST.json','RAW-INDEX-OBSERVATION.json'))
++ terminal=m.read(runtime/'ROOT-OWNER-TERMINAL.json')
++ assert terminal==p['actual_owner_terminal'] and terminal['result_sha256']==m.sha(runtime/'RESULT.json')
++else:
++ owner,review,pre,post,raw=m.saved(p)
+ epoch={'semantic_index':{k:v for k,v in pre['snapshot']['index'].items() if k!='raw_index'},'raw_index_observation':{'current':raw['before'],'sentinel':'retained'},'pins':{'sentinel':'unchanged'},'counts':{'sentinel':1}}
+ updated=m.derive(epoch,pre['snapshot'],post,raw)
+ expected=copy.deepcopy(epoch);expected['raw_index_observation']['current']=raw['after']
+@@ -34,7 +38,7 @@
+ try:m.derive(epoch,pre['snapshot'],changed,raw)
+ except AssertionError:negative+=1
+ else:raise AssertionError('semantic mutation admitted')
+-for key in ['live_audit','audit_terminal','runtime_manifest_sha256','owner_terminal'] + (['cleanup'] if p['cleanup'] is not None else []):
++for key in ([] if p['pending_runtime_binding'] else ['live_audit','audit_terminal','runtime_manifest_sha256','owner_terminal'] + (['cleanup'] if p['cleanup'] is not None else [])):
+  changed=copy.deepcopy(p);changed[key]=None
+  try:m.saved(changed)
+  except (AssertionError,TypeError,RuntimeError):negative+=1
+@@ -51,20 +55,16 @@
+  try:m.admit_current_raw(updated,post,changed)
+  except AssertionError:negative += 1
+  else:raise AssertionError('fresh observation admitted changed '+key)
+-for role in ('original','candidate'):
+- changed=copy.deepcopy(p);changed['archived_validation'][role]['manifest_sha256']='0'*64
+- try:m.saved(changed)
+- except (AssertionError,RuntimeError):negative+=1
+- else:raise AssertionError('unbound archived '+role)
+-parent=(m.ROOT/'artifacts/css-resumable-font-selection-integrated-pair-raw-index-refresh-v1/run.py').read_text()
++parent=(m.ROOT/'artifacts/css-attr-fallback-postcandidate-raw-index-refresh-v1/run.py').read_text()
+ current_source=(HERE/'run.py').read_text()
+ for name,next_name in [('derive','admit_current_raw'),('admit_current_raw','saved')]:
+  old=parent[parent.index('def '+name+'('):parent.index('def '+next_name+'(')]
+- end='archived_saved' if next_name=='saved' else next_name
++ end=next_name
++ if next_name=='saved': old=old[:old.index('def archived_saved(')]
+  new=current_source[current_source.index('def '+name+'('):current_source.index('def '+end+'(')]
+  assert old==new
+ tail="    claims = {n:owner.claim"
+-assert parent[parent.index(tail):].replace('native-authority integrated browser pair restored raw observation refresh','native-authority fallback candidate restored raw observation refresh')==current_source[current_source.index(tail):]
++assert parent[parent.index(tail):].replace('native-authority fallback candidate restored raw observation refresh','native-authority minimum-font diagnostic restored raw observation refresh')==current_source[current_source.index(tail):]
+ start=current_source.index("    if actual_index['raw_index'] == epoch['raw_index_observation']['current']:")
+ end=current_source.index("    output = ROOT / policy['output']",start)
+ assert current_source.index('assert not lock.exists()') < start < current_source.index('output.mkdir()')
+@@ -74,4 +74,4 @@
+  assert namespace['branch']({'raw_index':'same'},{'raw_index_observation':{'current':'same'}},p,{'CURRENT-EPOCH.json':b'epoch'}) is None
+ assert json.loads(captured.getvalue())['updated'] is False
+ assert namespace['branch']({'raw_index':'different'},{'raw_index_observation':{'current':'same'}},p,{'CURRENT-EPOCH.json':b'epoch'})=='write-required'
+-print(json.dumps({'saved_restoration_authenticated':True,'raw_before':raw['before'],'raw_after':raw['after'],'negative_checks':negative,'only_changed_field':'raw_index_observation.current','live_state_read':False,'publication_executed':False}))
++print(json.dumps({'saved_restoration_authenticated':not p['pending_runtime_binding'],'pending_runtime_rejected':p['pending_runtime_binding'],'raw_before':raw['before'],'raw_after':raw['after'],'negative_checks':negative,'only_changed_field':'raw_index_observation.current','live_state_read':False,'publication_executed':False}))

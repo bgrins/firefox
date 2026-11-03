@@ -1,0 +1,238 @@
+--- artifacts/css-root-font-late-target-restyle-probe-v1/tests/web-animations/animation-model/keyframe-effects/initial-root-font-child-keyframes.html
++++ artifacts/css-root-font-startup-depth-probe-v1/tests/web-animations/animation-model/keyframe-effects/root-font-startup-depth.html
+@@ -1,6 +1,6 @@
+ <!doctype html>
+ <meta charset="utf-8">
+-<title>Child rem keyframes with an initially animated root font</title>
++<title>Font animation startup through rem and em dependency chains</title>
+ <meta name="timeout" content="long">
+ <link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+ <link rel="help" href="https://drafts.csswg.org/css-animations-1/#animations">
+@@ -10,10 +10,13 @@
+ <script>
+ "use strict";
+ 
+-window.rootFontInitialAnimationObservations = [];
++window.rootFontStartupDepthObservations = [];
+ const nextFrame = win => new Promise(resolve => win.requestAnimationFrame(resolve));
+ const cases = [
+-  ["late", "pre-styled root23px then simultaneous root32px and child2rem CSS animations"],
++  ["animated", 2],
++  ["literal", 2],
++  ["animated", 4],
++  ["literal", 4],
+ ];
+ 
+ function describe(animation, target, name, win) {
+@@ -28,100 +31,138 @@
+   } : null;
+ }
+ 
+-for (const [mode, label] of cases) {
++for (const [mode, depth] of cases) {
+   promise_test(async t => {
++    let chain = "";
++    for (let level = 1; level <= depth; level++) {
++      chain += `<div class="chain-node ${level === 1 ? "rem-node" : "em-node"}" data-depth="${level}">`;
++    }
++    chain += "leaf" + "</div>".repeat(depth);
+     const frame = document.createElement("iframe");
+     t.add_cleanup(() => frame.remove());
+     const loaded = new Promise(resolve => frame.onload = resolve);
+     frame.srcdoc = `<!doctype html><html class="${mode}"><style>
+       html { font-size: 23px; }
+-      html.active { animation: root-size 100s linear both paused; }
+-      html.constant { font-size: 32px; }
+-      .target { font-size: 11px; }
+-      html.active .target, html.constant .target {
+-        animation: child-size 100s linear both paused;
+-      }
+-      .target.force-target-restyle { background-color: rgb(1, 2, 3); }
++      html.literal { font-size: 32px; }
++      html.animated.active { animation: root-size 100s linear both paused; }
++      .chain-node { font-size: 11px; }
++      html.active .rem-node { animation: rem-size 100s linear both paused; }
++      html.active .em-node { animation: em-size 100s linear both paused; }
++      .force-target-restyle { background-color: rgb(1, 2, 3); }
+       .plain { font-size: 2rem; }
+       @keyframes root-size { from, to { font-size: 32px; } }
+-      @keyframes child-size { from, to { font-size: 2rem; } }
+-    </style><div class="target">target</div><div class="plain">plain</div>`;
++      @keyframes rem-size { from, to { font-size: 2rem; } }
++      @keyframes em-size { from, to { font-size: 2em; } }
++    </style>${chain}<div class="plain">plain</div>`;
+     document.body.append(frame);
+     await loaded;
+     const win = frame.contentWindow;
+     const doc = win.document;
+     const root = doc.documentElement;
+-    const target = doc.querySelector(".target");
+-    let precondition = null;
+-    if (mode === "late") {
+-      precondition = {
+-        root: win.getComputedStyle(root).fontSize,
+-        target: win.getComputedStyle(target).fontSize,
+-        rootAnimations: root.getAnimations().length,
+-        childAnimations: target.getAnimations().length,
+-      };
+-      root.classList.add("active");
++    const nodes = [...doc.querySelectorAll(".chain-node")];
++    const leaf = nodes.at(-1);
++    const plain = doc.querySelector(".plain");
++    const styleReadOrder = [];
++    function read(phase, target, property, level = null) {
++      const value = win.getComputedStyle(target)[property];
++      styleReadOrder.push({phase, level, property, value});
++      return value;
+     }
+-    const first = win.getComputedStyle(target).fontSize;
++    function readNodes(phase) {
++      return nodes.map((node, index) => ({node, level: index + 1})).reverse()
++        .map(({node, level}) => ({level, value: read(phase, node, "fontSize", level)}));
++    }
++    const precondition = {
++      root: read("pre-root", root, "fontSize", 0),
++      nodes: nodes.map((node, index) => read("pre-node", node, "fontSize", index + 1)),
++      rootAnimations: root.getAnimations().length,
++      nodeAnimations: nodes.map(node => node.getAnimations().length),
++    };
++    root.classList.add("active");
++    const firstLeaf = read("first-leaf", leaf, "fontSize", depth);
+     await nextFrame(win);
+     await nextFrame(win);
+-    const settled = win.getComputedStyle(target).fontSize;
+-    const rootSize = win.getComputedStyle(root).fontSize;
+-    const plainSize = win.getComputedStyle(doc.querySelector(".plain")).fontSize;
+-    const afterCalibration = win.getComputedStyle(target).fontSize;
++    const settledNodes = readNodes("settled-node");
++    const rootSize = read("root-calibration", root, "fontSize", 0);
++    const plainSize = read("plain-calibration", plain, "fontSize");
++    const afterCalibrationNodes = readNodes("after-calibration-node");
+     const rootAnimations = root.getAnimations();
+-    const childAnimations = target.getAnimations();
+-    const rootAnimation = describe(rootAnimations[0], root, "root-size", win);
+-    const childAnimation = describe(childAnimations[0], target, "child-size", win);
+-    window.rootFontInitialAnimationObservations.push({
+-      mode, first, settled, rootSize, plainSize, precondition, afterCalibration,
+-      rootAnimationCount: rootAnimations.length,
+-      childAnimationCount: childAnimations.length,
+-      rootAnimation, childAnimation, standards: doc.compatMode === "CSS1Compat",
+-    });
++    const nodeAnimations = nodes.map(node => node.getAnimations());
++    const allTargets = [root, ...nodes];
++    const beforeAnimations = [rootAnimations, ...nodeAnimations];
++    const beforeEffects = beforeAnimations.map(list => list.map(animation => animation.effect));
++    const expectedNames = ["root-size", "rem-size", ...Array(depth - 1).fill("em-size")];
++    const animationRecords = beforeAnimations.map((list, index) => ({
++      level: index, count: list.length,
++      animation: describe(list[0], allTargets[index], expectedNames[index], win),
++    }));
++    const observation = {
++      mode, depth, standards: doc.compatMode === "CSS1Compat", precondition,
++      expectedLeaf: 32 * 2 ** depth,
++      expectedNodes: nodes.map((_, index) => ({level: index + 1, value: 32 * 2 ** (index + 1)})),
++      firstLeaf, settledNodes, rootSize, plainSize, afterCalibrationNodes,
++      animationRecords, styleReadOrder,
++    };
++    window.rootFontStartupDepthObservations.push(observation);
+ 
+-    const childBeforeRestyle = childAnimations[0];
+-    const rootBeforeRestyle = rootAnimations[0];
+-    target.classList.add("force-target-restyle");
+-    const afterTargetRestyle = win.getComputedStyle(target).fontSize;
+-    const childAfterRestyle = target.getAnimations();
+-    const rootAfterRestyle = root.getAnimations();
+-    window.rootFontInitialAnimationObservations.at(-1).targetRestyle = {
+-      value: afterTargetRestyle,
+-      sameChildAnimation: childAfterRestyle.length === 1 &&
+-        childAfterRestyle[0] === childBeforeRestyle,
+-      sameRootAnimation: rootAfterRestyle.length === rootAnimations.length &&
+-        rootAfterRestyle[0] === rootBeforeRestyle,
+-      childAnimationCount: childAfterRestyle.length,
+-      rootAnimationCount: rootAfterRestyle.length,
+-      child: describe(childAfterRestyle[0], target, "child-size", win),
+-      root: describe(rootAfterRestyle[0], root, "root-size", win),
+-      background: win.getComputedStyle(target).backgroundColor,
+-      rootSize: win.getComputedStyle(root).fontSize,
+-      plainSize: win.getComputedStyle(doc.querySelector(".plain")).fontSize,
++    leaf.classList.add("force-target-restyle");
++    const afterTargetRestyle = read("restyle-leaf", leaf, "fontSize", depth);
++    const restyleNodes = readNodes("restyle-node");
++    const afterAnimations = allTargets.map(target => target.getAnimations());
++    observation.targetRestyle = {
++      value: afterTargetRestyle, nodes: restyleNodes,
++      identity: afterAnimations.map((list, index) => ({
++        level: index, count: list.length,
++        sameAnimations: list.length === beforeAnimations[index].length &&
++          list.every((animation, item) => animation === beforeAnimations[index][item]),
++        sameEffects: list.length === beforeEffects[index].length &&
++          list.every((animation, item) => animation.effect === beforeEffects[index][item]),
++        animation: describe(list[0], allTargets[index], expectedNames[index], win),
++      })),
++      background: read("restyle-background", leaf, "backgroundColor", depth),
++      rootSize: read("restyle-root", root, "fontSize", 0),
++      plainSize: read("restyle-plain", plain, "fontSize"),
+     };
+ 
+-    assert_equals(doc.compatMode, "CSS1Compat", "fresh standards document");
+-    if (precondition) {
+-      assert_equals(precondition.root, "23px", "pre-styled root");
+-      assert_equals(precondition.target, "11px", "pre-styled child");
+-      assert_equals(precondition.rootAnimations, 0, "no root animation before late start");
+-      assert_equals(precondition.childAnimations, 0, "no child animation before late start");
++    assert_true(observation.standards, "fresh standards document");
++    assert_equals(nodes.length, depth, "complete nested chain");
++    assert_equals(precondition.root, mode === "animated" ? "23px" : "32px", "pre-styled root");
++    assert_array_equals(precondition.nodes, Array(depth).fill("11px"), "all descendants pre-styled");
++    assert_equals(precondition.rootAnimations, 0, "no pre-existing root animation");
++    assert_array_equals(precondition.nodeAnimations, Array(depth).fill(0), "no pre-existing child animations");
++    assert_equals(rootSize, "32px", "effective root font size");
++    assert_equals(plainSize, "64px", "ordinary rem control");
++    for (const record of animationRecords) {
++      const count = record.level === 0 && mode === "literal" ? 0 : 1;
++      assert_equals(record.count, count, "animation count at level " + record.level);
++      if (!count) {
++        continue;
++      }
++      const animation = record.animation;
++      assert_true(animation.cssAnimation, "actual CSS animation");
++      assert_equals(animation.name, animation.expectedName, "expected keyframes");
++      assert_true(animation.targetMatches, "intended animation target");
++      assert_equals(animation.pseudoElement, null, "ordinary target");
++      assert_equals(animation.playState, "paused", "paused animation");
++      assert_equals(animation.progress, 0, "constant animation at start progress");
+     }
+-    assert_equals(rootSize, "32px", "effective root font size");
+-    assert_equals(plainSize, "64px", "ordinary rem consumer");
+-    assert_equals(rootAnimations.length, mode === "constant" ? 0 : 1, "root animation count");
+-    assert_equals(childAnimations.length, 1, "child animation count");
+-    for (const animation of [rootAnimation, childAnimation].filter(Boolean)) {
+-      assert_true(animation.cssAnimation, "actual CSS animation");
+-      assert_equals(animation.name, animation.expectedName, "expected animation name");
+-      assert_true(animation.targetMatches, "animation targets intended element");
+-      assert_equals(animation.pseudoElement, null, "ordinary target");
+-      assert_equals(animation.playState, "paused", "constant paused animation");
+-      assert_not_equals(animation.progress, null, "animation has effective timing progress");
++    for (const identity of observation.targetRestyle.identity) {
++      assert_true(identity.sameAnimations, "same CSSAnimation objects after leaf restyle");
++      assert_true(identity.sameEffects, "same KeyframeEffect objects after leaf restyle");
++      if (identity.animation) {
++        assert_equals(identity.animation.playState, "paused", "still paused after leaf restyle");
++        assert_equals(identity.animation.progress, 0, "unchanged progress after leaf restyle");
++        assert_true(identity.animation.targetMatches, "unchanged animation target");
++      }
+     }
+-    assert_approx_equals(parseFloat(first), 64, 0.06, "first child rem animation value");
+-    assert_approx_equals(parseFloat(settled), 64, 0.06, "settled child rem animation value");
+-  }, label);
++    assert_equals(observation.targetRestyle.background, "rgb(1, 2, 3)", "non-font leaf restyle applied");
++    assert_equals(observation.targetRestyle.rootSize, "32px", "root remains calibrated after leaf restyle");
++    assert_equals(observation.targetRestyle.plainSize, "64px", "ordinary rem remains calibrated after leaf restyle");
++    assert_approx_equals(parseFloat(firstLeaf), observation.expectedLeaf, 0.06, "first leaf value");
++    for (const record of settledNodes) {
++      assert_approx_equals(parseFloat(record.value), 32 * 2 ** record.level, 0.06,
++        "settled node value at level " + record.level);
++    }
++  }, `${mode} root with font animation dependency depth ${depth}`);
+ }
+ </script>

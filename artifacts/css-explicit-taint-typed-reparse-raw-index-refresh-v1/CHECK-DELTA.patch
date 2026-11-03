@@ -1,0 +1,21 @@
+--- artifacts/css-resumable-minimum-font-diagnostic-raw-index-refresh-v2/check.py
++++ artifacts/css-explicit-taint-typed-reparse-raw-index-refresh-v1/check.py
+@@ -55,16 +55,15 @@
+  try:m.admit_current_raw(updated,post,changed)
+  except AssertionError:negative += 1
+  else:raise AssertionError('fresh observation admitted changed '+key)
+-parent=(m.ROOT/'artifacts/css-attr-fallback-postcandidate-raw-index-refresh-v1/run.py').read_text()
++parent=(m.ROOT/'artifacts/css-resumable-minimum-font-diagnostic-raw-index-refresh-v2/run.py').read_text()
+ current_source=(HERE/'run.py').read_text()
+ for name,next_name in [('derive','admit_current_raw'),('admit_current_raw','saved')]:
+  old=parent[parent.index('def '+name+'('):parent.index('def '+next_name+'(')]
+  end=next_name
+- if next_name=='saved': old=old[:old.index('def archived_saved(')]
+  new=current_source[current_source.index('def '+name+'('):current_source.index('def '+end+'(')]
+  assert old==new
+ tail="    claims = {n:owner.claim"
+-assert parent[parent.index(tail):].replace('native-authority fallback candidate restored raw observation refresh','native-authority minimum-font diagnostic restored raw observation refresh')==current_source[current_source.index(tail):]
++assert parent[parent.index(tail):].replace('native-authority minimum-font diagnostic restored raw observation refresh','native-authority explicit-taint candidate restored raw observation refresh')==current_source[current_source.index(tail):]
+ start=current_source.index("    if actual_index['raw_index'] == epoch['raw_index_observation']['current']:")
+ end=current_source.index("    output = ROOT / policy['output']",start)
+ assert current_source.index('assert not lock.exists()') < start < current_source.index('output.mkdir()')

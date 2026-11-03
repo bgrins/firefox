@@ -1,0 +1,1 @@
+Bound native61 comparison using actual owner4fdd14/41426/47a62c/0 and independent audit9246dc/59364/883131/0. compare.py is byte-identical to reviewed542b3ffb preparation. Root explicitly joined terminal.result_sha256 before binding. A successful comparison is not a signed native publication.

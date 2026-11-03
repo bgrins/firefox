@@ -1,0 +1,119 @@
+--- artifacts/css-attr-fallback-candidate-browser-v2/check.py
++++ artifacts/css-explicit-taint-typed-reparse-candidate-browser-v1/check.py
+@@ -24,7 +24,7 @@
+ 
+ def validate_policy(policy):
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-attr-fallback-candidate-browser-runtime-v2'
++    assert policy['runtime_output'] == 'artifacts/css-explicit-taint-typed-reparse-candidate-browser-runtime-v1'
+     assert policy['execution_enabled'] == policy['candidate_execution_enabled']
+     assert policy['authority_kind'] == 'signed-native-publication'
+     assert policy['capacity_commit'] == 'e86b64866cdc5e2260ba9be08c45756fd96e21bb'
+@@ -43,15 +43,17 @@
+         assert sha(ROOT/policy['capture_binding']['path']) == policy['capture_binding']['sha256']
+         terminal = read(ROOT/policy['capture_binding']['path'])
+         assert terminal['terminal'] is True and terminal['exit'] == 0
+-        assert terminal['capture_path'] == policy['current_binding']['path'] and terminal['capture_sha256'] == policy['current_binding']['sha256']
++        assert terminal['capture'] == policy['current_binding']['path'] and terminal['capture_sha256'] == policy['current_binding']['sha256']
+     assert policy['compile_prerequisite'] is policy['native_owner_binding'] is policy['typecheck_binding'] is policy['predecessor_binding'] is None
+     assert policy['required_typecheck_inputs'] == {}
+     admission = load('admission')
+     source = admission.authenticate(ROOT, policy['source_binding'])
+-    assert source == ROOT / 'artifacts/css-attr-own-fallback-fix-v1'
+-    assert policy['source_binding']['manifest_sha256'] == '24e3113a01fd0ec42744e9f3bb03b1e26510b9836ecaf1bc53c6dce8b5162643'
+-    assert policy['suite_bindings'] == {'fallback': policy['source_binding']}
+-    assert policy['lane_order'] == ['fallback'] and policy['diagnostic_lane_order'] == []
++    assert source == ROOT / 'artifacts/css-explicit-attribute-taint-typed-reparse-fix-v1'
++    assert policy['source_binding']['manifest_sha256'] == '21d43edd04e7bf7c58c15c336b7ff8361f80c359f2ae1ae4324ae130cc80a33d'
++    assert not policy['control_suite_pending']
++    assert policy['suite_bindings']['reparse'] == policy['source_binding']
++    assert set(policy['suite_bindings']) == set(policy['wpt_lanes']) == {'reparse','fallback','controls'}
++    assert policy['lane_order'] == ['reparse','fallback','controls'] and policy['diagnostic_lane_order'] == []
+     roles = read(HERE / 'SOURCE-ROLES.json')
+     source_roles = read(source / 'SOURCE.json')['roles']
+     expected_roles = {name: {kind + '_capture': row[kind]['path'] for kind in ('base', 'candidate')} | {kind + '_sha256': row[kind]['sha256'] for kind in ('base', 'candidate')} for name, row in source_roles.items()}
+@@ -65,14 +67,58 @@
+         assert policy[name] == old[name], name
+     free = read(ROOT/policy['current_binding']['path'])['free_bytes'] if policy['current_binding'] else None
+     assert policy['resource_policy'] == dict(old['resource_policy'], captured_free_bytes=free)
+-    inputs, roster = read(source / 'INPUTS.json'), read(source / 'ROSTER.json')
+-    assert inputs['prefs'] == {} and inputs['metadata'] == {}
+-    assert inputs['callbacks'] == 24 and inputs['pages'] == 1 and inputs['signatures'] == 25
+-    expected = copy.deepcopy(old['wpt_lanes']['typedattr'])
+-    expected.update(resources=inputs['resources'],metadata={'portable':{},'mozilla':{}},expected_subtests=roster,target_subtests=roster,fixture_target_pages=list(roster),candidate_required_pass_pages=list(roster),expected_subtest_count=24,expected_target_count=24,expected_control_count=0,expected_page_count=1,expected_regression_signature_count=1,harness_revision=policy['head'],phase_revisions={'original':policy['head'],'candidate':policy['head']})
+-    expected['manifests']['portable'] = inputs['manifest']
+-    assert policy['wpt'] == policy['wpt_lanes']['fallback'] == expected
+-    assert policy['archived_original'] == {'review_directory':'artifacts/css-attr-fallback-archived-original-outcome-review-v1','review_manifest_sha256':'527b46c618936e82ff89322c28ca9127ebe6e7d914685c969b9417e7a0d9e1a9','runtime':'artifacts/css-attr-fallback-archived-original-runtime-v1','comparison_performed':False}
++    for lane,binding in policy['suite_bindings'].items():
++        directory = admission.authenticate(ROOT,binding)
++        inputs, roster = read(directory/'INPUTS.json'), read(directory/'ROSTER.json')
++        assert inputs['prefs'] == {} and inputs['metadata'] == {}
++        expected = copy.deepcopy(old['wpt_lanes']['typedattr'])
++        expected.update(resources=inputs['resources'],metadata={'portable':{},'mozilla':{}},expected_subtests=roster,target_subtests=roster,fixture_target_pages=list(roster),candidate_required_pass_pages=list(roster) if lane=='reparse' else [],expected_subtest_count=inputs['callbacks'],expected_target_count=inputs['callbacks'],expected_control_count=0,expected_page_count=inputs['pages'],expected_regression_signature_count=inputs['pages'],harness_revision=policy['head'],phase_revisions={'original':policy['head'],'candidate':policy['head']})
++        expected['manifests']['portable'] = inputs['manifest']
++        assert policy['wpt_lanes'][lane] == expected
++    assert policy['wpt'] == policy['wpt_lanes']['reparse']
++    assert policy['wpt_lanes']['reparse']['expected_subtest_count'] == 4
++    assert policy['wpt_lanes']['fallback']['expected_subtest_count'] == 28
++    assert policy['wpt_lanes']['controls']['expected_page_count'] == 4
++    archived = policy['archived_original']
++    assert archived['runtime']=='artifacts/css-explicit-attribute-taint-archived-original-runtime-v1'
++    assert archived['comparison_performed'] is False and archived['pending'] is False
++    assert archived['binding']['directory']==archived['runtime']
++    admission.authenticate(ROOT,archived['binding'])
++    assert read(ROOT/archived['runtime']/'RESULT.json')['success']
++    controls = policy['controls_original']
++    assert controls['runtime']=='artifacts/css-explicit-attribute-taint-controls-archived-original-runtime-v1'
++    assert controls['comparison_performed'] is False
++    if controls['pending']:
++        assert controls['binding'] is None and policy['current_binding'] is None and not policy['execution_enabled']
++    else:
++        assert controls['binding']['directory']==controls['runtime']
++        admission.authenticate(ROOT,controls['binding'])
++        assert read(ROOT/controls['runtime']/'RESULT.json')['success']
++    preservation = policy['preservation_original']
++    assert preservation['runtime']=='artifacts/css-attr-fallback-archived-original-runtime-v2'
++    admission.authenticate(ROOT,{'directory':preservation['runtime'],'manifest_sha256':preservation['manifest_sha256']})
++    assert preservation['expected_pass']==17 and preservation['expected_fail']==11 and preservation['comparison_performed'] is False
++    for lane,record,helper in [
++        ('reparse',archived,'artifacts/css-explicit-attribute-taint-archived-original-v1/run.py'),
++        ('fallback',preservation,'artifacts/css-attr-fallback-archived-validation-v2/run.py'),
++        ('controls',controls,'artifacts/css-explicit-attribute-taint-controls-archived-original-v1/run.py'),
++    ]:
++        if record.get('pending'):
++            continue
++        assert policy['references'][helper] == sha(ROOT/helper)
++        directory = ROOT/record['runtime']
++        result = read(directory/'RESULT.json')
++        events = [json.loads(line) for line in (directory/'raw.jsonl').read_text().splitlines() if line.strip()]
++        baseline_assessor = load('baseline_'+lane,ROOT/helper)
++        assessment = baseline_assessor.assess(events,policy['wpt_lanes'][lane]['expected_subtests'],result['exit'])
++        assert assessment == read(directory/'ASSESSMENT.json') and assessment['complete']
++        assert result['source_role']=='archived-original' and result['success'] and result['archive_preserved'] and result['staged_preserved']
++        staged = read(directory/'STAGED-RESOURCES.json')
++        for url,row in policy['wpt_lanes'][lane]['resources'].items():
++            assert staged['tests'+url] == row['sha256']
++        if lane=='reparse': assert assessment['counts']=={'PASS':3,'FAIL':1}
++        if lane=='fallback': assert assessment['counts']=={'PASS':17,'FAIL':11}
++        if lane=='controls': assert assessment['counts']=={'PASS':47}
+     for path,pin in policy['references'].items():
+         assert sha(ROOT/path) == pin,path
+     external = load('closure').external_inputs(ROOT,policy,roles)
+@@ -172,7 +218,7 @@
+ if __name__ == '__main__':
+     policy = read(HERE/'POLICY.json')
+     count = validate_policy(policy)
+-    mutations = [('head','0'*40),('current_binding',{}),('execution_enabled',True),('candidate_execution_enabled',True),('activation_pending',[] if policy['current_binding'] is None else ['unexpected']),('committed_source_preimages',{}),('intermediate_consumed_inputs',{}),('source_binding',dict(policy['source_binding'],manifest_sha256='0'*64)),('archived_original',dict(policy['archived_original'],comparison_performed=True))]
++    mutations = [('head','0'*40),('current_binding',{}),('execution_enabled',True),('candidate_execution_enabled',True),('activation_pending',[] if policy['current_binding'] is None else ['unexpected']),('committed_source_preimages',{}),('intermediate_consumed_inputs',{}),('source_binding',dict(policy['source_binding'],manifest_sha256='0'*64)),('archived_original',dict(policy['archived_original'],comparison_performed=True)),('controls_original',dict(policy['controls_original'],runtime='unexpected')),('controls_original',None)]
+     for key,value in mutations:
+         bad=copy.deepcopy(policy);bad[key]=value;rejected(lambda:validate_policy(bad))
+     both = copy.deepcopy(policy); both['execution_enabled'] = both['candidate_execution_enabled'] = True
+@@ -190,7 +236,7 @@
+     events,code,metadata=synthetic(synthetic_policy,'fallback','FAIL','candidate')
+     settings=comparison.phase_policy(synthetic_policy['wpt_lanes']['fallback'],{'candidate':{'application_metadata':metadata}},synthetic_policy['head'])
+     failed=assessor.assess(events,code,settings,checks,run_binding=metadata)
+-    assert failed['complete'] and len(failed['rows'])==24
++    assert failed['complete'] and len(failed['rows'])==28
+     crashed=[row for row in events if row.get('action')!='test_status']
+     for row in crashed:
+         if row.get('action')=='test_end':row.update(status='CRASH',expected='OK')

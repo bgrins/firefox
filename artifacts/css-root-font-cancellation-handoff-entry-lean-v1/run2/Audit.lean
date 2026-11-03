@@ -1,0 +1,15 @@
+import Handoff
+#print axioms CancellationHandoff.broad_supplies_entry
+#print axioms CancellationHandoff.selective_supplies_entry
+#print axioms CancellationHandoff.broad_no_signal
+#print axioms CancellationHandoff.selective_no_signal
+#print axioms CancellationHandoff.selective_no_styled_child
+#print axioms CancellationHandoff.styled_child_seeded
+#print axioms CancellationHandoff.unstyled_child_unchanged
+#print axioms CancellationHandoff.selective_children
+#print axioms CancellationHandoff.broad_preserves_self_hint
+#print axioms CancellationHandoff.selective_preserves_self_hint
+#print axioms CancellationHandoff.selective_preserves_root_hint
+#print axioms CancellationHandoff.entry_is_not_visitation
+#print axioms CancellationHandoff.broad_with_forwarding_visits
+#print axioms CancellationHandoff.selective_with_forwarding_visits

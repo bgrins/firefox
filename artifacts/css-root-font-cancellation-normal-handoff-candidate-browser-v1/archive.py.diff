@@ -1,0 +1,13 @@
+--- artifacts/css-root-font-cancellation-trace-candidate-browser-v3/archive.py
++++ artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-v1/archive.py
+@@ -118,8 +118,8 @@
+                       application_metadata=metadata, binaries=receipt['binaries'], source_claims=sources,
+                       build_command_sha256=sha(output / 'candidate-build/COMMAND.json'),
+                       candidate_wpt_outcomes_sha256=sha(output / 'candidate-OUTCOMES.json'),
+-                      unchanged_source_preimages={name: policy['source_context_pins'][name] for name in
+-                          ('servo/ports/geckolib/glue.rs', 'servo/components/style/custom_properties.rs')},
++                      unchanged_source_preimages={name: pin for name, pin in policy['source_context_pins'].items()
++                          if name not in roles},
+                       resolved_source_inventory=original, provisional=True,
+                       independent_restoration_required=True, diagnostic_run_performed=False)
+         validation = validate(root, record, settings)

@@ -1,0 +1,28 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Selected empty attribute fallback provenance</title>
+<meta name="timeout" content="long">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-security">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#replace-an-attr-function">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="support/attr-fallback-supplement.js"></script>
+<body>
+<script>
+  for (const name of attrFallbackSupplementCases) {
+    test(() => {
+      const row = runAttrFallbackSupplementCase(name);
+      assert_true(row.standards, "Standards document");
+      assert_true(row.typedAttr, "Typed attributes supported");
+      assert_true(row.missingAttribute, "Primary attribute is absent");
+      assert_true(row.literalValid, "Literal image remains valid");
+      if (name === "empty-selected-universal") {
+        assert_true(row.registered, "Universal registration succeeded");
+      }
+      if (row.padding !== null) {
+        assert_equals(row.padding, "3px", "Valid empty fallback, not invalid +13px fallback");
+      }
+      assert_equals(row.actual, row.expected, "Selected provenance and direct ranges stay distinct");
+    }, name);
+  }
+</script>

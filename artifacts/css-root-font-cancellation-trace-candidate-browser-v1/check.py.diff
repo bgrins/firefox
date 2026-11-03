@@ -1,0 +1,48 @@
+--- artifacts/css-root-font-cancellation-archive-candidate-browser-v2/check.py
++++ artifacts/css-root-font-cancellation-trace-candidate-browser-v1/check.py
+@@ -24,7 +24,7 @@
+ 
+ def validate_policy(policy):
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-root-font-cancellation-archive-candidate-browser-runtime-v1'
++    assert policy['runtime_output'] == 'artifacts/css-root-font-cancellation-trace-candidate-browser-runtime-v1'
+     assert policy['execution_enabled'] == policy['candidate_execution_enabled']
+     assert policy['archive'] == {'application_name': 'Nightly.app', 'minimum_free_after_copy': 28991029248, 'prefix': 'css-font-unit-candidate-', 'temporary_parent': '/private/tmp', 'validator': 'artifacts/css-root-self-smil-archived-original-v1/run.py', 'validator_sha256': '268a201122782c997cdeb566db7651200c58a669cb69821e4c94e5c01995a3ea'}
+     assert policy['authority_kind'] == 'signed-native-publication'
+@@ -59,17 +59,20 @@
+     assert policy['required_typecheck_inputs'] == {}
+     admission = load('admission')
+     source = admission.authenticate(ROOT, policy['source_binding'])
+-    assert source == ROOT / 'artifacts/css-keyframe-font-unit-dependency-fix-v1'
+-    assert policy['source_binding']['manifest_sha256'] == 'bc7076009df8acddb197dd00675b8a9f62483d3e5ec11adb2e49e6864815e754'
++    assert source == ROOT / 'artifacts/css-root-font-cancellation-trace-instrumentation-v1'
++    assert policy['source_binding']['manifest_sha256'] == '4cee0e2fc3334a17d34453c0b4957716ae0ea7b197a36b255883d817fb309ab3'
+     assert not policy['control_suite_pending']
+     assert policy['suite_bindings']['cancellation'] == {'directory': 'artifacts/css-root-self-animation-isolation-followup-v1', 'manifest_sha256': 'e467889baca270157fe52aefc61eb38af5735eda546dbd0b4b931885a62493a4'}
+     assert set(policy['suite_bindings']) == set(policy['wpt_lanes']) == {'cancellation'}
+     assert policy['lane_order'] == ['cancellation'] and policy['diagnostic_lane_order'] == []
+     roles = read(HERE / 'SOURCE-ROLES.json')
+     source_roles = read(source / 'SOURCE-ROLES.json')
+-    expected_roles = {name: {'base_capture': str((source/'original'/name).relative_to(ROOT)), 'candidate_capture': str((source/'candidate'/name).relative_to(ROOT)), 'base_sha256': row['original_sha256'], 'candidate_sha256': row['candidate_sha256']} for name,row in source_roles.items()}
+-    assert roles == expected_roles and set(roles) == {'servo/components/style/data.rs','servo/components/style/traversal.rs'}
+-    assert set(policy['additional_source_paths']) == set(roles)
++    expected_roles = {name: {'base_capture': str((source/'base'/name).relative_to(ROOT)), 'candidate_capture': str((source/'candidate'/name).relative_to(ROOT)), 'base_sha256': row['base_sha256'], 'candidate_sha256': row['candidate_sha256']} for name,row in source_roles.items()}
++    assert roles == expected_roles and set(roles) == {'servo/components/style/traversal.rs', 'servo/components/style/data.rs', 'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp'}
++    assert set(policy['additional_source_paths']) == {'servo/components/style/data.rs', 'servo/components/style/traversal.rs'}
++    canonical_roles = set(roles) - set(policy['additional_source_paths'])
++    assert canonical_roles == {'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp'}
++    assert all(policy['source_context_pins'][name] == roles[name]['base_sha256'] for name in canonical_roles)
+     assert policy['committed_source_preimages'] == {name: row['base_sha256'] for name, row in roles.items()}
+     for row in roles.values():
+         for kind in ('base', 'candidate'):
+@@ -165,9 +168,7 @@
+         assert (patch.read_text() if patch.exists() else '') == difference, name
+     parent_driver = (ROOT / read(HERE/'ORIGINS.json')['run.py']).read_text()
+     tail = (HERE/'run.py').read_text().split('    finally:\n', 1)[1]
+-    start = tail.index('    if failure is None and not errors and phase_result is not None:\n')
+-    end = tail.index('    success = failure is None', start)
+-    assert tail[:start] + tail[end:] == parent_driver.split('    finally:\n', 1)[1]
++    assert tail == parent_driver.split('    finally:\n', 1)[1]
+     return len(external)
+ 
+ 

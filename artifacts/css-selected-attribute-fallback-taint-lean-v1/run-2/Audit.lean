@@ -1,0 +1,19 @@
+import Fallback
+#print axioms SelectedAttributeFallback.mark_bytes
+#print axioms SelectedAttributeFallback.evaluate_erasure
+#print axioms SelectedAttributeFallback.selected_fallback
+#print axioms SelectedAttributeFallback.failed_fallback
+#print axioms SelectedAttributeFallback.discarded_fallback
+#print axioms SelectedAttributeFallback.selected_attr_origin
+#print axioms SelectedAttributeFallback.selected_other_preserves_only_child
+#print axioms SelectedAttributeFallback.nested_attr_marks_survive
+#print axioms SelectedAttributeFallback.mark_keeps_child_origin
+#print axioms SelectedAttributeFallback.run_preserves_true
+#print axioms SelectedAttributeFallback.attr_publication_survives_tail
+#print axioms SelectedAttributeFallback.selected_fallback_publication
+#print axioms SelectedAttributeFallback.selected_fallback_alias
+#print axioms SelectedAttributeFallback.omitted_outer_counterexample
+#print axioms SelectedAttributeFallback.empty_fallback_custom_only
+#print axioms SelectedAttributeFallback.nonempty_fallback_interval
+#print axioms SelectedAttributeFallback.discarded_attr_body_does_not_taint_var
+#print axioms SelectedAttributeFallback.attr_primary_still_has_own_origin

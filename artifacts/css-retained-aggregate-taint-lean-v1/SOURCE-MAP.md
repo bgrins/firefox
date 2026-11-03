@@ -1,0 +1,22 @@
+# Source correspondence and guard conditions
+
+The pinned repair is `css-resumable-aggregate-taint-fix-v1`: provider candidate `30b09e0c6a0b5015d8aa4eb6849b45d68cf101ba0530d869d270cadfb12f3873`, cascade candidate `8e77fc17c83baab831915a8ab38ae183f04c677922fee90a49c6752058d83a2a`. Its parent provider is integrated-v2 `52a350227dd89b106c775b99df988b060baa5444c008de85ae7601b0280e4288`.
+
+| Model | Actual source boundary | Obligation retained |
+|---|---|---|
+| `Chunk.bytes`, `tainted` | Successful `Substitution` CSS and `attr_tainted`; literal segments are clean | Lookup, fallback selection, typed conversion, and aggregate input correctness are not derived here. |
+| `push` | `ComputedValue::push` checks old CSS length + incoming CSS length before empty-input return and separator insertion | Failed pushes do not publish. The native guard excludes a possible inserted separator; no claim that final length always stays below the limit. |
+| `append.bytes`, `start`, `emitted` | Root slow `do_substitute_chunk` and retained root Chunk append: nonempty child gets a range after a clean `/**/` separator if required | Actual token rules choose the separator. The model accepts its bytes explicitly and does not prove tokenizer or UTF-8 equivalence. |
+| `append.aggregate`, origin trace | Both paths OR child `attr_tainted` independently of whether `ComputedValue::push` emitted bytes | The ghost origin list describes contributors; uniqueness of IDs is unnecessary for this conservation theorem. |
+| `publish` | Successful `SubstitutionPoll::Complete` builds `RetainedSubstitutionResult` with `value.attr_tainted`; `prepare_completed_custom_value` uses this field | Actual body-marked, parse, and registered-type failures can reject publication; the theorem applies only to successful paths. |
+| `oldPublish` | Parent `prepare_completed_custom_value` used `!result.attr_taint.is_empty()` | The witness proves this cannot reconstruct aggregate provenance, even given the emitted bytes too. |
+| `toDirect` | `into_substitution_result` preserves CSS and `AttrTaint` for `finish_retained_substitution` | URL ranges remain exact; the theorem does not replace the native URL parser or its range selection. |
+| `alias` | A successfully published custom value supplies its aggregate provenance to a later reference | Actual lookup eligibility, registered serialization, and parser behavior remain independent obligations. |
+
+The counterexample abstracts the review's `var(--empty) foo` with a completed empty tainted variable and its present-empty successful `attr()` case. Clean `foo` and empty-tainted-then-`foo` have identical Direct states but distinct origin traces and published taint. The exact Rust facade test witnesses are pinned, not rerun here. The repair's tests include successful empty attribute and alias chains; this Lean artifact does not upgrade their extraction scope to browser or native proof.
+
+The whole-reference fast path bypasses slow concatenation and can record a zero-length span. It preserves the substitution's own aggregate bit; existing `TaintRanges.empty_left` proves that such a range does not block a URL. `Sound` deliberately describes slow-path emitted ranges, not every native `AttrTaint`. A fast-path simulation would need its own range invariant. Adding an empty span to every slow empty contribution is neither modeled nor proposed as the repair.
+
+The main CSS Lean serialization modules `RawTokens`, `QuotedString`, and `ValueSyntax` cover token/string syntax and serialization properties, not typed-attribute provenance. `InterpolationProvenance.finite_success_provenance` already covers OR across successful trees but assumes a correct taint-carrying value; it cannot rule out dropping that field at publication. `Ranges` supplies reused overlap, append, containment and separation lemmas. The custom-map taint model compares incoming payload/bit and protects downstream observations, but does not prove how the bit reaches the map. This new boundary is therefore not another generic Boolean conservation model.
+
+The exact-range state corresponds to the root assembly where native `chunk.root` enables range collection. Nested computations supply their completed aggregate and bytes to a root chunk; their internal ranges are not modeled as independently appended root ranges. Nat lengths model successful mathematical bounds, not a proof of Rust `usize` arithmetic or allocation behavior.

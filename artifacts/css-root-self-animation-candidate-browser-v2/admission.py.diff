@@ -1,0 +1,22 @@
+--- artifacts/css-root-self-animation-candidate-browser-v1/admission.py
++++ artifacts/css-root-self-animation-candidate-browser-v2/admission.py
+@@ -38,14 +38,17 @@
+     spec=importlib.util.spec_from_file_location('native_capture_authority',owner/'baseline.py')
+     adapter=importlib.util.module_from_spec(spec);spec.loader.exec_module(adapter)
+     assert receipt['path']==adapter.binding['native_receipt']
+-    observed_head=adapter.native_head_view(checkpoint)
++    memo_owner=authenticate(root,policy['saved_refresh_memo'])
++    spec=importlib.util.spec_from_file_location('saved_refresh_hooks',memo_owner/'hooks.py')
++    memo=importlib.util.module_from_spec(spec);spec.loader.exec_module(memo)
++    observed_head=memo.native_head_view(adapter,checkpoint,policy,{})
+     assert observed_head['head']==policy['head']==capture['snapshot']['index']['head']
+     assert observed_head['epoch_sha256']==capture['controls']['CURRENT-EPOCH.json']
+     assert capture['refresh_lineage_verified'] and capture['additional_sources_match_head']
+     assert capture['refresh_binding']==policy['refresh_lineage']==adapter.binding['refresh_binding']
+     assert capture['refresh_manifest_sha256']==adapter.binding['refresh_manifest_sha256']
+     assert capture['refresh_epoch_sha256']==observed_head['epoch_sha256']
+-    assert adapter.validate_refresh(checkpoint)==capture['snapshot']
++    assert memo.validate_refresh(adapter,checkpoint,policy,{})==capture['snapshot']
+     assert capture['controls']==policy['controls'] and set(capture['controls'])=={'CURRENT-EPOCH.json','ROLE.json','OWNED.json'}
+     here=root/policy['owner_directory']
+     def local(name):

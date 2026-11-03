@@ -1,0 +1,34 @@
+--- artifacts/css-attr-fallback-publication-v1/run.py
++++ artifacts/css-attr-fallback-after-reparse-publication-v1/run.py
+@@ -75,6 +75,22 @@
+     assert binding['predecessor_kind'] == 'signed-research' and stage['stage'] == 'fallback'
+     evidence = load('nowrap_pair_evidence', HERE / 'evidence.py')
+     observed = evidence.verify(ROOT, policy['pair_binding'], stage)
++    typed = observed['typed_native']
++    typed_source = observed['source']
++    typed_files = sorted([evidence.ROLE, evidence.TYPED_TEST])
++    assert git('rev-list', '--parents', '-n', '1', typed['commit']).decode().split() == [typed['commit'], typed['parent']]
++    git('-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / policy['allowed_signers']), 'verify-commit', typed['commit'])
++    assert sorted(git('diff', '--name-only', typed['parent'], typed['commit']).decode().splitlines()) == typed_files
++    assert digest(git('show', typed['parent'] + ':' + evidence.ROLE)) == typed_source['roles'][evidence.ROLE]['base']['sha256']
++    assert digest(git('show', typed['commit'] + ':' + evidence.ROLE)) == stage['head_preimages'][evidence.ROLE]
++    assert not git('ls-tree', typed['parent'], '--', evidence.TYPED_TEST)
++    assert digest(git('show', typed['commit'] + ':' + evidence.TYPED_TEST)) == typed_source['test']['sha256']
++    assert not git('merge-base', '--is-ancestor', observed['tested_head'], typed['parent'])
++    assert all(path.startswith('artifacts/') for path in git('diff', '--name-only', observed['tested_head'], typed['parent']).decode().splitlines())
++    if action == 'install':
++        capture = observed['current_capture']
++        assert capture['snapshot'] == binding['snapshot'] and capture['controls'] == binding['controls']
++        assert capture['checkpoint_receipt'] == binding['predecessor_receipt'] and capture['checkpoint'] == prior
+     pair_head = observed['pair_head']
+     assert not git('merge-base', '--is-ancestor', pair_head, binding['head'])
+     assert all(path.startswith('artifacts/') for path in git('diff', '--name-only', pair_head, binding['head']).decode().splitlines())
+@@ -97,7 +113,7 @@
+     owner.quiescent(RUNTIME)
+     owner.quiescent(ROOT / 'artifacts/css-page-selector-native-runtime-v1')
+     output = ROOT / policy['runtime_output']
+-    assert output.parent == ROOT / 'artifacts' and output.name.startswith('css-attr-fallback-publication-')
++    assert output.parent == ROOT / 'artifacts' and output.name.startswith('css-attr-fallback-after-reparse-publication-')
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not os.path.lexists(lock)
+     sources = set(stage['head_preimages'])

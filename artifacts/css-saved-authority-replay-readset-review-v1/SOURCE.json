@@ -1,0 +1,67 @@
+[
+  {
+    "path": "artifacts/css-resumable-font-size-integrated-raw-index-refresh-v1/run.py",
+    "function": "saved",
+    "exact_excerpt": "    assessment = assessor.assess((build / 'build.log').read_bytes(), inner['exit'], ROOT, ROOT / 'objdir-full.noindex')\n    assert not list(runtime.glob('*-wpt-*')) and not (runtime / 'original-build').exists()"
+  },
+  {
+    "path": "artifacts/css-resumable-font-selection-integrated-pair-raw-index-refresh-v1/run.py",
+    "function": "saved",
+    "exact_excerpt": "        if not phase.exists():\n        events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]\n    assert not (runtime / 'candidate-OUTCOMES.json').exists()"
+  },
+  {
+    "path": "artifacts/css-explicit-taint-combined-raw-index-refresh-v1/run.py",
+    "function": "saved",
+    "exact_excerpt": "    owner = load('refresh_ownership', ROOT / 'artifacts/css-registered-number-source-transition-v4/transition.py')\n    owner.authenticate(owner_dir, policy['owner']['manifest_sha256'])\n    owner.authenticate(runtime, policy['runtime_manifest_sha256'])\n    comparison = load('refresh_pair_comparison', owner_dir / 'comparison.py')\n    assessor = load('refresh_pair_assessor', owner_dir / 'assess.py')\n        checks = load('refresh_lane_checks', ROOT / settings['checks_helper'])\n        events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]\n    admission = load('diagnostic_saved_native_admission',owner_dir/'admission.py')\n    capture = admission.validate_current(ROOT,owner_policy,roles)"
+  },
+  {
+    "path": "artifacts/css-registered-number-source-transition-v4/transition.py",
+    "function": "authenticate",
+    "exact_excerpt": "def authenticate(directory, expected):\n    need(sha(directory / \"FILES.json\") == expected, \"manifest digest: \" + str(directory))\n    manifest = read(directory / \"FILES.json\")\n    entries = manifest.get(\"files\", manifest)\n    for name, item in entries.items():\n        path = directory / relative(name)\n        wanted = item[\"sha256\"] if isinstance(item, dict) else item\n        need(sha(path) == wanted, \"payload: \" + name)\n    return entries"
+  },
+  {
+    "path": "artifacts/css-registered-number-source-transition-v4/transition.py",
+    "function": "body",
+    "exact_excerpt": "def body(path):\n    regular(path)\n    return path.read_bytes()"
+  },
+  {
+    "path": "artifacts/css-registered-number-source-transition-v4/transition.py",
+    "function": "regular",
+    "exact_excerpt": "def regular(path):\n    info = path.lstat()\n    need(stat.S_ISREG(info.st_mode), \"not a regular file: \" + str(path))\n    return info"
+  },
+  {
+    "path": "artifacts/css-explicit-taint-combined-native-candidate-browser-v1/admission.py",
+    "function": "authenticate",
+    "exact_excerpt": "def authenticate(root,binding):\n    directory=root/binding['directory']\n    assert sha(directory/'FILES.json')==binding['manifest_sha256']\n    manifest=read(directory/'FILES.json')\n    for name,row in manifest.get('files',manifest).items():\n        assert not Path(name).is_absolute() and '..' not in Path(name).parts\n        assert (directory/name).is_file() and not (directory/name).is_symlink()\n        if isinstance(row, str):\n            assert len(row) == 64 and sha(directory/name) == row\n        else:\n            assert sha(directory/name)==row['sha256'] and (directory/name).stat().st_size==row['bytes']\n    return directory"
+  },
+  {
+    "path": "artifacts/css-explicit-taint-combined-native-candidate-browser-v1/admission.py",
+    "function": "validate_current",
+    "exact_excerpt": "    adapter=importlib.util.module_from_spec(spec);spec.loader.exec_module(adapter)\n    observed_head=adapter.native_head_view(checkpoint)\n    assert adapter.validate_refresh(checkpoint)==capture['snapshot']\n        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module"
+  },
+  {
+    "path": "artifacts/css-explicit-taint-combined-native-candidate-browser-v1/comparison.py",
+    "function": "build_binding",
+    "exact_excerpt": "    closure=load('pair_consumed_closure',here/'closure.py')\n    inputs=load('pair_input_binding',here/'inputs.py')\n    external=closure.external_inputs(root,policy,roles)\n    assert external==policy['intermediate_consumed_inputs']\n    effective=inputs.bind_inputs(policy['owner_directory'],(here/'FILES.json').read_bytes(),sha(here/'FILES.json'),external)\n    scope=load('pair_scope',here/'review_scope.py')\n    scope.require_intermediate(build['snapshot'],effective)"
+  },
+  {
+    "path": "artifacts/css-keyframe-font-unit-native-current-capture-v2/baseline.py",
+    "function": "validate_refresh",
+    "exact_excerpt": "def validate_refresh(receipt):\n    parent = core.load('previous_native_capture_bridge', str((parent_dir / 'baseline.py').relative_to(ROOT)))\n    previous = parent.validate_refresh(receipt)\n    ownership = core.load('capture_refresh_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')\n    driver = core.load('completed_integrated_raw_refresh', str((owner_dir / 'run.py').relative_to(ROOT)))\n    _, _, frozen_pre, frozen_post, raw = driver.saved(policy)"
+  },
+  {
+    "path": "artifacts/css-resumable-font-size-integrated-current-capture-v1/baseline.py",
+    "function": "validate_refresh",
+    "exact_excerpt": "def validate_refresh(receipt):\n    record = binding['refresh_validator']\n    directory = ROOT / record['directory']\n    assert core.sha(directory / 'commit.py') == record['driver_sha256']\n    assert core.sha(directory / 'BINDINGS.json') == record['bindings_sha256']\n    spec = importlib.util.spec_from_file_location('saved_native_raw_bridge', directory / 'commit.py')\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    assert module.BINDINGS['prior_receipt'] == binding['native_receipt']\n    assert module.BINDINGS['prior_receipt_sha256'] == core.sha(ROOT / binding['native_receipt'])\n    assert module.BINDINGS['refresh_binding'] == binding['refresh_binding']\n    assert module.HEAD == receipt['commit'] and module.EPOCH == binding['current_epoch_sha256']\n    ownership = core.load('capture_refresh_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')\n    ownership.authenticate(ROOT / binding['refresh_binding']['directory'], binding['refresh_manifest_sha256'])\n    return module.validate_refresh(receipt)"
+  },
+  {
+    "path": "artifacts/css-research-checkpoint-20261102-v118/commit.py",
+    "function": "validate_refresh",
+    "exact_excerpt": "    body = (directory / 'RESULT.json').read_bytes()\n    assert sha((parent_dir / 'commit.py').read_bytes()) == parent_binding['driver_sha256']\n    assert sha((parent_dir / 'BINDINGS.json').read_bytes()) == parent_binding['bindings_sha256']\n    parent = load('previous_verified_raw_refresh', str((parent_dir / 'commit.py').relative_to(ROOT)))\n    previous = parent.saved_admission()\n    old_body, new_body = (directory / 'PRE-CURRENT-EPOCH.json').read_bytes(), (directory / 'EPOCH.json').read_bytes()\n    pre, post = json.loads((directory / 'PRE.json').read_bytes()), json.loads((directory / 'POST.json').read_bytes())"
+  },
+  {
+    "path": "artifacts/css-research-checkpoint-20261102-v117/commit.py",
+    "function": "saved_admission",
+    "exact_excerpt": "    body = (ROOT / BINDINGS['prior_receipt']).read_bytes()\n    refreshed = validate_refresh(receipt)\n    research_body = (ROOT / BINDINGS['prior_research_receipt']).read_bytes()\n    body = (ROOT / BINDINGS['current_capture']).read_bytes()"
+  }
+]

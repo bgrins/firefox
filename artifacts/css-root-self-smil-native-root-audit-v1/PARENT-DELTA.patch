@@ -1,0 +1,26 @@
+--- artifacts/css-root-self-animation-native-root-audit-v3/audit.py
++++ artifacts/css-root-self-smil-native-root-audit-v1/audit.py
+@@ -9,8 +9,8 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ ROOT = Path(__file__).resolve().parents[2]
+ HERE = Path(__file__).resolve().parent
+-OWNER = ROOT / "artifacts/css-root-self-animation-candidate-browser-v2"
+-RUNTIME = ROOT / "artifacts/css-root-self-animation-candidate-browser-runtime-v1"
++OWNER = ROOT / "artifacts/css-root-self-smil-candidate-browser-v1"
++RUNTIME = ROOT / "artifacts/css-root-self-smil-candidate-browser-runtime-v1"
+ CANONICAL = ROOT / "artifacts/css-registered-number-native-runtime-v1"
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+ read = lambda path: json.loads(path.read_bytes())
+@@ -72,9 +72,9 @@
+ env = baseline.environment()
+ capture = baseline.current_capture(policy)
+ assert set(roles) == {'servo/ports/geckolib/glue.rs'}
+-assert policy['lane_order'] == ['root_identity', 'controls']
+-assert sum(policy['wpt_lanes'][lane]['expected_subtest_count'] for lane in policy['lane_order']) == 61
+-assert sum(policy['wpt_lanes'][lane]['expected_page_count'] for lane in policy['lane_order']) == 5
++assert policy['lane_order'] == ['smil']
++assert sum(policy['wpt_lanes'][lane]['expected_subtest_count'] for lane in policy['lane_order']) == 7
++assert sum(policy['wpt_lanes'][lane]['expected_page_count'] for lane in policy['lane_order']) == 1
+ raw_observation, assessment_replayed = {}, {}
+ for lane in policy['lane_order']:
+     phase = RUNTIME / ('candidate-wpt-' + lane)

@@ -1,0 +1,395 @@
+usage: entry.py [OPTION]... [TEST]...
+
+TEST is either the full path to a test file to run, or the URL of a test excluding
+scheme host and port.
+
+Runner for web-platform-tests tests.
+
+positional arguments:
+  test_list             List of URLs for tests to run, or paths including
+                        tests to run. (equivalent to --include)
+
+options:
+  -h, --help            show this help message and exit
+  --manifest-update     Regenerate the test manifest.
+  --no-manifest-update  Prevent regeneration of the test manifest.
+  --manifest-download   Attempt to download a preexisting manifest when
+                        updating.
+  --no-manifest-download
+                        Prevent download of the test manifest.
+  --timeout-multiplier TIMEOUT_MULTIPLIER
+                        Multiplier relative to standard test timeout to use
+  --run-by-dir [RUN_BY_DIR]
+                        Split run into groups by directories. With a
+                        parameter,limit the depth of splits e.g. --run-by-
+                        dir=1 to split by top-leveldirectory
+  -f, --fully-parallel  Run every test in a separate group for fully
+                        parallelism.
+  --processes PROCESSES
+                        Number of simultaneous processes to use
+  --max-restarts MAX_RESTARTS
+                        Maximum number of browser restart retries
+  --max-restart-backoff MAX_RESTART_BACKOFF
+                        Increase duration between restart retries
+                        exponentially until reaching this maximum number of
+                        seconds (zero will always restart immediately)
+  --no-capture-stdio    Don't capture stdio and write to logging
+  --no-fail-on-unexpected
+                        Exit with status code 0 when test expectations are
+                        violated
+  --no-fail-on-unexpected-pass
+                        Exit with status code 0 when all unexpected results
+                        are PASS
+  --no-restart-on-new-group
+                        Don't restart test runner when start a new test group
+  --debug-build         Build is a debug build (overrides any mozinfo file)
+  --release-build       Build is a release (overrides any mozinfo file)
+
+Mode:
+  --list-test-groups    List the top level directories containing tests that
+                        will run.
+  --list-disabled       List the tests that are disabled on the current
+                        platform
+  --list-tests          List all tests included in the given test_list
+                        (whether or not they would be executed)
+  --list-tests-json     List details of all tests included in the given
+                        test_list in JSON format
+  --verify              Run a stability check on the selected tests
+  --verify-log-full     Output per-iteration test results when running verify
+  --verify-repeat-loop VERIFY_REPEAT_LOOP
+                        Number of iterations for a run that reloads each test
+                        without restart.
+  --verify-repeat-restart VERIFY_REPEAT_RESTART
+                        Number of iterations, for a run that restarts the
+                        runner between each iteration
+  --verify-no-chaos-mode
+                        Disable chaos mode when running on Firefox
+  --verify-chaos-mode   Enable chaos mode when running on Firefox
+  --verify-max-time VERIFY_MAX_TIME
+                        The maximum number of minutes for the job to run
+  --repeat-max-time REPEAT_MAX_TIME
+                        The maximum number of minutes for the test suite to
+                        attempt repeat runs
+  --verify-no-output-results
+                        Prints individuals test results and messages
+  --verify-output-results
+                        Disable printing individuals test results and messages
+
+Test Selection:
+  --test-types [{test262,print-reftest,testharness,aamtest,wdspec,crashtest,reftest} ...]
+                        Test types to run
+  --subsuite-file SUBSUITE_FILE
+                        Path to JSON file containing subsuite configuration
+  --subsuite SUBSUITES  Subsuite names to run. Runs all subsuites when
+                        omitted.
+  --small-subsuite-size SMALL_SUBSUITE_SIZE
+                        Maximum number of tests a subsuite can have to be
+                        treated as small subsuite.Tests from a small subsuite
+                        will be grouped in one group.
+  --include INCLUDE     URL prefix to include
+  --include-file INCLUDE_FILE
+                        A file listing URL prefix for tests
+  --exclude EXCLUDE     URL prefix to exclude
+  --exclude-file EXCLUDE_FILE
+                        A file listing URL prefix for tests
+  --include-manifest INCLUDE_MANIFEST
+                        Path to manifest listing tests to include
+  --test-groups TEST_GROUPS_FILE
+                        Path to json file containing a mapping {group_name:
+                        [test_ids]}
+  --skip-timeout        Skip tests that are expected to time out
+  --skip-crash          Skip tests that are expected to crash
+  --skip-implementation-status {not-implementing,backlog,implementing}
+                        Skip tests that have the given implementation status
+  --enable-webtransport-h3
+                        Enable tests that require WebTransport over HTTP/3
+                        server (default: true)
+  --no-enable-webtransport-h3
+                        Do not enable WebTransport tests on experimental
+                        channels
+  --enable-dns          Enable the DNS server for resolving test domains
+  --no-enable-dns       Do not enable DNS server
+  --tag TAGS            Labels applied to tests to include in the run. Labels
+                        starting dir: are equivalent to top-level directories.
+  --exclude-tag EXCLUDE_TAGS
+                        Labels applied to tests to exclude in the run. Takes
+                        precedence over `--tag`. Labels starting dir: are
+                        equivalent to top-level directories.
+  --default-exclude     Only run the tests explicitly given in arguments. No
+                        tests will run if the list is empty, and the program
+                        will exit with status code 0.
+
+Debugging:
+  --debugger [DEBUGGER]
+                        run under a debugger, e.g. gdb or valgrind
+  --debugger-args DEBUGGER_ARGS
+                        arguments to the debugger
+  --rerun RERUN         Number of times to re run each test without restarts
+  --repeat REPEAT       Number of times to run the tests, restarting between
+                        each run
+  --repeat-until-unexpected
+                        Run tests in a loop until one returns an unexpected
+                        result
+  --retry-unexpected RETRY_UNEXPECTED
+                        Maximum number of times to retry unexpected tests. A
+                        test is retried until it gets one of the expected
+                        status, or until it exhausts the maximum number of
+                        retries.
+  --pause-after-test    Halt the test runner after each test (this happens by
+                        default if only a single test is run)
+  --no-pause-after-test
+                        Don't halt the test runner irrespective of the number
+                        of tests run
+  --debug-test          Run tests with additional debugging features enabled
+  --pause-on-unexpected
+                        Halt the test runner when an unexpected result is
+                        encountered
+  --no-restart-on-unexpected
+                        Don't restart on an unexpected result
+  --symbols-path SYMBOLS_PATH
+                        Path or url to symbols file used to analyse crash
+                        minidumps.
+  --stackwalk-binary STACKWALK_BINARY
+                        Path to stackwalker program used to analyse minidumps.
+  --pdb                 Drop into pdb on python exception
+  --leak-check          Enable leak checking for supported browsers (Gecko:
+                        enabled by default for debug builds, silently ignored
+                        for opt, mobile)
+  --no-leak-check       Disable leak checking
+
+Android specific arguments:
+  --adb-binary ADB_BINARY
+                        Path to adb binary to use
+  --package-name PACKAGE_NAME
+                        Android package name to run tests against
+  --keep-app-data-directory
+                        Don't delete the app data directory
+  --device-serial DEVICE_SERIAL
+                        Running Android instances to connect to, if not
+                        emulator-5554
+
+Configuration:
+  --binary BINARY       Desktop binary to run tests against
+  --binary-arg BINARY_ARGS
+                        Extra argument for the binary
+  --webdriver-binary BINARY
+                        WebDriver server binary to use
+  --webdriver-arg WEBDRIVER_ARGS
+                        Extra argument for the WebDriver binary
+  --metadata METADATA_ROOT
+                        Path to root directory containing test metadata
+  --tests TESTS_ROOT    Path to root directory containing test files
+  --manifest MANIFEST_PATH
+                        Path to test manifest (default is
+                        ${metadata_root}/MANIFEST.json)
+  --run-info RUN_INFO   Path to directory containing extra json files to add
+                        to run info
+  --product {safari,epiphany,servo_legacy,headless_shell,webkitgtk_minibrowser,chrome_android,servo,opera,sauce,chrome,firefox_android,wpewebkit_minibrowser,edge,wktr,webkit,ladybird,chromium,android_webview,firefox,chrome_ios}
+                        Browser against which to run tests
+  --browser-version BROWSER_VERSION
+                        Informative string detailing the browser release
+                        version. This is included in the run_info data.
+  --browser-channel BROWSER_CHANNEL
+                        Informative string detailing the browser release
+                        channel. This is included in the run_info data.
+  --config CONFIG       Path to config file
+  --install-fonts       Install additional system fonts on your system
+  --no-install-fonts    Do not install additional system fonts on your system
+  --font-dir FONT_DIR   Path to local font installation directory
+  --inject-script INJECT_SCRIPT
+                        Path to script file to inject, useful for testing
+                        polyfills.
+  --headless            Run browser in headless mode
+  --no-headless         Don't run browser in headless mode
+  --instrument-to-file INSTRUMENT_TO_FILE
+                        Path to write instrumentation logs to
+  --suppress-handler-traceback
+                        Don't write the stacktrace for exceptions in server
+                        handlers
+  --no-suppress-handler-traceback
+                        Write the stacktrace for exceptions in server handlers
+  --update-status-on-crash
+                        Update test status to CRASH if a crash dump is found
+  --no-update-status-on-crash
+                        Don't update test status to CRASH if a crash dump is
+                        found
+  --ws-extra WS_EXTRA   Extra paths containing websockets handlers
+
+Test Chunking:
+  --total-chunks TOTAL_CHUNKS
+                        Total number of chunks to use
+  --this-chunk THIS_CHUNK
+                        Chunk number to run
+  --chunk-type {none,hash,id_hash,dir_hash}
+                        Chunking type to use
+
+SSL/TLS:
+  --ssl-type {openssl,pregenerated,none}
+                        Type of ssl support to enable (running without ssl may
+                        lead to spurious errors)
+  --openssl-binary OPENSSL_BINARY
+                        Path to openssl binary
+  --certutil-binary CERTUTIL_BINARY
+                        Path to certutil binary for use with Firefox + ssl
+  --ca-cert-path CA_CERT_PATH
+                        Path to ca certificate when using pregenerated ssl
+                        certificates
+  --host-key-path HOST_KEY_PATH
+                        Path to host private key when using pregenerated ssl
+                        certificates
+  --host-cert-path HOST_CERT_PATH
+                        Path to host certificate when using pregenerated ssl
+                        certificates
+
+Gecko-specific:
+  --prefs-root PREFS_ROOT
+                        Path to the folder containing browser prefs
+  --preload-browser     Preload a gecko instance for faster restarts
+  --no-preload-browser  Don't preload a gecko instance for faster restarts
+  --disable-e10s        Run tests without electrolysis preferences
+  --disable-fission     Disable fission in Gecko.
+  --stackfix-dir STACKFIX_DIR
+                        Path to directory containing assertion stack fixing
+                        scripts
+  --specialpowers-path SPECIALPOWERS_PATH
+                        Path to specialPowers extension xpi file
+  --setpref PREF=VALUE  Defines an extra user preference (overrides those in
+                        prefs_root)
+  --reftest-internal    Enable reftest runner implemented inside Marionette
+  --reftest-external    Disable reftest runner implemented inside Marionette
+  --reftest-screenshot {always,fail,unexpected}
+                        With --reftest-internal, when to take a screenshot
+  --chaos [CHAOS_MODE_FLAGS]
+                        Enable chaos mode with the specified feature flag (see
+                        http://searchfox.org/firefox-
+                        main/source/mfbt/ChaosMode.h for details). If no value
+                        is supplied, all features are activated
+
+GeckoView-specific:
+  --setenv ENV          Set target environment variable, like FOO=BAR
+  --enable-isolated-process
+                        Enable content service isolated process.
+
+Servo-specific:
+  --user-stylesheet USER_STYLESHEETS
+                        Inject a user CSS stylesheet into every test.
+
+Chrome-specific:
+  --enable-mojojs       Enable MojoJS for testing. Note that this flag is
+                        usally enabled automatically by `wpt run`, if it
+                        succeeds in downloading the right version of
+                        mojojs.zip or if --mojojs-path is specified.
+  --mojojs-path MOJOJS_PATH
+                        Path to mojojs gen/ directory. If it is not specified,
+                        `wpt run` will download and extract mojojs.zip into
+                        _venv2/mojojs/gen.
+  --enable-swiftshader  Enable SwiftShader for CPU-based 3D graphics. This can
+                        be used in environments with no hardware GPU
+                        available.
+  --enable-experimental
+                        Enable --enable-experimental-web-platform-features
+                        flag
+  --no-enable-experimental
+                        Do not enable --enable-experimental-web-platform-
+                        features flag on experimental channels
+  --enable-sanitizer    Only alert on sanitizer-related errors and crashes.
+  --reuse-window        Reuse a window across `testharness.js` tests where
+                        possible, which can speed up testing. Also useful for
+                        ensuring that the renderer process has a stable PID
+                        for a debugger to attach to.
+  --trace-categories [CATEGORIES]
+                        Record traces under the given categories for each
+                        test.
+
+Sauce Labs-specific:
+  --sauce-browser SAUCE_BROWSER
+                        Sauce Labs browser name
+  --sauce-platform SAUCE_PLATFORM
+                        Sauce Labs OS platform
+  --sauce-version SAUCE_VERSION
+                        Sauce Labs browser version
+  --sauce-build SAUCE_BUILD
+                        Sauce Labs build identifier
+  --sauce-tags [SAUCE_TAGS ...]
+                        Sauce Labs identifying tag
+  --sauce-tunnel-id SAUCE_TUNNEL_ID
+                        Sauce Connect tunnel identifier
+  --sauce-user SAUCE_USER
+                        Sauce Labs user name
+  --sauce-key SAUCE_KEY
+                        Sauce Labs access key
+  --sauce-connect-binary SAUCE_CONNECT_BINARY
+                        Path to Sauce Connect binary
+  --sauce-init-timeout SAUCE_INIT_TIMEOUT
+                        Number of seconds to wait for Sauce Connect tunnel to
+                        be available before aborting
+  --sauce-connect-arg SAUCE_CONNECT_ARGS
+                        Command-line argument to forward to the Sauce Connect
+                        binary (repeatable)
+
+Taskcluster-specific:
+  --github-checks-text-file GITHUB_CHECKS_TEXT_FILE
+                        Path to GitHub checks output file
+
+WebKit-specific:
+  --webkit-port WEBKIT_PORT
+                        WebKit port
+
+Safari-specific:
+  --kill-safari         Kill Safari when stopping the browser
+
+Output Logging:
+  Each option represents a possible logging format and takes a filename to
+  write that format to, or '-' to write to stdout. Some options are provided
+  by the mozlog utility; see https://firefox-source-
+  docs.mozilla.org/mozbase/mozlog.html for extended documentation.
+
+  --log-raw LOG_RAW     Raw structured log messages (provided by mozlog)
+  --log-unittest LOG_UNITTEST
+                        Unittest style output (provided by mozlog)
+  --log-xunit LOG_XUNIT
+                        xUnit compatible XML (provided by mozlog)
+  --log-html LOG_HTML   HTML report (provided by mozlog)
+  --log-mach LOG_MACH   Human-readable output (provided by mozlog)
+  --log-tbpl LOG_TBPL   TBPL style log format (provided by mozlog)
+  --log-grouped LOG_GROUPED
+                        Grouped summary of test results (provided by mozlog)
+  --log-wptreport LOG_WPTREPORT
+                        wptreport format
+  --log-wptscreenshot LOG_WPTSCREENSHOT
+                        wpt.fyi screenshots
+  --log-raw-level LOG_RAW_LEVEL
+                        A least log level to subscribe to for the given
+                        formatter (debug, info, error, etc.)
+  --log-raw-unexpectedonly
+                        Suppress process output for tests with expected
+                        results.
+  --log-mach-verbose    Enables verbose mode for the given formatter.
+  --log-mach-level LOG_MACH_LEVEL
+                        A least log level to subscribe to for the given
+                        formatter (debug, info, error, etc.)
+  --log-mach-buffer LOG_MACH_BUFFER
+                        If specified, enables message buffering at the given
+                        buffer size limit.
+  --log-mach-screenshot
+                        Enable logging reftest-analyzer compatible screenshot
+                        data.
+  --log-mach-no-screenshot
+                        Disable logging reftest-analyzer compatible screenshot
+                        data.
+  --log-mach-unexpectedonly
+                        Suppress process output for tests with expected
+                        results.
+  --log-tbpl-compact    Enables compact mode for the given formatter.
+  --log-tbpl-level LOG_TBPL_LEVEL
+                        A least log level to subscribe to for the given
+                        formatter (debug, info, error, etc.)
+  --log-tbpl-buffer LOG_TBPL_BUFFER
+                        If specified, enables message buffering at the given
+                        buffer size limit.
+  --log-tbpl-unexpectedonly
+                        Suppress process output for tests with expected
+                        results.
+  --log-wptscreenshot-api LOG_WPTSCREENSHOT_API
+                        Cache API (default:
+                        https://wpt.fyi/api/screenshots/hashes)

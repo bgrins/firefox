@@ -1,0 +1,5 @@
+# Instrumented cancellation diagnostic
+
+The exact original 34-case function ran under the independently audited five-source instrumented archive. All 68 observations and every report field equal the uninstrumented candidate report; controls are valid. Existing-child and root-pseudo rem/em-cancel/no-read cases remain 64px at first and settled samples, expected 46px. Root-read/new-child controls remain 46px; rlh controls remain 74px. No new fix accepted.
+
+Native stderr is captured in full before browser close. TRACE-START records the original file identity, pre-probe byte offset and prefix hash. An initial blank startup revealed that the connector had no capture configured; it was restarted with MOZ_LOG=timestamp solely to enable capture before the diagnostic ran. No logging modules or browser preferences were added. The probe ran once. The isolated profile was removed after process absence was verified, and the connector reset to installed Firefox. Complete pre/post archive and shared-state checks passed.

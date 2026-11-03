@@ -1,0 +1,30 @@
+# Ancestor-font hint during animation-only traversal
+
+Source-only follow-up to4aa5c89d. Root reports candidate8 unchanged2FAIL/6PASS, first64 versus46 for existing-child/root-pseudo rem without a root read. Owner restoration was not terminal when this analysis began. No settled value is inferred from those callback messages. No new native cause, patch, or execution is claimed.
+
+## What the pinned source actually does
+
+- `matching.rs::finish_restyle` runs `process_animations` before replacing styles. For existing styled targets, `process_animations` immediately returns during animation-only traversal, before inserting `UpdateAnimationsTasks::EFFECT_PROPERTIES`.
+- After installing styles, `finish_restyle` updates the root Device size/line-height when the corresponding change predicates hold. It builds `RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT` when font size or likely line-height changes, and for changed root font metrics. This producer is not generally restricted to normal traversal.
+- `recalc_style_at` receives that newly produced child hint from `compute_style`. It calls `data.hint.propagate(flags)` and then ORs the returned child hint into the propagation result. Consequently animation-only `propagate` returning empty does **not** mean newly computed font hints can never reach children.
+- `note_children` inserts the propagation result into each styled child's stored hint before checking whether to traverse it. With animation-only flags, `element_needs_traversal` recognizes animation dirty descendants or `has_animation_hint_or_recascade`; an ancestor-font bit alone does not satisfy that predicate. The newly inserted font bit can remain on a child that is not visited in that pass. Even where a child is visited, the animation-only branch sets the parent's animation dirty-descendant bit, not its normal dirty-descendant bit.
+- `RestyleHint::propagate` in animation-only mode calls `remove_animation_hints` and returns empty. That removal clears CSS/SMIL animation replacement bits and RECASCADE_SELF/RECASCADE_SELF_IF_INHERIT_RESET_STYLE. It does **not** clear an already stored ancestor-font bit. Normal propagation instead takes/clears the node's hint and forwards the font bit to descendants. Thus “animation-only cleanup consumes the font bit” is not supported by this function.
+- Candidate `restyle_kind_for_animation` still calls `needs_to_recascade_self(...,false)` and cannot use the new animation-membership operand. The new query runs only on a normal pass with the relevant hint. The ordinary retained-style bit may still authorize recascade in the animation branch; this is not keyframe recomputation, because the earlier process_animations return remains.
+
+## Narrow scheduling distinction
+
+`Servo_TraverseSubtree` first performs an animation-only traversal when animation dirty state requires one, then calls `traverse_subtree` again with the original caller flags. For an ordinary caller this attempts a normal pass; it does not prove that pass visits every stored child hint. `traverse_subtree` uses `pre_traverse`, and `element_needs_traversal` at the starting root can reject the pass when that root has neither normal dirty descendants nor its own remaining hint. A font bit stored only below that root is not inspected recursively by this predicate. This is a concrete potential reachability gap, not proof that the failing cancellation follows it: other native restyle-root/dirty propagation can make the normal traversal run.
+
+A separate special case exists: `finish_restyle` under `FinalAnimationTraversal` returns RECASCADE_SELF instead of its accumulated child hint, after root metric updates. `clear_state_after_traversing` then clears flags/damage and animation dirty descendants; it does not itself empty stored hints. Exact e86 `ServoStyleSet::StyleNewSubtree` explicitly uses AnimationOnly|FinalAnimationTraversal for its forgetful second pass. This must not be assumed for the already-styled root cancellation: record actual flags first. It is especially important not to extrapolate from the new-child control to the existing-child path.
+
+Finally, `Servo_TakeChangeHint` calls `ElementData::clear_restyle_state`, which really empties the entire hint. Its placement relative to any retained child font hint would matter. This note identifies the clearing boundary but does not establish that its C++ caller reaches an unprocessed font hint in the failing run.
+
+## Only three observation groups, if the34-case probe retains the gap
+
+1. Root `finish_restyle`: document/target identity, traversal flags (including FinalAnimationTraversal), old/new root font values, actual Device writes, accumulated child hint and the returned hint. This distinguishes nonproduction, special replacement, and normal font-bit production.
+2. `recalc_style_at`/`note_children`/next `pre_traverse`: propagated input, each child's stored hint before/after insertion, animation and normal dirty flags, enqueue decision, actual next root and should_traverse result. Record eventual `Servo_TakeChangeHint` hint before clearing. This distinguishes a preserved-but-unreachable hint from a genuinely cleared hint; no added DOM getter/flush.
+3. For the dependent effect, normal `needs_to_recascade_self` membership result, `process_animations` early-return/task selection, and subsequent `UpdateProperties` call. If it rebuilds, retain the same target/pseudo/Device and selected metric at conversion per4aa5; then this hint hypothesis alone is insufficient.
+
+The two-Rust repair can change the third group's normal admission only. It cannot manufacture a normal dirty path or change either animation-only early return. No additional bug is counted from these static possibilities, and no speculative animation-only admission patch is proposed.
+
+Source authority: immutable candidate data/traversal, e86 matching/glue/hint snapshots; e86 ServoStyleSet.cpp newly read from its immutable Git object (f37093), not moving source. Searchfox discovery da5c1a/6ecab8/237ecf located the final-pass caller; one earlier query failed DNS and supplied no evidence. No live source/index/browser/build reads or mutations were used.

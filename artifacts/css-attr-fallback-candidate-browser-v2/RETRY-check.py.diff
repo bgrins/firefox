@@ -1,0 +1,72 @@
+--- artifacts/css-attr-fallback-candidate-browser-v1/check.py
++++ artifacts/css-attr-fallback-candidate-browser-v2/check.py
+@@ -24,17 +24,28 @@
+ 
+ def validate_policy(policy):
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-attr-fallback-candidate-browser-runtime-v1'
++    assert policy['runtime_output'] == 'artifacts/css-attr-fallback-candidate-browser-runtime-v2'
+     assert policy['execution_enabled'] == policy['candidate_execution_enabled']
+     assert policy['authority_kind'] == 'signed-native-publication'
+     assert policy['capacity_commit'] == 'e86b64866cdc5e2260ba9be08c45756fd96e21bb'
+-    assert policy['current_binding'] is None, 'Final post-restoration admission not materialized'
+-    assert policy['head'] is None and not policy['execution_enabled']
+-    assert policy['capture_owner'] is policy['refresh_lineage'] is policy['main_pair_restoration'] is None
+-    assert policy['controls'] == policy['accepted_current_payloads'] == {}
+-    assert policy['activation_pending'] == ['main_pair_terminal_restoration_and_fresh_capture']
++    conditions = read(HERE/'PRECONDITIONS.json')
++    for key in ('head','capture_owner','refresh_lineage','main_pair_restoration'):
++        assert policy[key] == conditions[key]
++    if policy['current_binding'] is None:
++        assert not policy['execution_enabled']
++        assert policy['controls'] == policy['accepted_current_payloads'] == {}
++        assert policy['activation_pending'] == ['fresh_post_pair_capture']
++    else:
++        assert policy['activation_pending'] == []
++        capture = load('admission').validate_current(ROOT, policy, read(HERE/'SOURCE-ROLES.json'))
++        assert capture['controls']['CURRENT-EPOCH.json'] == conditions['epoch_sha256']
++        assert policy['capture_binding'] and policy['references'][policy['capture_binding']['path']] == policy['capture_binding']['sha256']
++        assert sha(ROOT/policy['capture_binding']['path']) == policy['capture_binding']['sha256']
++        terminal = read(ROOT/policy['capture_binding']['path'])
++        assert terminal['terminal'] is True and terminal['exit'] == 0
++        assert terminal['capture_path'] == policy['current_binding']['path'] and terminal['capture_sha256'] == policy['current_binding']['sha256']
+     assert policy['compile_prerequisite'] is policy['native_owner_binding'] is policy['typecheck_binding'] is policy['predecessor_binding'] is None
+-    assert policy['required_typecheck_inputs'] == {} and policy['capture_binding'] is None
++    assert policy['required_typecheck_inputs'] == {}
+     admission = load('admission')
+     source = admission.authenticate(ROOT, policy['source_binding'])
+     assert source == ROOT / 'artifacts/css-attr-own-fallback-fix-v1'
+@@ -52,12 +63,13 @@
+     old = read(ROOT / 'artifacts/css-resumable-font-selection-integrated-pair-v1/POLICY.json')
+     for name in ('image_commit','nowrap_commit','language_commit','ownership_commit','ownership_helper','phase_helper','process_helper','state_helper','bundle_helper','bundle_path','extra_backup_paths','rebuilt_binaries','source_context_pins','restored_application_revision','timeout_seconds','metadata_current_pins','preserved_absent_metadata','preserved_absent_resources','capture_source_owner','additional_source_paths'):
+         assert policy[name] == old[name], name
+-    assert policy['resource_policy'] == dict(old['resource_policy'], captured_free_bytes=None)
++    free = read(ROOT/policy['current_binding']['path'])['free_bytes'] if policy['current_binding'] else None
++    assert policy['resource_policy'] == dict(old['resource_policy'], captured_free_bytes=free)
+     inputs, roster = read(source / 'INPUTS.json'), read(source / 'ROSTER.json')
+     assert inputs['prefs'] == {} and inputs['metadata'] == {}
+     assert inputs['callbacks'] == 24 and inputs['pages'] == 1 and inputs['signatures'] == 25
+     expected = copy.deepcopy(old['wpt_lanes']['typedattr'])
+-    expected.update(resources=inputs['resources'],metadata={'portable':{},'mozilla':{}},expected_subtests=roster,target_subtests=roster,fixture_target_pages=list(roster),candidate_required_pass_pages=list(roster),expected_subtest_count=24,expected_target_count=24,expected_control_count=0,expected_page_count=1,expected_regression_signature_count=1,harness_revision=None,phase_revisions={'original':None,'candidate':None})
++    expected.update(resources=inputs['resources'],metadata={'portable':{},'mozilla':{}},expected_subtests=roster,target_subtests=roster,fixture_target_pages=list(roster),candidate_required_pass_pages=list(roster),expected_subtest_count=24,expected_target_count=24,expected_control_count=0,expected_page_count=1,expected_regression_signature_count=1,harness_revision=policy['head'],phase_revisions={'original':policy['head'],'candidate':policy['head']})
+     expected['manifests']['portable'] = inputs['manifest']
+     assert policy['wpt'] == policy['wpt_lanes']['fallback'] == expected
+     assert policy['archived_original'] == {'review_directory':'artifacts/css-attr-fallback-archived-original-outcome-review-v1','review_manifest_sha256':'527b46c618936e82ff89322c28ca9127ebe6e7d914685c969b9417e7a0d9e1a9','runtime':'artifacts/css-attr-fallback-archived-original-runtime-v1','comparison_performed':False}
+@@ -164,7 +176,10 @@
+     for key,value in mutations:
+         bad=copy.deepcopy(policy);bad[key]=value;rejected(lambda:validate_policy(bad))
+     both = copy.deepcopy(policy); both['execution_enabled'] = both['candidate_execution_enabled'] = True
+-    rejected(lambda:validate_policy(both))
++    if policy['current_binding'] is None:
++        rejected(lambda:validate_policy(both))
++    else:
++        validate_policy(both)
+     synthetic_policy=copy.deepcopy(policy);synthetic_policy['head']='1'*40
+     for settings in list(synthetic_policy['wpt_lanes'].values())+[synthetic_policy['wpt']]:
+         settings['harness_revision']='1'*40;settings['phase_revisions']={'original':'1'*40,'candidate':'1'*40}
+@@ -185,4 +200,4 @@
+     identity = subprocess.run([sys.executable, '-I', '-S', '-B', str(HERE/'check_identity.py')], capture_output=True, text=True)
+     assert identity.returncode == 0, identity.stderr
+     print(identity.stdout)
+-    print(json.dumps({'consumed_inputs':count,'binding_negatives':len(mutations)+1,'streams':streams,'staged_lanes':stages,'candidate_only_FAIL_complete_CRASH_incomplete':True,'current_admission_pending':policy['current_binding'] is None,'native_or_browser_run':False},sort_keys=True))
++    print(json.dumps({'consumed_inputs':count,'binding_negatives':len(mutations)+(1 if policy['current_binding'] is None else 0),'active_two_gates_positive':policy['current_binding'] is not None,'streams':streams,'staged_lanes':stages,'candidate_only_FAIL_complete_CRASH_incomplete':True,'current_admission_pending':policy['current_binding'] is None,'native_or_browser_run':False},sort_keys=True))

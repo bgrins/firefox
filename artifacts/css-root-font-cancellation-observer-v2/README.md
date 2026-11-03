@@ -1,0 +1,7 @@
+# Disabled cancellation observer: execution-aware closure
+
+Sealed observer-v1 c6ed6bc8 remains unchanged. This successor adds only a final execution-status gate to witness closure. Raw observation_complete, signatures, changes and failure/error records remain intact. Closure additionally requires owner success with error=None and every recorded phase success with execution_error=None. A complete valid FAIL observation may have successful execution and is still recorded; it is not required to improve. Full eight-PASS raw evidence with an owner/phase error or unsuccessful completion cannot close the witness.
+
+The two-source, app/build/raw/fixture and restoration joins and all future null bindings are unchanged. Independent live audit remains root's separate prerequisite, not enforced by this observer. Audit-v1 aa8cb1c8 is unchanged. Future owner is candidate-browser-v2/runtime-v1; no new native, browser, build, signing or state operation occurs.
+
+Focused checks use the real projected original signatures to construct synthetic full-PASS and complete-FAIL observations, then execute the production finish_observation helper with owner error, phase error, unsuccessful owner, unsuccessful phase and missing phases. They verify that raw completeness is retained and closure suppressed. The inherited eight observation/eight malformed-stream checks remain attributed to sealed v1, not rerun. Full future runtime replay remains pending.

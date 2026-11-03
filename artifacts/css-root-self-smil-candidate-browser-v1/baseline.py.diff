@@ -1,0 +1,14 @@
+--- artifacts/css-root-self-animation-candidate-browser-v2/baseline.py
++++ artifacts/css-root-self-smil-candidate-browser-v1/baseline.py
+@@ -72,10 +72,7 @@
+     state = load('published_state', policy['state_helper'])
+     adapter = load('native_capture_authority', policy['capture_owner']['directory'] + '/baseline.py')
+     native_receipt = checkpoint
+-    admission = load('saved_memo_admission', str((HERE / 'admission.py').relative_to(ROOT)))
+-    memo_owner = admission.authenticate(ROOT, policy['saved_refresh_memo'])
+-    memo = load('saved_refresh_hooks', str((memo_owner / 'hooks.py').relative_to(ROOT)))
+-    checkpoint = memo.native_head_view(adapter, native_receipt, policy, {})
++    checkpoint = adapter.native_head_view(native_receipt)
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'ROLE.json', 'OWNED.json')}
+     epoch, role = json.loads(controls['CURRENT-EPOCH.json']), json.loads(controls['ROLE.json'])
+     assert hashlib.sha256(controls['CURRENT-EPOCH.json']).hexdigest() == checkpoint['epoch_sha256']

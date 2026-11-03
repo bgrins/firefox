@@ -1,0 +1,12 @@
+--- artifacts/css-explicit-taint-typed-reparse-candidate-browser-v1/baseline.py
++++ artifacts/css-keyframe-font-unit-candidate-browser-v3/baseline.py
+@@ -99,7 +99,8 @@
+     assert set(additional) == set(policy['additional_source_paths'])
+     for name, record in roles.items():
+         if name in additional:
+-            assert name not in epoch['pins'] and name not in epoch['installed_identities']
++            assert name not in epoch['installed_identities']
++            assert name not in epoch['pins'] or epoch['pins'][name] == record['base_sha256']
+             claim = additional[name]
+             assert claim['path'] == name and claim['owned_sha256'] == record['base_sha256']
+             sources[name] = ownership.claim(ROOT, name, record['base_sha256'], claim['identity'])

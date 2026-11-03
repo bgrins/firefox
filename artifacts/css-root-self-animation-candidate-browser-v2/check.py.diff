@@ -1,0 +1,34 @@
+--- artifacts/css-root-self-animation-candidate-browser-v1/check.py
++++ artifacts/css-root-self-animation-candidate-browser-v2/check.py
+@@ -27,6 +27,7 @@
+     assert policy['runtime_output'] == 'artifacts/css-root-self-animation-candidate-browser-runtime-v1'
+     assert policy['execution_enabled'] == policy['candidate_execution_enabled']
+     assert policy['authority_kind'] == 'signed-native-publication'
++    assert policy['saved_refresh_memo'] == {'directory': 'artifacts/css-root-self-saved-refresh-memo-v1', 'manifest_sha256': '9e486e64eedf15412c018fc15b99f984cb0a22621846bbecbb6cc80593a621b0'}
+     assert policy['capacity_commit'] == 'e86b64866cdc5e2260ba9be08c45756fd96e21bb'
+     conditions = read(HERE/'PRECONDITIONS.json')
+     for key in ('head','capture_owner','refresh_lineage','main_pair_restoration'):
+@@ -37,13 +38,19 @@
+         assert policy['activation_pending'] == ['fresh_post_pair_capture']
+     else:
+         assert policy['activation_pending'] == []
+-        capture = load('admission').validate_current(ROOT, policy, read(HERE/'SOURCE-ROLES.json'))
+-        assert capture['controls']['CURRENT-EPOCH.json'] == conditions['epoch_sha256']
++        assert sha(ROOT/policy['current_binding']['path']) == policy['current_binding']['sha256']
++        capture = read(ROOT/policy['current_binding']['path'])
+         assert policy['capture_binding'] and policy['references'][policy['capture_binding']['path']] == policy['capture_binding']['sha256']
+         assert sha(ROOT/policy['capture_binding']['path']) == policy['capture_binding']['sha256']
+         terminal = read(ROOT/policy['capture_binding']['path'])
+-        assert terminal['terminal'] is True and terminal['exit'] == 0
+-        assert terminal['capture'] == policy['current_binding']['path'] and terminal['capture_sha256'] == policy['current_binding']['sha256']
++        assert terminal['launch_chunk'] == '7392f7' and terminal['session_id'] == 73412
++        assert terminal['terminal_chunk'] == '04128d' and terminal['exit_code'] == 0
++        assert terminal['full_current_state_verified'] is True
++        assert terminal['capture_owner_manifest'] == policy['capture_owner']['manifest_sha256']
++        assert terminal['glue_claim'] == capture['payload_claims']['servo/ports/geckolib/glue.rs']
++        assert terminal['capture_path'] == policy['current_binding']['path'] and terminal['capture_sha256'] == policy['current_binding']['sha256']
++        capture = load('admission').validate_current(ROOT, policy, read(HERE/'SOURCE-ROLES.json'))
++        assert capture['controls']['CURRENT-EPOCH.json'] == conditions['epoch_sha256']
+     assert policy['compile_prerequisite'] is policy['native_owner_binding'] is policy['typecheck_binding'] is policy['predecessor_binding'] is None
+     assert policy['required_typecheck_inputs'] == {}
+     admission = load('admission')

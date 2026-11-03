@@ -1,0 +1,25 @@
+--- artifacts/css-root-font-cancellation-candidate-browser-v2/check.py
++++ artifacts/css-root-font-cancellation-archive-candidate-browser-v2/check.py
+@@ -24,8 +24,9 @@
+ 
+ def validate_policy(policy):
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-root-font-cancellation-candidate-browser-runtime-v1'
++    assert policy['runtime_output'] == 'artifacts/css-root-font-cancellation-archive-candidate-browser-runtime-v1'
+     assert policy['execution_enabled'] == policy['candidate_execution_enabled']
++    assert policy['archive'] == {'application_name': 'Nightly.app', 'minimum_free_after_copy': 28991029248, 'prefix': 'css-font-unit-candidate-', 'temporary_parent': '/private/tmp', 'validator': 'artifacts/css-root-self-smil-archived-original-v1/run.py', 'validator_sha256': '268a201122782c997cdeb566db7651200c58a669cb69821e4c94e5c01995a3ea'}
+     assert policy['authority_kind'] == 'signed-native-publication'
+     assert policy['capacity_commit'] == 'e86b64866cdc5e2260ba9be08c45756fd96e21bb'
+     conditions = read(HERE/'PRECONDITIONS.json')
+@@ -163,7 +164,10 @@
+         patch = HERE/(name+'.diff')
+         assert (patch.read_text() if patch.exists() else '') == difference, name
+     parent_driver = (ROOT / read(HERE/'ORIGINS.json')['run.py']).read_text()
+-    assert (HERE/'run.py').read_text().split('    finally:\n', 1)[1] == parent_driver.split('    finally:\n', 1)[1]
++    tail = (HERE/'run.py').read_text().split('    finally:\n', 1)[1]
++    start = tail.index('    if failure is None and not errors and phase_result is not None:\n')
++    end = tail.index('    success = failure is None', start)
++    assert tail[:start] + tail[end:] == parent_driver.split('    finally:\n', 1)[1]
+     return len(external)
+ 
+ 

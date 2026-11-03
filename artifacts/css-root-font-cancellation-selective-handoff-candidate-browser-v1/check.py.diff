@@ -1,0 +1,71 @@
+--- artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-v2/check.py
++++ artifacts/css-root-font-cancellation-selective-handoff-candidate-browser-v1/check.py
+@@ -25,7 +25,7 @@
+ 
+ def validate_policy(policy):
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-runtime-v2'
++    assert policy['runtime_output'] == 'artifacts/css-root-font-cancellation-selective-handoff-candidate-browser-runtime-v1'
+     assert policy['execution_enabled'] == policy['candidate_execution_enabled']
+     assert policy['archive'] == {'application_name': 'Nightly.app', 'minimum_free_after_copy': 28991029248, 'prefix': 'css-font-unit-candidate-', 'temporary_parent': '/private/tmp', 'validator': 'artifacts/css-root-self-smil-archived-original-v1/run.py', 'validator_sha256': '268a201122782c997cdeb566db7651200c58a669cb69821e4c94e5c01995a3ea'}
+     assert policy['authority_kind'] == 'signed-native-publication'
+@@ -45,7 +45,7 @@
+         assert sha(ROOT/policy['capture_binding']['path']) == policy['capture_binding']['sha256']
+         terminal = read(ROOT/policy['capture_binding']['path'])
+         assert terminal == conditions['capture_terminal_fields']
+-        assert terminal['launch'] == '2654a0' and terminal['session'] == 40083 and terminal['terminal'] == 'dcc6e4'
++        assert terminal['launch'] == '0af7d5' and terminal['session'] == 15831 and terminal['terminal'] == '194c92'
+         assert type(terminal['exit']) is int and terminal['exit'] == 0
+         assert terminal['actual_snapshot_matches_completed_refresh_post'] is True
+         assert terminal['capture_manifest'] == policy['capture_owner']['manifest_sha256']
+@@ -54,24 +54,7 @@
+         assert set(terminal['candidate_roles_verified']) == set(read(HERE/'SOURCE-ROLES.json'))
+         capture = load('admission').validate_current(ROOT, policy, read(HERE/'SOURCE-ROLES.json'))
+         assert capture['controls']['CURRENT-EPOCH.json'] == conditions['epoch_sha256']
+-    assert policy['capture_reuse'] == conditions['capture_reuse']
+-    for record in policy['capture_reuse'].values():
+-        assert sha(ROOT/record['path']) == record['sha256']
+-    failed = read(ROOT/policy['capture_reuse']['failure']['path'])
+-    verification = read(ROOT/policy['capture_reuse']['verification']['path'])
+-    verified_terminal = read(ROOT/policy['capture_reuse']['verification_terminal']['path'])
+-    assert failed['launch'] == '0a51bb' and failed['session'] == 64506 and failed['terminal'] == '10cf72' and failed['exit'] == 1
+-    assert failed['active_manifest'] == policy['references']['artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-v1/FILES.json']
+-    assert failed['capture_sha256'] == verification['actual_capture_sha256'] == verified_terminal['actual_capture_sha256'] == policy['current_binding']['sha256']
+-    assert verification['head'] == policy['head'] and verification['raw_index'] == capture['snapshot']['index']['raw_index']
+-    assert verification['owner_process_group_absent'] == failed['pgid'] == 25379
+-    for key in ('whole_snapshot_equal','controls_and_flags_equal','all_source_claims_and_context_equal','full_app_extras_binaries_equal','runtime_absent','lock_absent'):
+-        assert verification[key] is True
+-    assert verification['source_transition_started'] is False
+-    assert verified_terminal['launch'] == '9f23b0' and verified_terminal['session'] == 32590 and verified_terminal['terminal'] == '35ddcb'
+-    assert type(verified_terminal['exit']) is int and verified_terminal['exit'] == 0 and verified_terminal['full_preservation_verified'] is True
+-    assert verified_terminal['verification'] == policy['capture_reuse']['verification']
+-    assert verified_terminal['failed_run_terminal'] == policy['capture_reuse']['failure']
++    assert policy['capture_reuse'] == conditions['capture_reuse'] == {}
+     assert policy['role_validator'] == conditions['role_validator'] == ROLE_LEAF
+     admission = load('admission')
+     admission.authenticate(ROOT, policy['role_validator'])
+@@ -88,17 +71,20 @@
+     assert policy['required_typecheck_inputs'] == {}
+     admission = load('admission')
+     source = admission.authenticate(ROOT, policy['source_binding'])
+-    assert source == ROOT / 'artifacts/css-root-font-cancellation-normal-handoff-fix-v1'
+-    assert policy['source_binding']['manifest_sha256'] == '6e00efb65e78c74fb2917b66afaeaaad1577edb8b367656d61a5a79dbd3f5c9a'
++    assert source == ROOT / 'artifacts/css-root-font-cancellation-selective-handoff-fix-v1'
++    assert policy['source_binding']['manifest_sha256'] == '8c89d437585458e4818604c1aede018631ae42eac74ca421cc63b0273d97c3b2'
+     assert not policy['control_suite_pending']
+     assert policy['suite_bindings']['cancellation'] == {'directory': 'artifacts/css-root-self-animation-isolation-followup-v1', 'manifest_sha256': 'e467889baca270157fe52aefc61eb38af5735eda546dbd0b4b931885a62493a4'}
+     assert set(policy['suite_bindings']) == set(policy['wpt_lanes']) == {'cancellation'}
+     assert policy['lane_order'] == ['cancellation'] and policy['diagnostic_lane_order'] == []
+     roles = read(HERE / 'SOURCE-ROLES.json')
+     source_roles = read(source / 'SOURCE-ROLES.json')['roles']
++    assert read(source / 'SOURCE-ROLES.json')['parent'] == 'css-keyframe-font-unit-dependency-fix-v1'
++    assert source_roles['servo/components/style/data.rs']['parent_sha256'] == source_roles['servo/components/style/data.rs']['candidate_sha256'] == '17aaffd1deef5fe3e325e76bb8e37f885e250b4ad767df492733c876f24e8375'
++    assert source_roles['servo/components/style/traversal.rs']['parent_sha256'] == '402165f9709d8a28ff7b2c1bb894c7fe06a2f60f401e9cea77142bcd34746707'
+     expected_roles = {name: {'base_capture': str((source/'base'/name).relative_to(ROOT)), 'candidate_capture': str((source/'candidate'/name).relative_to(ROOT)), 'base_sha256': row['base_sha256'], 'candidate_sha256': row['candidate_sha256']} for name,row in source_roles.items()}
+-    assert roles == expected_roles and set(roles) == {'servo/components/style/gecko/traversal.rs', 'servo/components/style/traversal.rs', 'servo/ports/geckolib/glue.rs'}
+-    assert set(policy['additional_source_paths']) == {'servo/components/style/gecko/traversal.rs', 'servo/components/style/traversal.rs'}
++    assert roles == expected_roles and set(roles) == {'servo/components/style/data.rs', 'servo/components/style/gecko/traversal.rs', 'servo/components/style/traversal.rs', 'servo/ports/geckolib/glue.rs'}
++    assert set(policy['additional_source_paths']) == {'servo/components/style/data.rs', 'servo/components/style/gecko/traversal.rs', 'servo/components/style/traversal.rs'}
+     canonical_roles = set(roles) - set(policy['additional_source_paths'])
+     assert canonical_roles == {'servo/ports/geckolib/glue.rs'}
+     assert all(policy['source_context_pins'][name] == roles[name]['base_sha256'] for name in canonical_roles)

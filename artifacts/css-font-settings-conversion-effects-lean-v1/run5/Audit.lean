@@ -1,0 +1,22 @@
+import Settings
+#print axioms FontSettingsEffects.pending_preserves
+#print axioms FontSettingsEffects.admitted_once
+#print axioms FontSettingsEffects.selected_scope
+#print axioms FontSettingsEffects.poll_projection
+#print axioms FontSettingsEffects.run_projection
+#print axioms FontSettingsEffects.poll_retains_prefix
+#print axioms FontSettingsEffects.run_retains_prefix
+#print axioms FontSettingsEffects.run_count_conserved
+#print axioms FontSettingsEffects.complete_stays
+#print axioms FontSettingsEffects.effect_prefix
+#print axioms FontSettingsEffects.publication_requires_complete
+#print axioms FontSettingsEffects.published_projection
+#print axioms FontSettingsEffects.last_duplicate_wins
+#print axioms FontSettingsEffects.last_append_wins
+#print axioms FontSettingsEffects.published_occurrence_count
+#print axioms FontSettingsEffects.published_selected_scope
+#print axioms FontSettingsEffects.literal_has_no_readiness_wait
+#print axioms FontSettingsEffects.discarded_duplicate_effects
+#print axioms FontSettingsEffects.ready_list_finishes
+#print axioms FontSettingsEffects.duplicate_example
+#print axioms FontSettingsEffects.pause_resume_example

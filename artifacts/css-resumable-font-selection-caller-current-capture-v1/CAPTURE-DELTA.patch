@@ -1,0 +1,32 @@
+--- artifacts/css-font-size-form-diagnostic-native-current-capture-v1/capture_current.py
++++ artifacts/css-resumable-font-selection-caller-current-capture-v1/capture_current.py
+@@ -20,6 +20,7 @@
+ checkpoint = baseline.read(receipt_path)
+ assert receipt_name == baseline.binding['native_receipt']
+ state, env, controls, epoch, role, sources, flags, snapshot = baseline.observe(policy, ownership, roles, checkpoint)
++additional_sources = baseline.claim_additional_sources(ownership, state, env, epoch, checkpoint['commit'])
+ payload_claims = {name: ownership.claim(ROOT, name, epoch['pins'][name], identity)
+                   for name, identity in epoch['installed_identities'].items()}
+ bundle = baseline.load('published_capture_bundle', policy['bundle_helper'])
+@@ -36,13 +37,20 @@
+ for name, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]:
+     assert state.h.git(path, env, 'ls-files', '-v', '-z') == flags[name]
+ assert not (baseline.RUNTIME / 'SOURCE-TRANSITION.lock').exists() and not (baseline.RUNTIME / 'SOURCE-TRANSITION.lock').is_symlink()
++for name, claim in additional_sources.items():
++    ownership.claim(ROOT, name, claim['owned_sha256'], claim['identity'])
+ output = ROOT / output_name
+ assert output.parent == ROOT / 'artifacts' and not output.exists() and not output.is_symlink()
+ state.save(output, {'checkpoint_receipt': {'path': receipt_name, 'sha256': receipt_sha},
+                    'checkpoint': checkpoint, 'authority_kind': 'signed-native-publication', 'snapshot': snapshot,
+                    'controls': {name: hashlib.sha256(body).hexdigest() for name, body in controls.items()},
+                    'role': role, 'prototype_overlay_state': epoch['prototype_overlay_state'],
+-                   'sources': sources, 'payload_claims': payload_claims, 'epoch_payload_pins': epoch['pins'],
++                   'sources': sources, 'additional_sources': additional_sources,
++                   'additional_sources_match_head': True,
++                   'refresh_binding': baseline.binding['refresh_binding'],
++                   'refresh_manifest_sha256': baseline.binding['refresh_manifest_sha256'],
++                   'refresh_epoch_sha256': baseline.binding['current_epoch_sha256'],
++                   'refresh_lineage_verified': True, 'payload_claims': payload_claims, 'epoch_payload_pins': epoch['pins'],
+                    'installed_identities': epoch['installed_identities'], 'flag_hashes': {name: hashlib.sha256(body).hexdigest() for name, body in flags.items()},
+                    'application_metadata': application, 'app_inventory_sha256': baseline.digest(app),
+                    'extras': extras, 'binaries': binaries, 'full_current_state_verified': True,

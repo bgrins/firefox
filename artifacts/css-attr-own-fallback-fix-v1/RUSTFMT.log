@@ -1,0 +1,268 @@
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:968:
+             Token::Dimension { unit, .. } => flags.insert(ReferenceFlags::from_unit(unit)),
+             Token::Function(name) if SubstitutionFunctionKind::from_ident(name).is_ok() => {
+                 return None;
+[31m-            },
+(B[m[32m+            }
+(B[m             Token::BadUrl(_) | Token::BadString(_) => return None,
+[31m-            _ => {},
+(B[m[32m+            _ => {}
+(B[m         }
+         let consumed = input.position().byte_index();
+         debug_assert!(consumed > 0);
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1346:
+                         "*/"
+                     })
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m             Token::BadUrl(..) => {
+                 let e = StyleParseErrorKind::BadUrlInDeclarationValueBlock;
+                 return Err(ParseError::custom(e));
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1353:
+[31m-            },
+(B[m[32m+            }
+(B[m             Token::BadString(..) => {
+                 let e = StyleParseErrorKind::BadStringInDeclarationValueBlock;
+                 return Err(ParseError::custom(e));
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1357:
+[31m-            },
+(B[m[32m+            }
+(B[m             Token::CloseParenthesis => {
+                 let e = StyleParseErrorKind::UnbalancedCloseParenthesisInDeclarationValueBlock;
+                 return Err(ParseError::custom(e));
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1361:
+[31m-            },
+(B[m[32m+            }
+(B[m             Token::CloseSquareBracket => {
+                 let e = StyleParseErrorKind::UnbalancedCloseSquareBracketInDeclarationValueBlock;
+                 return Err(ParseError::custom(e));
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1365:
+[31m-            },
+(B[m[32m+            }
+(B[m             Token::CloseCurlyBracket => {
+                 let e = StyleParseErrorKind::UnbalancedCloseCurlyBracketInDeclarationValueBlock;
+                 return Err(ParseError::custom(e));
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1369:
+[31m-            },
+(B[m[32m+            }
+(B[m             Token::Function(ref name) => {
+                 let substitution_kind = SubstitutionFunctionKind::from_ident(name).ok();
+                 if let Some(substitution_kind) = substitution_kind {
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1399:
+                                         return Err(ParseError::custom(
+                                             SelectorParseErrorKind::UnexpectedIdent,
+                                         ));
+[31m-                                    },
+(B[m[32m+                                    }
+(B[m                                 }
+                             } else {
+                                 name.as_ref()
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1497:
+                 } else {
+                     nested!(")");
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m             Token::ParenthesisBlock => {
+                 nested!(")");
+[31m-            },
+(B[m[32m+            }
+(B[m             Token::CurlyBracketBlock => {
+                 nested!("}");
+[31m-            },
+(B[m[32m+            }
+(B[m             Token::SquareBracketBlock => {
+                 nested!("]");
+[31m-            },
+(B[m[32m+            }
+(B[m             Token::QuotedString(_) => {
+                 let token_slice = input.slice_from(token_start);
+                 let quote = &token_slice[..1];
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1531:
+                             == 1;
+                     missing_closing_characters.push_str(quote)
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m             Token::Ident(ref value)
+             | Token::AtKeyword(ref value)
+             | Token::Hash(ref value)
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1554:
+                 if is_unquoted_url && !input.slice_from(token_start).ends_with(")") {
+                     missing_closing_characters.push(')');
+                 }
+[31m-            },
+(B[m[31m-            _ => {},
+(B[m[32m+            }
+(B[m[32m+            _ => {}
+(B[m         };
+     }
+     Ok((
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1583:
+                     } else {
+                         AttributeType::Invalid
+                     }
+[31m-                },
+(B[m[32m+                }
+(B[m                 Token::Delim('%') => AttributeType::Unit(AttrUnit::Percentage),
+                 _ => return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError)),
+             })
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1756:
+                         stylist.get_custom_property_initial_values(),
+                         &mut context.builder.substitution_functions,
+                     );
+[31m-                },
+(B[m[32m+                }
+(B[m                 (CSSWideKeyword::Revert, true, false)
+                 | (CSSWideKeyword::RevertLayer, true, false)
+                 | (CSSWideKeyword::RevertRule, true, false)
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1774:
+                                 name,
+                                 value.clone(),
+                             );
+[31m-                        },
+(B[m[32m+                        }
+(B[m                         None => {
+                             context
+                                 .builder
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1781:
+                                 .substitution_functions
+                                 .remove_var(registration, name);
+[31m-                        },
+(B[m[32m+                        }
+(B[m                     };
+[31m-                },
+(B[m[32m+                }
+(B[m             }
+             return;
+         }
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1800:
+                 Err(()) => {
+                     handle_invalid_at_computed_value_time(name, registration, context);
+                     return;
+[31m-                },
+(B[m[32m+                }
+(B[m             };
+             context
+                 .builder
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1807:
+                 .substitution_functions
+                 .insert_var(registration, name, value);
+[31m-        },
+(B[m[32m+        }
+(B[m         Some(namespace) => {
+             let mut value =
+                 ComputedRegisteredValue::universal(Arc::new(VariableValue::new_resolved(
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1820:
+                 .builder
+                 .substitution_functions
+                 .insert_attr(name, namespace, value);
+[31m-        },
+(B[m[32m+        }
+(B[m     }
+ }
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1842:
+         match &self.kind {
+             PreparedCustomKind::Typed(value) | PreparedCustomKind::Initial(value) => {
+                 value.depends_on_color_scheme()
+[31m-            },
+(B[m[32m+            }
+(B[m             PreparedCustomKind::Existing | PreparedCustomKind::Invalid => false,
+         }
+     }
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1857:
+                     .builder
+                     .substitution_functions
+                     .insert_var(registration, name, value);
+[31m-            },
+(B[m[32m+            }
+(B[m             PreparedCustomKind::Initial(specified) => {
+                 let value = specified.to_computed_value(context);
+                 context
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1864:
+                     .builder
+                     .substitution_functions
+                     .insert_var(registration, name, value);
+[31m-            },
+(B[m[32m+            }
+(B[m             PreparedCustomKind::Invalid => {
+                 handle_invalid_at_computed_value_time(name, registration, context)
+[31m-            },
+(B[m[32m+            }
+(B[m             PreparedCustomKind::Existing => apply_substituted_value(
+                 name,
+                 None,
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:1933:
+             } else {
+                 PreparedCustomKind::Invalid
+             }
+[31m-        },
+(B[m[32m+        }
+(B[m     };
+     if matches!(kind, PreparedCustomKind::Invalid) {
+         kind = prepare_invalid_custom_kind(name, registration, context);
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:2250:
+                                 Ok(mut substitution) => {
+                                     substitution.attr_tainted |= v.attr_tainted;
+                                     Some(substitution)
+[31m-                                },
+(B[m[32m+                                }
+(B[m                                 // The primary couldn't be resolved (invalid); use the fallback.
+                                 Err(()) => None,
+                             }
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:2257:
+                         }
+[31m-                    },
+(B[m[32m+                    }
+(B[m                     _ => Some(Substitution::from_value(
+                         v.to_variable_value(),
+                         v.attr_tainted,
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:2262:
+                     )),
+                 },
+             }
+[31m-        },
+(B[m[32m+        }
+(B[m         SubstitutionFunctionKind::Env => {
+             let device = stylist.device();
+             device
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:2269:
+                 .environment()
+                 .get(&reference.name, device, url_data)
+                 .map(|v| Substitution::from_value(v, /* attr_tainted */ false))
+[31m-        },
+(B[m[32m+        }
+(B[m         // https://drafts.csswg.org/css-values-5/#attr-substitution
+         SubstitutionFunctionKind::Attr => {
+             let namespace = match reference.attribute_data.namespace {
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:2331:
+                                 Some(Substitution::from_value(
+                                     value, /* attr_tainted */ true,
+                                 ))
+[31m-                            },
+(B[m[32m+                            }
+(B[m                             AttributeType::Type(_) => {
+                                 let value = reference
+                                     .attribute_data
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:2341:
+                                 Some(Substitution::from_value(
+                                     value, /* attr_tainted */ true,
+                                 ))
+[31m-                            },
+(B[m[32m+                            }
+(B[m                             AttributeType::RawString | AttributeType::None => {
+                                 simple_attr_subst(&attr)
+[31m-                            },
+(B[m[32m+                            }
+(B[m                             AttributeType::Invalid => None,
+                         }
+                     },
+Diff in /Users/bgrins/code/firefox/artifacts/css-attr-own-fallback-fix-v1/candidate/servo/components/style/custom_properties.rs:2351:
+                 )
+[31m-        },
+(B[m[32m+        }
+(B[m     };
+ 
+     if let Some(s) = substitution {

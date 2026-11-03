@@ -1,0 +1,19 @@
+This disabled preparation runs the unchanged 14-case font-unit prerequisite WPT against the already-built selective cancellation archive. It reuses the executed css-keyframe-font-unit-dependency-archived-original-v1 runner. Production differences are only the owned temporary-directory prefix and CLI role name. The 14-case assessor, archive inventory checks, staging, WPT command, process cleanup and final preservation logic are otherwise identical. Entry/support files are byte-identical to that executed owner.
+
+The exact fixture is css-keyframe-font-unit-dependency-fix-v1, sealed bc707600, authored page root-font-unit-invalidation.html SHA dbc3b22e. No test, manifest, preference or expected-failure metadata changes are made. The new policy uses the existing source-bound selective archive /private/tmp/css-font-unit-candidate-olt9f9lz/Nightly.app: 8326 files, snapshot ace0308c, build 2955119c, four native source roles from 8c89d437. It binds completed owner 0741ac/24023/15ffdd, runtime 50f72d25, independent restoration 980506c8 and audit terminal. No future native capture or raw-index refresh is necessary for this archived-app-only observation.
+
+All actual archive hashes are re-read by the inherited runner immediately before and after its run. Preparation inspected only saved snapshot/build/restoration metadata and immutable inputs; it did not scan or launch the archive. Root must ensure serial use of the exact retained archive, preserve disabled POLICY/FILES preimages, change only execution_enabled to true and reseal FILES. It must not silently accept another app/source/snapshot or a consumed-marker difference.
+
+After root activation, the command is:
+
+```
+python3 -I -S -B artifacts/css-selective-handoff-font-unit-archived-wpt-v1/run.py --role candidate --run > artifacts/css-selective-handoff-font-unit-archived-root-run-v1.log 2>&1
+```
+
+The unique output is artifacts/css-selective-handoff-font-unit-archived-runtime-v1. The runner uses the explicit archive binary, fresh owned process group/profile/TMPDIR, auto ports and isolated tests/metadata/config/mozinfo. No mach build/run, live native source, canonical control or real index operation is included.
+
+Actual saved preparation 357cc6/session91706/674c90/exit0 passes 292 reference hashes, all candidate snapshot/build/source/restoration joins, exact parent-function correspondence, two positive streams and 14 rejecting controls, disabled execution, one genuine WPT --check-args invocation and 47-file staging. The owned scratch was removed. CHECK-ATTRIBUTION records exact tested inputs and result/log hashes. No browser or native test was executed by the preparation; genuine authored-fixture lint/manifest are inherited from the sealed fixture, not rerun here.
+
+Owner success means complete observations plus preservation, and accepts complete FAIL results with matching WPT exit 1. It is not native acceptance. For the prerequisite-preservation question, root should require all 14 callbacks PASS and the one OK ending, and compare full normalized signatures to the previously validated font-unit candidate. Those actual results are pending. Existing cancellation 8/depth 4/full 34, startup failures and cost evidence remain separate; this run does not reclassify them.
+
+The earlier packaging note 975ce148 was written before root's saved cancellation comparison and cost terminal. Root subsequently completed exact 4 cancellation/depth FAIL-to-PASS changes with 8 preserved PASS signatures and 2 endings; that saved-comparison item is discharged. Cost measurements and separately collected traversal/style counters are outside this runner's authority. This preparation addresses the remaining exact-final-selective-source font-unit 14 check. Root-self preservation and eventual exact installed-parent composition remain separate scoped checks, not new claims from a 14-case result.

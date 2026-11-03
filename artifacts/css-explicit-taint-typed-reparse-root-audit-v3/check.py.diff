@@ -1,0 +1,17 @@
+--- artifacts/css-explicit-taint-typed-reparse-root-audit-v1/check.py
++++ artifacts/css-explicit-taint-typed-reparse-root-audit-v2/check.py
+@@ -20,8 +20,13 @@
+ assert source[source.index('with (RUNTIME / "ROOT-LIVE-RESTORATION.json")'):]==old[old.index('with (RUNTIME / "ROOT-LIVE-RESTORATION.json")'):]
+ binding=read(HERE/'BINDINGS.json')
+ assert not binding['execution_enabled'] and binding['pending_owner_terminal']
+-assert all(binding[k] is None for k in ('owner_manifest_sha256','outer_group','result_sha256','terminal_sha256'))
++assert all(binding[k] is None for k in ('result_sha256','terminal_sha256'))
+ for name,digest in binding['references'].items():assert sha(ROOT/name)==digest
++launch=read(ROOT/binding['launch']['path'])
++assert sha(ROOT/binding['launch']['path'])==binding['launch']['sha256']
++assert launch['pgid']==binding['outer_group']==9316
++assert launch['owner_manifest_sha256']==binding['owner_manifest_sha256']
++assert sha(ROOT/'artifacts/css-explicit-taint-typed-reparse-candidate-browser-v1/FILES.json')==binding['owner_manifest_sha256']
+ module=ast.parse(source)
+ function=next(node for node in module.body if isinstance(node,ast.FunctionDef) and node.name=='raw_summary')
+ namespace={'Counter':Counter}

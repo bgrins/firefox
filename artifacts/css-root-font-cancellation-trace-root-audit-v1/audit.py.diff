@@ -1,0 +1,76 @@
+--- artifacts/css-root-font-cancellation-archive-root-audit-v2/audit.py
++++ artifacts/css-root-font-cancellation-trace-root-audit-v1/audit.py
+@@ -9,8 +9,8 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ ROOT = Path(__file__).resolve().parents[2]
+ HERE = Path(__file__).resolve().parent
+-OWNER = ROOT / "artifacts/css-root-font-cancellation-archive-candidate-browser-v2"
+-RUNTIME = ROOT / "artifacts/css-root-font-cancellation-archive-candidate-browser-runtime-v1"
++OWNER = ROOT / "artifacts/css-root-font-cancellation-trace-candidate-browser-v3"
++RUNTIME = ROOT / "artifacts/css-root-font-cancellation-trace-candidate-browser-runtime-v1"
+ CANONICAL = ROOT / "artifacts/css-registered-number-native-runtime-v1"
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+ read = lambda path: json.loads(path.read_bytes())
+@@ -64,6 +64,10 @@
+ result = read(RUNTIME / "RESULT.json")
+ assert terminal["terminal"] and terminal["exit"] == (0 if result["success"] else 1)
+ assert terminal["result_sha256"] == sha(RUNTIME / "RESULT.json")
++assert terminal['active_manifest'] == binding['owner_manifest_sha256']
++assert terminal['launch'] == binding['launch'] and terminal['session'] == binding['session']
++assert terminal['terminal_chunk'] == binding['terminal_chunk']
++assert terminal['outer_group'] == binding['outer_group']
+ assert result["restoration_verified"] and result["runtime_controls_unchanged"]
+ assert result["empty_staging_preserved"] and not result["native_fix_acceptance"]
+ assert not (CANONICAL / "SOURCE-TRANSITION.lock").exists() and not (CANONICAL / "SOURCE-TRANSITION.lock").is_symlink()
+@@ -71,7 +75,7 @@
+ policy, ownership, roles = baseline.prepare(sha(OWNER / "FILES.json"))
+ env = baseline.environment()
+ capture = baseline.current_capture(policy)
+-assert set(roles) == {'servo/components/style/data.rs', 'servo/components/style/traversal.rs'}
++assert set(roles) == {'servo/components/style/data.rs', 'servo/components/style/traversal.rs', 'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'layout/style/GeckoBindings.cpp'}
+ assert policy['lane_order'] == ['cancellation']
+ assert sum(policy['wpt_lanes'][lane]['expected_subtest_count'] for lane in policy['lane_order']) == 8
+ assert sum(policy['wpt_lanes'][lane]['expected_page_count'] for lane in policy['lane_order']) == 1
+@@ -116,6 +120,33 @@
+ state = load("pair_audit_state", ROOT / policy["state_helper"])
+ epoch = read(CANONICAL / "CURRENT-EPOCH.json")
+ index = state.h.index_state(ROOT, env)
++receipt_binding = capture['checkpoint_receipt']
++assert sha(ROOT / receipt_binding['path']) == receipt_binding['sha256']
++native_receipt = read(ROOT / receipt_binding['path'])
++assert native_receipt == capture['checkpoint']
++adapter = baseline.load('audit_native_authority', policy['capture_owner']['directory'] + '/baseline.py')
++assert receipt_binding['path'] == adapter.binding['native_receipt']
++native_head = native_receipt['commit']
++assert native_head == policy['head'] == index['head'] == epoch['semantic_index']['head']
++assert sha(CANONICAL / 'CURRENT-EPOCH.json') == capture['controls']['CURRENT-EPOCH.json']
++baseline.require_role(policy, read(CANONICAL / 'ROLE.json'), epoch)
++assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['image_commit'], native_head)
++assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['nowrap_commit'], native_head)
++assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['language_commit'], native_head)
++state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', policy['nowrap_commit'])
++state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', policy['language_commit'])
++assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['ownership_commit'], native_head)
++state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', policy['ownership_commit'])
++assert not state.h.git(ROOT, env, 'merge-base', '--is-ancestor', policy['capacity_commit'], native_head)
++state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', policy['capacity_commit'])
++state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', adapter.binding['native_parent'])
++assert state.h.git(ROOT, env, 'rev-parse', native_head + '^').decode().strip() == adapter.binding['native_parent']
++assert state.h.git(ROOT, env, 'diff-tree', '--no-commit-id', '--name-only', '-r', native_head).decode().splitlines() == native_receipt['files']
++state.h.git(ROOT, env, '-c', 'gpg.ssh.allowedSignersFile=' + str(ROOT / 'artifacts/css-local-signing-20261027-v1/allowed-signers'), 'verify-commit', policy['head'])
++for name, source_role in roles.items():
++    assert hashlib.sha256(state.h.git(ROOT, env, 'show', native_head + ':' + name)).hexdigest() == source_role['base_sha256']
++for name, pin in policy['source_context_pins'].items():
++    assert sha(ROOT / name) == pin
+ assert state.h.semantic_index(index) == epoch["semantic_index"]
+ adjusted = copy.deepcopy(epoch)
+ adjusted["raw_index_observation"]["current"] = index["raw_index"]
+@@ -165,7 +196,7 @@
+           "restored_source_claims": {name: claims[name] for name in roles},
+           "raw_wpt_observation": raw_observation, "saved_assessment_replayed": assessment_replayed,
+           "owner_success_scope": "complete observation and restoration; callback PASS and baseline comparison are separate",
+-          "native_acceptance": False}
++          "native_acceptance": False, "native_authority_freshly_verified": True}
+ archive_audit = load('archive_handoff_audit', HERE / 'archive_audit.py')
+ report['archive_observation'] = archive_audit.verify_archive(ROOT, RUNTIME, policy, roles, claims, result, binding)
+ with (RUNTIME / "ROOT-LIVE-RESTORATION.json").open("x") as stream:

@@ -1,0 +1,74 @@
+--- artifacts/css-attr-fallback-candidate-root-audit-v2/audit.py
++++ artifacts/css-resumable-minimum-font-diagnostic-root-audit-v2/audit.py
+@@ -9,8 +9,8 @@
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ ROOT = Path(__file__).resolve().parents[2]
+ HERE = Path(__file__).resolve().parent
+-OWNER = ROOT / "artifacts/css-attr-fallback-candidate-browser-v2"
+-RUNTIME = ROOT / "artifacts/css-attr-fallback-candidate-browser-runtime-v2"
++OWNER = ROOT / "artifacts/css-resumable-minimum-font-crash-diagnostic-browser-v2"
++RUNTIME = ROOT / "artifacts/css-resumable-minimum-font-crash-diagnostic-browser-runtime-2"
+ CANONICAL = ROOT / "artifacts/css-registered-number-native-runtime-v1"
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+ read = lambda path: json.loads(path.read_bytes())
+@@ -31,12 +31,12 @@
+     suite_ends = [i for i, row in enumerate(events) if row.get('action') == 'suite_end']
+     names = [(row.get('test'), row.get('subtest')) for row in rows]
+     wanted = [(page, name) for page, names in expected.items() for name in names]
+-    exact = len(wanted) == 24 and Counter(names) == Counter(wanted)
++    exact = len(wanted) == 7 and Counter(names) == Counter(wanted)
+     complete_end = len(starts) == len(ends) == len(expected) == 1 and starts[0][1].get('test') == ends[0][1].get('test') == next(iter(expected)) and ends[0][1].get('status') == 'OK'
+     ordered = complete_end and len(suite_starts) == len(suite_ends) == 1 and suite_starts[0] < starts[0][0] < ends[0][0] < suite_ends[0] and all(starts[0][0] < i < ends[0][0] for i, row in enumerate(events) if row.get('action') == 'test_status')
+     crashes = [row for row in events if row.get('action') == 'crash' or row.get('status') == 'CRASH']
+     valid = exact and ordered and not crashes and all(row.get('status') in ('PASS','FAIL') for row in rows)
+-    return {'callbacks': len(rows), 'statuses': dict(Counter(row.get('status') for row in rows)), 'expected_24_names_exact': exact, 'expected_start_and_OK_ending': complete_end, 'ordered_suite': bool(ordered), 'crash_events': len(crashes), 'complete_raw_roster': bool(valid), 'all_24_pass': bool(valid and all(row.get('status') == 'PASS' for row in rows))}
++    return {'callbacks': len(rows), 'statuses': dict(Counter(row.get('status') for row in rows)), 'expected_7_names_exact': exact, 'expected_start_and_OK_ending': complete_end, 'ordered_suite': bool(ordered), 'crash_events': len(crashes), 'complete_raw_roster': bool(valid), 'all_7_pass': bool(valid and all(row.get('status') == 'PASS' for row in rows))}
+ 
+ 
+ binding = read(HERE / 'BINDINGS.json')
+@@ -48,7 +48,7 @@
+ assert binding['terminal_sha256'] == sha(RUNTIME / 'ROOT-OWNER-TERMINAL.json')
+ 
+ 
+-assert sha(OWNER / "FILES.json") == "a53d33fe9c3a0e9bb129a1ae29d11f98cfbd310f6824d09cf0ef773bfd3edcf9"
++assert sha(OWNER / "FILES.json") == "ad6fd5d6141bed588011ca05e8fa13b1a76856d68bec28abb3d457656ad22cad"
+ terminal = read(RUNTIME / "ROOT-OWNER-TERMINAL.json")
+ result = read(RUNTIME / "RESULT.json")
+ assert terminal["terminal"] and terminal["exit"] == (0 if result["success"] else 1)
+@@ -60,18 +60,23 @@
+ policy, ownership, roles = baseline.prepare(sha(OWNER / "FILES.json"))
+ env = baseline.environment()
+ capture = baseline.current_capture(policy)
+-assert set(roles) == {'servo/components/style/custom_properties.rs'}
+-phase = RUNTIME / 'candidate-wpt-fallback'
++assert set(roles) == {'servo/components/style/custom_properties.rs', 'servo/components/style/properties/cascade.rs', 'servo/components/style/properties/mod.rs'}
++phase = RUNTIME / 'candidate-wpt-minimum_off'
+ raw_observation = None
+ assessment_replayed = False
+ if (phase / 'raw.jsonl').is_file():
+     events = [json.loads(line) for line in (phase / 'raw.jsonl').read_text().splitlines()]
+-    raw_observation = raw_summary(events, policy['wpt_lanes']['fallback']['expected_subtests'])
++    raw_observation = raw_summary(events, policy['wpt_lanes']['minimum_off']['expected_subtests'])
+     raw_observation['raw_sha256'] = sha(phase / 'raw.jsonl')
+     if (phase / 'ASSESSMENT.json').is_file():
+         assessor = load('audit_wpt_assessor', OWNER / 'assess.py')
+         checks = load('audit_wpt_checks', ROOT / policy['wpt']['checks_helper'])
+-        assessment = assessor.assess(events, read(phase / 'RESULT.json')['exit'], read(phase / 'ASSESSMENT-POLICY.json'), checks, run_binding=read(phase / 'APPLICATION-METADATA.json'))
++        comparison = load('audit_build_binding', OWNER / 'comparison.py')
++        build = comparison.build_binding(ROOT, OWNER, RUNTIME, policy, 'candidate')
++        expected_policy = comparison.phase_policy(policy['wpt_lanes']['minimum_off'], {'candidate': build}, policy['head'])
++        assert read(phase / 'ASSESSMENT-POLICY.json') == expected_policy
++        assert read(phase / 'APPLICATION-METADATA.json') == build['application_metadata']
++        assessment = assessor.assess(events, read(phase / 'RESULT.json')['exit'], expected_policy, checks, run_binding=build['application_metadata'])
+         assert assessment == read(phase / 'ASSESSMENT.json')
+         assessment_replayed = True
+ if result['success']:
+@@ -148,7 +153,7 @@
+           "audit_script_sha256": sha(Path(__file__)), "owner_terminal": terminal,
+           "restored_source_claims": {name: claims[name] for name in roles},
+           "raw_wpt_observation": raw_observation, "saved_assessment_replayed": assessment_replayed,
+-          "owner_success_scope": "complete observation and restoration; all_24_pass is separate",
++          "owner_success_scope": "complete observation and restoration; all_7_pass is separate",
+           "native_acceptance": False}
+ with (RUNTIME / "ROOT-LIVE-RESTORATION.json").open("x") as stream:
+     json.dump(report, stream, indent=2)

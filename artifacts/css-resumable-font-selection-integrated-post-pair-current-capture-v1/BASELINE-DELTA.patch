@@ -1,0 +1,26 @@
+--- artifacts/css-resumable-font-selection-integrated-pair-current-capture-v1/baseline.py
++++ artifacts/css-resumable-font-selection-integrated-post-pair-current-capture-v1/baseline.py
+@@ -44,6 +44,7 @@
+ 
+ 
+ def prepare(manifest):
++    assert not binding['pending_pair_refresh'], 'Completed pair raw-refresh admission is pending'
+     policy, ownership, roles = core.prepare(binding['executed_original_manifest'])
+     ownership.authenticate(HERE, manifest)
+     source = binding['source']
+@@ -58,6 +59,7 @@
+ 
+ 
+ def native_head_view(receipt):
++    assert not binding['pending_pair_refresh'], 'Completed pair raw-refresh admission is pending'
+     assert set(receipt) == {'stage', 'commit', 'parent', 'signature_verified', 'files', 'epoch_sha256', 'accepted', 'accepted_fix_increment', 'app_rebuilt'}
+     assert receipt == core.read(ROOT / binding['native_receipt'])
+     assert receipt['stage'] == 'capacity' and receipt['signature_verified'] is True
+@@ -75,6 +77,7 @@
+ 
+ 
+ def validate_refresh(receipt):
++    assert not binding['pending_pair_refresh'], 'Completed pair raw-refresh admission is pending'
+     record = binding['refresh_validator']
+     parent_dir = ROOT / record['directory']
+     assert core.sha(parent_dir / 'baseline.py') == record['driver_sha256']

@@ -1,0 +1,35 @@
+--- artifacts/css-resumable-font-selection-caller-raw-index-refresh-v2/run.py
++++ artifacts/css-resumable-font-size-integrated-raw-index-refresh-v1/run.py
+@@ -57,8 +57,9 @@
+     for key in ('live_audit', 'audit_terminal', 'owner_terminal'):
+         assert policy[key] and sha(ROOT / policy[key]['path']) == policy[key]['sha256']
+     terminal = read(ROOT / policy['owner_terminal']['path'])
+-    assert terminal == read(runtime / 'ROOT-OWNER-TERMINAL.json')
+-    assert (terminal['session'], terminal['launch']) == (12679, '695d7a')
++    assert terminal == read(runtime / 'ROOT-TERMINAL.json')
++    terminal = {'session': terminal['session_id'], 'launch': terminal['start_chunk'], 'terminal': terminal['terminal_chunk'], 'exit': terminal['exit_code'], 'result_sha256': terminal['result_sha256']}
++    assert (terminal['session'], terminal['launch']) == (56841, '0d84a2')
+     assert terminal['terminal'] and terminal['result_sha256'] == sha(runtime / 'RESULT.json')
+     result = read(runtime / 'RESULT.json')
+     assert result['success'] is True and terminal['exit'] == 0
+@@ -73,9 +74,9 @@
+         if result['error']:
+             assert read(runtime / 'FAILURE-TRACEBACK.json')['error'] == result['error']
+     live = read(ROOT / policy['live_audit']['path'])
+-    assert live == read(runtime / 'ROOT-LIVE-RESTORATION.json')
++    assert policy['live_audit']['path'] == 'artifacts/css-resumable-font-size-integrated-native-live-restoration-v1.json'
+     audit_terminal = read(ROOT / policy['audit_terminal']['path'])
+-    assert audit_terminal == read(runtime / 'ROOT-LIVE-AUDIT-TERMINAL.json')
++    assert policy['audit_terminal']['path'] == 'artifacts/css-resumable-font-size-integrated-native-live-audit-terminal-v1.json'
+     assert audit_terminal['terminal'] and audit_terminal['exit'] == 0
+     assert audit_terminal['audit_sha256'] == policy['live_audit']['sha256']
+     for key in ('independent_live_restoration_verified','application_and_extras_semantically_restored','source_and_binary_hashes_restored','flags_restored','controls_unchanged'):
+@@ -218,7 +219,7 @@
+     (output/'PRE-CURRENT-EPOCH.json').write_bytes(controls['CURRENT-EPOCH.json'])
+     state.save(output/'PRE.json',before)
+     state.save(output/'ADMISSION-RAW.json', {'canonical_before': raw['before'], 'frozen_pair_after': raw['after'], 'actual_after': actual_index['raw_index'], 'semantic_index_unchanged': True, 'full_frozen_post_equal_except_raw': True})
+-    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'native-authority caller typecheck restored raw observation refresh'})+'\n')
++    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'native-authority integrated size typecheck restored raw observation refresh'})+'\n')
+     lock_identity = (lock.stat().st_dev,lock.stat().st_ino)
+     def check_controls(body):
+         for name,claim in claims.items():

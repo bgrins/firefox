@@ -1,0 +1,18 @@
+1241: Length Gecko_nsStyleFont_ComputeMinSize(const nsStyleFont* aFont,
+1242:                                         const Document* aDocument) {
+1243:   // Don't change font-size:0, since that would un-hide hidden text.
+1244:   if (aFont->mSize.IsZero()) {
+1245:     return {0};
+1246:   }
+1247:   // Don't change it for docs where we don't enable the min-font-size.
+1248:   if (!aFont->MinFontSizeEnabled()) {
+1249:     return {0};
+1250:   }
+1251:   Length minFontSize =
+1252:       aDocument->GetFontPrefsForLang(aFont->GetLangAtom())->mMinimumFontSize;
+1253:   if (minFontSize.ToCSSPixels() <= 0.0f) {
+1254:     return {0};
+1255:   }
+1256:   minFontSize.ScaleBy(aFont->mMinFontSizeRatio._0);
+1257:   return minFontSize;
+1258: }

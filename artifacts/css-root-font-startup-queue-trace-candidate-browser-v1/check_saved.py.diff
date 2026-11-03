@@ -1,0 +1,23 @@
+--- artifacts/css-root-font-startup-trace-candidate-browser-v1/check_saved.py
++++ artifacts/css-root-font-startup-queue-trace-candidate-browser-v1/check_saved.py
+@@ -67,7 +67,7 @@
+ assert 'servo/ports/geckolib/glue.rs' not in projection
+ assert 'servo/components/style/data.rs' not in projection
+ assert not any(name in projection for name in roles)
+-for name in ['dom/animation/EffectCompositor.cpp', 'servo/components/style/custom_properties.rs']:
++for name in ['servo/components/style/custom_properties.rs']:
+     assert projection[name] == policy['source_context_pins'][name]
+ baseline = load('baseline')
+ captured = read(ROOT/policy['current_binding']['path'])
+@@ -96,9 +96,9 @@
+         else: raise AssertionError('replaced inode accepted')
+ assert not root.exists()
+ for name in origins:
+-    if name != 'check.py':
++    if name not in ('check.py','admission.py'):
+         assert (HERE/name).read_bytes()==(ROOT/origins[name]['path']).read_bytes()
+ assert (HERE/'run.py').read_bytes()==(ROOT/origins['run.py']['path']).read_bytes()
+ assert (HERE/'baseline.py').read_bytes()==(ROOT/origins['baseline.py']['path']).read_bytes()
+ tested=['check_saved.py','POLICY.json','PRECONDITIONS.json','SOURCE-ROLES.json','ORIGINS.json','admission.py','archive.py','check.py','baseline.py','run.py','closure.py']
+-print(json.dumps({'full_validate_policy_executed':True,'seconds':elapsed,'consumed_inputs':count,'references':len(policy['references']),'roles':8,'canonical_roles':5,'additional_roles':3,'original22_replayed_before8_projection':True,'original_PASS':6,'original_FAIL':2,'endings':1,'negative_controls':negative,'actual_driver_changed_inode_rejections':8,'archive_actual_expression_checked':True,'native_context_and_claims': 'all eight candidates belong to role map; non-role context remains original', 'actual_new_policy_role_entry_checked':True,'unchanged_run_baseline_finally':True,'unchanged_suites_rerun':False,'native_or_browser_run':False,'scratch_removed':True,'tested_inputs':{name:sha(HERE/name) for name in tested}},indent=2,sort_keys=True))
++print(json.dumps({'full_validate_policy_executed':True,'seconds':elapsed,'consumed_inputs':count,'references':len(policy['references']),'roles':10,'canonical_roles':6,'additional_roles':4,'original22_replayed_before8_projection':True,'original_PASS':6,'original_FAIL':2,'endings':1,'negative_controls':negative,'actual_driver_changed_inode_rejections':10,'archive_actual_expression_checked':True,'native_context_and_claims': 'all ten candidates belong to role map; non-role context remains original', 'actual_new_policy_role_entry_checked':True,'unchanged_run_baseline_finally':True,'unchanged_suites_rerun':False,'native_or_browser_run':False,'scratch_removed':True,'tested_inputs':{name:sha(HERE/name) for name in tested}},indent=2,sort_keys=True))

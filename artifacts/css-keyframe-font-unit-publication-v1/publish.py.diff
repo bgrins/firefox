@@ -1,0 +1,55 @@
+--- artifacts/css-explicit-taint-typed-reparse-publication-v1/publish.py
++++ artifacts/css-keyframe-font-unit-publication-v1/publish.py
+@@ -32,7 +32,7 @@
+ 
+ def main():
+     parser = argparse.ArgumentParser()
+-    parser.add_argument('stage', choices=('reparse',))
++    parser.add_argument('stage', choices=('font-units',))
+     parser.add_argument('action', choices=('install', 'delivery', 'commit'))
+     parser.add_argument('--manifest', required=True)
+     parser.add_argument('--predecessor', type=Path)
+@@ -49,12 +49,12 @@
+         assert sha(ROOT / path) == pin
+     stage = next(s for s in read(HERE / 'STAGES.json')['stages'] if s['stage'] == args.stage)
+     policy['stage'] = args.stage
+-    policy['runtime_output'] = 'artifacts/css-explicit-taint-typed-reparse-publication-' + args.stage + '-runtime-1'
++    policy['runtime_output'] = 'artifacts/css-keyframe-font-unit-publication-' + args.stage + '-runtime-1'
+     for name, record in records.items():
+         policy['references'][str((HERE / name).relative_to(ROOT))] = record['sha256']
+     policy['references'][str((HERE / 'FILES.json').relative_to(ROOT))] = args.manifest
+     output = ROOT / policy['runtime_output']
+-    install_owner = ROOT / ('artifacts/css-explicit-taint-typed-reparse-publication-' + args.stage + '-install-v1')
++    install_owner = ROOT / ('artifacts/css-keyframe-font-unit-publication-' + args.stage + '-install-v1')
+     installed = None
+     assert policy['pair_binding'] is None
+     if args.action != 'install':
+@@ -102,6 +102,11 @@
+                'absent_metadata': sorted(p.replace('testing/web-platform/tests/', 'testing/web-platform/meta/') + '.ini'
+                                          for p in stage['files'] if p.startswith('testing/'))}
+     if installed is None:
++        binding['uninstalled_sources'] = {}
++        for path, pin in stage['head_preimages'].items():
++            assert epoch['pins'].get(path) == pin and path not in epoch['installed_identities']
++            assert hashlib.sha256(runner.git('show', head + ':' + path)).hexdigest() == pin
++            binding['uninstalled_sources'][path] = owner.claim(ROOT, path, pin)
+         creation = load('adoption_parents', ROOT / 'artifacts/css-registered-admission-wpt-install-v1/install.py')
+         binding['adopted_tests'] = {path: {'claim': owner.claim(ROOT, path, record['sha256']), 'parents': creation.parent_pins(ROOT, ROOT / path)} for path, record in stage['files'].items() if path in stage['adopt_existing_tests']}
+         binding['created_test_parents'] = {path: creation.parent_pins(ROOT, ROOT/path) for path in stage['create_tests']}
+@@ -109,6 +114,7 @@
+         for name, record in records.items():
+             assert hashlib.sha256(runner.git('show', head + ':' + str((HERE/name).relative_to(ROOT)))).hexdigest() == record['sha256']
+     else:
++        binding['uninstalled_sources'] = prior_policy['bindings']['uninstalled_sources']
+         binding['adopted_tests'] = prior_policy['bindings']['adopted_tests']
+         binding['created_test_parents'] = prior_policy['bindings']['created_test_parents']
+     if installed is not None:
+@@ -117,7 +123,7 @@
+         path = output / 'delivery/DELIVERY.json'
+         binding['delivery_receipt'] = {'path': str(path.relative_to(ROOT)), 'sha256': sha(path)}
+     policy.update(bindings=binding, enabled_modes=[args.action])
+-    directory = ROOT / ('artifacts/css-explicit-taint-typed-reparse-publication-' + args.stage + '-' + args.action + '-v1')
++    directory = ROOT / ('artifacts/css-keyframe-font-unit-publication-' + args.stage + '-' + args.action + '-v1')
+     directory.mkdir()
+     for name in ('run.py', 'transform.py', 'evidence.py', 'STAGES.json'):
+         with (directory / name).open('xb') as stream:

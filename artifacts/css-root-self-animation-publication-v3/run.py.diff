@@ -1,0 +1,12 @@
+--- artifacts/css-root-self-animation-publication-v1/run.py
++++ artifacts/css-root-self-animation-publication-v3/run.py
+@@ -144,7 +144,8 @@
+             delivery = authenticated_receipt(binding, 'delivery_receipt')
+             assert delivery['lint_exit'] == 0 and delivery['lint_errors'] == 0
+             assert delivery['files'] == {p: stage['files'][p]['sha256'] for p in tests}
+-            assert delivery['registered_urls'] == sorted('/' + p.removeprefix('testing/web-platform/tests/') for p in tests)
++            assert delivery['registered_urls'] == sorted('/' + p.removeprefix('testing/web-platform/tests/') for p in stage['testharness_paths'])
++            assert delivery['support_files'] == {p: stage['files'][p]['sha256'] for p in stage['support_paths']}
+             assert delivery['manifest_entries_verified'] and not delivery['browser_executed']
+             assert delivery['installation_manifest'] == binding['installation_manifest']
+             assert delivery['lint_command'] == policy['lint_prefix'] + sorted(tests)

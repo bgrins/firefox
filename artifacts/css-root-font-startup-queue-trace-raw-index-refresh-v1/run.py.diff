@@ -1,0 +1,29 @@
+--- artifacts/css-root-font-startup-trace-raw-index-refresh-v1/run.py
++++ artifacts/css-root-font-startup-queue-trace-raw-index-refresh-v1/run.py
+@@ -84,7 +84,7 @@
+     assert owner_policy['direct_equivalence'] == policy['direct_equivalence'] == {'directory': 'artifacts/css-native-epoch-direct-equivalence-v1', 'manifest_sha256': '0c42724061acefb0f49b654d8a22f8aff2507f6138b72109e1906c4e7e49c488'}
+     assert owner_policy['lane_order'] == ['cancellation'] and owner_policy['diagnostic_lane_order'] == []
+     roles = read(owner_dir / 'SOURCE-ROLES.json')
+-    assert set(roles) == {'dom/animation/KeyframeEffect.cpp', 'layout/style/GeckoBindings.cpp', 'servo/components/style/data.rs', 'servo/components/style/gecko/traversal.rs', 'servo/components/style/matching.rs', 'servo/components/style/traversal.rs', 'servo/components/style/values/specified/length.rs', 'servo/ports/geckolib/glue.rs'}
++    assert set(roles) == {'dom/animation/EffectCompositor.cpp', 'layout/style/ServoStyleSet.cpp', 'dom/animation/KeyframeEffect.cpp', 'layout/style/GeckoBindings.cpp', 'servo/components/style/data.rs', 'servo/components/style/gecko/traversal.rs', 'servo/components/style/matching.rs', 'servo/components/style/traversal.rs', 'servo/components/style/values/specified/length.rs', 'servo/ports/geckolib/glue.rs'}
+     comparison = load('refresh_pair_comparison', owner_dir / 'comparison.py')
+     assessor = load('refresh_pair_assessor', owner_dir / 'assess.py')
+     build = comparison.build_binding(ROOT, owner_dir, runtime, owner_policy, 'candidate')
+@@ -180,7 +180,7 @@
+     assert capture['snapshot'] == pre['snapshot'] and capture['controls'] == policy['controls']
+     assert capture['refresh_binding'] == policy['refresh_parent']
+     assert capture['refresh_lineage_verified'] and capture['additional_sources_match_head']
+-    assert set(capture['additional_sources']) == {'servo/components/style/data.rs', 'servo/components/style/gecko/traversal.rs', 'servo/components/style/traversal.rs'}
++    assert set(capture['additional_sources']) == {'layout/style/ServoStyleSet.cpp', 'servo/components/style/data.rs', 'servo/components/style/gecko/traversal.rs', 'servo/components/style/traversal.rs'}
+     source_claims = capture['payload_claims'] | capture['additional_sources']
+     assert live['restored_source_claims'] == {name: source_claims[name] for name in roles}
+     assert all(restored['sources'][name]['identity'] == source_claims[name]['identity'] for name in roles)
+@@ -251,7 +251,7 @@
+     (output/'PRE-CURRENT-EPOCH.json').write_bytes(controls['CURRENT-EPOCH.json'])
+     state.save(output/'PRE.json',before)
+     state.save(output/'ADMISSION-RAW.json', {'canonical_before': raw['before'], 'frozen_pair_after': raw['after'], 'actual_after': actual_index['raw_index'], 'semantic_index_unchanged': True, 'full_frozen_post_equal_except_raw': True})
+-    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'native-authority eight-source startup trace restored raw observation refresh'})+'\n')
++    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'native-authority ten-source startup queue trace restored raw observation refresh'})+'\n')
+     lock_identity = (lock.stat().st_dev,lock.stat().st_ino)
+     def check_controls(body):
+         for name,claim in claims.items():

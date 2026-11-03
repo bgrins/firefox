@@ -1,0 +1,7 @@
+# V123 private staging mismatch
+
+The actual research attempt04c546/session99447/0d66f2 stopped before signing because its private staged path set differed from the 3,606 selected paths. No signing.log existed and no commit was created. Root442bd8 verified HEAD, real index, all three canonical controls and all selected bytes unchanged; independent full-state recoveryc23b02/session12072/d4d7b3 matched the current capture and removed only the exact empty operation lock. Failed V123 result and root terminal are retained separately.
+
+Diagnostic05486c/session12343/cdf720 exited0. It reproduced the same staging operation in a new disposable private index without signing or changing HEAD/the real index/canonical epoch. Default name-only diff, explicit HEAD/no-renames/NUL diff and the private index's new-path set all contained exactly3,581 paths. The same25 nested CSS Lean paths were absent in every view; there were no extra paths. Quoting, wildcard expansion and rename presentation were excluded by the exact comparison. The diagnostic removed its owned scratch.
+
+The25 files belong to the separate artifacts/css-spec-lean repository. Independent read-only review12cc70 found its tracked state clean at162b20fb7c53a0ab89b20875a965baee98fb66bb and every selected file identical to its nested HEAD blob. These are already committed dependencies, not missing work. A fresh checkpoint must exclude them from Firefox staging, retain explicit byte/nested-commit evidence, and keep exact staged-path verification. Failed V123 is not retried or used as signed authority.

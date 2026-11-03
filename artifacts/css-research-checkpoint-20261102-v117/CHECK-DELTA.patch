@@ -1,0 +1,56 @@
+--- artifacts/css-research-checkpoint-20261102-v116/check.py
++++ artifacts/css-research-checkpoint-20261102-v117/check.py
+@@ -41,7 +41,7 @@
+ old = (ROOT / 'artifacts/css-research-checkpoint-20261102-v103/commit.py').read_text()
+ new = (HERE / 'commit.py').read_text()
+ marker = "    controls = {name: (RUNTIME / name).read_bytes()"
+-assert old[old.index(marker):].replace('v103','v116').replace('V103','V116').replace('No bug - Record signed hyphenation publication and close validation evidence.','No bug - Record signed declaration capacity publication and diagnostic preparation.') == new[new.index(marker):]
++assert old[old.index(marker):].replace('v103','v117').replace('V103','V117').replace('No bug - Record signed hyphenation publication and close validation evidence.','No bug - Record retained substitution diagnostics and protocol research.') == new[new.index(marker):]
+ if bindings['pending_current_admission']:
+     assert bindings['current_capture_sha256'] is None
+     try:
+@@ -77,7 +77,36 @@
+ current = json.loads((ROOT / bindings['current_capture']).read_bytes())
+ receipt = json.loads((ROOT / bindings['prior_receipt']).read_bytes())
+ research = json.loads((ROOT / bindings['prior_research_receipt']).read_bytes())
+-with tempfile.TemporaryDirectory(prefix='css-research-v116-check-') as temporary:
++original_refresh = m.validate_refresh
++refreshed = original_refresh(receipt)
++with tempfile.TemporaryDirectory(prefix='css-research-v117-refresh-check-') as temporary:
++    scratch = Path(temporary)
++    source = ROOT / bindings['refresh_binding']['directory']
++    for name in ['RESULT.json', 'PRE-CURRENT-EPOCH.json', 'EPOCH.json', 'PRE.json', 'POST.json']:
++        (scratch / name).write_bytes((source / name).read_bytes())
++    test_bindings = copy.deepcopy(bindings)
++    test_bindings['refresh_binding']['directory'] = str(scratch)
++    m.BINDINGS = test_bindings
++    assert original_refresh(receipt) == refreshed
++    result = json.loads((source / 'RESULT.json').read_bytes())
++    for field, value in [('updated_only', 'other'), ('head', '0' * 40),
++                         ('old_epoch_sha256', '0' * 64),
++                         ('restoration_independently_verified', False)]:
++        changed = copy.deepcopy(result)
++        changed[field] = value
++        body = json.dumps(changed).encode()
++        (scratch / 'RESULT.json').write_bytes(body)
++        test_bindings['refresh_binding']['result_sha256'] = sha(body)
++        try:
++            original_refresh(receipt)
++        except AssertionError:
++            pass
++        else:
++            raise AssertionError('Accepted refresh mutation: ' + field)
++    m.BINDINGS = bindings
++assert not scratch.exists()
++m.validate_refresh = lambda receipt: refreshed
++with tempfile.TemporaryDirectory(prefix='css-research-v117-check-') as temporary:
+     scratch = Path(temporary)
+     for label, target, field, value in [
+         ('unsigned_native', 'receipt', 'signature_verified', False),
+@@ -112,4 +141,5 @@
+             raise AssertionError('Accepted mutation: ' + label)
+     m.ROOT, m.BINDINGS = ROOT, bindings
+ assert not scratch.exists()
+-print(json.dumps({'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'binding_negatives':11, 'disabled_execution_rejected':True, 'exact_v103_publication_tail':True, 'scratch_removed':True}))
++m.validate_refresh = original_refresh
++print(json.dumps({'refresh_copy_positive':True, 'refresh_negatives':4, 'admission_negatives_scope':'native/current schema isolated from separately checked refresh join', 'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'binding_negatives':11, 'disabled_execution_rejected':True, 'exact_v103_publication_tail':True, 'scratch_removed':True}))

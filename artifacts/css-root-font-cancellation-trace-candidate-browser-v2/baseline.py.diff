@@ -1,0 +1,38 @@
+--- artifacts/css-root-font-cancellation-trace-candidate-browser-v1/baseline.py
++++ artifacts/css-root-font-cancellation-trace-candidate-browser-v2/baseline.py
+@@ -37,11 +37,22 @@
+     return policy, ownership, read(HERE / 'SOURCE-ROLES.json')
+ 
+ 
+-def require_ready(policy):
++def require_ready(policy, ownership, manifest):
+     assert policy['execution_enabled'] and policy['candidate_execution_enabled']
+     assert policy['activation_pending'] == []
+     assert policy['current_binding'] is not None
+-    load('published_checks', str((HERE / 'check.py').relative_to(ROOT))).validate_policy(policy)
++    assert sha(HERE / 'FILES.json') == manifest
++    ownership.authenticate(HERE, manifest)
++    assert read(HERE / 'POLICY.json') == policy
++    closure = load('ready_consumed_closure', str((HERE / 'closure.py').relative_to(ROOT)))
++    external = closure.external_inputs(ROOT, policy, read(HERE / 'SOURCE-ROLES.json'))
++    assert external == policy['intermediate_consumed_inputs']
++    for name, pin in external.items():
++        path = ROOT / name
++        if pin is None:
++            assert not path.exists() and not path.is_symlink()
++        else:
++            assert sha(path) == pin
+ 
+ 
+ def metadata_guard(policy):
+@@ -120,8 +131,8 @@
+     return state, env, controls, epoch, role, sources, flags, snapshot
+ 
+ 
+-def guard(policy, ownership, roles):
+-    require_ready(policy)
++def guard(policy, ownership, roles, manifest):
++    require_ready(policy, ownership, manifest)
+     capture = current_capture(policy)
+     state, env, controls, epoch, role, sources, flags, snapshot = observe(policy, ownership, roles, capture['checkpoint'])
+     assert {name: hashlib.sha256(body).hexdigest() for name, body in controls.items()} == policy['controls'] == capture['controls']

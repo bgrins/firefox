@@ -1,0 +1,24 @@
+Reparse.lean:58:58: error: unsolved goals
+α : Type
+parser : List UInt8 → Option α
+c : Custom
+⊢ Option.map (Typed.payload ∘ fun value => { payload := value, tainted := c.tainted }) (parser c.bytes) = parser c.bytes
+Reparse.lean:89:60: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  u.innerExplicit || decide (u.wrapperTaint = true)
+in the target expression
+  some { payload := value, tainted := false } ≠ some { payload := value, tainted := u.innerExplicit || u.wrapperTaint }
+
+α : Type
+parser : List UInt8 → Option α
+u : Universal
+value : α
+success : parser u.bytes = some value
+dirty : (u.innerExplicit || decide (u.wrapperTaint = true)) = true
+⊢ some { payload := value, tainted := false } ≠ some { payload := value, tainted := u.innerExplicit || u.wrapperTaint }
+Reparse.lean:115:2: error: Type mismatch
+  congrArg (fun bit => some { payload := value, tainted := bit }) (publication_conserves_trace chunks)
+has type
+  some { payload := value, tainted := (publish (run initial chunks)).tainted } =
+    some { payload := value, tainted := !(provenance chunks).isEmpty }
+but is expected to have type
+  (run initial chunks).aggregate = !(provenance chunks).isEmpty

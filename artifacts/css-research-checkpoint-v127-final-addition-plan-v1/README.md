@@ -1,0 +1,17 @@
+# V127 bounded final addition inventory
+
+This is a read-only inventory plan against sealed V127 d68dace8, not an updated selection or signing admission. Existing 7,781 selected rows remain untouched. Actual 4b2f50/0 authenticated 14 newly completed package manifests and all their payload bytes, plus explicit historical records. ADDITION.json proposes 364 new paths (46,860,193 bytes), for 8,145 paths before future outcomes and this inventory's own payloads. No active runtime or live native state was read.
+
+Completed scope: the eight-role native owner/runtime/audit; observed late trace98f7bc02; causal review700b31a1; conditional endpoint/application model0c5e1c01; extractor-v2 synthetic preparation14389455; actual raw refresha0c2e94f and its completed owner; failed capture-v2 and corrected capture-v3 preparations/receipts; ten-role logging capsulea433f953; disabled audit7ebf5f42; completed public owner checks. The actual capture-v3 is historical native admission, not the future research checkpoint capture. Failed capture-v2 remains an explicit no-output failure.
+
+Four activation directories are deliberately partial records. Their copied FILES metadata describes original packages and is not a complete manifest for the activation directory. Include their exact present files without adding them to completed_packages. In particular the queue activation preserves the disabled owner manifest81198053, while the presently active owner iscbed9b9e. The active owner, run log and runtime are deferred until root closes/freezes the run; the completed activation, rejected missing-CLI-manifest log, successful pure consumer log and launch receipt can be retained as historical records now.
+
+The final bounded merge should:
+
+1. Preserve this V127 preparation before mutation, then union the exact completed addition rows without replacing any earlier selected bytes. Carry all 14 complete manifest closures and the explicit partial records with their correct classification.
+2. After root supplies actual terminal and independent audit, add the frozen ten-role owner/runtime/audit/outcome/retained archive and actual single-late trace closure, plus any completed extractor output. Do not infer success from the current launch. Capture any failure and restoration honestly.
+3. Bind only the actual post-ten-role raw refresh (or documented no-op), its verification, and the final roadmap. The completed startup bridge ends at epoch2927fa02; the checkpoint's future refresh/current remain unbound. Preserve ordered bridge lineage from the existing completed prefix, rather than treating a historical current capture as fresh authority.
+4. Include this inventory's own payloads and the checkpoint's complete final self-payload set. Keep the 25 separate CSSLean Git payload exclusions and their existing proof; do not add browser binaries, backups, owned temp trees, caches, unrelated unfinished research or mutable runtime files.
+5. Run the existing focused selection/binding checks, then let root obtain fresh research current evidence after all native restoration/refresh. Bind the actual capture, perform the existing self-manifest check and normal signing lifecycle. Do not bypass or replay the failed V126 signer attempt, and do not alter signature/private-index/canonical preservation logic.
+
+PLAN.json enumerates concrete completed closure pins and remaining root inputs. ADDITION.json is a proposal only. Future current/refresh fields remain null. No Git/source/index/canonical/app/signing operations were performed.

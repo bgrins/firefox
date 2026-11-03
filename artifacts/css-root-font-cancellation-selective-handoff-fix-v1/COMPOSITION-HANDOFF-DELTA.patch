@@ -1,0 +1,34 @@
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -323,11 +323,26 @@
+     let traversal = RecalcStyleOnly::new(shared_style_context);
+     let root = driver::traverse_dom(&traversal, token, thread_pool);
+     if traversal.needs_normal_descendant_restyle() {
+-        root.mutate_data()
+-            .as_mut()
+-            .unwrap()
+-            .hint
+-            .insert(RestyleHint::RECASCADE_DESCENDANTS);
++        let mut has_styled_child = false;
++        for child_node in root.traversal_children() {
++            let Some(child) = child_node.as_element() else {
++                continue;
++            };
++            let mut child_data = child.mutate_data();
++            let Some(child_data) = child_data.as_mut() else {
++                continue;
++            };
++            if !child_data.has_styles() {
++                continue;
++            }
++            child_data
++                .hint
++                .insert(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT);
++            has_styled_child = true;
++        }
++        if has_styled_child {
++            unsafe { root.set_dirty_descendants() };
++        }
+     }
+ }
+ 

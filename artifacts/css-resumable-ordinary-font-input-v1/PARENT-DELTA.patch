@@ -1,0 +1,112 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -878,7 +878,7 @@
+ #[derive(Clone, Copy, Debug)]
+ enum FontTarget {
+     Metric(PrioritaryPropertyId),
+-    Synthesis(LonghandId),
++    OrdinaryFontInput(LonghandId),
+     ComputedSize,
+ }
+ 
+@@ -887,19 +887,22 @@
+         match (self, other) {
+             (Self::ComputedSize, Self::ComputedSize) => true,
+             (Self::Metric(left), Self::Metric(right)) => left.to_longhand() == right.to_longhand(),
+-            (Self::Synthesis(left), Self::Synthesis(right)) => left == right,
++            (Self::OrdinaryFontInput(left), Self::OrdinaryFontInput(right)) => left == right,
+             _ => false,
+         }
+     }
+ }
+ 
+-fn is_synthesis_longhand(id: LonghandId) -> bool {
++fn is_retained_font_input(id: LonghandId) -> bool {
+     matches!(
+         id,
+         LonghandId::FontSynthesisWeight
+             | LonghandId::FontSynthesisStyle
+             | LonghandId::FontSynthesisSmallCaps
+             | LonghandId::FontSynthesisPosition
++            | LonghandId::FontKerning
++            | LonghandId::FontOpticalSizing
++            | LonghandId::FontVariantLigatures
+     )
+ }
+ 
+@@ -1304,7 +1307,7 @@
+             let index = declarations.prioritary_positions[id as usize].most_important;
+             (index != DeclarationIndex::MAX).then_some(index as usize)
+         } else {
+-            assert!(is_synthesis_longhand(longhand));
++            assert!(is_retained_font_input(longhand));
+             next_font_declaration(declarations, longhand, 0)
+         };
+         let initial_revert = self.reverted.longhands.get(&longhand).copied();
+@@ -4504,8 +4507,8 @@
+                     return self.prepare_computed_size(action.index, attribute_tracker, reference);
+                 }
+                 FontTarget::Metric(id) => id,
+-                FontTarget::Synthesis(longhand) => {
+-                    return self.perform_synthesis_action(longhand, attribute_tracker, reference);
++                FontTarget::OrdinaryFontInput(longhand) => {
++                    return self.perform_font_input_action(longhand, attribute_tracker, reference);
+                 }
+             };
+             use PrioritaryPropertyId::*;
+@@ -4601,13 +4604,13 @@
+             }
+         }
+ 
+-        fn perform_synthesis_action(
++        fn perform_font_input_action(
+             &mut self,
+             longhand: LonghandId,
+             attribute_tracker: &mut AttributeTracker,
+             reference: Option<(LonghandId, FontSelectionReply)>,
+         ) -> MetricActionProgress {
+-            if !is_synthesis_longhand(longhand) {
++            if !is_retained_font_input(longhand) {
+                 return MetricActionProgress::Unsupported;
+             }
+             if self.completed_font_inputs.contains(longhand) {
+@@ -4655,7 +4658,7 @@
+             }
+             self.completed_font_inputs.insert(longhand);
+             self.metric_action = None;
+-            MetricActionProgress::Published(FontTarget::Synthesis(longhand))
++            MetricActionProgress::Published(FontTarget::OrdinaryFontInput(longhand))
+         }
+ 
+         fn visited(&self, var: &VarType) -> Option<VisitResult> {
+@@ -5132,8 +5135,8 @@
+         if demand >= FontDependencyDemand::FontMetrics
+             && let Some(id) = unprepared_font_inputs
+         {
+-            return if is_synthesis_longhand(id) {
+-                PublicationDemand::Synthesis(id)
++            return if is_retained_font_input(id) {
++                PublicationDemand::OrdinaryFontInput(id)
+             } else {
+                 PublicationDemand::Unresolved
+             };
+@@ -5150,7 +5153,7 @@
+     enum PublicationDemand {
+         Ready,
+         Metric(PrioritaryPropertyId),
+-        Synthesis(LonghandId),
++        OrdinaryFontInput(LonghandId),
+         Unresolved,
+     }
+ 
+@@ -5693,8 +5696,8 @@
+                             PublicationDemand::Metric(id) => {
+                                 return FrameStep::Pending(Some(FontTarget::Metric(id)));
+                             }
+-                            PublicationDemand::Synthesis(id) => {
+-                                return FrameStep::Pending(Some(FontTarget::Synthesis(id)));
++                            PublicationDemand::OrdinaryFontInput(id) => {
++                                return FrameStep::Pending(Some(FontTarget::OrdinaryFontInput(id)));
+                             }
+                             PublicationDemand::Unresolved => return FrameStep::Pending(None),
+                         }

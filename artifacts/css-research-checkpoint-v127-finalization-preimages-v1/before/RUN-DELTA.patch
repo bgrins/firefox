@@ -1,0 +1,38 @@
+--- artifacts/css-research-checkpoint-20261103-v126/commit.py
++++ artifacts/css-research-checkpoint-20261103-v127/commit.py
+@@ -15,7 +15,7 @@
+ BINDINGS = json.loads((HERE / 'BINDINGS.json').read_bytes())
+ HEAD = BINDINGS['head']
+ EPOCH = BINDINGS['epoch_sha256']
+-EXECUTION_ENABLED = True
++EXECUTION_ENABLED = False
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+ sha = lambda data: hashlib.sha256(data).hexdigest()
+@@ -211,7 +211,7 @@
+         assert file.stat().st_size == record['bytes'] and sha(file.read_bytes()) == record['sha256'], path
+     tracked = set(git('ls-files', '-z').decode().split('\0'))
+     skipped = [path for path in selected if path in tracked]
+-    assert not skipped, 'V126 must not reselect already committed payloads'
++    assert not skipped, 'V127 must not reselect already committed payloads'
+     for path in skipped:
+         del selected[path]
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'OWNED.json', 'ROLE.json')}
+@@ -235,7 +235,7 @@
+     lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+     safe_to_unlock = False
+     try:
+-        with tempfile.TemporaryDirectory(prefix='css-research-v126-', dir='/private/tmp') as directory:
++        with tempfile.TemporaryDirectory(prefix='css-research-v127-', dir='/private/tmp') as directory:
+             directory = Path(directory)
+             index_env = dict(ENV, GIT_INDEX_FILE=str(directory / 'index'))
+             git('read-tree', HEAD, env=index_env)
+@@ -248,7 +248,7 @@
+             tree = git('write-tree', env=index_env).decode().strip()
+             assert state.a.verify_current(state.h, ROOT, ENV, epoch) == before
+             message = directory / 'message'
+-            message.write_text('No bug - Record CSS substitution and animation verification research. r?#firefox-style-system-reviewers\n')
++            message.write_text('No bug - Record font animation and cancellation repair research. r?#firefox-style-system-reviewers\n')
+             with (HERE / 'signing.log').open('x') as stream:
+                 result = subprocess.run(GIT + ['commit', '--quiet', '--file', str(message)], cwd=ROOT, env=index_env, stdout=stream, stderr=subprocess.STDOUT)
+             if result.returncode:

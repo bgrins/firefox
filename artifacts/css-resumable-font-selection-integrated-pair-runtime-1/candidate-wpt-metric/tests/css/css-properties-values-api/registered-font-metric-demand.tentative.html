@@ -1,0 +1,107 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered font-relative lengths use current selected font metrics</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#computed-value-time">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const cases = [
+  ["family", "em"], ["family", "ch"],
+  ["weight", "em"], ["weight", "ex"], ["weight", "cap"], ["weight", "ch"],
+  ["style", "ch"], ["stretch", "ch"], ["adjust", "ch"], ["orientation", "ch"],
+  ["weight", "ch", "alias"], ["weight", "ch", "registered-alias"], ["weight", "ch", "attr"],
+];
+for (const [axis, unit, input = "direct"] of cases) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    frame.srcdoc = `<!doctype html><link rel="stylesheet" href="/fonts/ahem.css"><style>
+      @font-face { font-family: MetricNoto; src: url(/fonts/noto/noto-sans-v8-latin-regular.woff); }
+      @font-face { font-family: MetricWeights; font-weight: 400; src: url(/fonts/Ahem.ttf); }
+      @font-face { font-family: MetricWeights; font-weight: 700; src: url(/fonts/noto/noto-sans-v8-latin-regular.woff); }
+      @font-face { font-family: MetricStyles; font-style: normal; src: url(/fonts/Ahem.ttf); }
+      @font-face { font-family: MetricStyles; font-style: italic; src: url(/fonts/noto/noto-sans-v8-latin-regular.woff); }
+      @font-face { font-family: MetricStretches; font-stretch: 100%; src: url(/fonts/Ahem.ttf); }
+      @font-face { font-family: MetricStretches; font-stretch: 75%; src: url(/fonts/noto/noto-sans-v8-latin-regular.woff); }
+    </style><style id="phase-style"></style><body>`;
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    document.body.append(frame);
+    t.add_cleanup(() => frame.remove());
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    const faces = Array.from(doc.fonts);
+    assert_equals(faces.length, 8, "all font faces must be present");
+    await Promise.all(faces.map(face => face.load()));
+    assert_true(faces.every(face => face.status === "loaded"), "all font faces loaded");
+    await doc.fonts.ready;
+    win.CSS.registerProperty({name: "--metric", syntax: "<length>", inherits: false, initialValue: "0px"});
+    if (input === "registered-alias") {
+      win.CSS.registerProperty({name: "--source", syntax: "<length>", inherits: false, initialValue: "0px"});
+    }
+    for (const id of ["target", "reference", "ch-reference", "em-reference"]) {
+      const element = doc.createElement("div");
+      element.id = id;
+      doc.body.append(element);
+    }
+    const target = doc.getElementById("target");
+    target.setAttribute("data-length", `1${unit}`);
+    const expression = input === "direct" ? `1${unit}` :
+      input === "attr" ? "attr(data-length type(<length>))" : "var(--source)";
+    const variants = {
+      family: [{family: "Ahem"}, {family: "MetricNoto"}],
+      weight: [{family: "MetricWeights", weight: 400}, {family: "MetricWeights", weight: 700}],
+      style: [{family: "MetricStyles", style: "normal"}, {family: "MetricStyles", style: "italic"}],
+      stretch: [{family: "MetricStretches", stretch: "100%"}, {family: "MetricStretches", stretch: "75%"}],
+      adjust: [{adjust: "none"}, {adjust: "0.8"}],
+      orientation: [{}, {writingMode: "vertical-rl", orientation: "upright"}],
+    }[axis].map(variant => ({family: "MetricNoto", weight: 400, style: "normal", stretch: "100%",
+      adjust: "none", writingMode: "horizontal-tb", orientation: "mixed", ...variant}));
+    const phaseStyle = doc.getElementById("phase-style");
+    const observations = [];
+    for (const size of [20, 30]) {
+      for (const variant of variants) {
+        const {family, weight, style, stretch, adjust, writingMode, orientation} = variant;
+        phaseStyle.textContent = `
+          div { font-family: ${family}; font-size: ${size}px; font-weight: ${weight};
+            font-style: ${style}; font-stretch: ${stretch}; font-size-adjust: ${adjust};
+            writing-mode: ${writingMode}; text-orientation: ${orientation}; font-synthesis: none; }
+          #target { --source: 1${unit}; --metric: ${expression}; }
+          #reference { width: 1${unit}; }
+          #ch-reference { width: 1ch; }
+          #em-reference { width: 1em; }`;
+        const first = win.getComputedStyle(target).getPropertyValue("--metric");
+        const reference = win.getComputedStyle(doc.getElementById("reference")).width;
+        const ch = win.getComputedStyle(doc.getElementById("ch-reference")).width;
+        const em = win.getComputedStyle(doc.getElementById("em-reference")).width;
+        const computed = win.getComputedStyle(target);
+        observations.push({size, ...variant, first, reference, ch, em,
+          fontSize: computed.fontSize, fontFamily: computed.fontFamily, fontWeight: computed.fontWeight,
+          fontStyle: computed.fontStyle, fontStretch: computed.fontStretch,
+          fontSizeAdjust: computed.fontSizeAdjust, computedWritingMode: computed.writingMode,
+          textOrientation: computed.textOrientation});
+      }
+    }
+    const diagnostic = JSON.stringify({axis, unit, input, observations});
+    for (const size of [20, 30]) {
+      const pair = observations.filter(row => row.size === size);
+      assert_true(pair.every(row => parseFloat(row.ch) > 0), diagnostic);
+      assert_greater_than(Math.abs(parseFloat(pair[0].ch) - parseFloat(pair[1].ch)), 1, diagnostic);
+    }
+    for (const row of observations) {
+      assert_equals(row.fontSize, `${row.size}px`, diagnostic);
+      assert_equals(row.fontFamily, row.family, diagnostic);
+      assert_equals(row.fontWeight, String(row.weight), diagnostic);
+      assert_equals(row.fontStyle, row.style, diagnostic);
+      assert_equals(row.fontStretch, row.stretch, diagnostic);
+      assert_equals(row.fontSizeAdjust, row.adjust, diagnostic);
+      assert_equals(row.computedWritingMode, row.writingMode, diagnostic);
+      assert_equals(row.textOrientation, row.orientation, diagnostic);
+      assert_approx_equals(parseFloat(row.em), row.size, 0.02, diagnostic);
+      assert_regexp_match(row.first, /^\d+(?:\.\d+)?px$/, diagnostic);
+      assert_approx_equals(parseFloat(row.first), parseFloat(row.reference), 0.02, diagnostic);
+    }
+  }, `Registered metric: ${axis} / ${unit} / ${input}`);
+}
+</script>

@@ -1,0 +1,42 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -2360,7 +2360,7 @@
+         return Err(());
+     };
+ 
+-    do_substitute_chunk(
++    let mut substitution = do_substitute_chunk(
+         css,
+         fallback.start.get(),
+         reference.end - 1, // Skip the closing parenthesis of the reference value.
+@@ -2375,7 +2375,9 @@
+         attribute_tracker,
+         seen,
+         /* attr_taint */ None,
+-    )
++    )?;
++    substitution.attr_tainted |= reference.substitution_kind == SubstitutionFunctionKind::Attr;
++    Ok(substitution)
+ }
+ 
+ /// Replace `var()`, `env()`, and `attr()` functions. Return `Err(..)` for invalid at computed time.
+@@ -2389,7 +2391,7 @@
+     seen: &mut SmallVec<[&'a Name; 8]>,
+     attr_taint: Option<&mut AttrTaint>,
+ ) -> Result<Substitution<'a>, ()> {
+-    do_substitute_chunk(
++    let mut substitution = do_substitute_chunk(
+         &variable_value.css,
+         /* start = */ 0,
+         /* end = */ variable_value.css.len(),
+@@ -2404,7 +2406,9 @@
+         attribute_tracker,
+         seen,
+         attr_taint,
+-    )
++    )?;
++    substitution.attr_tainted |= variable_value.explicitly_attr_tainted;
++    Ok(substitution)
+ }
+ 
+ /// Replace var(), env(), and attr() functions, returning the resulting CSS string.

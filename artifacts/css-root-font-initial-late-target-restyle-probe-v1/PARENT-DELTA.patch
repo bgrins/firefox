@@ -1,0 +1,38 @@
+--- parent/tests/web-animations/animation-model/keyframe-effects/initial-root-font-child-keyframes.html
++++ diagnostic/tests/web-animations/animation-model/keyframe-effects/initial-root-font-child-keyframes.html
+@@ -43,6 +43,7 @@
+       html.active .target, html.constant .target {
+         animation: child-size 100s linear both paused;
+       }
++      .target.force-target-restyle { background-color: rgb(1, 2, 3); }
+       .plain { font-size: 2rem; }
+       @keyframes root-size { from, to { font-size: 32px; } }
+       @keyframes child-size { from, to { font-size: 2rem; } }
+@@ -81,6 +82,27 @@
+       rootAnimation, childAnimation, standards: doc.compatMode === "CSS1Compat",
+     });
+ 
++    const childBeforeRestyle = childAnimations[0];
++    const rootBeforeRestyle = rootAnimations[0];
++    target.classList.add("force-target-restyle");
++    const afterTargetRestyle = win.getComputedStyle(target).fontSize;
++    const childAfterRestyle = target.getAnimations();
++    const rootAfterRestyle = root.getAnimations();
++    window.rootFontInitialAnimationObservations.at(-1).targetRestyle = {
++      value: afterTargetRestyle,
++      sameChildAnimation: childAfterRestyle.length === 1 &&
++        childAfterRestyle[0] === childBeforeRestyle,
++      sameRootAnimation: rootAfterRestyle.length === rootAnimations.length &&
++        rootAfterRestyle[0] === rootBeforeRestyle,
++      childAnimationCount: childAfterRestyle.length,
++      rootAnimationCount: rootAfterRestyle.length,
++      child: describe(childAfterRestyle[0], target, "child-size", win),
++      root: describe(rootAfterRestyle[0], root, "root-size", win),
++      background: win.getComputedStyle(target).backgroundColor,
++      rootSize: win.getComputedStyle(root).fontSize,
++      plainSize: win.getComputedStyle(doc.querySelector(".plain")).fontSize,
++    };
++
+     assert_equals(doc.compatMode, "CSS1Compat", "fresh standards document");
+     if (precondition) {
+       assert_equals(precondition.root, "23px", "pre-styled root");

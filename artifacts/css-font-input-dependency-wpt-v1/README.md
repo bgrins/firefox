@@ -1,0 +1,11 @@
+# Font input dependency WPT adaptation
+
+This unrun WPT artifact preserves the original six consuming properties × four font-size forms and both20→30px stylesheet-change samples from the sealed System Firefox probe. One page has24 promise_test callbacks, each checking two samples. The property/fallback list, raw data-value=var(--unit), registered non-inherited length initial0px, parent serif and all size expressions are unchanged.
+
+Each callback uses a fresh standards iframe/property registry; the original browser probe reused one iframe across combinations. The within-case20→30 sequence is preserved. After each stylesheet write, the first computed-style read is the target --unit. Target fontSize, reference --unit and consuming-property value follow in the original order. Both samples are retained before behavioral assertions. No intervening animation frames or attribute mutations are added. Cleanup belongs to each callback.
+
+Assertions cover supported syntax, standards mode, and exact target/reference registered length plus targetFontSize versus the literal20px/30px expectation. This preserves the original saved observation validation and detects disagreement between published length and final size. actualProperty remains a diagnostic observation only. In particular, no test claims every consuming property's result equals its fallback: successful typed length substitution can instead make a declaration invalid at computed-value time. This does not isolate attribute-mutation invalidation or infer a complete scheduling algorithm.
+
+The48 matching System Firefox observations remain historical, source-unbound preservation evidence. They are not a result for this adaptation, the local branch or the integrated experimental candidate. A future source-bound original/candidate pair should report this24-callback lane separately from the existing21 core and minimum-pref lanes; retain missing callbacks and crashes without assigning unseen individual outcomes. No expected failure metadata or preference changes are supplied.
+
+Only artifact files and owned temporary validation scratch are used. There is no browser/build/live WPT installation/Git/index/canonical operation. Genuine WPT lint/manifest and inert callback-roster receipts accompany this package; no test body executes during preparation.

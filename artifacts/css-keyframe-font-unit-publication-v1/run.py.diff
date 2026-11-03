@@ -1,0 +1,68 @@
+--- artifacts/css-explicit-taint-typed-reparse-publication-v1/run.py
++++ artifacts/css-keyframe-font-unit-publication-v1/run.py
+@@ -43,6 +43,15 @@
+     path = ROOT / record['path']
+     assert sha(path) == record['sha256']
+     return read(path)
++
++
++def claim_uninstalled_source(owner, root, epoch, ownership, path, pin, captured):
++    assert epoch['pins'].get(path) == pin
++    assert path not in epoch['installed_identities'] and path not in ownership
++    assert captured['path'] == path and captured['owned_sha256'] == pin
++    claim = owner.claim(root, path, pin, captured['identity'])
++    assert claim == captured
++    return claim
+ 
+ 
+ def main():
+@@ -72,7 +81,7 @@
+     prior = authenticated_receipt(binding, 'predecessor_receipt')
+     assert prior['head'] == binding['head'] and prior['signature_verified']
+     assert prior['committed'] and prior['accepted_fix_increment'] == 0 and prior['native_working_diff_preserved']
+-    assert binding['predecessor_kind'] == 'signed-research' and stage['stage'] == 'reparse'
++    assert binding['predecessor_kind'] == 'signed-research' and stage['stage'] == 'font-units'
+     evidence = load('nowrap_pair_evidence', HERE / 'evidence.py')
+     observed = evidence.verify(ROOT, policy['pair_binding'], stage)
+     pair_head = observed['pair_head']
+@@ -97,7 +106,7 @@
+     owner.quiescent(RUNTIME)
+     owner.quiescent(ROOT / 'artifacts/css-page-selector-native-runtime-v1')
+     output = ROOT / policy['runtime_output']
+-    assert output.parent == ROOT / 'artifacts' and output.name.startswith('css-explicit-taint-typed-reparse-publication-')
++    assert output.parent == ROOT / 'artifacts' and output.name.startswith('css-keyframe-font-unit-publication-')
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not os.path.lexists(lock)
+     sources = set(stage['head_preimages'])
+@@ -112,10 +121,11 @@
+         assert prior['epoch_sha256'] == binding['controls']['CURRENT-EPOCH.json']
+         assert set(binding['adopted_tests']) == adopted_paths
+         assert set(binding['created_test_parents']) == created_paths
++        assert set(binding['uninstalled_sources']) == sources
+         for path in sources:
+             pin = stage.get('working_preimages', stage['head_preimages'])[path]
+-            assert epoch['pins'][path] == pin
+-            source_claims[path] = owner.claim(ROOT, path, pin, epoch['installed_identities'][path])
++            source_claims[path] = claim_uninstalled_source(owner, ROOT, epoch, ownership, path,
++                                                          pin, binding['uninstalled_sources'][path])
+         for path in tests:
+             assert epoch['pins'].get(path) is None
+             assert path not in epoch['installed_identities'] and path not in ownership
+@@ -134,7 +144,7 @@
+         assert installed['stage'] == stage['stage'] and installed['installed'] and not installed['app_rebuilt']
+         assert installed['manifest_sha256'] == binding['installation_manifest']
+         assert installed['epoch_sha256'] == binding['controls']['CURRENT-EPOCH.json']
+-        assert epoch['explicit_taint_reparse_publication'][stage['stage']]['installation_manifest'] == binding['installation_manifest']
++        assert epoch['keyframe_font_unit_publication'][stage['stage']]['installation_manifest'] == binding['installation_manifest']
+         assert epoch['modified_native_paths'] == sorted(sources)
+         for path, record in stage['files'].items():
+             assert epoch['pins'][path] == record['sha256']
+@@ -206,7 +216,7 @@
+                  'files': sorted(stage['files']), 'app_rebuilt': False, 'existing_tests_adopted_without_write': sorted(adopted_paths), 'new_tests_created': sorted(created_paths)})
+             safe = True
+         else:
+-            with tempfile.TemporaryDirectory(prefix='css-explicit-taint-typed-reparse-native-', dir='/private/tmp') as temporary:
++            with tempfile.TemporaryDirectory(prefix='css-keyframe-font-unit-native-', dir='/private/tmp') as temporary:
+                 temporary = Path(temporary)
+                 index_env = dict(ENV, GIT_INDEX_FILE=str(temporary / 'index'))
+                 git('read-tree', binding['head'], env=index_env)

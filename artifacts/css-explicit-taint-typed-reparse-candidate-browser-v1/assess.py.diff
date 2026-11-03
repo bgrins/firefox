@@ -1,0 +1,26 @@
+--- artifacts/css-attr-fallback-candidate-browser-v2/assess.py
++++ artifacts/css-explicit-taint-typed-reparse-candidate-browser-v1/assess.py
+@@ -85,7 +85,7 @@
+             errors.append("non-completed test end: " + str(end.get("test")))
+     candidate = [r for r in rows if (r.get("test"), r.get("subtest")) in target_ids]
+     if len(rows) != policy['expected_subtest_count'] or len(candidate) != policy['expected_target_count']:
+-        errors.append('observed min/max callback/target counts differ')
++        errors.append('observed callback/target counts differ from the declared lane')
+     for test, expected in policy["expected_subtests"].items():
+         if Counter(r.get("subtest") for r in rows if r.get("test") == test) != Counter(expected):
+             errors.append("fixture identities/cardinality differ: " + test)
+@@ -151,7 +151,7 @@
+             if row.get("status") == "PASS" and current_rows.get((row.get("test"), row.get("subtest"))) != signature(row):
+                 comparison_errors.append("originally passing callback signature changed: " + row["subtest"])
+         if any(r.get("status") != "PASS" for r in rows if r.get("test") in policy["candidate_required_pass_pages"]):
+-            comparison_errors.append("all 32 authored callbacks across the two target fixtures must pass")
++            comparison_errors.append("all callbacks on declared required-pass pages must pass")
+         if any(r.get("status") != "PASS" for r in candidate):
+             comparison_errors.append("candidate target fixture still fails")
+     return {"complete": not errors, "errors": errors, "fixture_setup_errors": fixture_setup_errors, "run_info": run_info, "run_binding": run_binding,
+@@ -164,4 +164,4 @@
+             "regression_signature": regression, "held_signature": held_signature, "comparison_errors": comparison_errors,
+             "comparison_gate_passed": original is not None and not errors and not comparison_errors,
+             "subtest_cardinality_policy": policy["cardinality_description"],
+-            "oracle_caveat": "Broader min/max comparison: all 32 authored callbacks must pass; every non-target callback and all twelve endings preserve fresh-original full signatures. Original failures are observations, not infrastructure failures."}
++            "oracle_caveat": "When an original is supplied, declared targets and required-pass pages must pass; declared control callbacks and all page endings preserve original full signatures. This candidate-only run supplies no original to the assessor; independent saved comparison is required. Original assertion failures remain observations, not infrastructure failures."}

@@ -1,0 +1,35 @@
+--- artifacts/css-root-font-cancellation-archive-raw-index-refresh-v2/run.py
++++ artifacts/css-root-font-cancellation-trace-raw-index-refresh-v1/run.py
+@@ -70,18 +70,21 @@
+     assert live == read(runtime / 'ROOT-LIVE-RESTORATION.json')
+     audit_terminal = read(ROOT / policy['audit_terminal']['path'])
+     assert audit_terminal == policy['actual_audit_terminal']
+-    assert audit_terminal['terminal'] and audit_terminal['exit'] == 0
++    assert type(audit_terminal['terminal']) is str and audit_terminal['terminal'] and audit_terminal['exit'] == 0
++    assert audit_terminal['active_audit_manifest_sha256'] == sha((ROOT / policy['audit_script']).parent / 'FILES.json')
+     assert audit_terminal['report_sha256'] == policy['live_audit']['sha256']
+     for key in ('independent_live_restoration_verified','application_and_extras_semantically_restored','source_and_binary_hashes_restored','flags_restored','controls_unchanged'):
+         assert live[key] is True
+     assert live['owner_terminal'] == terminal
+     assert live['owner_result_sha256'] == sha(runtime / 'RESULT.json') and not live['native_acceptance']
+     assert live['audit_script_sha256'] == sha(ROOT / policy['audit_script'])
++    assert live['native_authority_freshly_verified'] is True
+     owner_policy = read(owner_dir / 'POLICY.json')
+     assert owner_policy['head'] == policy['head']
++    assert owner_policy['direct_equivalence'] == policy['direct_equivalence'] == {'directory': 'artifacts/css-native-epoch-direct-equivalence-v1', 'manifest_sha256': '0c42724061acefb0f49b654d8a22f8aff2507f6138b72109e1906c4e7e49c488'}
+     assert owner_policy['lane_order'] == ['cancellation'] and owner_policy['diagnostic_lane_order'] == []
+     roles = read(owner_dir / 'SOURCE-ROLES.json')
+-    assert set(roles) == {'servo/components/style/data.rs', 'servo/components/style/traversal.rs'}
++    assert set(roles) == {'servo/components/style/data.rs', 'servo/components/style/traversal.rs', 'servo/components/style/matching.rs', 'dom/animation/EffectCompositor.cpp', 'layout/style/GeckoBindings.cpp'}
+     comparison = load('refresh_pair_comparison', owner_dir / 'comparison.py')
+     assessor = load('refresh_pair_assessor', owner_dir / 'assess.py')
+     build = comparison.build_binding(ROOT, owner_dir, runtime, owner_policy, 'candidate')
+@@ -244,7 +247,7 @@
+     (output/'PRE-CURRENT-EPOCH.json').write_bytes(controls['CURRENT-EPOCH.json'])
+     state.save(output/'PRE.json',before)
+     state.save(output/'ADMISSION-RAW.json', {'canonical_before': raw['before'], 'frozen_pair_after': raw['after'], 'actual_after': actual_index['raw_index'], 'semantic_index_unchanged': True, 'full_frozen_post_equal_except_raw': True})
+-    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'native-authority root-font-cancellation candidate restored raw observation refresh'})+'\n')
++    with lock.open('x') as stream: stream.write(json.dumps({'pid':os.getpid(),'operation':'native-authority five-source cancellation trace restored raw observation refresh'})+'\n')
+     lock_identity = (lock.stat().st_dev,lock.stat().st_ino)
+     def check_controls(body):
+         for name,claim in claims.items():

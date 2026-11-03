@@ -1,0 +1,71 @@
+--- artifacts/css-research-checkpoint-20261103-v124/check.py
++++ artifacts/css-research-checkpoint-20261103-v125/check.py
+@@ -54,11 +54,11 @@
+     assert str(Path(nested['repository']) / record['nested_path']) == path
+     assert len(record['blob']) == 40 and set(record['blob']) <= set('0123456789abcdef')
+     assert not any(Path(path).is_relative_to(Path(item).parent) for item in bindings['completed_packages'])
+-old = (ROOT / 'artifacts/css-research-checkpoint-20261103-v123/commit.py').read_text()
++old = (ROOT / 'artifacts/css-research-checkpoint-20261103-v124/commit.py').read_text()
+ new = (HERE / 'commit.py').read_text()
+ marker = "    controls = {name: (RUNTIME / name).read_bytes()"
+-assert old[old.index(marker):].replace('v123','v124').replace('V123','V124') == new[new.index(marker):]
+-assert (HERE / 'capture_current.py').read_bytes() == (ROOT / 'artifacts/css-research-checkpoint-20261103-v123/capture_current.py').read_bytes()
++assert old[old.index(marker):].replace('v124','v125').replace('V124','V125').replace('No bug - Record validated attribute taint repairs and publication evidence.', 'No bug - Record validated attribute-taint and root-font animation repair research.') == new[new.index(marker):]
++assert (HERE / 'capture_current.py').read_bytes() == (ROOT / 'artifacts/css-research-checkpoint-20261103-v124/capture_current.py').read_bytes()
+ assert list(m.manifest_items({'files':[{'path':'proof','sha256':'x'}]})) == [('proof',{'path':'proof','sha256':'x'})]
+ try:
+     m.manifest_items({'files':[{'path':'proof','sha256':'x'},{'path':'proof','sha256':'y'}]})
+@@ -70,7 +70,7 @@
+ self_end = new.index("    for path in extras:", self_start)
+ import textwrap
+ self_block = textwrap.dedent(new[self_start:self_end])
+-with tempfile.TemporaryDirectory(prefix='css-research-v124-self-check-', dir='/private/tmp') as temporary:
++with tempfile.TemporaryDirectory(prefix='css-research-v125-self-check-', dir='/private/tmp') as temporary:
+     own = Path(temporary)
+     entries = {}
+     for name in ('commit.py', 'CHECK-FINAL.log', 'SELECTION-ADDITION.json'):
+@@ -93,8 +93,9 @@
+ if bindings['pending_current_admission']:
+     assert bindings['current_capture_sha256'] is None and bindings['controls'] == {}
+     conditions = json.loads((HERE / 'PRECONDITIONS.json').read_bytes())
+-    assert bindings['epoch_sha256'] == conditions['known_epoch_sha256']
+-    assert bindings['refresh_binding'] == conditions['known_completed_refresh']
++    assert conditions['pending_new_raw_refresh'] is False
++    assert bindings['epoch_sha256'] == conditions['current_epoch_sha256']
++    assert bindings['refresh_binding'] == conditions['actual_new_refresh']
+     receipt = json.loads((ROOT / bindings['prior_receipt']).read_bytes())
+     assert m.validate_refresh(receipt)['index']['head'] == bindings['head']
+     try:
+@@ -110,7 +111,7 @@
+         assert str(exc) == 'Draft signing execution is disabled'
+     else:
+         raise AssertionError('Disabled draft execution accepted')
+-    print(json.dumps({'preparation_only':True,'pending_current_admission_rejected':True,'known_completed_refresh_verified':True,'disabled_run_rejected':True,'selected':len(selected),'bytes':sum(row['bytes'] for row in selected.values()),'closures':len(bindings['completed_packages']),'exact_v123_tail':True}))
++    print(json.dumps({'preparation_only':True,'pending_current_admission_rejected':True,'actual_completed_refresh_verified':True,'disabled_run_rejected':True,'selected':len(selected),'bytes':sum(row['bytes'] for row in selected.values()),'closures':len(bindings['completed_packages']),'exact_v124_tail':True}))
+     raise SystemExit(0)
+ assert m.saved_admission()['index']['head'] == bindings['head']
+ original_git = m.git
+@@ -132,7 +133,7 @@
+ research = json.loads((ROOT / bindings['prior_research_receipt']).read_bytes())
+ original_refresh = m.validate_refresh
+ refreshed = original_refresh(receipt)
+-with tempfile.TemporaryDirectory(prefix='css-research-v124-refresh-check-') as temporary:
++with tempfile.TemporaryDirectory(prefix='css-research-v125-refresh-check-') as temporary:
+     scratch = Path(temporary)
+     source = ROOT / bindings['refresh_binding']['directory']
+     for name in ['RESULT.json', 'PRE-CURRENT-EPOCH.json', 'EPOCH.json', 'PRE.json', 'POST.json']:
+@@ -159,7 +160,7 @@
+     m.BINDINGS = bindings
+ assert not scratch.exists()
+ m.validate_refresh = lambda receipt: refreshed
+-with tempfile.TemporaryDirectory(prefix='css-research-v124-check-') as temporary:
++with tempfile.TemporaryDirectory(prefix='css-research-v125-check-') as temporary:
+     scratch = Path(temporary)
+     for label, target, field, value in [
+         ('unsigned_native', 'receipt', 'signature_verified', False),
+@@ -195,4 +196,4 @@
+     m.ROOT, m.BINDINGS = ROOT, bindings
+ assert not scratch.exists()
+ m.validate_refresh = original_refresh
+-print(json.dumps({'refresh_copy_positive':True, 'refresh_negatives':4, 'admission_negatives_scope':'native/current schema isolated from separately checked refresh join', 'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'binding_negatives':11, 'disabled_execution_rejected':True, 'exact_v123_publication_tail':True, 'scratch_removed':True}))
++print(json.dumps({'refresh_copy_positive':True, 'refresh_negatives':4, 'admission_negatives_scope':'native/current schema isolated from separately checked refresh join', 'selected':len(selected), 'bytes':sum(row['bytes'] for row in selected.values()), 'closures':len(bindings['completed_packages']), 'binding_negatives':11, 'disabled_execution_rejected':True, 'exact_v124_publication_tail':True, 'scratch_removed':True}))

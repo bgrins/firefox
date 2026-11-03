@@ -1,0 +1,10 @@
+import Route
+#print axioms CancellationRoute.handoff
+#print axioms CancellationRoute.scheduled_route_visits_in_order
+#print axioms CancellationRoute.scheduled_target_visited
+#print axioms CancellationRoute.completed_route_supplies_visitation
+#print axioms CancellationRoute.no_scheduled_work_no_visitation
+#print axioms CancellationRoute.fixed_unanimated_hop_preserved
+#print axioms CancellationRoute.animated_child_only_loses_descendant
+#print axioms CancellationRoute.immediate_animated_child_control
+#print axioms CancellationRoute.insufficient_dispatches_counterexample

@@ -1,0 +1,39 @@
+--- artifacts/css-root-self-smil-archived-original-v1/run.py
++++ artifacts/css-root-font-route-supplement-archived-wpt-v1/run.py
+@@ -121,7 +121,7 @@
+ 
+ 
+ def assess(events, roster, code=None):
+-    assert len(roster) == 1 and all(len(names) == len(set(names)) == 7 for names in roster.values())
++    assert len(roster) == 2 and sorted(map(len, roster.values())) == [3, 4] and all(len(names) == len(set(names)) for names in roster.values())
+     expected = {(page, name) for page, names in roster.items() for name in names}
+     assert len(expected) == 7
+     statuses = [e for e in events if e.get('action') == 'test_status']
+@@ -138,8 +138,8 @@
+             current[status] = current.get(status, 0) + 1
+     complete = (len(statuses) == len(set(identities)) == 7 and set(identities) == expected
+                 and all(e.get('status') in ['PASS', 'FAIL'] for e in statuses)
+-                and len(starts) == 1 and {e.get('test') for e in starts} == set(roster)
+-                and len(endings) == 1 and {e.get('test') for e in endings} == set(roster)
++                and len(starts) == 2 and {e.get('test') for e in starts} == set(roster)
++                and len(endings) == 2 and {e.get('test') for e in endings} == set(roster)
+                 and all(e.get('status') == 'OK' for e in endings)
+                 and sum(e.get('action') == 'suite_start' for e in events) == 1
+                 and sum(e.get('action') == 'suite_end' for e in events) == 1)
+@@ -183,7 +183,7 @@
+                     ['tests', 'metadata', 'mozilla-tests', 'mozilla-metadata', 'support', 'run-info']}
+     save(output / 'STAGED.json', staged)
+     save(output / 'STAGED-TREES.json', staged_trees)
+-    temporary = Path(tempfile.mkdtemp(prefix='css-root-self-smil-' + policy['archive_role'] + '-', dir='/private/tmp'))
++    temporary = Path(tempfile.mkdtemp(prefix='css-route-supplement-' + policy['archive_role'] + '-', dir='/private/tmp'))
+     identity = (temporary.stat().st_dev, temporary.stat().st_ino)
+     args, env = command(output, temporary, policy, snapshot)
+     save(output / 'COMMAND.json', {'command': args, 'temporary': str(temporary),
+@@ -238,6 +238,6 @@
+ if __name__ == '__main__':
+     parser = argparse.ArgumentParser()
+     parser.add_argument('--run', action='store_true', required=True)
+-    parser.add_argument('--role', choices=['original'], required=True)
++    parser.add_argument('--role', choices=['original', 'candidate'], required=True)
+     args = parser.parse_args()
+     run(json.loads((HERE / ('POLICY-' + args.role + '.json')).read_text()))

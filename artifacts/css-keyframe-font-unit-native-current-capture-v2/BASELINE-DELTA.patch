@@ -1,0 +1,12 @@
+--- artifacts/css-keyframe-font-unit-native-current-capture-v1/baseline.py
++++ artifacts/css-keyframe-font-unit-native-current-capture-v2/baseline.py
+@@ -130,7 +130,8 @@
+     assert set(binding['additional_sources']) == {'servo/components/style/traversal.rs', 'servo/components/style/data.rs'}
+     result = {}
+     for name, record in binding['additional_sources'].items():
+-        assert name not in epoch['pins'] and name not in epoch['installed_identities']
++        assert name not in epoch['installed_identities']
++        assert name not in epoch['pins'] or epoch['pins'][name] == record['base_sha256']
+         assert core.sha(ROOT / record['base_capture']) == record['base_sha256']
+         result[name] = ownership.claim(ROOT, name, record['base_sha256'])
+         assert hashlib.sha256(state.h.git(ROOT, env, 'show', head + ':' + name)).hexdigest() == record['base_sha256']

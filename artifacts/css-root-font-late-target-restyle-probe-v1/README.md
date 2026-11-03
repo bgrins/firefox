@@ -1,0 +1,9 @@
+# One late startup cohort for RFST correlation
+
+The only HTML change from sealed target-restyle2effd9da is deletion of the active and constant case entries. The late callback body, CSS, preconditions, observations, getter ordering, animation identity comparisons, cleanup and original assertions are byte-identical. Only one iframe callback is registered; unused CSS branches remain to preserve the body. Neither the native trace candidate nor the parent fixture is changed.
+
+Serve the page and two exact harness resources listed in INPUTS.json using the existing root-owned loopback setup. After the callback finishes, evaluate the function in observe.js. It only reads the stored observation array, requires exactly one completed late row, and returns a JSON copy. It performs no style/layout/animation queries or mutations. The original numerical assertions may fail after all observations have been saved; a FAIL is not an extraction failure.
+
+Root must reproduce first46/settled46/afterCalibration46 then targetRestyle64 under RFST logging, with root32/plain64, valid original23/11 no-animation precondition, unchanged CSSAnimation identities/counts/timing, and the expected background color. No outcome is assumed here. KeyframeEffect identity remains a separate native pointer observation. Removing other fixture cohorts reduces correlation ambiguity; it does not guarantee global pointer uniqueness or eliminate browser/harness activity.
+
+Actual saved check64fe82 exit0 proves exact two-line deletion, JavaScript syntax, one inert callback registration, unchanged resource hashes, and a read-only extractor with one accepted synthetic shape/four rejecting shapes. The callback was not executed. Owned temporary scratch was removed. No browser/build/native/Git/index operation or genuine lint/manifest run was performed.

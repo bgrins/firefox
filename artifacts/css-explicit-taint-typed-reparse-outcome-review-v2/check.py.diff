@@ -1,0 +1,18 @@
+--- artifacts/css-explicit-taint-typed-reparse-outcome-review-v1/check.py
++++ artifacts/css-explicit-taint-typed-reparse-outcome-review-v2/check.py
+@@ -11,9 +11,14 @@
+ spec.loader.exec_module(m)
+ binding = m.read(HERE/'BINDINGS.json')
+ assert binding['execution_enabled'] is False
+-assert all(binding[x] is None for x in ('candidate','owner','audit','audit_report'))
++assert all(binding[x] is None for x in ('candidate','audit','audit_report'))
+ for path, digest in m.read(HERE/'REFERENCES.json').items():
+     assert m.sha(m.ROOT/path) == digest
++m.authenticated(binding['owner'])
++launch=m.read(m.ROOT/binding['launch']['path'])
++assert m.sha(m.ROOT/binding['launch']['path'])==binding['launch']['sha256']
++assert launch['owner_manifest_sha256']==binding['owner']['manifest_sha256']
++assert launch['pgid']==9316
+ checks = m.load('existing_checks',m.ROOT/binding['checks'])
+ snapshot = m.read(m.ROOT/binding['original_snapshot'])
+ base = {}

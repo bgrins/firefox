@@ -1,0 +1,39 @@
+[
+  {
+    "path": "servo/components/style/gecko/wrapper.rs",
+    "commit": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "8be23a881af313800ebc9645834f88b37770faecc7ec0b35bd186f57471a9b38",
+    "snippets": [
+      {
+        "anchor": "impl<'le> fmt::Debug for GeckoElement",
+        "text": "impl<'le> fmt::Debug for GeckoElement<'le> {\n    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {\n        use nsstring::nsCString;\n\n        write!(f, \"<{}\", self.local_name())?;\n\n        let mut attrs = nsCString::new();\n        unsafe {\n            bindings::Gecko_Element_DebugListAttributes(self.0, &mut attrs);\n        }\n        write!(f, \"{}\", attrs)?;\n        write!(f, \"> ({:#x})\", self.as_node().opaque().0)\n    }\n}\n\nimpl<'le> GeckoElement<'le> {\n    /// Gets the raw `ElementDataWrappe"
+      },
+      {
+        "anchor": "fn opaque(&self) -> OpaqueNode",
+        "text": "fn opaque(&self) -> OpaqueNode {\n        let ptr: usize = self.0 as *const _ as usize;\n        OpaqueNode(ptr)\n    }\n\n    fn debug_id(self) -> usize {\n        u"
+      }
+    ]
+  },
+  {
+    "path": "servo/components/style_traits/dom.rs",
+    "commit": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "367c586216a0d8620c419af711b2b21688dd9155b3a8bd80f382e94da66b2f1d",
+    "snippets": [
+      {
+        "anchor": "pub struct OpaqueNode",
+        "text": "pub struct OpaqueNode(pub usize);\n\nimpl OpaqueNode {\n    /// Returns the address of this node, for debugging purposes.\n    #[inline]\n    pub fn id(&self) -> usi"
+      }
+    ]
+  },
+  {
+    "path": "servo/components/style/stylist.rs",
+    "commit": "e86b64866cdc5e2260ba9be08c45756fd96e21bb",
+    "sha256": "1d31ff166603105b880aadbcd978f6dd3f41c7d2d4a9f6b6a7580ea19cd0cd21",
+    "snippets": [
+      {
+        "anchor": "pub fn device(&self) -> &Device",
+        "text": "pub fn device(&self) -> &Device {\n        &self.device\n    }\n\n    /// Accessor for a mutable reference to the device.\n    #[inline]\n    pub fn device_mut(&mut s"
+      }
+    ]
+  }
+]

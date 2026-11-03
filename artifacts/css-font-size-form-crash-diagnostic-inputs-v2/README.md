@@ -1,0 +1,5 @@
+# Flat inputs for the u32-preserving size-form diagnostic
+
+This flat hash capsule supplies exact rebased cascade8b92dbb5/provider90ac candidates, expected832d/bb13 base captures, the unchanged four-callback diagnostic page, two pinned harness resources, genuine manifest and per-test dump-pref INI. It accepts the same4 callbacks/1 ending/5 signatures; no expected-failure override or new oracle is added. The source companion's conditional base is not current publication authority.
+
+Actual prepare8fa3b3/0 uses the byte-identical prior WPT manifest/lint API wrapper and passes. Regenerated manifest, roster, HTML and INI are byte-identical to inputs-v1; resource paths alone point at this new capsule. Saved stagingf53705/0 uses the unchanged exercised wpt.prepare_inputs to copy exact HTML/INI/manifest into owned temporary output and removes it. No native/browser/Mach/Git operation occurred. The inherited inert dump function is only the roster-discovery VM stub; the real HTML uses Window.dump under the exact staged preference. Root must obtain fresh source/current admission after capacity publication before running any diagnostic owner.

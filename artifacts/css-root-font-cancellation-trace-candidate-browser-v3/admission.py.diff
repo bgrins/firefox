@@ -1,0 +1,54 @@
+--- artifacts/css-root-font-cancellation-trace-candidate-browser-v2/admission.py
++++ artifacts/css-root-font-cancellation-trace-candidate-browser-v3/admission.py
+@@ -21,6 +21,25 @@
+     return directory
+ 
+ 
++def direct_evidence(root, policy, native_receipt):
++    assert policy['direct_equivalence'] == {
++        'directory': 'artifacts/css-native-epoch-direct-equivalence-v1',
++        'manifest_sha256': '0c42724061acefb0f49b654d8a22f8aff2507f6138b72109e1906c4e7e49c488',
++    }
++    directory = authenticate(root, policy['direct_equivalence'])
++    spec = importlib.util.spec_from_file_location('saved_native_equivalence', directory/'equivalence.py')
++    helper = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(helper)
++    evidence = helper.verify_saved(root)
++    helper.equal(policy['current_binding'], dict(zip(('path', 'sha256'), helper.INPUTS['current_capture'])), 'current capture binding')
++    helper.equal(policy['capture_binding'], dict(zip(('path', 'sha256'), helper.INPUTS['current_terminal'])), 'capture terminal binding')
++    helper.equal(native_receipt, read(root/helper.INPUTS['native_receipt'][0]), 'actual native receipt')
++    assert evidence['native_head'] == policy['head'] == native_receipt['commit']
++    assert evidence['current_epoch_sha256'] == policy['controls']['CURRENT-EPOCH.json']
++    assert not evidence['live_checks_performed'] and not evidence['diagnostic_execution_authorized']
++    return evidence
++
++
+ def validate_current(root,policy,roles):
+     binding=policy['current_binding']
+     assert binding and sha(root/binding['path'])==binding['sha256']
+@@ -38,14 +57,20 @@
+     spec=importlib.util.spec_from_file_location('native_capture_authority',owner/'baseline.py')
+     adapter=importlib.util.module_from_spec(spec);spec.loader.exec_module(adapter)
+     assert receipt['path']==adapter.binding['native_receipt']
+-    observed_head=adapter.native_head_view(checkpoint)
+-    assert observed_head['head']==policy['head']==capture['snapshot']['index']['head']
+-    assert observed_head['epoch_sha256']==capture['controls']['CURRENT-EPOCH.json']
++    evidence=direct_evidence(root,policy,checkpoint)
++    assert checkpoint['commit']==policy['head']==capture['snapshot']['index']['head']
++    assert evidence['current_epoch_sha256']==capture['controls']['CURRENT-EPOCH.json']
++    assert not adapter.binding['pending_pair_refresh']
++    research=read(root/adapter.binding['research_parent_receipt'])
++    assert research['committed'] is True and research['signature_verified'] is True
++    assert checkpoint['parent']==research['head']==adapter.binding['native_parent']
+     assert capture['refresh_lineage_verified'] and capture['additional_sources_match_head']
+     assert capture['refresh_binding']==policy['refresh_lineage']==adapter.binding['refresh_binding']
+     assert capture['refresh_manifest_sha256']==adapter.binding['refresh_manifest_sha256']
+-    assert capture['refresh_epoch_sha256']==observed_head['epoch_sha256']
+-    assert adapter.validate_refresh(checkpoint)==capture['snapshot']
++    assert capture['refresh_epoch_sha256']==evidence['current_epoch_sha256']==adapter.binding['current_epoch_sha256']
++    post_path=policy['refresh_lineage']['directory']+'/POST.json'
++    assert sha(root/post_path)==policy['references'][post_path]
++    assert read(root/post_path)==capture['snapshot']
+     assert capture['controls']==policy['controls'] and set(capture['controls'])=={'CURRENT-EPOCH.json','ROLE.json','OWNED.json'}
+     here=root/policy['owner_directory']
+     def local(name):

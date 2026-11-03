@@ -1,0 +1,9 @@
+# Root-self native61 raw-index refresh
+
+Disabled derivative of executed font-unit refresh v2. Actual owner ec3985/session54950/6cb3a1 exited0; independent audit ca8de5/session12117/a00568 exited0, with runtime frozen16b7e193 and audit851f8026. The separate outcome246937aa records seven improvements and54 preservedPASS/five endings. Raw c1d57434 changed to3ebe2fad while semantic index is unchanged. Execution remains disabled and no new canonical epoch or refresh result is claimed.
+
+Saved admission replays the fresh candidate build and both root_identity14/control47 streams; authenticates owner terminal/result, complete app/source/flags/index restoration, exact process absence, backup removal and immutable runtime inputs. The actual audit receipt is used verbatim (report_sha256/audit_manifest); no aliases or fabricated terminal fields are introduced. The before/after outcome is independently pinned; refresh itself grants no native acceptance.
+
+The only code changes from executed font-unit v2 are lane/source scope, emptyadditional-source admission, exact audit receipt field joins and operation label. derive, admit_current_raw and main write/rollback are otherwise unchanged. Signed native085f/e86 remains authority; preceding completed bridge136fe4 binds canonical epochb4. Only raw_index_observation.current may change after exact full restored-state admission. The existing no-op branch remains: if the actual observation is already current, no write or fabricated bridge occurs.
+
+Root alone may set POLICY.execution_enabled true and re-seal after review. Existing CLI: run.py --check FILES_SHA or --run FILES_SHA. --run already performs saved admission and repeats it before writing; a redundant full standalone check is unnecessary after the saved receipt unless inputs change. No live native source, application, index or canonical mutation occurred during preparation.

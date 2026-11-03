@@ -1,0 +1,48 @@
+--- artifacts/css-root-font-cancellation-normal-handoff-current-capture-v1/baseline.py
++++ artifacts/css-root-font-cancellation-selective-handoff-current-capture-v1/baseline.py
+@@ -25,7 +25,13 @@
+ load = core.load
+ environment = core.environment
+ metadata_guard = core.metadata_guard
+-require_role = core.require_role
++def require_role(policy, role, epoch):
++    leaf = binding['role_validator']
++    ownership = core.load('capture_role_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')
++    ownership.authenticate(ROOT/leaf['directory'], leaf['manifest_sha256'])
++    validator = core.load('capture_role_leaf', leaf['directory'] + '/baseline.py')
++    assert validator.binding['capacity_commit'] == binding['capacity_commit']
++    validator.require_role(policy, role, epoch)
+ 
+ 
+ def compare_saved(receipt, records):
+@@ -72,14 +78,15 @@
+     equal(original_capture['audit']['index']['raw_index'], original['raw_index_observation']['current'], 'original snapshot raw join')
+     equal(normalized, original_capture['audit'], 'whole original snapshot equality')
+     terminal = records['terminal']
+-    equal({k:terminal[k] for k in ('launch','session','terminal','exit')}, {'launch':'34a442','session':72752,'terminal':'16a5b4','exit':0}, 'actual refresh terminal')
++    equal({k:terminal[k] for k in ('launch','session','terminal','exit')}, {'launch':'d48c63','session':79270,'terminal':'0ff211','exit':0}, 'actual refresh terminal')
+     equal(terminal['result_sha256'], binding['refresh_binding']['result_sha256'], 'refresh terminal result')
+-    equal(terminal['active_manifest'], '026f2a67da0ed3bbfb514c6fad068cdcec8d52e6bf8d61baf6825e5d229ba7cd', 'executed refresh manifest')
++    equal(terminal['active_manifest'], 'ec4502b0beb9de74fa1774f34673d1b1278bb34847103ca5810d33d49e2e07a0', 'executed refresh manifest')
+     verification = records['verification']
+-    assert verification['whole_live_state_equals_actual_post'] is True and verification['lock_absent'] is True
+-    equal(verification['epoch_sha256'], binding['current_epoch_sha256'], 'verified epoch')
+-    equal(verification['post_sha256'], binding['references'][binding['saved_inputs']['post']], 'verified POST')
+-    equal(records['verification_terminal'], {'launch':'59db90','session':85375,'terminal':'1cc7fd','exit':0,'report_sha256':binding['references'][binding['saved_inputs']['verification']]}, 'actual independent verification terminal')
++    assert verification['raw_only_epoch_change'] is True
++    assert verification['source_app_flags_controls_verified'] is True
++    equal(verification['snapshot'], post, 'verified whole POST')
++    equal(verification['result_sha256'], binding['refresh_binding']['result_sha256'], 'verified result')
++    equal(records['verification_terminal'], {'launch':'4b3c7d','session':84064,'terminal':'9f3225','exit':0,'report_sha256':binding['references'][binding['saved_inputs']['verification']], 'script_sha256':verification['script_sha256']}, 'actual independent verification terminal')
+     return post
+ 
+ 
+@@ -113,7 +120,7 @@
+ 
+ 
+ def claim_additional_sources(ownership, state, env, epoch, head):
+-    assert set(binding['additional_sources']) == {'servo/components/style/traversal.rs', 'servo/components/style/gecko/traversal.rs'}
++    assert set(binding['additional_sources']) == {'servo/components/style/data.rs', 'servo/components/style/traversal.rs', 'servo/components/style/gecko/traversal.rs'}
+     result = {}
+     for name, record in binding['additional_sources'].items():
+         assert name not in epoch['installed_identities']

@@ -1,0 +1,52 @@
+--- artifacts/css-root-font-cancellation-trace-candidate-browser-v3/admission.py
++++ artifacts/css-root-font-cancellation-normal-handoff-candidate-browser-v1/admission.py
+@@ -22,22 +22,24 @@
+ 
+ 
+ def direct_evidence(root, policy, native_receipt):
+-    assert policy['direct_equivalence'] == {
+-        'directory': 'artifacts/css-native-epoch-direct-equivalence-v1',
+-        'manifest_sha256': '0c42724061acefb0f49b654d8a22f8aff2507f6138b72109e1906c4e7e49c488',
+-    }
+-    directory = authenticate(root, policy['direct_equivalence'])
+-    spec = importlib.util.spec_from_file_location('saved_native_equivalence', directory/'equivalence.py')
+-    helper = importlib.util.module_from_spec(spec)
+-    spec.loader.exec_module(helper)
+-    evidence = helper.verify_saved(root)
+-    helper.equal(policy['current_binding'], dict(zip(('path', 'sha256'), helper.INPUTS['current_capture'])), 'current capture binding')
+-    helper.equal(policy['capture_binding'], dict(zip(('path', 'sha256'), helper.INPUTS['current_terminal'])), 'capture terminal binding')
+-    helper.equal(native_receipt, read(root/helper.INPUTS['native_receipt'][0]), 'actual native receipt')
+-    assert evidence['native_head'] == policy['head'] == native_receipt['commit']
+-    assert evidence['current_epoch_sha256'] == policy['controls']['CURRENT-EPOCH.json']
+-    assert not evidence['live_checks_performed'] and not evidence['diagnostic_execution_authorized']
+-    return evidence
++    directory = authenticate(root, policy['capture_owner'])
++    spec = importlib.util.spec_from_file_location('direct_capture_evidence', directory/'baseline.py')
++    adapter = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(adapter)
++    assert policy['direct_equivalence'] == adapter.binding['equivalence_helper']
++    for key in ('current_binding', 'capture_binding'):
++        record = policy[key]
++        assert sha(root/record['path']) == record['sha256'], key
++    capture = read(root/policy['current_binding']['path'])
++    adapter.equivalence.equal(native_receipt, capture['checkpoint'], 'actual native receipt')
++    snapshot = adapter.saved_native_state(native_receipt)
++    adapter.equivalence.equal(snapshot, capture['snapshot'], 'whole current snapshot')
++    assert policy['controls'] == capture['controls']
++    assert policy['controls']['CURRENT-EPOCH.json'] == adapter.binding['current_epoch_sha256']
++    assert policy['head'] == native_receipt['commit'] == snapshot['index']['head']
++    return {'native_head': native_receipt['commit'],
++            'current_epoch_sha256': adapter.binding['current_epoch_sha256'],
++            'live_checks_performed': False, 'diagnostic_execution_authorized': False}
+ 
+ 
+ def validate_current(root,policy,roles):
+@@ -97,7 +99,7 @@
+     assert set(capture['sources'])==set(read(captured_owner/'SOURCE-ROLES.json'))
+     assert all(claim==capture['payload_claims'][name] for name,claim in capture['sources'].items())
+     additional=capture['additional_sources']
+-    assert set(additional)==set(policy['additional_source_paths'])=={'servo/components/style/data.rs', 'servo/components/style/traversal.rs'}
++    assert set(additional)==set(policy['additional_source_paths'])=={'servo/components/style/gecko/traversal.rs', 'servo/components/style/traversal.rs'}
+     assert not set(additional).intersection(capture['payload_claims'])
+     source_claims=capture['payload_claims'] | additional
+     assert set(roles)<=set(source_claims)

@@ -1,0 +1,63 @@
+--- artifacts/css-root-font-cancellation-selective-handoff-candidate-browser-v1/check.py
++++ artifacts/css-root-font-startup-trace-candidate-browser-v1/check.py
+@@ -2,6 +2,7 @@
+ import hashlib
+ import importlib.util
+ import json
++import os
+ from pathlib import Path
+ import shutil
+ import sys
+@@ -24,8 +25,9 @@
+ 
+ 
+ def validate_policy(policy):
++    assert 'MOZ_ROOT_FONT_STARTUP_TRACE' not in os.environ, 'cancellation smoke must run without RFST logging'
+     assert policy['owner_directory'] == str(HERE.relative_to(ROOT))
+-    assert policy['runtime_output'] == 'artifacts/css-root-font-cancellation-selective-handoff-candidate-browser-runtime-v1'
++    assert policy['runtime_output'] == 'artifacts/css-root-font-startup-trace-candidate-browser-runtime-v1'
+     assert policy['execution_enabled'] == policy['candidate_execution_enabled']
+     assert policy['archive'] == {'application_name': 'Nightly.app', 'minimum_free_after_copy': 28991029248, 'prefix': 'css-font-unit-candidate-', 'temporary_parent': '/private/tmp', 'validator': 'artifacts/css-root-self-smil-archived-original-v1/run.py', 'validator_sha256': '268a201122782c997cdeb566db7651200c58a669cb69821e4c94e5c01995a3ea'}
+     assert policy['authority_kind'] == 'signed-native-publication'
+@@ -45,7 +47,7 @@
+         assert sha(ROOT/policy['capture_binding']['path']) == policy['capture_binding']['sha256']
+         terminal = read(ROOT/policy['capture_binding']['path'])
+         assert terminal == conditions['capture_terminal_fields']
+-        assert terminal['launch'] == '0af7d5' and terminal['session'] == 15831 and terminal['terminal'] == '194c92'
++        assert terminal['launch'] == '3b503e' and terminal['session'] == 75776 and terminal['terminal'] == 'b1144d'
+         assert type(terminal['exit']) is int and terminal['exit'] == 0
+         assert terminal['actual_snapshot_matches_completed_refresh_post'] is True
+         assert terminal['capture_manifest'] == policy['capture_owner']['manifest_sha256']
+@@ -71,22 +73,26 @@
+     assert policy['required_typecheck_inputs'] == {}
+     admission = load('admission')
+     source = admission.authenticate(ROOT, policy['source_binding'])
+-    assert source == ROOT / 'artifacts/css-root-font-cancellation-selective-handoff-fix-v1'
+-    assert policy['source_binding']['manifest_sha256'] == '8c89d437585458e4818604c1aede018631ae42eac74ca421cc63b0273d97c3b2'
++    assert source == ROOT / 'artifacts/css-root-font-startup-trace-instrumentation-v1'
++    assert policy['source_binding']['manifest_sha256'] == '6d6c56bc60dc20f0ad9307d577f1890a1c792f4d066115e335de60a197252949'
+     assert not policy['control_suite_pending']
+     assert policy['suite_bindings']['cancellation'] == {'directory': 'artifacts/css-root-self-animation-isolation-followup-v1', 'manifest_sha256': 'e467889baca270157fe52aefc61eb38af5735eda546dbd0b4b931885a62493a4'}
+     assert set(policy['suite_bindings']) == set(policy['wpt_lanes']) == {'cancellation'}
+     assert policy['lane_order'] == ['cancellation'] and policy['diagnostic_lane_order'] == []
+     roles = read(HERE / 'SOURCE-ROLES.json')
+     source_roles = read(source / 'SOURCE-ROLES.json')['roles']
+-    assert read(source / 'SOURCE-ROLES.json')['parent'] == 'css-keyframe-font-unit-dependency-fix-v1'
++    assert read(source / 'SOURCE-ROLES.json')['parent'] == 'artifacts/css-root-font-cancellation-selective-handoff-fix-v1'
++    selective_parent = admission.authenticate(ROOT, {'directory':'artifacts/css-root-font-cancellation-selective-handoff-fix-v1','manifest_sha256':'8c89d437585458e4818604c1aede018631ae42eac74ca421cc63b0273d97c3b2'})
++    parent_roles = read(selective_parent/'SOURCE-ROLES.json')['roles']
++    for name,row in source_roles.items():
++        assert row['parent_sha256'] == (parent_roles[name]['candidate_sha256'] if name in parent_roles else row['base_sha256'])
+     assert source_roles['servo/components/style/data.rs']['parent_sha256'] == source_roles['servo/components/style/data.rs']['candidate_sha256'] == '17aaffd1deef5fe3e325e76bb8e37f885e250b4ad767df492733c876f24e8375'
+-    assert source_roles['servo/components/style/traversal.rs']['parent_sha256'] == '402165f9709d8a28ff7b2c1bb894c7fe06a2f60f401e9cea77142bcd34746707'
++    assert parent_roles['servo/components/style/traversal.rs']['parent_sha256'] == '402165f9709d8a28ff7b2c1bb894c7fe06a2f60f401e9cea77142bcd34746707'
+     expected_roles = {name: {'base_capture': str((source/'base'/name).relative_to(ROOT)), 'candidate_capture': str((source/'candidate'/name).relative_to(ROOT)), 'base_sha256': row['base_sha256'], 'candidate_sha256': row['candidate_sha256']} for name,row in source_roles.items()}
+-    assert roles == expected_roles and set(roles) == {'servo/components/style/data.rs', 'servo/components/style/gecko/traversal.rs', 'servo/components/style/traversal.rs', 'servo/ports/geckolib/glue.rs'}
++    assert roles == expected_roles and set(roles) == {'servo/components/style/values/specified/length.rs', 'layout/style/GeckoBindings.cpp', 'servo/ports/geckolib/glue.rs', 'servo/components/style/matching.rs', 'servo/components/style/traversal.rs', 'servo/components/style/data.rs', 'dom/animation/KeyframeEffect.cpp', 'servo/components/style/gecko/traversal.rs'}
+     assert set(policy['additional_source_paths']) == {'servo/components/style/data.rs', 'servo/components/style/gecko/traversal.rs', 'servo/components/style/traversal.rs'}
+     canonical_roles = set(roles) - set(policy['additional_source_paths'])
+-    assert canonical_roles == {'servo/ports/geckolib/glue.rs'}
++    assert canonical_roles == {'servo/components/style/values/specified/length.rs', 'layout/style/GeckoBindings.cpp', 'servo/ports/geckolib/glue.rs', 'servo/components/style/matching.rs', 'dom/animation/KeyframeEffect.cpp'}
+     assert all(policy['source_context_pins'][name] == roles[name]['base_sha256'] for name in canonical_roles)
+     assert policy['committed_source_preimages'] == {name: row['base_sha256'] for name, row in roles.items()}
+     for row in roles.values():

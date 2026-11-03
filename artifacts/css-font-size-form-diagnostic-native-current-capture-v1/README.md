@@ -1,0 +1,7 @@
+# Native capacity receipt: rich diagnostic capture
+
+This new adapter admits actual signed capacity commit e86b6486 directly, with its exact native COMMIT-RESULT schema and independently signed V114 parent f9114c11. No V115 or V116 research commit exists. Their signing failure/readiness records stay immutable and are not authority for this capture.
+
+The archived checkpoint remains the exact native receipt, accompanied by authority_kind: signed-native-publication. A private observed HEAD view is derived only after native receipt/schema/pinned-parent checks to reuse the existing full-state observer; that view is not saved as a research receipt. Live capture also verifies both signatures, exact parent, exact two committed paths, committed/live source bytes, published capacity marker and prior native ancestry. Existing app, full semantic/raw index, controls, flags, identities, lock and quiescence checks remain.
+
+The previous rich capture changes only the native receipt path guard and explicit authority label. Native admission follows the executed V103/V116 post-native receipt pattern. No live capture was executed during preparation. Root uses the existing four arguments: manifest hash, actual native COMMIT-RESULT path, its hash, and new output path. The new disabled browser-v3 will explicitly admit this native authority and preserve832d/providerbb13 while overlaying diagnostic8b92/provider90ac. Candidate-only diagnosis has no historical original comparison or native acceptance claim. V116 signing remains separate and disabled.

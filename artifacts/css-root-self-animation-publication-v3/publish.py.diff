@@ -1,0 +1,26 @@
+--- artifacts/css-root-self-animation-publication-v1/publish.py
++++ artifacts/css-root-self-animation-publication-v3/publish.py
+@@ -49,12 +49,12 @@
+         assert sha(ROOT / path) == pin
+     stage = next(s for s in read(HERE / 'STAGES.json')['stages'] if s['stage'] == args.stage)
+     policy['stage'] = args.stage
+-    policy['runtime_output'] = 'artifacts/css-root-self-animation-publication-' + args.stage + '-runtime-1'
++    policy['runtime_output'] = 'artifacts/css-root-self-animation-smil-publication-' + args.stage + '-runtime-1'
+     for name, record in records.items():
+         policy['references'][str((HERE / name).relative_to(ROOT))] = record['sha256']
+     policy['references'][str((HERE / 'FILES.json').relative_to(ROOT))] = args.manifest
+     output = ROOT / policy['runtime_output']
+-    install_owner = ROOT / ('artifacts/css-root-self-animation-publication-' + args.stage + '-install-v1')
++    install_owner = ROOT / ('artifacts/css-root-self-animation-smil-publication-' + args.stage + '-install-v1')
+     installed = None
+     assert policy['pair_binding'] is None
+     if args.action != 'install':
+@@ -117,7 +117,7 @@
+         path = output / 'delivery/DELIVERY.json'
+         binding['delivery_receipt'] = {'path': str(path.relative_to(ROOT)), 'sha256': sha(path)}
+     policy.update(bindings=binding, enabled_modes=[args.action])
+-    directory = ROOT / ('artifacts/css-root-self-animation-publication-' + args.stage + '-' + args.action + '-v1')
++    directory = ROOT / ('artifacts/css-root-self-animation-smil-publication-' + args.stage + '-' + args.action + '-v1')
+     directory.mkdir()
+     for name in ('run.py', 'transform.py', 'evidence.py', 'STAGES.json'):
+         with (directory / name).open('xb') as stream:
