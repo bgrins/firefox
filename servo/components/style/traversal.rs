@@ -359,7 +359,12 @@ pub fn recalc_style_at<E, D, F>(
         "Should've handled snapshots here already"
     );
 
-    let restyle_kind = data.restyle_kind(context.shared);
+    let has_animations = !flags.for_animation_only()
+        && data
+            .hint
+            .intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
+        && element.has_animations(context.shared);
+    let restyle_kind = data.restyle_kind(context.shared, has_animations);
     debug!(
         "recalc_style_at: {:?} (restyle_kind={:?}, dirty_descendants={:?}, data={:?})",
         element,
