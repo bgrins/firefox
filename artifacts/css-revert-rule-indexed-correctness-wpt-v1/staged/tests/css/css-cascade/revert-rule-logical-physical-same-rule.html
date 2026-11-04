@@ -1,0 +1,101 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Rule rollback excludes logical and physical declarations from the same rule</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-rule-keyword">
+<link rel="help" href="https://drafts.csswg.org/css-logical-1/#logical-property-group">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+let serial = 0;
+for (const direction of ["ltr", "rtl"]) {
+  for (const important of [false, true]) {
+    for (const separateRules of [false, true]) {
+      for (const value of ["revert-rule", "revert-layer", "revert", "9px"]) {
+        for (const logicalLast of [false, true]) {
+          test(t => {
+            assert_true(CSS.supports("margin-inline-start", value), "Value is supported");
+            const id = `rollback-target-${serial++}`;
+            const physical = direction === "ltr" ? "margin-left" : "margin-right";
+            const importance = important ? " !important" : "";
+            const declarations = [
+              `${physical}:5px${importance}`,
+              `margin-inline-start:${value}${importance}`,
+            ];
+            if (!logicalLast) declarations.reverse();
+            const rules = separateRules ?
+              declarations.map(decl => `#${id} { ${decl} }`).join("\n") :
+              `#${id} { ${declarations.join(";")} }`;
+            const style = document.createElement("style");
+            style.textContent = `
+              @layer base { #${id} { ${physical}:37px } }
+              #${id} { direction:${direction} }
+              ${rules}
+            `;
+            const target = document.createElement("div");
+            target.id = id;
+            document.body.append(style, target);
+            t.add_cleanup(() => { style.remove(); target.remove(); });
+            const expected = !logicalLast ? "5px" :
+              value === "revert" ? "0px" : value === "9px" ? "9px" :
+              value === "revert-rule" && separateRules ? "5px" : "37px";
+            const computed = getComputedStyle(target);
+            assert_equals(computed.direction, direction, "Logical mapping direction");
+            assert_equals(computed.getPropertyValue(physical), expected);
+          }, `${direction}: ${value}, ${important ? "important" : "normal"}, ` +
+             `${separateRules ? "separate rules" : "same rule"}, ` +
+             `logical declaration ${logicalLast ? "last" : "first"}`);
+        }
+      }
+    }
+  }
+}
+for (const direction of ["ltr", "rtl"]) {
+  for (const separateRules of [false, true]) {
+    test(t => {
+      const id = `rollback-target-${serial++}`;
+      const physical = direction === "ltr" ? "margin-left" : "margin-right";
+      const declarations = [`${physical}:5px`, "margin-inline-start:revert-rule !important"];
+      const rules = separateRules ?
+        declarations.map(decl => `#${id} { ${decl} }`).join("\n") :
+        `#${id} { ${declarations.join(";")} }`;
+      const style = document.createElement("style");
+      style.textContent = `
+        @layer base { #${id} { ${physical}:37px } }
+        #${id} { direction:${direction} }
+        ${rules}
+      `;
+      const target = document.createElement("div");
+      target.id = id;
+      document.body.append(style, target);
+      t.add_cleanup(() => { style.remove(); target.remove(); });
+      assert_equals(getComputedStyle(target).getPropertyValue(physical),
+                    separateRules ? "5px" : "37px");
+    }, `${direction}: important rollback with normal physical declaration, ` +
+       `${separateRules ? "separate rules" : "same rule"}`);
+  }
+}
+for (const direction of ["ltr", "rtl"]) {
+  for (const unrelatedRule of [false, true]) {
+    test(t => {
+      const id = `rollback-target-${serial++}`;
+      const physical = direction === "ltr" ? "margin-left" : "margin-right";
+      const style = document.createElement("style");
+      style.textContent = `
+        @layer base { #${id} { ${physical}:37px } }
+        #${id} { direction:${direction} }
+        #${id} { ${physical}:5px; margin-inline-start:revert-rule !important }
+        #${id} { ${physical}:7px; margin-inline-start:revert-rule !important }
+        ${unrelatedRule ? `#${id} { ${physical}:9px }` : ""}
+      `;
+      const target = document.createElement("div");
+      target.id = id;
+      document.body.append(style, target);
+      t.add_cleanup(() => { style.remove(); target.remove(); });
+      assert_equals(getComputedStyle(target).getPropertyValue(physical),
+                    unrelatedRule ? "9px" : "37px");
+    }, `${direction}: two important rule rollbacks, ` +
+       `${unrelatedRule ? "with" : "without"} unrelated normal rule`);
+  }
+}
+</script>

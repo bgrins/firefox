@@ -1,0 +1,233 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rule rollback timing</title>
+<style>
+  body { font: 15px system-ui, sans-serif; margin: 24px; max-width: 1100px; }
+  h1 { font-size: 24px; }
+  form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+  label { display: grid; gap: 4px; }
+  input, button { font: inherit; padding: 6px; }
+  input[type=number] { width: 75px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+  th, td { padding: 8px; border-bottom: 1px solid #ccc; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  #status { min-height: 1.5em; }
+  #rollback-probe { position: absolute; left: -10000px; top: 0; width: 1px; height: 1px; }
+</style>
+<h1>Rule rollback timing</h1>
+<p>One element, up to 256 rules. Each update changes a custom property and reads computed opacity. Keep the tab visible; close DevTools while timing.</p>
+<form id="settings">
+  <label>Build label <input id="build" value=""></label>
+  <label>Rule counts <input id="counts" value="0, 16, 32, 64, 128, 256" size="28"></label>
+  <label>Samples <input id="samples" type="number" min="1" max="15" value="7"></label>
+  <label>Updates/sample <input id="updates" type="number" min="1" max="64" value="16"></label>
+  <button id="run" type="submit">Run</button>
+  <button id="stop" type="button" disabled>Stop</button>
+  <button id="download" type="button" disabled>Download JSON</button>
+</form>
+<p id="status" role="status"></p>
+<table>
+  <thead><tr><th>Mode</th><th>Rules</th><th>Samples</th><th>Median µs/update</th><th>P90 µs/update</th><th>Setup ms</th><th>Checks</th></tr></thead>
+  <tbody id="results"></tbody>
+</table>
+<div id="rollback-probe"></div>
+<script>
+"use strict";
+const controls = Object.fromEntries(["settings", "build", "counts", "samples", "updates", "run", "stop", "download", "status", "results"]
+  .map(id => [id, document.getElementById(id)]));
+const probe = document.getElementById("rollback-probe");
+const sheet = document.createElement("style");
+document.head.append(sheet);
+const modes = ["literal", "revert-rule", "revert-layer"];
+const values = ["0.25", "0.75"];
+let stopped = false;
+let running = false;
+let report = null;
+
+function integer(input, minimum, maximum) {
+  const value = Number(input);
+  if (!String(input).trim() || !Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`Expected an integer from ${minimum} to ${maximum}.`);
+  }
+  return value;
+}
+
+function configuration() {
+  const counts = [...new Set(controls.counts.value.split(",")
+    .map(value => integer(value.trim(), 0, 256)))].sort((a, b) => a - b);
+  if (counts.length > 8) {
+    throw new Error("Use at most eight rule counts.");
+  }
+  return {counts, samples: integer(controls.samples.value, 1, 15),
+    updates: integer(controls.updates.value, 1, 64), warmups: 4};
+}
+
+function stylesheet(count, mode) {
+  const value = mode === "literal" ? "var(--floor)" : mode;
+  const rules = ["@layer rollback-bench-base { #rollback-probe { opacity: var(--floor); } }"];
+  for (let index = 0; index < count; index++) {
+    rules.push(`#rollback-probe { opacity: ${value}; --block: ${index}; }`);
+  }
+  return rules.join("\n");
+}
+
+function quantile(numbers, fraction) {
+  const sorted = [...numbers].sort((a, b) => a - b);
+  return sorted[Math.ceil(fraction * sorted.length) - 1];
+}
+
+function render() {
+  controls.results.replaceChildren();
+  for (const row of report.rows) {
+    const times = row.samples.filter(sample => sample.complete).map(sample => sample.usPerUpdate);
+    const setups = row.samples.map(sample => sample.setupMs);
+    const cells = [row.mode, row.rules, times.length,
+      times.length ? quantile(times, 0.5).toFixed(2) : "—",
+      times.length ? quantile(times, 0.9).toFixed(2) : "—",
+      setups.length ? quantile(setups, 0.5).toFixed(2) : "—",
+      row.mismatches.length ? "FAIL" : row.checkedReads ? `${row.checkedReads} passed` : "—"];
+    const tr = document.createElement("tr");
+    for (const value of cells) {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      tr.append(cell);
+    }
+    controls.results.append(tr);
+  }
+}
+
+function sample(row, config, deadline) {
+  let phase = 0;
+  const setupStart = performance.now();
+  probe.style.setProperty("--floor", values[phase]);
+  sheet.textContent = row.css;
+  const initial = getComputedStyle(probe).opacity;
+  const setupMs = performance.now() - setupStart;
+  row.setupWrites++;
+  row.setupReads++;
+  if (initial !== values[phase]) {
+    row.mismatches.push({stage: "setup", expected: values[phase], observed: initial});
+    throw new Error(`${row.mode}, ${row.rules} rules: setup value mismatch.`);
+  }
+  for (let index = 0; index < config.warmups; index++) {
+    phase ^= 1;
+    probe.style.setProperty("--floor", values[phase]);
+    const observed = getComputedStyle(probe).opacity;
+    row.warmupWrites++;
+    row.warmupReads++;
+    if (observed !== values[phase]) {
+      row.mismatches.push({stage: "warmup", expected: values[phase], observed});
+      throw new Error(`${row.mode}, ${row.rules} rules: warmup value mismatch.`);
+    }
+  }
+  const initialPhase = phase;
+  const observed = new Array(config.updates);
+  let done = 0;
+  let reason = null;
+  const start = performance.now();
+  for (; done < config.updates; done++) {
+    phase ^= 1;
+    probe.style.setProperty("--floor", values[phase]);
+    observed[done] = getComputedStyle(probe).opacity;
+    const now = performance.now();
+    if (now - start > 1000 || now > deadline) {
+      done++;
+      reason = now > deadline ? "30-second run limit" : "1-second sample limit";
+      break;
+    }
+  }
+  const elapsedMs = performance.now() - start;
+  row.measuredWrites += done;
+  row.measuredReads += done;
+  for (let index = 0; index < done; index++) {
+    const expected = values[(initialPhase + index + 1) % 2];
+    row.checkedReads++;
+    if (observed[index] !== expected) {
+      row.mismatches.push({stage: "measured", update: index, expected, observed: observed[index]});
+    }
+  }
+  row.samples.push({setupMs, elapsedMs, updates: done, usPerUpdate: elapsedMs * 1000 / done,
+    complete: reason === null && done === config.updates && row.mismatches.length === 0, reason});
+  if (row.mismatches.length) {
+    throw new Error(`${row.mode}, ${row.rules} rules: measured value mismatch.`);
+  }
+  if (reason) {
+    throw new Error(reason);
+  }
+}
+
+controls.settings.addEventListener("submit", async event => {
+  event.preventDefault();
+  if (running) {
+    return;
+  }
+  let started = false;
+  try {
+    if (!CSS.supports("opacity", "revert-rule")) {
+      throw new Error("This browser does not support revert-rule.");
+    }
+    const config = configuration();
+    running = true;
+    started = true;
+    stopped = false;
+    controls.run.disabled = true;
+    controls.stop.disabled = false;
+    controls.download.disabled = true;
+    report = {version: "cold-c-chain-v1", build: controls.build.value,
+      started: new Date().toISOString(), userAgent: navigator.userAgent,
+      hardwareConcurrency: navigator.hardwareConcurrency, visibility: document.visibilityState,
+      config, rows: [], complete: false, error: null};
+    window.rollbackBenchmark = report;
+    for (const rules of config.counts) {
+      for (const mode of modes) {
+        report.rows.push({rules, mode, css: stylesheet(rules, mode), samples: [], mismatches: [],
+          setupWrites: 0, setupReads: 0, warmupWrites: 0, warmupReads: 0,
+          measuredWrites: 0, measuredReads: 0, checkedReads: 0});
+      }
+    }
+    const deadline = performance.now() + 30000;
+    for (let round = 0; round < config.samples; round++) {
+      for (let index = 0; index < report.rows.length; index++) {
+        if (stopped) {
+          throw new Error("Stopped.");
+        }
+        if (performance.now() > deadline) {
+          throw new Error("30-second run limit");
+        }
+        const row = report.rows[(index + round) % report.rows.length];
+        controls.status.textContent = `Sample ${round + 1}/${config.samples}: ${row.mode}, ${row.rules} rules`;
+        sample(row, config, deadline);
+        render();
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+    report.complete = true;
+    controls.status.textContent = "Complete.";
+  } catch (error) {
+    if (report && started) {
+      report.error = String(error);
+    }
+    controls.status.textContent = error.message;
+  } finally {
+    if (report && started) {
+      report.finished = new Date().toISOString();
+      render();
+    }
+    running = false;
+    controls.run.disabled = false;
+    controls.stop.disabled = true;
+    controls.download.disabled = !report;
+  }
+});
+
+controls.stop.addEventListener("click", () => { stopped = true; });
+controls.download.addEventListener("click", () => {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], {type: "application/json"}));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "rollback-timing.json";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+</script>

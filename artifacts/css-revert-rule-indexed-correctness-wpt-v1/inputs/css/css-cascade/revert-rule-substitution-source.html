@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Substituted rule rollback preserves declaration source identity</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-rule-keyword">
+<link rel="help" href="https://drafts.csswg.org/css-logical-1/#logical-property-group">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+let serial = 0;
+for (const direction of ["ltr", "rtl"]) {
+  for (const important of [false, true]) {
+    for (const separateRules of [false, true]) {
+      for (const shorthand of [false, true]) {
+        test(t => {
+          assert_true(CSS.supports("margin-inline-start", "revert-rule"));
+          const id = `substituted-rule-${serial++}`;
+          const physical = direction === "ltr" ? "margin-left" : "margin-right";
+          const property = shorthand ? "margin-inline" : "margin-inline-start";
+          const declarations = [
+            `${physical}:5px`,
+            `${property}:var(--missing-rule-source, revert-rule)${important ? " !important" : ""}`,
+          ];
+          const rules = separateRules
+            ? declarations.map(declaration => `#${id} { ${declaration} }`).join("\n")
+            : `#${id} { ${declarations.join(";")} }`;
+          const style = document.createElement("style");
+          style.textContent = `
+            @layer base { #${id} { ${physical}:37px } }
+            #${id} { direction:${direction}; --missing-rule-source:initial }
+            ${rules}
+          `;
+          const target = document.createElement("div");
+          target.id = id;
+          document.body.append(style, target);
+          t.add_cleanup(() => { style.remove(); target.remove(); });
+          const computed = getComputedStyle(target);
+          assert_equals(computed.direction, direction);
+          assert_equals(computed.getPropertyValue(physical), separateRules ? "5px" : "37px");
+        }, `${direction}, ${important ? "important" : "normal"} substituted ` +
+           `${shorthand ? "shorthand" : "longhand"}, ${separateRules ? "separate rules" : "same rule"}`);
+      }
+    }
+  }
+}
+for (const important of [false, true]) {
+  for (const substituted of [false, true]) {
+    test(t => {
+      assert_true(CSS.supports("font-size", "revert-rule"));
+      const id = `prioritary-rule-${serial++}`;
+      const value = substituted ? "var(--missing-rule-source, revert-rule)" : "revert-rule";
+      const style = document.createElement("style");
+      style.textContent = `
+        @layer base { #${id} { font-size:37px } }
+        #${id} { font-size:5px; --missing-rule-source:initial }
+        #${id} { font-size:${value}${important ? " !important" : ""} }
+      `;
+      const target = document.createElement("div");
+      target.id = id;
+      document.body.append(style, target);
+      t.add_cleanup(() => { style.remove(); target.remove(); });
+      assert_equals(getComputedStyle(target).fontSize, "5px");
+    }, `Prioritary property, ${important ? "important" : "normal"}, ` +
+       `${substituted ? "substituted" : "literal"} rule rollback`);
+  }
+}
+</script>
