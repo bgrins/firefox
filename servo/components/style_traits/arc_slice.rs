@@ -23,8 +23,7 @@ use malloc_size_of::{MallocSizeOf, MallocSizeOfOps, MallocUnconditionalSizeOf};
 /// doesn't have zsts, and we want to use cbindgen for this type, we may as well
 /// assert some sanity at runtime.
 ///
-/// We use an u64, to guarantee that we can use a single singleton for every
-/// empty slice, even if the types they hold are aligned differently.
+/// We use a u64 so common element alignments can share an empty allocation.
 const ARC_SLICE_CANARY: u64 = 0xf3f3f3f3f3f3f3f3;
 
 /// A wrapper type for a refcounted slice using ThinArc.
@@ -48,17 +47,19 @@ impl<T> Clone for ArcSlice<T> {
     }
 }
 
-// ThinArc doesn't support alignments greater than align_of::<u64>.
+// Empty slices with compatible alignment share this allocation.
 static EMPTY_ARC_SLICE: LazyLock<ArcSlice<u64>> =
     LazyLock::new(|| ArcSlice::from_iter_leaked(iter::empty()));
 
 impl<T> Default for ArcSlice<T> {
     #[allow(unsafe_code)]
     fn default() -> Self {
-        debug_assert!(
-            mem::align_of::<T>() <= mem::align_of::<u64>(),
-            "Need to increase the alignment of EMPTY_ARC_SLICE"
-        );
+        if mem::align_of::<T>() > mem::align_of::<u64>() {
+            return ArcSlice(ThinArc::from_header_and_iter(
+                ARC_SLICE_CANARY,
+                iter::empty(),
+            ));
+        }
         unsafe {
             let empty: ArcSlice<_> = EMPTY_ARC_SLICE.clone();
             let empty: Self = mem::transmute(empty);
@@ -157,3 +158,36 @@ impl<T: Hash> Hash for ArcSlice<T> {
 /// good.
 #[repr(C)]
 pub struct ForgottenArcSlicePtr<T>(NonNull<T>);
+
+#[cfg(test)]
+mod tests {
+    use super::ArcSlice;
+    use std::{iter, mem};
+
+    #[repr(align(64))]
+    struct Aligned {
+        _payload: [u8; 64],
+    }
+
+    #[repr(align(64))]
+    struct AlignedZst;
+
+    fn check_empty<T>() {
+        for value in [ArcSlice::<T>::default(), ArcSlice::from_iter(iter::empty())] {
+            assert!(value.is_empty());
+            assert_eq!(value.as_ptr().addr() % mem::align_of::<T>(), 0);
+            let cloned = value.clone();
+            drop(value);
+            assert!(cloned.is_empty());
+            drop(cloned);
+        }
+    }
+
+    #[test]
+    fn empty_slices_preserve_element_layout() {
+        check_empty::<u64>();
+        check_empty::<()>();
+        check_empty::<Aligned>();
+        check_empty::<AlignedZst>();
+    }
+}

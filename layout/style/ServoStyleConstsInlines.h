@@ -245,6 +245,8 @@ static constexpr const uint64_t kArcSliceCanary = 0xf3f3f3f3f3f3f3f3;
 template <typename T>
 inline StyleArcSlice<T>::StyleArcSlice()
     : _0(reinterpret_cast<decltype(_0.p)>(Servo_StyleArcSlice_EmptyPtr())) {
+  static_assert(alignof(T) <= alignof(uint64_t),
+                "Empty singleton cannot represent this element alignment");
   ASSERT_CANARY
 }
 

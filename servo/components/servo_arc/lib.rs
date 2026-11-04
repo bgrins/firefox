@@ -795,7 +795,10 @@ impl<H, T> Arc<HeaderSlice<H, T>> {
         F: FnOnce(Layout) -> *mut u8,
         I: Iterator<Item = T>,
     {
-        assert_ne!(size_of::<T>(), 0, "Need to think about ZST");
+        assert!(
+            num_items == 0 || size_of::<T>() != 0,
+            "Nonempty ZST tails are unsupported"
+        );
 
         let layout = Layout::new::<ArcInner<HeaderSlice<H, T>>>();
         debug_assert!(layout.align() >= align_of::<T>());
