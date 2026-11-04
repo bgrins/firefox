@@ -139,7 +139,15 @@ impl CascadePriority {
             RevertKind::Origin => {
                 other.cascade_level.origin().origin() < self.cascade_level.origin().origin()
             },
-            RevertKind::Layer => other.unimportant() < self.unimportant(),
+            RevertKind::Layer => {
+                if self.cascade_level.is_important()
+                    && self.layer_order.is_style_attribute_layer()
+                    && other.cascade_level.is_tree()
+                {
+                    return !other.layer_order.is_style_attribute_layer();
+                }
+                other.unimportant() < self.unimportant()
+            },
             // Any other declaration for the same property we apply in the cascade needs to come
             // from another rule effectively.
             RevertKind::Rule => true,

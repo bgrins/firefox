@@ -695,12 +695,56 @@ impl<'a> Declarations<'a> {
     }
 }
 
+// Origin, layer, and important-inline rollbacks can exclude different regions.
+#[derive(Default)]
+struct RevertState {
+    origin: Option<CascadePriority>,
+    layer: Option<CascadePriority>,
+    important_style_attribute: Option<CascadePriority>,
+}
+
+impl RevertState {
+    fn add(&mut self, priority: CascadePriority, kind: RevertKind) {
+        let bound = match kind {
+            RevertKind::Origin => &mut self.origin,
+            RevertKind::Layer
+                if priority.cascade_level().is_important()
+                    && priority.layer_order().is_style_attribute_layer() =>
+            {
+                &mut self.important_style_attribute
+            },
+            RevertKind::Layer => &mut self.layer,
+            RevertKind::Rule => return,
+        };
+        if bound.is_none_or(|previous| match kind {
+            RevertKind::Origin => {
+                priority.cascade_level().origin().origin()
+                    < previous.cascade_level().origin().origin()
+            },
+            _ => priority.unimportant() < previous.unimportant(),
+        }) {
+            *bound = Some(priority);
+        }
+    }
+
+    fn allows(&self, priority: &CascadePriority) -> bool {
+        self.origin
+            .is_none_or(|cutoff| cutoff.allows_when_reverted(priority, RevertKind::Origin))
+            && self
+                .layer
+                .is_none_or(|cutoff| cutoff.allows_when_reverted(priority, RevertKind::Layer))
+            && self
+                .important_style_attribute
+                .is_none_or(|cutoff| cutoff.allows_when_reverted(priority, RevertKind::Layer))
+    }
+}
+
 #[derive(Default)]
 struct RevertedSet {
     // Just to avoid the hashmap lookup in the common case.
     longhands_set: LonghandIdSet,
-    longhands: FxHashMap<LonghandId, (CascadePriority, RevertKind)>,
-    custom: PrecomputedHashMap<Name, (CascadePriority, RevertKind)>,
+    longhands: FxHashMap<LonghandId, RevertState>,
+    custom: PrecomputedHashMap<Name, RevertState>,
 }
 
 #[derive(Default)]
@@ -1113,9 +1157,8 @@ impl<'a> Cascade<'a> {
         }
 
         if self.reverted.longhands_set.contains(longhand_id)
-            && let Some(&(reverted_priority, revert_kind)) =
-                self.reverted.longhands.get(&longhand_id)
-            && !reverted_priority.allows_when_reverted(&priority, revert_kind)
+            && let Some(reverted) = self.reverted.longhands.get(&longhand_id)
+            && !reverted.allows(&priority)
         {
             return;
         }
@@ -1141,10 +1184,14 @@ impl<'a> Cascade<'a> {
                     // We intentionally don't want to insert it into
                     // `self.seen.longhands`, `reverted` takes care of rejecting
                     // other declarations as needed.
-                    self.reverted.longhands_set.insert(longhand_id);
-                    self.reverted
-                        .longhands
-                        .insert(longhand_id, (priority, revert_kind));
+                    if revert_kind != RevertKind::Rule {
+                        self.reverted.longhands_set.insert(longhand_id);
+                        self.reverted
+                            .longhands
+                            .entry(longhand_id)
+                            .or_default()
+                            .add(priority, revert_kind);
+                    }
                     return;
                 }
 
@@ -1762,8 +1809,8 @@ impl<'a> Cascade<'a> {
             ref value,
         } = *declaration;
 
-        if let Some(&(reverted_priority, revert_kind)) = self.reverted.custom.get(name)
-            && !reverted_priority.allows_when_reverted(&priority, revert_kind)
+        if let Some(reverted) = self.reverted.custom.get(name)
+            && !reverted.allows(&priority)
         {
             return;
         }
@@ -1851,9 +1898,13 @@ impl<'a> Cascade<'a> {
             CustomDeclarationValue::CSSWideKeyword(keyword) => match keyword.revert_kind() {
                 Some(revert_kind) => {
                     self.seen.custom.var.remove(name);
-                    self.reverted
-                        .custom
-                        .insert(name.clone(), (priority, revert_kind));
+                    if revert_kind != RevertKind::Rule {
+                        self.reverted
+                            .custom
+                            .entry(name.clone())
+                            .or_default()
+                            .add(priority, revert_kind);
+                    }
                 },
                 None => match keyword {
                     CSSWideKeyword::Initial => {
