@@ -1,0 +1,60 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="timeout" content="long">
+<title>Rule rollback chain measurement</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+promise_test(async t => {
+  const frame = document.createElement("iframe");
+  frame.width = "1200";
+  frame.height = "900";
+  frame.src = "resources/rollback-cost-benchmark.html";
+  t.add_cleanup(() => frame.remove());
+  const loaded = new Promise(resolve => { frame.onload = resolve; });
+  document.body.append(frame);
+  await Promise.race([loaded, new Promise((_, reject) =>
+    t.step_timeout(() => reject(new Error("Benchmark frame load timeout")), 10000))]);
+  const page = frame.contentWindow;
+  const doc = page.document;
+  const runId = `${performance.timeOrigin}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  let wrapperError = null;
+  try {
+    assert_true(page.CSS.supports("opacity", "revert-rule"), "Rule rollback support required");
+    doc.getElementById("build").value = "WPT cold-C chain";
+    doc.getElementById("counts").value = "0, 32, 64, 128, 256";
+    doc.getElementById("samples").value = "7";
+    doc.getElementById("updates").value = "16";
+    doc.getElementById("settings").requestSubmit();
+    const deadline = performance.now() + 40000;
+    while (!page.rollbackBenchmark?.finished) {
+      assert_less_than(performance.now(), deadline, "Benchmark completion deadline");
+      await new Promise(resolve => t.step_timeout(resolve, 20));
+    }
+    const report = page.rollbackBenchmark;
+    assert_true(report.complete, "All samples completed");
+    assert_equals(report.error, null, "No benchmark error");
+    assert_equals(report.rows.length, 15, "Exact mode/count roster");
+    for (const row of report.rows) {
+      assert_equals(row.samples.length, 7, "Seven samples per row");
+      assert_equals(row.checkedReads, 112, "Every measured read checked");
+      assert_equals(row.mismatches.length, 0, "Computed values match");
+      for (const sample of row.samples) {
+        assert_true(sample.complete, "Complete sample");
+        assert_equals(sample.updates, 16, "Sixteen measured updates");
+      }
+    }
+  } catch (error) {
+    wrapperError = String(error);
+    throw error;
+  } finally {
+    const payload = JSON.stringify({runId, wrapperError, report: page.rollbackBenchmark ?? null});
+    const count = Math.ceil(payload.length / 4096);
+    for (let index = 0; index < count; index++) {
+      dump("CSS_ROLLBACK_COLD_COST_V1 " + JSON.stringify({runId, index, count,
+        data: payload.slice(index * 4096, (index + 1) * 4096)}) + "\n");
+    }
+  }
+}, "Rule rollback chain measurement completes with exact values and counters");
+</script>

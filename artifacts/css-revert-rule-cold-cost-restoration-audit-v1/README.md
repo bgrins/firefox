@@ -1,0 +1,5 @@
+# Cold C performance restoration audit
+
+Prepared, not executed. Invoke only after the owner terminal is confirmed. Uses the previous paired C independent restoration checks, but requires two distinct explicit --browser-process paths under runtime/browser (one per completed repetition) instead of a separate controls process. Checks both repetitions plus build/wake groups through fresh ps before and after source/application checks. The final wrapper uses browser/repeat-1/PROCESS.json and browser/repeat-2/PROCESS.json, supplied in that order. The audit checks requested/completed/recorded repetition counts, exact directory/report roster and aggregate-to-child result equality. Benchmark reports are hashed as observations; this audit does not rejudge timing significance.
+
+Parameters: --runtime, --config, --result, two --browser-process values, --owner-launch, --owner-session, --owner-terminal, --owner-exit. Records browser observations but makes no correctness/performance acceptance claim. Syntax checked only. No live/source/index mutation.
