@@ -1,0 +1,415 @@
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/applicable_declarations.rs:138:
+         match kind {
+             RevertKind::Origin => {
+                 other.cascade_level.origin().origin() < self.cascade_level.origin().origin()
+[31m-            },
+(B[m[32m+            }
+(B[m             RevertKind::Layer => {
+                 if self.cascade_level.is_important()
+                     && self.layer_order.is_style_attribute_layer()
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/applicable_declarations.rs:147:
+                     return !other.layer_order.is_style_attribute_layer();
+                 }
+                 other.unimportant() < self.unimportant()
+[31m-            },
+(B[m[32m+            }
+(B[m             // Any other declaration for the same property we apply in the cascade needs to come
+             // from another rule effectively.
+             RevertKind::Rule => true,
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:370:
+                 iter_declarations(iter, &mut declarations, None, &mut attribute_tracker);
+             }
+             LonghandIdSet::visited_dependent()
+[31m-        },
+(B[m[32m+        }
+(B[m         CascadeMode::Unvisited { .. } => {
+             cascade.init_custom_properties(&mut context);
+             iter_declarations(
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:398:
+             } else {
+                 LonghandIdSet::late_group()
+             }
+[31m-        },
+(B[m[32m+        }
+(B[m     };
+ 
+     cascade.apply_non_prioritary_properties(
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:480:
+                 box_style.get__moz_default_appearance(),
+                 Appearance::Listbox | Appearance::Menulist
+             )
+[31m-        },
+(B[m[32m+        }
+(B[m         Appearance::Base => *box_style.get__moz_default_appearance() != Appearance::None,
+         _ => false,
+     }
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:550:
+             color.alpha = alpha;
+             declarations_to_apply_unless_overridden
+                 .push(PropertyDeclaration::BackgroundColor(color.into()))
+[31m-        },
+(B[m[32m+        }
+(B[m         PropertyDeclaration::Color(ref color) => {
+             // We honor color: transparent and system colors.
+             if color
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:574:
+                     specified::ColorPropertyValue(color.into()),
+                 ))
+             }
+[31m-        },
+(B[m[32m+        }
+(B[m         // We honor url background-images if backplating.
+         #[cfg(feature = "gecko")]
+         PropertyDeclaration::BackgroundImage(ref bkg) => {
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:587:
+             {
+                 return;
+             }
+[31m-        },
+(B[m[32m+        }
+(B[m         _ => {
+             // We honor system colors more generally for all colors.
+             //
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:607:
+             {
+                 return;
+             }
+[31m-        },
+(B[m[32m+        }
+(B[m     }
+ 
+     *declaration.to_mut() =
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:712:
+                     && priority.layer_order().is_style_attribute_layer() =>
+             {
+                 &mut self.important_style_attribute
+[31m-            },
+(B[m[32m+            }
+(B[m             RevertKind::Layer => &mut self.layer,
+             RevertKind::Rule => return,
+         };
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:720:
+             RevertKind::Origin => {
+                 priority.cascade_level().origin().origin()
+                     < previous.cascade_level().origin().origin()
+[31m-            },
+(B[m[32m+            }
+(B[m             _ => priority.unimportant() < previous.unimportant(),
+         }) {
+             *bound = Some(priority);
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1016:
+                         .included_cascade_flags
+                         .insert(RuleCascadeFlags::APPEARANCE_BASE);
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m             WritingMode | Direction | TextOrientation => {
+                 context.builder.writing_mode =
+                     crate::logical_geometry::WritingMode::new(context.builder.get_inherited_box());
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1023:
+[31m-            },
+(B[m[32m+            }
+(B[m             Zoom => {
+                 context.builder.recompute_effective_zooms();
+                 if !context.builder.effective_zoom_for_inheritance.is_one() {
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1031:
+                     // TODO(emilio): we need to eagerly do this for line-height as well, probably.
+                     self.recompute_font_size_for_zoom_change(&mut context.builder);
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m             XLang => {
+                 #[cfg(feature = "gecko")]
+                 self.recompute_initial_font_family_if_needed(&mut context.builder);
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1038:
+                 self.recompute_keyword_font_size_if_needed(context);
+[31m-            },
+(B[m[32m+            }
+(B[m             FontFamily => {
+                 #[cfg(feature = "gecko")]
+                 self.prioritize_user_fonts_if_needed(&mut context.builder);
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1043:
+                 self.recompute_keyword_font_size_if_needed(context);
+[31m-            },
+(B[m[32m+            }
+(B[m             FontSize => {
+                 if self.seen.longhands.contains(LonghandId::MathDepth) {
+                     #[cfg(feature = "gecko")]
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1054:
+                 }
+                 #[cfg(feature = "gecko")]
+                 self.constrain_font_size_if_needed(&mut context.builder);
+[31m-            },
+(B[m[32m+            }
+(B[m             XTextScale => {
+                 #[cfg(feature = "gecko")]
+                 self.unzoom_fonts_if_needed(&mut context.builder);
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1061:
+[31m-            },
+(B[m[32m+            }
+(B[m             MozMinFontSizeRatio => {
+                 #[cfg(feature = "gecko")]
+                 self.constrain_font_size_if_needed(&mut context.builder);
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1065:
+[31m-            },
+(B[m[32m+            }
+(B[m             ColorScheme => {
+                 context.builder.color_scheme =
+                     context.builder.get_inherited_ui().color_scheme_bits();
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1069:
+[31m-            },
+(B[m[32m+            }
+(B[m             MozDefaultAppearance | MathDepth | FontWeight | FontWidth | FontStyle
+[31m-            | FontSizeAdjust | ForcedColorAdjust | LineHeight => {},
+(B[m[32m+            | FontSizeAdjust | ForcedColorAdjust | LineHeight => {}
+(B[m         }
+     }
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1206:
+                     CSSWideKeyword::Inherit => inherited && !zoomed,
+                     CSSWideKeyword::Initial => !inherited,
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m             None => false,
+         };
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1372:
+                     return false;
+                 };
+                 style
+[31m-            },
+(B[m[32m+            }
+(B[m         };
+ 
+         context.builder.copy_reset_from(style);
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1503:
+                 _ => {
+                     context.for_non_inherited_property = false;
+                     specified::FontSize::Keyword(info).to_computed_value(context)
+[31m-                },
+(B[m[32m+                }
+(B[m             };
+ 
+             #[cfg(feature = "gecko")]
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1846:
+                         context.is_root_element(),
+                     )
+                     .is_empty()
+[31m-            },
+(B[m[32m+            }
+(B[m             // XXX This matches the previous behavior but I don't think it's fully sound. Parsed
+             // values may have non-custom references, can't they? But also how do we get a parsed
+             // value at all here?
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1865:
+                     .builder
+                     .substitution_functions
+                     .remove_var(registration, name);
+[31m-            },
+(B[m[32m+            }
+(B[m             CustomDeclarationValue::Unparsed(unparsed_value) => {
+                 if !has_references {
+                     // If the variable value has no references to other properties, perform
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1887:
+                     .builder
+                     .substitution_functions
+                     .insert_var(registration, name, value);
+[31m-            },
+(B[m[32m+            }
+(B[m             CustomDeclarationValue::Parsed(parsed_value) => {
+                 let value = parsed_value.to_computed_value(context);
+                 context
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1894:
+                     .builder
+                     .substitution_functions
+                     .insert_var(registration, name, value);
+[31m-            },
+(B[m[32m+            }
+(B[m             CustomDeclarationValue::CSSWideKeyword(keyword) => match keyword.revert_kind() {
+                 Some(revert_kind) => {
+                     self.seen.custom.var.remove(name);
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1905:
+                             .or_default()
+                             .add(priority, revert_kind);
+                     }
+[31m-                },
+(B[m[32m+                }
+(B[m                 None => match keyword {
+                     CSSWideKeyword::Initial => {
+                         // For non-inherited custom properties, 'initial' was handled in value_may_affect_style.
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1916:
+                             initial_values,
+                             &mut context.builder.substitution_functions,
+                         );
+[31m-                    },
+(B[m[32m+                    }
+(B[m                     CSSWideKeyword::Inherit => {
+                         // For inherited custom properties, 'inherit' was handled in value_may_affect_style.
+                         debug_assert!(!registration.inherits(), "Should've been handled earlier");
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:1940:
+                                 .substitution_functions
+                                 .remove_var(registration, name);
+                         }
+[31m-                    },
+(B[m[32m+                    }
+(B[m                     // handled in value_may_affect_style or in the revert_kind branch above.
+                     CSSWideKeyword::Revert
+                     | CSSWideKeyword::RevertLayer
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2036:
+                 if registration.inherits() {
+                     return false;
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m             CustomDeclarationValue::CSSWideKeyword(CSSWideKeyword::Initial) => {
+                 // For non-inherited custom properties, explicit 'initial' means
+                 // we can just use any initial value in the registration.
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2043:
+                 if !registration.inherits() {
+                     return false;
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m             CustomDeclarationValue::CSSWideKeyword(CSSWideKeyword::Unset) => {
+                 // Explicit 'unset' means we can either just use any existing
+                 // value in the inherited CustomPropertiesMap or the initial
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2050:
+                 // value in the registration.
+                 return false;
+[31m-            },
+(B[m[31m-            _ => {},
+(B[m[32m+            }
+(B[m[32m+            _ => {}
+(B[m         }
+ 
+         let existing_value = context
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2073:
+             return true;
+         };
+         match value {
+[31m-            CustomDeclarationValue::GuaranteedInvalid => {},
+(B[m[32m+            CustomDeclarationValue::GuaranteedInvalid => {}
+(B[m             CustomDeclarationValue::Unparsed(value) => {
+                 // Don't bother overwriting an existing value with the same
+                 // specified value.
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2081:
+                     return existing_value.attr_tainted != value.is_attr_tainted()
+                         || existing_unparsed != value;
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m             CustomDeclarationValue::Parsed(..) => {
+                 // If the value has dependencies, context might not yield the same
+                 // result as the eventual value.
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2088:
+[31m-            },
+(B[m[32m+            }
+(B[m             CustomDeclarationValue::CSSWideKeyword(kw) => {
+                 match kw {
+                     CSSWideKeyword::Inherit => {
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2094:
+                         if context.is_root_element() {
+                             return false;
+                         }
+[31m-                    },
+(B[m[32m+                    }
+(B[m                     CSSWideKeyword::Initial => {
+                         debug_assert!(registration.inherits(), "Should've been handled earlier");
+                         // Don't bother overwriting an existing value with the initial value
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2102:
+                         if let Some(initial_value) = initial_values.get(registration, name) {
+                             return existing_value.attr_tainted || existing_value != initial_value;
+                         }
+[31m-                    },
+(B[m[32m+                    }
+(B[m                     CSSWideKeyword::Unset => {
+                         debug_assert!(false, "Should've been handled earlier");
+[31m-                    },
+(B[m[32m+                    }
+(B[m                     CSSWideKeyword::Revert
+                     | CSSWideKeyword::RevertLayer
+[31m-                    | CSSWideKeyword::RevertRule => {},
+(B[m[32m+                    | CSSWideKeyword::RevertRule => {}
+(B[m                 }
+[31m-            },
+(B[m[32m+            }
+(B[m         };
+ 
+         true
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2330:
+                         .builder
+                         .substitution_functions
+                         .remove_attr(name, namespace);
+[31m-                },
+(B[m[32m+                }
+(B[m                 VarType::Custom(name) => {
+                     // This variable is in a loop. Resolve to invalid.
+                     handle_invalid_at_computed_value_time(
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2338:
+                         self.stylist.get_custom_property_registration(name),
+                         self.computed_context,
+                     );
+[31m-                },
+(B[m[32m+                }
+(B[m                 VarType::NonCustom(non_custom) => {
+                     self.computed_context
+                         .builder
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2345:
+                         .invalid_non_custom_properties
+                         .insert(non_custom.to_prioritary_id().to_longhand());
+[31m-                },
+(B[m[32m+                }
+(B[m             }
+         }
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2461:
+                         let registration =
+                             context.stylist.get_custom_property_registration(&next.name);
+                         context.map().get_var(registration, &next.name)
+[31m-                    },
+(B[m[32m+                    }
+(B[m                     SubstitutionFunctionKind::Attr => next
+                         .attribute_data
+                         .namespace()
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2635:
+                 match index_map.entry_ref(name) {
+                     EntryRef::Occupied(entry) => {
+                         return Some(*entry.get());
+[31m-                    },
+(B[m[32m+                    }
+(B[m                     EntryRef::Vacant(entry) => {
+                         entry.insert(context.count);
+[31m-                    },
+(B[m[32m+                    }
+(B[m                 }
+                 // Hold a strong reference to the value so that we don't
+                 // need to keep reference to context.map.
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2645:
+                 Some(value.clone())
+[31m-            },
+(B[m[32m+            }
+(B[m             VarType::NonCustom(ref non_custom) => {
+                 let entry = &mut context.non_custom_index_map[*non_custom];
+                 if let Some(v) = entry {
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2651:
+                 }
+                 *entry = Some(context.count);
+                 None
+[31m-            },
+(B[m[32m+            }
+(B[m         };
+ 
+         // Add new entry to the information table.
+Diff in /Users/bgrins/code/firefox/artifacts/css-rollback-delivery-v1/candidate/servo/components/style/properties/cascade.rs:2863:
+                         attribute_tracker,
+                     );
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m             VarType::NonCustom(non_custom) => {
+                 context.apply_prioritary_property(non_custom.to_prioritary_id(), attribute_tracker);
+[31m-            },
+(B[m[32m+            }
+(B[m         }
+         // All resolved, so return the signal value.
+         None
