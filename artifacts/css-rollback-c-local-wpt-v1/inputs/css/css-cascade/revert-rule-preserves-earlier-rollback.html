@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Rule rollback preserves earlier layer rollback exclusions</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-layer">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-rule">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const keyword of ["none", "revert-layer", "revert", "revert-rule"]) {
+  for (const ruleRollback of [false, true]) {
+    for (const animated of [false, true]) {
+      test(t => {
+        const sheet = document.createElement("style");
+        sheet.textContent = "#rollback-target { margin-left:5px; --value:5px }";
+        if (ruleRollback) sheet.textContent += "#rollback-target { margin-left:revert-rule !important; --value:revert-rule !important }";
+        if (animated) sheet.textContent += "@keyframes rollback-constant { from,to { margin-left:59px; --value:59px } } #rollback-target { animation:rollback-constant 1s -0.5s linear paused }";
+        document.head.append(sheet);
+        const target = document.createElement("div");
+        target.id = "rollback-target";
+        if (keyword !== "none") {
+          target.style.setProperty("margin-left", keyword, "important");
+          target.style.setProperty("--value", keyword, "important");
+        }
+        document.body.append(target);
+        t.add_cleanup(() => { target.remove(); sheet.remove(); });
+        const style = getComputedStyle(target);
+        assert_equals(style.animationName, animated ? "rollback-constant" : "none", "Animation declaration");
+        const expected = keyword === "revert" ? "0px" : animated && keyword !== "revert-layer" ? "59px" : "5px";
+        assert_equals(style.marginLeft, expected, "Longhand rollback");
+        assert_equals(style.getPropertyValue("--value").trim(), keyword === "revert" ? "" : expected, "Custom property rollback");
+      }, `Inline ${keyword}, intervening rule rollback ${ruleRollback}, animation ${animated}`);
+    }
+  }
+}
+</script>

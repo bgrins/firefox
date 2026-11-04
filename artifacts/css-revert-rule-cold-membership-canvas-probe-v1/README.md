@@ -1,0 +1,13 @@
+# Canvas font safety supplement
+
+Two unexecuted testharness callbacks supplement the unchanged 188 rollback cases. This is a safety/preservation diagnostic, not evidence of a new bug or accepted API conformance repair. The fixture is deliberately tentative.
+
+Each callback requires `CSS.supports("font-size", "revert-rule")`, creates its own connected main-thread canvas, verifies a fresh custom-property name has no computed value, and establishes a distinctive valid font. The literal case tests early CSS-wide rejection. The substituted case uses an absent-variable fallback that the pinned source review predicts reaches direct-block Rule membership before later font serialization rejection. Both retain the first post-assignment font getter, then try a different valid font before checking either outcome. `window.canvasFontObservations` stores only values already read; a native crash/nonreturn cannot be turned into a pass. The phase field is the latest entered/completed boundary as named, not a native trace marker.
+
+There are no waits, animations, offscreen canvases, layout measurements, completion reporters, or additional custom-property tests. The sole computed-style read verifies the missing variable before the initial valid font assignment. The post-assignment sequence is setter → font getter → valid setter → font getter. Root should preserve actual baseline/candidate callbacks and observations, including setup failures or absent completion. Runtime success alone does not prove that membership was entered.
+
+Run with `layout.css.revert-rule.enabled=true`; this is an explicit input preference, not silently enabled by the HTML. The support gate prevents an unsupported keyword from looking like exercised Rule coverage. The new HTML and its portable manifest/resources are artifact-owned; nothing is staged into shared WPT.
+
+Source and normative boundaries are in the sealed [direct coverage review](../css-revert-rule-cold-membership-direct-coverage-v1/README.md), manifest `2046fa154795d5e085f1824ab029ea23bbc12961528f1e040b0883260ba44bc3`. Literal rejection is explicit in the canvas API; substituted canvas/CSS normative integration remains inconclusive there. The unchanged-font assertion for that case is a preservation oracle supported by the pinned native late-rejection path, not a numeric CSS rollback expectation.
+
+`check_wpt.py` uses the existing WPT lint and manifest APIs on an isolated temporary tree and Node for syntax plus inert registration of two callbacks. It does not execute either callback or emulate canvas behavior. No browser/native result is claimed.

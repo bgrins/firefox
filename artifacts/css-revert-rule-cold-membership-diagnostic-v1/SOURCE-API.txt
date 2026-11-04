@@ -1,0 +1,119 @@
+servo/components/style/rule_tree/core.rs
+
+    /// Get the parent rule node of this rule node.
+    pub fn parent(&self) -> Option<&StrongRuleNode> {
+        self.p.parent.as_ref()
+    }
+
+    fn root_matches(&self, root: &StrongRuleNode) -> bool {
+        match self.p.root {
+            Some(ref r) => *r == unsafe { root.downgrade() },
+            None => root == self,
+        }
+    }
+
+    pub(super) fn ensure_child(
+
+servo/components/style/rule_tree/core.rs
+    /// if it's the root node, which means that the node hasn't matched any
+    /// rules.
+    pub fn style_source(&self) -> Option<&StyleSource> {
+        self.p.source.as_ref()
+    }
+
+    /// The cascade priority.
+    #[inline]
+    pub fn cascade_priority(&self) -> CascadePriority {
+        self.p.cascade_priority
+    }
+
+    /// The cascade level.
+    #[inline]
+
+servo/components/style/rule_tree/source.rs
+    /// underlying property declaration block.
+    #[inline]
+    pub fn read<'a>(&'a self, guard: &'a SharedRwLockReadGuard) -> &'a PropertyDeclarationBlock {
+        self.0.read_with(guard)
+    }
+
+    /// Returns the declaration block if applicable, otherwise None.
+    #[inline]
+    pub fn get(&self) -> &Arc<Locked<PropertyDeclarationBlock>> {
+        &self.0
+    }
+
+    /// Marks this block as part of the rule tree.
+    #[inline]
+
+servo/components/style/shared_lock.rs
+/// Guards for a document
+#[derive(Clone)]
+pub struct StylesheetGuards<'a> {
+    /// For author-origin stylesheets.
+    pub author: &'a SharedRwLockReadGuard<'a>,
+
+    /// For user-agent-origin and user-origin stylesheets
+    pub ua_or_user: &'a SharedRwLockReadGuard<'a>,
+}
+
+impl<'a> StylesheetGuards<'a> {
+    /// Get the guard for a given stylesheet origin.
+    pub fn for_origin(&self, origin: Origin) -> &SharedRwLockReadGuard<'a> {
+        match origin {
+
+servo/components/style/properties/declaration_block.rs
+    /// The declarations in this block
+    #[inline]
+    pub fn declarations(&self) -> &[PropertyDeclaration] {
+        &self.declarations
+    }
+
+    /// The `important` flags for declarations in this block
+    #[inline]
+    pub fn declarations_importance(&self) -> &SmallBitVec {
+        &self.declarations_importance
+    }
+
+    /// Iterate over `(PropertyDeclaration, Importance)` pairs
+    #[inline]
+
+Additional read-only discovery (outside CHECK API list):
+servo/components/style/properties/mod.rs
+sha256 ddd62d7c4eee145f6a21b6a92f8bd903d00f0aac4778144e122aa81c79c8ee13
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+//! Supported CSS properties and the cascade.
+
+pub mod cascade;
+pub mod declaration_block;
+pub mod shorthands;
+
+pub use self::cascade::*;
+pub use self::declaration_block::*;
+pub use self::generated::*;
+
+/// The CSS properties supported by the style system.
+/// Generated from the properties.mako.rs template by build.rs
+#[macro_use]
+#[allow(unsafe_code)]
+#[deny(missing_docs)]
+pub mod generated {
+    include!(concat!(env!("OUT_DIR"), "/properties.rs"));
+}
+
+use crate::FxHashMap;
+use crate::applicable_declarations::RevertKind;
+use crate::custom_properties::{self, ComputedSubstitutionFunctions, SubstitutionResult};
+use crate::derives::*;
+use crate::dom::AttributeTracker;
+#[cfg(feature = "gecko")]
+use crate::gecko_bindings::structs::{CSSPropertyId, NonCustomCSSPropertyId, RefPtr};
+use crate::logical_geometry::WritingMode;
+use crate::parser::ParserContext;
+use crate::stylesheets::CssRuleType;
+use crate::stylesheets::Origin;
+use crate::stylist::Stylist;
+use crate::typed_om::{ToTyped, Typ
