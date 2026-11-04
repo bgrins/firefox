@@ -1,0 +1,10 @@
+--- a/Aeneas/Do/Elab.lean
++++ b/Aeneas/Do/Elab.lean
+@@ -164,6 +164,7 @@
+ /-- Build `T.casesOn discr minor` with a non-dependent motive `fun _ : ty => resultType`. -/
+ meta def mkCasesOn (ty : Expr) (indName : Name) (discr : Expr)
+     (minor : Expr) (resultType : Expr) : MetaM Expr := do
++  let ty ← whnf ty
+   let indVal ← getConstInfoInduct indName
+   -- `casesOn`'s first universe is the motive's; the rest are the inductive's.
+   let casesOnLvls := (← getLevel resultType) :: ty.getAppFn.constLevels!

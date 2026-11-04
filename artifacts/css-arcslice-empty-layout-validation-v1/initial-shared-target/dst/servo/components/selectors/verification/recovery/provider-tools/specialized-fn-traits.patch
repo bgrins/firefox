@@ -1,0 +1,33 @@
+--- a/src/symbolic/SymbolicToPure.ml
++++ b/src/symbolic/SymbolicToPure.ml
+@@ -216,8 +216,14 @@
+   in
+   (* Lookup the builtin information, if there is *)
+   let builtin_info =
+-    match_name_find_opt ctx trait_decl.item_meta.name
+-      (ExtractBuiltin.builtin_trait_decls_map ())
++    match match_name_find_opt ctx trait_decl.item_meta.name
++      (ExtractBuiltin.builtin_trait_decls_map ()) with
++    | Some info when
++        (info.extract_name = "core.ops.function.FnMut"
++         || info.extract_name = "core.ops.function.FnOnce")
++        && List.exists (function T.PeInstantiated _ -> true | _ -> false)
++             trait_decl.item_meta.name -> None
++    | info -> info
+   in
+   if (not (T.AssocTypeId.Map.is_empty types)) && builtin_info = None then
+     (* Most associated types are removed by Charon's `--remove-associated-types`. *)
+--- a/src/Translate.ml
++++ b/src/Translate.ml
+@@ -1052,10 +1052,7 @@
+     [%silent_unwrap_opt_span] None
+       (TraitDeclId.Map.find_opt id ctx.trans_trait_decls)
+   in
+-  let open ExtractBuiltin in
+-  Option.is_some
+-    (match_name_find_opt ctx.trans_ctx trait_decl.item_meta.name
+-       (builtin_trait_decls_map ()))
++  Option.is_some trait_decl.builtin_info
+ 
+ let trait_impl_is_builtin (ctx : gen_ctx) (id : Pure.trait_impl_id) : bool =
+   let trait_impl =

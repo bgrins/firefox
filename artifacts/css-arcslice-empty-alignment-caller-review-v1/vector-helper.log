@@ -1,0 +1,101 @@
+ 190:         specified::${property.predefined_type}::${property.parse_method}(context, input)
+ 191:         % else:
+ 192:         <specified::${property.predefined_type} as crate::parser::Parse>::parse(context, input)
+ 193:         % endif
+ 194:     }
+ 195:     % endif
+ 196:     % if property.vector:
+ 197:     } // single_value
+ 198:     % endif
+ 199: 
+ 200:     // The setup here is roughly:
+ 201:     //
+ 202:     //  * UnderlyingList is the list that is stored in the computed value. This may
+ 203:     //    be a shared ArcSlice if the property is inherited.
+ 204:     //  * UnderlyingOwnedList is the list that is used for animation.
+ 205:     //  * Specified values always use OwnedSlice, since it's more compact.
+ 206:     //  * computed_value::List is just a convenient alias that you can use for the
+ 207:     //    computed value list, since this is in the computed_value module.
+ 208:     //
+ 209:     // If vector.simple_bindings is true, then we don't use the complex iterator
+ 210:     // machinery and set_foo_from, and just compute the value like any other
+ 211:     // longhand.
+ 212:     % if property.vector:
+ 213:     <% allow_empty = not property.initial_value %>
+ 214:     #[allow(unused_imports)]
+ 215:     use smallvec::SmallVec;
+ 216: 
+ 217:     /// The definition of the computed value for ${property.name}.
+ 218:     pub mod computed_value {
+ 219:         #[allow(unused_imports)]
+ 220:         use crate::values::animated::ToAnimatedValue;
+ 221:         #[allow(unused_imports)]
+ 222:         use crate::values::resolved::ToResolvedValue;
+ 223:         #[allow(unused_imports)]
+ 224:         use crate::derives::*;
+ 225:         pub use super::single_value::computed_value as single_value;
+ 226:         pub use self::single_value::T as SingleComputedValue;
+ 227:         % if not allow_empty:
+ 228:         use smallvec::SmallVec;
+ 229:         % endif
+ 230:         use crate::values::computed::ComputedVecIter;
+ 231: 
+ 232:         <% is_shared_list = allow_empty and property.style_struct.inherited %>
+ 233: 
+ 234:         // FIXME(emilio): Add an OwnedNonEmptySlice type, and figure out
+ 235:         // something for transition-name, which is the only remaining user
+ 236:         // of NotInitial.
+ 237:         pub type UnderlyingList<T> =
+ 238:             % if allow_empty:
+ 239:             % if property.style_struct.inherited:
+ 240:                 crate::ArcSlice<T>;
+ 241:             % else:
+ 242:                 crate::OwnedSlice<T>;
+ 243:             % endif
+ 244:             % else:
+ 245:                 SmallVec<[T; 1]>;
+ 246:             % endif
+ 247: 
+ 248:         pub type UnderlyingOwnedList<T> =
+ 249:             % if allow_empty:
+ 250:                 crate::OwnedSlice<T>;
+ 251:             % else:
+ 252:                 SmallVec<[T; 1]>;
+ 253:             % endif
+ 254: 
+ 255: 
+ 256:         /// The generic type defining the animated and resolved values for
+ 257:         /// this property.
+ 258:         ///
+ 259:         /// Making this type generic allows the compiler to figure out the
+ 260:         /// animated value for us, instead of having to implement it
+ 261:         /// manually for every type we care about.
+ 262:         #[derive(Clone, Debug, Deref, MallocSizeOf, PartialEq, ToAnimatedValue, ToResolvedValue, ToCss, ToTyped)]
+ 263:         % if property.vector.separator == "Comma":
+ 264:         #[css(comma)]
+ 265:         % endif
+ 266:         pub struct OwnedList<T>(
+ 267:             % if not allow_empty:
+ 268:             #[css(iterable)]
+ 269:             % else:
+ 270:             #[css(if_empty = "none", iterable)]
+ 271:             % endif
+ 272:             pub UnderlyingOwnedList<T>,
+ 273:         );
+ 274: 
+ 275:         /// The computed value for this property.
+ 276:         % if not is_shared_list:
+ 277:         pub type ComputedList = OwnedList<single_value::T>;
+ 278:         pub use self::OwnedList as List;
+ 279:         % else:
+ 280:         pub use self::ComputedList as List;
+ 281: 
+ 282:         #[derive(Clone, Debug, Deref, MallocSizeOf, PartialEq, ToCss, ToTyped)]
+ 283:         % if property.vector.separator == "Comma":
+ 284:         #[css(comma)]
+ 285:         % endif
+ 286:         pub struct ComputedList(
+ 287:             % if not allow_empty:
+ 288:             #[css(iterable)]
+ 289:             % else:
+ 290:             #[css(if_empty = "none", iterable)]

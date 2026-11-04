@@ -1,0 +1,11 @@
+--- a/layout/style/ServoStyleConstsInlines.h
++++ b/layout/style/ServoStyleConstsInlines.h
+@@ -245,6 +245,8 @@
+ template <typename T>
+ inline StyleArcSlice<T>::StyleArcSlice()
+     : _0(reinterpret_cast<decltype(_0.p)>(Servo_StyleArcSlice_EmptyPtr())) {
++  static_assert(alignof(T) <= alignof(uint64_t),
++                "Empty singleton cannot represent this element alignment");
+   ASSERT_CANARY
+ }
+ 

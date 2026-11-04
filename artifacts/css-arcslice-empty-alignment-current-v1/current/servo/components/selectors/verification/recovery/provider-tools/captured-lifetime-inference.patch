@@ -1,0 +1,101 @@
+--- a/src/bin/charon-driver/translate/translate_closures.rs
++++ b/src/bin/charon-driver/translate/translate_closures.rs
+@@ -1021,3 +1021,88 @@
+         })
+     }
+ }
++
++
++pub(crate) fn infer_closure_lifetime_mutability(krate: &mut TranslatedCrate) {
++    use charon_lib::ast::visitor::{VisitWithBinderDepth, VisitorWithBinderDepth};
++    use derive_generic_visitor::Visitor;
++    use std::collections::HashMap;
++
++    #[derive(Visitor)]
++    struct Captures<'a> {
++        known: &'a HashMap<TypeDeclId, IndexVec<RegionId, LifetimeMutability>>,
++        regions: IndexVec<RegionId, LifetimeMutability>,
++        depth: DeBruijnId,
++    }
++    impl Captures<'_> {
++        fn record(&mut self, region: &Region, mutability: LifetimeMutability) {
++            if let Region::Var(var) = region
++                && let Some(id) = var.bound_at_depth(self.depth)
++            {
++                let prior = &mut self.regions[id];
++                if mutability.is_mutable() || prior.is_shared() {
++                    *prior = mutability;
++                }
++            }
++        }
++    }
++    impl VisitorWithBinderDepth for Captures<'_> {
++        fn binder_depth_mut(&mut self) -> &mut DeBruijnId {
++            &mut self.depth
++        }
++    }
++    impl VisitAst for Captures<'_> {
++        fn visit<T: AstVisitable>(&mut self, value: &T) -> ControlFlow<Self::Break> {
++            VisitWithBinderDepth::new(self).visit(value)
++        }
++        fn enter_ty(&mut self, ty: &Ty) {
++            match ty.kind() {
++                TyKind::Ref(region, _, RefKind::Mut) => {
++                    self.record(region, LifetimeMutability::Mutable);
++                }
++                TyKind::Adt(tref) => {
++                    for (id, region) in tref.generics.regions.iter_enumerated() {
++                        let mutability = self.known.get(&tref.id)
++                            .and_then(|regions| regions.get(id))
++                            .copied().unwrap_or(LifetimeMutability::Unknown);
++                        self.record(region, mutability);
++                    }
++                }
++                _ => {}
++            }
++        }
++    }
++
++    let closures: Vec<_> = krate.type_decls.iter()
++        .filter(|decl| matches!(decl.src, TypeSource::Closure { .. })
++            && matches!(decl.kind, TypeDeclKind::Struct(_)))
++        .map(|decl| decl.def_id).collect();
++    let mut known: HashMap<_, IndexVec<RegionId, _>> = krate.type_decls.iter()
++        .map(|decl| (decl.def_id, decl.generics.regions.iter()
++            .map(|region| if closures.contains(&decl.def_id) {
++                LifetimeMutability::Shared
++            } else { region.mutability }).collect())).collect();
++    loop {
++        let mut changed = false;
++        for id in &closures {
++            let decl = &krate.type_decls[*id];
++            let mut visitor = Captures {
++                known: &known,
++                regions: known[id].clone(),
++                depth: DeBruijnId::zero(),
++            };
++            let _ = visitor.visit(&decl.kind);
++            let regions = visitor.regions;
++            if regions != known[id] {
++                known.insert(*id, regions);
++                changed = true;
++            }
++        }
++        if !changed { break; }
++    }
++    for id in closures {
++        for region in &mut krate.type_decls[id].generics.regions {
++            region.mutability = known[&id][region.index];
++        }
++    }
++}
+--- a/src/bin/charon-driver/translate/translate_crate.rs
++++ b/src/bin/charon-driver/translate/translate_crate.rs
+@@ -1245,6 +1245,7 @@
+     // Remove methods not marked as "used". They are never called and we made sure not to translate
+     // them. This removes them from the traits and impls.
+     ctx.remove_unused_methods();
++    super::translate_closures::infer_closure_lifetime_mutability(&mut ctx.translated);
+ 
+     // Return the context, dropping the hax state and rustc `tcx`.
+     Ok(TransformCtx {

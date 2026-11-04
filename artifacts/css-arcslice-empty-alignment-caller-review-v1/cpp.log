@@ -1,0 +1,56 @@
+ 235:   // Explicitly specify template argument here to avoid instantiating Span<T>
+ 236:   // first and then implicitly converting to Span<const T>
+ 237:   return Span<const T>{data, len};
+ 238: }
+ 239: 
+ 240: static constexpr const uint64_t kArcSliceCanary = 0xf3f3f3f3f3f3f3f3;
+ 241: 
+ 242: #define ASSERT_CANARY \
+ 243:   MOZ_DIAGNOSTIC_ASSERT(_0.p->data.header == kArcSliceCanary, "Uh?");
+ 244: 
+ 245: template <typename T>
+ 246: inline StyleArcSlice<T>::StyleArcSlice()
+ 247:     : _0(reinterpret_cast<decltype(_0.p)>(Servo_StyleArcSlice_EmptyPtr())) {
+ 248:   ASSERT_CANARY
+ 249: }
+ 250: 
+ 251: template <typename T>
+ 252: inline StyleArcSlice<T>::StyleArcSlice(
+ 253:     const StyleForgottenArcSlicePtr<T>& aPtr) {
+ 254:   // See the forget() implementation to see why reinterpret_cast() is ok.
+ 255:   _0.p = reinterpret_cast<decltype(_0.p)>(aPtr._0);
+ 256:   ASSERT_CANARY
+ 257: }
+ 258: 
+ 259: template <typename T>
+ 260: inline size_t StyleArcSlice<T>::Length() const {
+ 261:   ASSERT_CANARY
+ 262:   return _0->Length();
+ 263: }
+ 264: 
+ 265: template <typename T>
+ 266: inline bool StyleArcSlice<T>::IsEmpty() const {
+ 267:   ASSERT_CANARY
+ 268:   return _0->IsEmpty();
+ 269: }
+ 270: 
+ 271: template <typename T>
+ 272: inline Span<const T> StyleArcSlice<T>::AsSpan() const {
+ 273:   ASSERT_CANARY
+ 274:   return _0->AsSpan();
+ 275: }
+ 276: 
+ 277: #undef ASSERT_CANARY
+ 278: 
+ 279: template <typename T>
+ 280: inline StyleArc<T>::StyleArc(const StyleArc& aOther) : p(aOther.p) {
+ 281:   p->IncrementRef();
+ 282: }
+ 283: 
+ 284: template <typename T>
+ 285: inline void StyleArc<T>::Release() {
+ 286:   if (MOZ_LIKELY(!p->DecrementRef())) {
+ 287:     return;
+ 288:   }
+ 289:   p->data.~T();
+ 290:   free(p);

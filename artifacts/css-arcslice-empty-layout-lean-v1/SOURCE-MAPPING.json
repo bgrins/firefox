@@ -1,0 +1,34 @@
+{
+  "sources": {
+    "artifacts/css-arcslice-empty-layout-fix-v1/current/base/servo/components/servo_arc/lib.rs": "6fb0d15828b928fa637d499a1d3f3ceaa678fd970bb32861d9d4f62bcde6167a",
+    "artifacts/css-arcslice-empty-layout-fix-v1/current/candidate/servo/components/servo_arc/lib.rs": "b594817200227041aee54a2be707a17cf6e0864f8df037a150dede2f35e37976",
+    "artifacts/css-arcslice-empty-layout-fix-v1/tests/arc_slice.rs": "7e05b13c51810bcabb07f048ae97a55dbcd6530e39aa15c881ad9a85b033b566"
+  },
+  "declarations": [
+    "ArcInner<T>",
+    "HeaderSlice<H,T>"
+  ],
+  "constructor": "Arc<HeaderSlice<H,T>>::from_header_and_iter_alloc",
+  "target_premises": {
+    "usize_size": 8,
+    "usize_alignment": 8,
+    "u64_size": 8,
+    "u64_alignment": 8,
+    "AtomicUsize_size": 8,
+    "AtomicUsize_alignment": 8
+  },
+  "repr": "C",
+  "element_count": 0,
+  "declaration_mapping": {
+    "struct ArcInner<T: ?Sized>": {
+      "sha256": "72c8a97d0ecd33a986a4c9e4c59279146d038875b548c17765b4961fba3aee84",
+      "text": "struct ArcInner<T: ?Sized> {\n    count: atomic::AtomicUsize,\n    // NOTE(emilio): This needs to be here so that HeaderSlice<> is deallocated properly if the\n    // allocator relies on getting the right Layout. We don't need to track the right alignment,\n    // since we know that statically.\n    //\n    // This member could be completely avoided once min_specialization feature is stable (by\n    // implementing a trait for HeaderSlice that gives you the right layout). For now, servo-only\n    // since Gecko doesn't need it (its allocator doesn't need the size for the alignments we care\n    // about). See https://github.com/rust-lang/rust/issues/31844.\n    #[cfg(feature = \"track_alloc_size\")]\n    alloc_size: usize,\n    data: T,\n}",
+      "unchanged_by_repair": true
+    },
+    "pub struct HeaderSlice<H, T>": {
+      "sha256": "106385526a04034ad8eb15840be6601bfbdbb8c70dffc654997e1304860df059",
+      "text": "pub struct HeaderSlice<H, T> {\n    /// The fixed-sized data.\n    pub header: H,\n\n    /// The length of the slice at our end.\n    len: usize,\n\n    /// The dynamically-sized data.\n    data: [T; 0],\n}",
+      "unchanged_by_repair": true
+    }
+  }
+}

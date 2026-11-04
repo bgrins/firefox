@@ -1,0 +1,187 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+/// Bloom filter for relative selectors.
+use crate::FxHashMap;
+use hashbrown::hash_map::Entry as MapEntry;
+
+use crate::SelectorImpl;
+use crate::bloom::BloomFilter;
+use crate::context::QuirksMode;
+use crate::parser::{RelativeSelector, RelativeSelectorMatchHint, collect_selector_hashes};
+use crate::tree::{Element, OpaqueElement};
+
+enum Entry {
+    /// Filter lookup happened once. Construction of the filter is expensive,
+    /// so this is set when the element for subtree traversal is encountered.
+    Lookup,
+    /// Filter lookup happened more than once, and the filter for this element's
+    /// subtree traversal is constructed. Could use special handlings for pseudo-classes
+    /// such as `:hover` and `:focus`, see Bug 1845503.
+    HasFilter(Box<BloomFilter>),
+}
+
+#[derive(Clone, Copy, Hash, Eq, PartialEq)]
+enum TraversalKind {
+    Children,
+    Descendants,
+}
+
+#[inline]
+fn next_after_subtree<E: Element>(root: E, mut element: E, kind: TraversalKind) -> Option<E> {
+    loop {
+        let sibling = element.next_sibling_element();
+        if sibling.is_some() || kind == TraversalKind::Children {
+            return sibling;
+        }
+        let Some(parent) = element.parent_element() else {
+            return None;
+        };
+        if parent.opaque() == root.opaque() {
+            return None;
+        }
+        element = parent;
+    }
+}
+
+fn add_to_filter<E: Element>(element: E, filter: &mut BloomFilter, kind: TraversalKind) -> bool {
+    let mut child = element.first_element_child();
+    while let Some(e) = child {
+        if !e.add_element_unique_hashes(filter) {
+            return false;
+        }
+        if kind == TraversalKind::Descendants {
+            if let Some(first_child) = e.first_element_child() {
+                child = Some(first_child);
+                continue;
+            }
+        }
+        child = next_after_subtree(element, e, kind);
+    }
+    true
+}
+
+impl Entry {
+    #[inline]
+    fn update<E: Element>(&mut self, element: E, kind: TraversalKind) {
+        if !matches!(self, Entry::Lookup) {
+            return;
+        }
+        let mut filter = BloomFilter::new();
+        // Go through all children/descendants of this element and add their hashes.
+        if add_to_filter(element, &mut filter, kind) {
+            *self = Entry::HasFilter(Box::new(filter));
+        }
+    }
+}
+
+#[inline]
+fn filter_target<E: Element>(
+    element: E,
+    hint: &RelativeSelectorMatchHint,
+) -> Option<(E, TraversalKind)> {
+    if matches!(hint, RelativeSelectorMatchHint::InNextSibling) {
+        // Don't bother.
+        return None;
+    }
+    let is_sibling = matches!(
+        hint,
+        RelativeSelectorMatchHint::InSibling
+            | RelativeSelectorMatchHint::InNextSiblingSubtree
+            | RelativeSelectorMatchHint::InSiblingSubtree
+    );
+    let is_subtree = matches!(
+        hint,
+        RelativeSelectorMatchHint::InSubtree
+            | RelativeSelectorMatchHint::InNextSiblingSubtree
+            | RelativeSelectorMatchHint::InSiblingSubtree
+    );
+    let kind = if is_subtree {
+        TraversalKind::Descendants
+    } else {
+        TraversalKind::Children
+    };
+    if is_sibling {
+        // Contain the entirety of the parent's children/subtree in the filter, and use that.
+        // This is less likely to reject, especially for sibling subtree matches; however, it's less
+        // expensive memory-wise, compared to storing filters for each sibling.
+        let Some(parent) = element.parent_element() else {
+            return None;
+        };
+        Some((parent, kind))
+    } else {
+        Some((element, kind))
+    }
+}
+
+#[derive(Clone, Copy, Hash, Eq, PartialEq)]
+struct Key(OpaqueElement, TraversalKind);
+
+/// Map of bloom filters for fast-rejecting relative selectors.
+#[derive(Default)]
+pub struct RelativeSelectorFilterMap {
+    map: FxHashMap<Key, Entry>,
+}
+
+fn fast_reject<Impl: SelectorImpl>(
+    selector: &RelativeSelector<Impl>,
+    quirks_mode: QuirksMode,
+    filter: &BloomFilter,
+) -> bool {
+    let mut hashes = [0u32; 4];
+    let mut len = 0;
+    // For inner selectors, we only collect from the single rightmost compound.
+    // This is because inner selectors can cause breakouts: e.g. `.anchor:has(:is(.a .b) .c)`
+    // can match when `.a` is the ancestor of `.anchor`. Including `.a` would possibly fast
+    // reject the subtree for not having `.a`, even if the selector would match.
+    // Technically, if the selector's traversal is non-sibling subtree, we can traverse
+    // inner selectors up to the point where a descendant/child combinator is encountered
+    // (e.g. In `.anchor:has(:is(.a ~ .b) .c)`, `.a` is guaranteed to be the a descendant
+    // of `.anchor`). While that can be separately handled, well, this is simpler.
+    collect_selector_hashes(selector.selector.iter(), quirks_mode, &mut hashes, &mut len);
+    for hash in &hashes[0..len] {
+        if !filter.might_contain_hash(*hash) {
+            // Definitely rejected.
+            return true;
+        }
+    }
+    false
+}
+
+impl RelativeSelectorFilterMap {
+    fn get_filter<E: Element>(&mut self, element: E, kind: TraversalKind) -> Option<&BloomFilter> {
+        // Insert flag to indicate that we looked up the filter once, and
+        // create the filter if and only if that flag is there.
+        let key = Key(element.opaque(), kind);
+        let entry = match self.map.entry(key) {
+            MapEntry::Occupied(mut entry) => {
+                entry.get_mut().update(element, kind);
+                entry.into_mut()
+            },
+            MapEntry::Vacant(entry) => entry.insert(Entry::Lookup),
+        };
+        match *entry {
+            Entry::Lookup => None,
+            Entry::HasFilter(ref filter) => Some(filter.as_ref()),
+        }
+    }
+
+    /// Potentially reject the given selector for this element.
+    /// This may seem redundant in presence of the cache, but the cache keys into the
+    /// selector-element pair specifically, while this filter keys to the element
+    /// and the traversal kind, so it is useful for handling multiple selectors
+    /// that effectively end up looking at the same(-ish, for siblings) subtree.
+    pub fn fast_reject<Impl: SelectorImpl, E: Element>(
+        &mut self,
+        element: E,
+        selector: &RelativeSelector<Impl>,
+        quirks_mode: QuirksMode,
+    ) -> bool {
+        let Some((target, kind)) = filter_target(element, &selector.match_hint) else {
+            return false;
+        };
+        self.get_filter(target, kind)
+            .is_some_and(|filter| fast_reject(selector, quirks_mode, filter))
+    }
+}

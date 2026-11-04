@@ -1,0 +1,13 @@
+# ArcSlice in-crate regression test
+
+The actual `style_traits` unit-test target passes with the exact current-library repair installed. Command `cargo test --offline -p style_traits --lib` compiled `lib.rs` with its real in-source `cfg(test)` module and executed `arc_slice::tests::empty_slices_preserve_element_layout`: one passed, zero failed, zero filtered. This is the complete crate unit-test target in this configuration; the proposed test is its only test. No import/include adapter replaces the crate.
+
+Actual execution: `c2b260/session40446/37f445`, exit 0. The unoptimized native test build took 12.33 seconds. `COMMAND.json`, `cargo-test.log`, `dependency-target.log`, and `RESULT.json` retain the command and result. This is ordinary Rust test execution, not a new Miri run or full Firefox build.
+
+The workspace copies the retained current-library dependencies, keeps its original driver and `servo`/`xpcom` workspace exclusions, and selects `style_traits` as a dependency package to test. The original driver enables Gecko features. No production Cargo manifest or dependency source was changed. The two installed delivery bodies are `arc_slice.rs` SHA256 `7e05b13c51810bcabb07f048ae97a55dbcd6530e39aa15c881ad9a85b033b566` and `servo_arc/lib.rs` SHA256 `b594817200227041aee54a2be707a17cf6e0864f8df037a150dede2f35e37976`; authoritative complete hashes are in `DELIVERY-SOURCES.json`. `SOURCES.json` records all workspace source identities.
+
+Two setup failures preceded the successful command. Making `style_traits` an explicit workspace member caused Cargo to resolve the absent Servo-only optional `stylo_atoms` package. `initial-workspace/` and `explicit-member-excluded/` retain those failed manifests, commands and logs. No compiler or tests ran during either failure. The first result's `actual_style_traits_cfg_test` field described the intended target, not achieved coverage. Reusing the original excluded-dependency wiring resolved the setup issue without a stub or a production-manifest change.
+
+The final `run.py` reproduces the successful setup in a fresh directory; the initial script is preserved under `initial-workspace/`. Workspace sources and original vendor files were verified after execution. The owned target and vendor copies were removed after the successful command closed. No live source, index, HEAD, existing artifact, or browser state was modified.
+
+The existing original-failure and Miri matrix remain separate evidence. This result closes the actual in-crate test-integration gap; it does not establish a browser-reachable over-aligned caller, C++ runtime transfer, or correctness of the broader allocator/DST work.

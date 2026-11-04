@@ -1,0 +1,444 @@
+#!/usr/bin/env python3
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import argparse
+import hashlib
+import json
+import os
+import platform
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+PROJECT = Path(__file__).resolve().parent
+ROOT = PROJECT.parents[3]
+TOOLS = ROOT / "artifacts/stylo-bloom-tools"
+LOCK = json.loads((PROJECT / "toolchain.json").read_text())
+OPERATIONS = (
+    "new",
+    "insert",
+    "remove",
+    "contains",
+    "clear",
+    "zeroed",
+    "pack",
+    "unpack",
+    "may_match",
+    "style_bloom_filter::update_high_water",
+    "style_bloom_filter::clear_filter",
+    "style_bloom_recovery::recover",
+    "style_bloom_recovery::rebuild",
+)
+STANDARD_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
+THEOREMS = {
+    "new_eq_empty",
+    "clear_eq_empty",
+    "saturated_slot_unchanged",
+    "key_mask_spec",
+    "hash1_spec",
+    "hash2_spec",
+    "first_index_spec",
+    "second_index_spec",
+    "slot_is_empty_spec",
+    "contains_of_nonzero",
+    "adjust_slot_represents",
+    "insert_represents",
+    "remove_represents",
+    "liveCounts_append",
+    "member_contributions",
+    "empty_represents",
+    "history_represents",
+    "history_no_false_negatives",
+}
+
+PACKING_THEOREMS = {
+    "fourth_hash_spec",
+    "pack_spec",
+    "pack_roundtrip",
+    "may_match_of_present",
+    "history_no_false_rejection",
+}
+
+NORMALIZATION_THEOREMS = {
+    "eq_ok_of_spec",
+    "hash1_eq",
+    "hash2_eq",
+    "hash1_masked",
+    "hash2_masked",
+    "insert_masked",
+    "remove_masked",
+    "contains_masked",
+    "history_masked",
+    "raw_history_no_false_rejection",
+    "pack_match_four_raw_hashes",
+    "pack_match_short_raw_hashes",
+    "pack_match_raw_history",
+}
+
+STYLE_BLOOM_THEOREMS = {
+    "adjust_slot_exact",
+    "insert_exact",
+    "remove_exact",
+    "liveCounts_bound",
+    "empty_exact",
+    "history_length_le",
+    "history_exact",
+    "clear_loop_exact",
+    "update_high_water_spec",
+    "clear_filter_exact",
+    "exact_empty_eq",
+    "clear_filter_eq_empty",
+    "clear_filter_resets_history",
+}
+
+COVERAGE_THEOREMS = {
+    "present_lookup",
+    "insert_preserves_nonzero",
+    "insert_preserves_present",
+    "insert_establishes_present",
+    "insertions_coverage",
+}
+
+STORAGE_HISTORY_THEOREMS = {
+    "history_represents",
+    "history_present",
+    "history_lookup",
+    "insertion_history",
+}
+
+ZEROED_THEOREMS = {"loop_exact", "zeroed_exact", "zeroed_true"}
+
+RECOVERY_THEOREMS = {
+    "ancestors_chain",
+    "chain_tail",
+    "chain_head",
+    "chain_suffix",
+    "chain_cons_parent",
+    "flush_pending",
+    "collect_parents",
+    "rebuild_ancestors",
+    "trim_depth",
+    "ascend_target",
+    "find_common_parent",
+    "recover_ancestors",
+}
+
+
+def run(args, *, cwd=ROOT, env=None, log=None):
+    args = [str(arg) for arg in args]
+    print("Running:", " ".join(args), flush=True)
+    if log is None:
+        return subprocess.run(args, cwd=cwd, env=env, check=True)
+    with log.open("w") as output:
+        result = subprocess.run(
+            args, cwd=cwd, env=env, stdout=output, stderr=subprocess.STDOUT, check=False
+        )
+    if result.returncode:
+        print(log.read_text(), file=sys.stderr)
+        result.check_returncode()
+
+
+def download(url, path, expected):
+    if not path.exists():
+        temporary = path.with_suffix(path.suffix + ".part")
+        run(["curl", "--fail", "--location", "--retry", "3", url, "-o", temporary])
+        temporary.replace(path)
+    with path.open("rb") as source:
+        actual = hashlib.file_digest(source, "sha256").hexdigest()
+    if actual != expected:
+        raise RuntimeError(f"SHA-256 mismatch: {path}")
+
+
+def bootstrap(assets, lean, env):
+    for name, repo, release, directory in (
+        ("aeneas", "AeneasVerif/aeneas", LOCK["aeneas_release"], TOOLS / "aeneas"),
+        ("lean", "leanprover/lean4", LOCK["lean_release"], lean),
+    ):
+        archive = TOOLS / assets[name]
+        download(
+            f"https://github.com/{repo}/releases/download/{release}/{assets[name]}",
+            archive,
+            assets[name + "_sha256"],
+        )
+        if not directory.exists():
+            destination = TOOLS if name == "lean" else directory
+            destination.mkdir(parents=True, exist_ok=True)
+            run(["tar", "-xf", archive, "-C", destination])
+    run(
+        [
+            "rustup",
+            "toolchain",
+            "install",
+            LOCK["rust_toolchain"],
+            "--profile",
+            "minimal",
+            "--component",
+            "rustc-dev,rust-src",
+            "--no-self-update",
+        ],
+        env=env,
+        log=TOOLS / "rust-setup.log",
+    )
+    run(
+        [lean / "bin/lake", "update"],
+        cwd=TOOLS / "aeneas/backends/lean",
+        env=env,
+        log=TOOLS / "lean-dependencies.log",
+    )
+
+
+def audit_proofs(output):
+    reports = re.findall(
+        r"'([^']+)' depends on axioms:\s*\[([^\]]*)\]", output, re.DOTALL
+    )
+    reports += [
+        (name, "")
+        for name in re.findall(
+            r"^'([^']+)' does not depend on any axioms$", output, re.MULTILINE
+        )
+    ]
+    expected = {f"BloomProofs.{name}" for name in THEOREMS}
+    expected |= {f"PackingProofs.{name}" for name in PACKING_THEOREMS}
+    expected |= {f"NormalizationProofs.{name}" for name in NORMALIZATION_THEOREMS}
+    expected |= {f"StyleBloomProofs.{name}" for name in STYLE_BLOOM_THEOREMS}
+    expected |= {f"CoverageProofs.{name}" for name in COVERAGE_THEOREMS}
+    expected |= {f"RecoveryProofs.{name}" for name in RECOVERY_THEOREMS}
+    expected |= {f"StorageHistoryProofs.{name}" for name in STORAGE_HISTORY_THEOREMS}
+    expected |= {f"ZeroedProofs.{name}" for name in ZEROED_THEOREMS}
+    if len(reports) != len(expected) or {name for name, _ in reports} != expected:
+        raise RuntimeError("Lean did not report the expected theorem dependencies")
+    for theorem, names in reports:
+        axioms = {name.strip() for name in names.split(",") if name.strip()}
+        allowed = STANDARD_AXIOMS.copy()
+        if unexpected := axioms - allowed:
+            raise RuntimeError(f"Unexpected axioms in {theorem}: {unexpected}")
+    print(f"Audited dependencies of {len(reports)} theorems.")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Check the Stylo Bloom filter proofs")
+    parser.add_argument(
+        "--bootstrap", action="store_true", help="Download pinned tools"
+    )
+    args = parser.parse_args()
+    key = f"{platform.system()}-{platform.machine()}"
+    if key not in LOCK["platforms"]:
+        raise RuntimeError(f"No pinned tool binaries for {key}")
+    assets = LOCK["platforms"][key]
+    lean = TOOLS / assets["lean"].removesuffix(".tar.zst")
+    aeneas = TOOLS / "aeneas"
+    TOOLS.mkdir(parents=True, exist_ok=True)
+    env = dict(os.environ)
+    env.update(
+        RUSTUP_HOME=str(TOOLS / "rustup"),
+        RUSTUP_TOOLCHAIN=LOCK["rust_toolchain"],
+        CARGO_HOME=str(TOOLS / "cargo"),
+        MATHLIB_CACHE_DIR=str(TOOLS / "mathlib-cache"),
+        PATH=str(lean / "bin") + os.pathsep + env["PATH"],
+    )
+    if args.bootstrap:
+        bootstrap(assets, lean, env)
+    for executable in (aeneas / "aeneas", aeneas / "charon", lean / "bin/lean"):
+        if not executable.exists():
+            raise RuntimeError(f"Missing {executable}; run verify.py --bootstrap first")
+    version = subprocess.check_output(
+        [aeneas / "aeneas", "-version"], text=True
+    ).strip()
+    if version != f"aeneas {LOCK['aeneas_release']}":
+        raise RuntimeError(f"Unexpected Aeneas version: {version}")
+
+    generated = PROJECT / "generated"
+    generated.mkdir(exist_ok=True)
+    run(
+        [
+            "cargo",
+            "test",
+            "--offline",
+            "--locked",
+            "--manifest-path",
+            PROJECT / "Cargo.toml",
+        ],
+        env=env,
+        log=generated / "rust-tests.log",
+    )
+    run(
+        [
+            "cargo",
+            "test",
+            "--offline",
+            "--locked",
+            "--release",
+            "--manifest-path",
+            PROJECT / "differential/Cargo.toml",
+            "--config",
+            'source.crates-io.replace-with="vendored-sources"',
+            "--config",
+            "source.vendored-sources.directory="
+            + json.dumps(str(ROOT / "third_party/rust")),
+            "--",
+            "--nocapture",
+        ],
+        env=env,
+        log=generated / "differential-tests.log",
+    )
+    llbc = generated / "stylo_bloom_verification.llbc"
+    command = [aeneas / "charon", "rustc", "--preset", "aeneas", "--sysroot", "default"]
+    for operation in OPERATIONS:
+        command += ["--start-from", f"stylo_bloom_verification::{operation}"]
+    command += [
+        "--dest-file",
+        llbc,
+        "--",
+        "--crate-type",
+        "lib",
+        "--crate-name",
+        "stylo_bloom_verification",
+        "--edition",
+        "2024",
+        PROJECT / "lib.rs",
+    ]
+    run(command, env=env, log=generated / "charon.log")
+    lean_generated = PROJECT / "lean/Generated"
+    lean_generated.mkdir(exist_ok=True)
+    run(
+        [
+            aeneas / "aeneas",
+            "-backend",
+            "lean",
+            "-namespace",
+            "Bloom",
+            "-dest",
+            lean_generated,
+            "-abort-on-error",
+            "-warnings-as-errors",
+            "-no-progress-bar",
+            llbc,
+        ],
+        env=env,
+        log=generated / "aeneas.log",
+    )
+    search_path = subprocess.check_output(
+        [lean / "bin/lake", "env", "printenv", "LEAN_PATH"],
+        cwd=aeneas / "backends/lean",
+        env=env,
+        text=True,
+    ).strip()
+    env["LEAN_PATH"] = str(PROJECT / "lean") + os.pathsep + search_path
+    run(
+        [
+            lean / "bin/lean",
+            "-DwarningAsError=true",
+            "-o",
+            "Generated/StyloBloomVerification.olean",
+            "Generated/StyloBloomVerification.lean",
+        ],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=generated / "lean-model.log",
+    )
+    proof_log = generated / "lean-proofs.log"
+    run(
+        [
+            lean / "bin/lean",
+            "-DwarningAsError=true",
+            "-o",
+            "BloomProofs.olean",
+            "BloomProofs.lean",
+        ],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=proof_log,
+    )
+    packing_log = generated / "lean-packing-proofs.log"
+    run(
+        [
+            lean / "bin/lean",
+            "-DwarningAsError=true",
+            "-o",
+            "PackingProofs.olean",
+            "PackingProofs.lean",
+        ],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=packing_log,
+    )
+    normalization_log = generated / "lean-normalization-proofs.log"
+    run(
+        [lean / "bin/lean", "-DwarningAsError=true", "NormalizationProofs.lean"],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=normalization_log,
+    )
+    style_log = generated / "lean-style-bloom-proofs.log"
+    run(
+        [
+            lean / "bin/lean",
+            "-DwarningAsError=true",
+            "-o",
+            "StyleBloomProofs.olean",
+            "StyleBloomProofs.lean",
+        ],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=style_log,
+    )
+    coverage_log = generated / "lean-coverage-proofs.log"
+    run(
+        [
+            lean / "bin/lean",
+            "-DwarningAsError=true",
+            "-o",
+            "CoverageProofs.olean",
+            "CoverageProofs.lean",
+        ],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=coverage_log,
+    )
+    recovery_log = generated / "lean-recovery-proofs.log"
+    run(
+        [lean / "bin/lean", "-DwarningAsError=true", "RecoveryProofs.lean"],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=recovery_log,
+    )
+    storage_log = generated / "lean-storage-history-proofs.log"
+    run(
+        [lean / "bin/lean", "-DwarningAsError=true", "StorageHistoryProofs.lean"],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=storage_log,
+    )
+    zeroed_log = generated / "lean-zeroed-proofs.log"
+    run(
+        [lean / "bin/lean", "-DwarningAsError=true", "ZeroedProofs.lean"],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=zeroed_log,
+    )
+    audit_proofs(
+        proof_log.read_text()
+        + packing_log.read_text()
+        + normalization_log.read_text()
+        + style_log.read_text()
+        + coverage_log.read_text()
+        + recovery_log.read_text()
+        + storage_log.read_text()
+        + zeroed_log.read_text()
+    )
+    run(
+        [sys.executable, PROJECT / "relative/extract.py", "--bridge"],
+        env=env,
+        log=generated / "relative-verification.log",
+    )
+    print(f"Verification passed. Logs: {generated}")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (RuntimeError, subprocess.CalledProcessError) as error:
+        sys.exit(str(error))

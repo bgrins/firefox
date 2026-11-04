@@ -1,0 +1,29 @@
+--- a/src/symbolic/SymbolicToPureTypes.ml
++++ b/src/symbolic/SymbolicToPureTypes.ml
+@@ -970,6 +970,26 @@
+       (List.map compute_back_info_for_group sg.regions_hierarchy)
+   in
+ 
++  let uninst_output =
++    match fun_id with
++    | FunId id -> (
++        let def = FunDeclId.Map.find id decls_ctx.fun_ctx.fun_decls in
++        match def.src with
++        | A.TraitImplFun (_, trait_ref, method_id, _) -> (
++            let trait_decl = TraitDeclId.Map.find trait_ref.id decls_ctx.crate.trait_decls in
++            match match_name_find_opt decls_ctx trait_decl.item_meta.name
++              (ExtractBuiltin.builtin_trait_decls_map ()) with
++            | Some info when
++                (info.extract_name = "core.ops.function.FnMut"
++                 || info.extract_name = "core.ops.function.FnOnce")
++                && List.exists (function T.PeInstantiated _ -> true | _ -> false)
++                     trait_decl.item_meta.name ->
++                let meth = TraitMethodId.Map.find method_id trait_decl.methods in
++                meth.binder_value.signature.output
++            | _ -> uninst_output)
++        | _ -> uninst_output)
++    | _ -> uninst_output
++  in
+   (* The additional information about the forward function *)
+   let fwd_info : fun_sig_info =
+     let ignore_output =
