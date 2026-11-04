@@ -1,0 +1,199 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -42,7 +42,7 @@
+ use crate::values::specified::length::FontBaseSize;
+ use crate::values::specified::position::PositionTryFallbacksTryTactic;
+ use crate::values::{computed, specified};
+-use crate::{FxHashMap, Namespace};
++use crate::{FxHashMap, FxHashSet, Namespace};
+ use hashbrown::hash_map::{Entry, EntryRef};
+ use selectors::matching::ElementSelectorFlags;
+ use servo_arc::Arc;
+@@ -870,21 +870,25 @@
+     Block(&'a PropertyDeclarationBlock),
+ }
+ 
+-fn block_contains(block: &PropertyDeclarationBlock, declaration: &PropertyDeclaration) -> bool {
+-    block
+-        .declarations()
+-        .iter()
+-        .any(|entry| std::ptr::eq(entry, declaration))
+-}
++type DeclarationSourceIndex<'a> =
++    FxHashMap<*const PropertyDeclaration, &'a PropertyDeclarationBlock>;
+ 
+ impl<'a> DeclarationSources<'a> {
+     #[cold]
+-    fn containing_block(&self, declaration: &PropertyDeclaration) -> &'a PropertyDeclarationBlock {
++    fn index(&self) -> DeclarationSourceIndex<'a> {
++        let mut index = DeclarationSourceIndex::default();
++        let mut blocks = FxHashSet::default();
++        let mut insert_block = |block: &'a PropertyDeclarationBlock| {
++            if !blocks.insert(block as *const PropertyDeclarationBlock) {
++                return;
++            }
++            index.reserve(block.declarations().len());
++            for declaration in block.declarations() {
++                index.insert(declaration as *const PropertyDeclaration, block);
++            }
++        };
+         match *self {
+-            Self::Block(block) => {
+-                assert!(block_contains(block, declaration));
+-                block
+-            },
++            Self::Block(block) => insert_block(block),
+             Self::Rules(rules, guards) => {
+                 let mut node = Some(rules);
+                 while let Some(current) = node {
+@@ -894,23 +898,73 @@
+                             .cascade_level()
+                             .origin()
+                             .guard(guards);
+-                        let block = source.read(guard);
+-                        if block_contains(block, declaration) {
+-                            return block;
+-                        }
++                        insert_block(source.read(guard));
+                     }
+                     node = current.parent();
+                 }
+-                unreachable!("Declaration must belong to an applicable block")
+             },
+         }
+-    }
+-}
+-
+-struct RuleExclusion<'a> {
++        index
++    }
++}
++
++#[derive(Eq, Hash, PartialEq)]
++struct RuleExclusionKey {
+     property: LonghandId,
+     priority: CascadePriority,
+-    block: &'a PropertyDeclarationBlock,
++    block: *const PropertyDeclarationBlock,
++}
++
++struct RuleExclusions<'a> {
++    sources: DeclarationSourceIndex<'a>,
++    excluded: FxHashSet<RuleExclusionKey>,
++}
++
++impl<'a> RuleExclusions<'a> {
++    #[cold]
++    fn new(sources: &DeclarationSources<'a>) -> Self {
++        Self {
++            sources: sources.index(),
++            excluded: FxHashSet::default(),
++        }
++    }
++
++    fn key(
++        &self,
++        property: LonghandId,
++        priority: CascadePriority,
++        declaration: &PropertyDeclaration,
++    ) -> RuleExclusionKey {
++        let block = *self
++            .sources
++            .get(&(declaration as *const PropertyDeclaration))
++            .expect("Declaration must belong to an applicable block");
++        RuleExclusionKey {
++            property,
++            priority: priority.unimportant(),
++            block,
++        }
++    }
++
++    fn contains(
++        &self,
++        property: LonghandId,
++        priority: CascadePriority,
++        declaration: &PropertyDeclaration,
++    ) -> bool {
++        self.excluded
++            .contains(&self.key(property, priority, declaration))
++    }
++
++    fn insert(
++        &mut self,
++        property: LonghandId,
++        priority: CascadePriority,
++        declaration: &PropertyDeclaration,
++    ) {
++        let key = self.key(property, priority, declaration);
++        self.excluded.insert(key);
++    }
+ }
+ 
+ pub(crate) struct Cascade<'a> {
+@@ -920,7 +974,7 @@
+     seen: SeenSet<'a>,
+     reverted: RevertedSet,
+     sources: Option<DeclarationSources<'a>>,
+-    rule_exclusions: Vec<RuleExclusion<'a>>,
++    rule_exclusions: Option<Box<RuleExclusions<'a>>>,
+     author_or_user_specified: LonghandIdSet,
+     declarations_to_apply_unless_overridden: DeclarationsToApplyUnlessOverriden,
+     may_have_custom_property_cycles: bool,
+@@ -944,7 +998,7 @@
+             author_or_user_specified: Default::default(),
+             reverted: Default::default(),
+             sources: Some(sources),
+-            rule_exclusions: Vec::new(),
++            rule_exclusions: None,
+             declarations_to_apply_unless_overridden: Default::default(),
+             may_have_custom_property_cycles: false,
+             ensured_prioritary: PrioritaryPropertyIdSet::default(),
+@@ -963,7 +1017,7 @@
+             author_or_user_specified: Default::default(),
+             reverted: Default::default(),
+             sources: None,
+-            rule_exclusions: Vec::new(),
++            rule_exclusions: None,
+             declarations_to_apply_unless_overridden: Default::default(),
+             may_have_custom_property_cycles: false,
+             ensured_prioritary: PrioritaryPropertyIdSet::default(),
+@@ -1223,11 +1277,11 @@
+             {
+                 return;
+             }
+-            if self.rule_exclusions.iter().any(|excluded| {
+-                excluded.property == longhand_id
+-                    && excluded.priority == priority.unimportant()
+-                    && block_contains(excluded.block, declaration)
+-            }) {
++            if self
++                .rule_exclusions
++                .as_ref()
++                .is_some_and(|excluded| excluded.contains(longhand_id, priority, declaration))
++            {
+                 return;
+             }
+         }
+@@ -1256,16 +1310,13 @@
+                     // other declarations as needed.
+                     self.reverted.longhands_set.insert(longhand_id);
+                     if revert_kind == RevertKind::Rule {
+-                        let block = self
+-                            .sources
+-                            .as_ref()
+-                            .expect("Longhand cascade needs sources")
+-                            .containing_block(original_declaration);
+-                        self.rule_exclusions.push(RuleExclusion {
+-                            property: longhand_id,
+-                            priority: priority.unimportant(),
+-                            block,
++                        let sources = &self.sources;
++                        let exclusions = self.rule_exclusions.get_or_insert_with(|| {
++                            Box::new(RuleExclusions::new(
++                                sources.as_ref().expect("Longhand cascade needs sources"),
++                            ))
+                         });
++                        exclusions.insert(longhand_id, priority, original_declaration);
+                     } else {
+                         self.reverted
+                             .longhands
