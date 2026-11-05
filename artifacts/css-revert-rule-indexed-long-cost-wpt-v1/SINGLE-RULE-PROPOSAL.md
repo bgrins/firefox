@@ -1,0 +1,13 @@
+# Separate workload: one Rule with many unrelated source entries
+
+A separate workload is warranted before concluding that lazy indexing is cheap for all Rule use. The current chain makes almost every matched block contribute a Rule trigger, rewarding amortization. It does not isolate the first-trigger construction cost when most indexed entries are unrelated to the property.
+
+Keep one probe and the same inline --floor toggle/opacity oracle. Put opacity:var(--floor) in a lower layer. Add N matched unlayered rules, each containing only `--payload: INDEX`, so their block contents are distinct. Finish with one strongest unlayered rule declaring `opacity: MODE; --trigger:1`, where MODE is var(--floor), revert-rule or revert-layer. All controls should produce the identical changing opacity. N=0 calibrates one-trigger fixed cost; start with N=0,32,64,128,256 and no larger tree.
+
+All unrelated selectors must match the probe; unmatched rules do not enter its source view. The Rule trigger must come last/strongest, not behind the payload rules. Then the old scan candidate finds its containing block near the tree leaf and holds only one exclusion. The winning lower-layer opacity has a different priority, so its exclusion check needs no membership scan. In contrast, the indexed candidate constructs the owner map for the whole source view on that one trigger, including all unrelated custom-property entries.
+
+This compares favorable O(1)-sized old membership work with the indexed O(S+D) construction and O(D) auxiliary storage, while ordinary collection/custom cascade still has its own O(S+D) baseline costs. Literal and Layer controls keep those ordinary costs and avoid constructing the C index. A stronger effect with payload width could be probed later by reusing a small set of custom-property names across each block, but do not add that extra axis initially.
+
+Use the reached reset opacity var to retain the source argument against reset-cache reuse. Do not treat changing getters alone as proof of index creation. If attribution is ambiguous, aggregate counts of admitted Rule triggers, index constructions, source nodes, distinct blocks and indexed declarations would verify the intended one-trigger workload. Browser timings cannot establish allocation bytes or peak memory; map lengths/capacity or allocator measurements would be separate diagnostics.
+
+The candidate README explicitly acknowledges whole-source indexing and this tradeoff. No new defect, regression or memory estimate is claimed without measurement. This proposal is not implemented, executed, or included in the current long-batch reports. Keep any future dataset/configuration separate so the chain comparison remains interpretable.
