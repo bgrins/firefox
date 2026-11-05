@@ -21,8 +21,8 @@ use crate::font_metrics::FontMetricsOrientation;
 use crate::properties::{
     CASCADE_PROPERTY, CSSWideKeyword, ComputedValues, DeclarationImportanceIterator, LonghandId,
     LonghandIdSet, PrioritaryPropertyId, PrioritaryPropertyIdSet, PropertyDeclaration,
-    PropertyDeclarationId, PropertyFlags, PropertyIdRef, ShorthandsWithPropertyReferencesCache,
-    StyleBuilder, property_counts,
+    PropertyDeclarationBlock, PropertyDeclarationId, PropertyFlags, PropertyIdRef,
+    ShorthandsWithPropertyReferencesCache, StyleBuilder, property_counts,
 };
 use crate::properties::{CustomDeclaration, CustomDeclarationValue, UnparsedValue};
 use crate::properties_and_values::rule::Descriptors as PropertyDescriptors;
@@ -42,7 +42,7 @@ use crate::values::computed::ToComputedValue;
 use crate::values::specified::length::FontBaseSize;
 use crate::values::specified::position::PositionTryFallbacksTryTactic;
 use crate::values::{computed, specified};
-use crate::{FxHashMap, Namespace};
+use crate::{FxHashMap, FxHashSet, Namespace};
 use hashbrown::hash_map::{Entry, EntryRef};
 use selectors::matching::ElementSelectorFlags;
 use servo_arc::Arc;
@@ -220,6 +220,7 @@ where
         rule_node,
         guards,
         DeclarationIterator::new(rule_node, guards, pseudo),
+        None,
         parent_style,
         layout_parent_style,
         first_line_reparenting,
@@ -285,6 +286,7 @@ pub fn apply_declarations<'decls, E, I>(
     rules: &StrongRuleNode,
     guards: &StylesheetGuards,
     iter: I,
+    declaration_block: Option<&PropertyDeclarationBlock>,
     parent_style: Option<&ComputedValues>,
     layout_parent_style: Option<&ComputedValues>,
     first_line_reparenting: FirstLineReparenting<'_>,
@@ -343,7 +345,11 @@ where
 
     let using_cached_reset_properties;
     let ignore_colors = context.builder.device.forced_colors().is_active();
-    let mut cascade = Cascade::new(first_line_reparenting, stylist, ignore_colors);
+    let sources = match declaration_block {
+        Some(block) => DeclarationSources::Block(block),
+        None => DeclarationSources::Rules(rules, guards),
+    };
+    let mut cascade = Cascade::new(first_line_reparenting, stylist, ignore_colors, sources);
     let mut declarations = Default::default();
     let mut shorthand_cache = ShorthandsWithPropertyReferencesCache::default();
     let mut attribute_tracker = AttributeTracker::new(element_context);
@@ -859,12 +865,147 @@ impl<'a> KeyframeCustomPropertiesBuilder<'a> {
 
 type NonCustomPropertyReferences = NonCustomReferenceMap<Vec<(LonghandId, Arc<UnparsedValue>)>>;
 
+enum DeclarationSources<'a> {
+    Rules(&'a StrongRuleNode, &'a StylesheetGuards<'a>),
+    Block(&'a PropertyDeclarationBlock),
+}
+
+struct DeclarationSourceIndex<'a> {
+    remaining: Option<DeclarationSources<'a>>,
+    owners: FxHashMap<*const PropertyDeclaration, &'a PropertyDeclarationBlock>,
+}
+
+impl<'a> DeclarationSourceIndex<'a> {
+    fn new(sources: &DeclarationSources<'a>) -> Self {
+        let remaining = match *sources {
+            DeclarationSources::Rules(rules, guards) => DeclarationSources::Rules(rules, guards),
+            DeclarationSources::Block(block) => DeclarationSources::Block(block),
+        };
+        Self {
+            remaining: Some(remaining),
+            owners: FxHashMap::default(),
+        }
+    }
+
+    fn owner(&mut self, declaration: &PropertyDeclaration) -> &'a PropertyDeclarationBlock {
+        let address = declaration as *const PropertyDeclaration;
+        if let Some(block) = self.owners.get(&address) {
+            return *block;
+        }
+        while let Some(source) = self.remaining.take() {
+            let block = match source {
+                DeclarationSources::Block(block) => Some(block),
+                DeclarationSources::Rules(node, guards) => {
+                    self.remaining = node
+                        .parent()
+                        .map(|parent| DeclarationSources::Rules(parent, guards));
+                    node.style_source().map(|source| {
+                        let guard = node
+                            .cascade_priority()
+                            .cascade_level()
+                            .origin()
+                            .guard(guards);
+                        source.read(guard)
+                    })
+                },
+            };
+            let Some(block) = block else {
+                continue;
+            };
+            let Some(first) = block.declarations().first() else {
+                continue;
+            };
+            if self
+                .owners
+                .contains_key(&(first as *const PropertyDeclaration))
+            {
+                continue;
+            }
+            self.owners.reserve(block.declarations().len());
+            for entry in block.declarations() {
+                self.owners
+                    .insert(entry as *const PropertyDeclaration, block);
+            }
+            if let Some(owner) = self.owners.get(&address) {
+                return *owner;
+            }
+        }
+        panic!("Declaration must belong to an applicable block");
+    }
+}
+
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+struct RuleExclusionPrefix {
+    property: LonghandId,
+    priority: CascadePriority,
+}
+
+impl RuleExclusionPrefix {
+    fn new(property: LonghandId, priority: CascadePriority) -> Self {
+        Self {
+            property,
+            priority: priority.unimportant(),
+        }
+    }
+}
+
+#[derive(Eq, Hash, PartialEq)]
+struct RuleExclusionKey {
+    prefix: RuleExclusionPrefix,
+    block: *const PropertyDeclarationBlock,
+}
+
+struct RuleExclusions<'a> {
+    sources: DeclarationSourceIndex<'a>,
+    prefixes: FxHashSet<RuleExclusionPrefix>,
+    excluded: FxHashSet<RuleExclusionKey>,
+}
+
+impl<'a> RuleExclusions<'a> {
+    #[cold]
+    fn new(sources: &DeclarationSources<'a>) -> Self {
+        Self {
+            sources: DeclarationSourceIndex::new(sources),
+            prefixes: FxHashSet::default(),
+            excluded: FxHashSet::default(),
+        }
+    }
+
+    fn contains(
+        &mut self,
+        property: LonghandId,
+        priority: CascadePriority,
+        declaration: &PropertyDeclaration,
+    ) -> bool {
+        let prefix = RuleExclusionPrefix::new(property, priority);
+        if !self.prefixes.contains(&prefix) {
+            return false;
+        }
+        let block = self.sources.owner(declaration);
+        self.excluded.contains(&RuleExclusionKey { prefix, block })
+    }
+
+    fn insert(
+        &mut self,
+        property: LonghandId,
+        priority: CascadePriority,
+        declaration: &PropertyDeclaration,
+    ) {
+        let block = self.sources.owner(declaration);
+        let prefix = RuleExclusionPrefix::new(property, priority);
+        self.prefixes.insert(prefix);
+        self.excluded.insert(RuleExclusionKey { prefix, block });
+    }
+}
+
 pub(crate) struct Cascade<'a> {
     first_line_reparenting: FirstLineReparenting<'a>,
     stylist: &'a Stylist,
     ignore_colors: bool,
     seen: SeenSet<'a>,
     reverted: RevertedSet,
+    sources: Option<DeclarationSources<'a>>,
+    rule_exclusions: Option<Box<RuleExclusions<'a>>>,
     author_or_user_specified: LonghandIdSet,
     declarations_to_apply_unless_overridden: DeclarationsToApplyUnlessOverriden,
     may_have_custom_property_cycles: bool,
@@ -878,6 +1019,7 @@ impl<'a> Cascade<'a> {
         first_line_reparenting: FirstLineReparenting<'a>,
         stylist: &'a Stylist,
         ignore_colors: bool,
+        sources: DeclarationSources<'a>,
     ) -> Self {
         Self {
             first_line_reparenting,
@@ -886,6 +1028,8 @@ impl<'a> Cascade<'a> {
             seen: Default::default(),
             author_or_user_specified: Default::default(),
             reverted: Default::default(),
+            sources: Some(sources),
+            rule_exclusions: None,
             declarations_to_apply_unless_overridden: Default::default(),
             may_have_custom_property_cycles: false,
             ensured_prioritary: PrioritaryPropertyIdSet::default(),
@@ -903,6 +1047,8 @@ impl<'a> Cascade<'a> {
             seen: Default::default(),
             author_or_user_specified: Default::default(),
             reverted: Default::default(),
+            sources: None,
+            rule_exclusions: None,
             declarations_to_apply_unless_overridden: Default::default(),
             may_have_custom_property_cycles: false,
             ensured_prioritary: PrioritaryPropertyIdSet::default(),
@@ -1156,13 +1302,22 @@ impl<'a> Cascade<'a> {
             return;
         }
 
-        if self.reverted.longhands_set.contains(longhand_id)
-            && let Some(reverted) = self.reverted.longhands.get(&longhand_id)
-            && !reverted.allows(&priority)
-        {
-            return;
+        if self.reverted.longhands_set.contains(longhand_id) {
+            if let Some(reverted) = self.reverted.longhands.get(&longhand_id)
+                && !reverted.allows(&priority)
+            {
+                return;
+            }
+            if self
+                .rule_exclusions
+                .as_mut()
+                .is_some_and(|excluded| excluded.contains(longhand_id, priority, declaration))
+            {
+                return;
+            }
         }
 
+        let original_declaration = declaration;
         let mut declaration =
             self.substitute_variables_if_needed(context, cache, declaration, attribute_tracker);
 
@@ -1184,8 +1339,16 @@ impl<'a> Cascade<'a> {
                     // We intentionally don't want to insert it into
                     // `self.seen.longhands`, `reverted` takes care of rejecting
                     // other declarations as needed.
-                    if revert_kind != RevertKind::Rule {
-                        self.reverted.longhands_set.insert(longhand_id);
+                    self.reverted.longhands_set.insert(longhand_id);
+                    if revert_kind == RevertKind::Rule {
+                        let sources = &self.sources;
+                        let exclusions = self.rule_exclusions.get_or_insert_with(|| {
+                            Box::new(RuleExclusions::new(
+                                sources.as_ref().expect("Longhand cascade needs sources"),
+                            ))
+                        });
+                        exclusions.insert(longhand_id, priority, original_declaration);
+                    } else {
                         self.reverted
                             .longhands
                             .entry(longhand_id)

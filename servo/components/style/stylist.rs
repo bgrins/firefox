@@ -2060,6 +2060,7 @@ impl Stylist {
                     ),
                 )
             }),
+            Some(block),
             Some(parent_style),
             Some(parent_style),
             FirstLineReparenting::No,
