@@ -1,0 +1,193 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -870,53 +870,90 @@
+     Block(&'a PropertyDeclarationBlock),
+ }
+ 
+-type DeclarationSourceIndex<'a> =
+-    FxHashMap<*const PropertyDeclaration, &'a PropertyDeclarationBlock>;
+-
+-impl<'a> DeclarationSources<'a> {
+-    #[cold]
+-    fn index(&self) -> DeclarationSourceIndex<'a> {
+-        let mut index = DeclarationSourceIndex::default();
+-        let mut blocks = FxHashSet::default();
+-        let mut insert_block = |block: &'a PropertyDeclarationBlock| {
+-            if !blocks.insert(block as *const PropertyDeclarationBlock) {
+-                return;
+-            }
+-            index.reserve(block.declarations().len());
+-            for declaration in block.declarations() {
+-                index.insert(declaration as *const PropertyDeclaration, block);
+-            }
++struct DeclarationSourceIndex<'a> {
++    remaining: Option<DeclarationSources<'a>>,
++    owners: FxHashMap<*const PropertyDeclaration, &'a PropertyDeclarationBlock>,
++    blocks: FxHashSet<*const PropertyDeclarationBlock>,
++}
++
++impl<'a> DeclarationSourceIndex<'a> {
++    fn new(sources: &DeclarationSources<'a>) -> Self {
++        let remaining = match *sources {
++            DeclarationSources::Rules(rules, guards) => DeclarationSources::Rules(rules, guards),
++            DeclarationSources::Block(block) => DeclarationSources::Block(block),
+         };
+-        match *self {
+-            Self::Block(block) => insert_block(block),
+-            Self::Rules(rules, guards) => {
+-                let mut node = Some(rules);
+-                while let Some(current) = node {
+-                    if let Some(source) = current.style_source() {
+-                        let guard = current
++        Self {
++            remaining: Some(remaining),
++            owners: FxHashMap::default(),
++            blocks: FxHashSet::default(),
++        }
++    }
++
++    fn owner(&mut self, declaration: &PropertyDeclaration) -> &'a PropertyDeclarationBlock {
++        let address = declaration as *const PropertyDeclaration;
++        if let Some(block) = self.owners.get(&address) {
++            return *block;
++        }
++        while let Some(source) = self.remaining.take() {
++            let block = match source {
++                DeclarationSources::Block(block) => Some(block),
++                DeclarationSources::Rules(node, guards) => {
++                    self.remaining = node
++                        .parent()
++                        .map(|parent| DeclarationSources::Rules(parent, guards));
++                    node.style_source().map(|source| {
++                        let guard = node
+                             .cascade_priority()
+                             .cascade_level()
+                             .origin()
+                             .guard(guards);
+-                        insert_block(source.read(guard));
+-                    }
+-                    node = current.parent();
+-                }
+-            },
+-        }
+-        index
++                        source.read(guard)
++                    })
++                },
++            };
++            let Some(block) = block else {
++                continue;
++            };
++            if !self.blocks.insert(block as *const PropertyDeclarationBlock) {
++                continue;
++            }
++            self.owners.reserve(block.declarations().len());
++            for entry in block.declarations() {
++                self.owners
++                    .insert(entry as *const PropertyDeclaration, block);
++            }
++            if let Some(owner) = self.owners.get(&address) {
++                return *owner;
++            }
++        }
++        panic!("Declaration must belong to an applicable block");
++    }
++}
++
++#[derive(Clone, Copy, Eq, Hash, PartialEq)]
++struct RuleExclusionPrefix {
++    property: LonghandId,
++    priority: CascadePriority,
++}
++
++impl RuleExclusionPrefix {
++    fn new(property: LonghandId, priority: CascadePriority) -> Self {
++        Self {
++            property,
++            priority: priority.unimportant(),
++        }
+     }
+ }
+ 
+ #[derive(Eq, Hash, PartialEq)]
+ struct RuleExclusionKey {
+-    property: LonghandId,
+-    priority: CascadePriority,
++    prefix: RuleExclusionPrefix,
+     block: *const PropertyDeclarationBlock,
+ }
+ 
+ struct RuleExclusions<'a> {
+     sources: DeclarationSourceIndex<'a>,
++    prefixes: FxHashSet<RuleExclusionPrefix>,
+     excluded: FxHashSet<RuleExclusionKey>,
+ }
+ 
+@@ -924,36 +961,24 @@
+     #[cold]
+     fn new(sources: &DeclarationSources<'a>) -> Self {
+         Self {
+-            sources: sources.index(),
++            sources: DeclarationSourceIndex::new(sources),
++            prefixes: FxHashSet::default(),
+             excluded: FxHashSet::default(),
+         }
+     }
+ 
+-    fn key(
+-        &self,
+-        property: LonghandId,
+-        priority: CascadePriority,
+-        declaration: &PropertyDeclaration,
+-    ) -> RuleExclusionKey {
+-        let block = *self
+-            .sources
+-            .get(&(declaration as *const PropertyDeclaration))
+-            .expect("Declaration must belong to an applicable block");
+-        RuleExclusionKey {
+-            property,
+-            priority: priority.unimportant(),
+-            block,
+-        }
+-    }
+-
+     fn contains(
+-        &self,
++        &mut self,
+         property: LonghandId,
+         priority: CascadePriority,
+         declaration: &PropertyDeclaration,
+     ) -> bool {
+-        self.excluded
+-            .contains(&self.key(property, priority, declaration))
++        let prefix = RuleExclusionPrefix::new(property, priority);
++        if !self.prefixes.contains(&prefix) {
++            return false;
++        }
++        let block = self.sources.owner(declaration);
++        self.excluded.contains(&RuleExclusionKey { prefix, block })
+     }
+ 
+     fn insert(
+@@ -962,8 +987,10 @@
+         priority: CascadePriority,
+         declaration: &PropertyDeclaration,
+     ) {
+-        let key = self.key(property, priority, declaration);
+-        self.excluded.insert(key);
++        let block = self.sources.owner(declaration);
++        let prefix = RuleExclusionPrefix::new(property, priority);
++        self.prefixes.insert(prefix);
++        self.excluded.insert(RuleExclusionKey { prefix, block });
+     }
+ }
+ 
+@@ -1279,7 +1306,7 @@
+             }
+             if self
+                 .rule_exclusions
+-                .as_ref()
++                .as_mut()
+                 .is_some_and(|excluded| excluded.contains(longhand_id, priority, declaration))
+             {
+                 return;

@@ -1,0 +1,80 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -875,6 +875,69 @@
+ 
+ impl<'a> DeclarationSources<'a> {
+     #[cold]
++    fn trace_occurrences(&self) {
++        if std::env::var_os("CSS_OCCURRENCE_TRACE").is_none() {
++            return;
++        }
++        use std::sync::atomic::{AtomicUsize, Ordering};
++        static NEXT: AtomicUsize = AtomicUsize::new(0);
++        let call = NEXT.fetch_add(1, Ordering::Relaxed);
++        let pid = std::process::id();
++        if call >= 128 {
++            if call == 128 {
++                eprintln!("CSS_OCCURRENCE_NATIVE_V1 pid={pid} event=call-cap limit=128");
++            }
++            return;
++        }
++        let emit = |ordinal: usize, block: &PropertyDeclarationBlock| {
++            for (entry, declaration) in block.declarations().iter().enumerate().take(8) {
++                eprintln!(
++                    "CSS_OCCURRENCE_NATIVE_V1 pid={pid} call={call} event=entry node={ordinal} entry={entry} block={block:p} declaration={declaration:p} property={:?}",
++                    declaration.id(),
++                );
++            }
++            if block.declarations().len() > 8 {
++                eprintln!(
++                    "CSS_OCCURRENCE_NATIVE_V1 pid={pid} call={call} event=entry-cap node={ordinal} limit=8"
++                );
++            }
++        };
++        match *self {
++            Self::Block(block) => {
++                eprintln!(
++                    "CSS_OCCURRENCE_NATIVE_V1 pid={pid} call={call} event=direct block={block:p}"
++                );
++                emit(0, block);
++            },
++            Self::Rules(rules, guards) => {
++                let mut node = Some(rules);
++                let mut ordinal = 0;
++                while let Some(current) = node {
++                    if ordinal == 64 {
++                        eprintln!(
++                            "CSS_OCCURRENCE_NATIVE_V1 pid={pid} call={call} event=node-cap limit=64"
++                        );
++                        return;
++                    }
++                    if let Some(source) = current.style_source() {
++                        let priority = current.cascade_priority();
++                        let guard = priority.cascade_level().origin().guard(guards);
++                        let block = source.read(guard);
++                        eprintln!(
++                            "CSS_OCCURRENCE_NATIVE_V1 pid={pid} call={call} event=source node={ordinal} block={block:p} priority={priority:?} normalized={:?}",
++                            priority.unimportant(),
++                        );
++                        emit(ordinal, block);
++                    }
++                    ordinal += 1;
++                    node = current.parent();
++                }
++            },
++        }
++        eprintln!("CSS_OCCURRENCE_NATIVE_V1 pid={pid} call={call} event=end");
++    }
++
++    #[cold]
+     fn index(&self) -> DeclarationSourceIndex<'a> {
+         let mut index = DeclarationSourceIndex::default();
+         let mut blocks = FxHashSet::default();
+@@ -923,6 +986,7 @@
+ impl<'a> RuleExclusions<'a> {
+     #[cold]
+     fn new(sources: &DeclarationSources<'a>) -> Self {
++        sources.trace_occurrences();
+         Self {
+             sources: sources.index(),
+             excluded: FxHashSet::default(),
