@@ -1,0 +1,9 @@
+# Incremental C reversible owner
+
+Disabled; no live source/build/browser/index mutations performed. This retains the indexed owner's backup, bounded build, process-registry guard and restore-before-validation behavior. It overlays only cascade.rs/stylist.rs from exact incremental-C captures; applicable_declarations stays unchanged context and committed ArcSlice bodies remain pinned. The combined wrapper requires correctness190, unchanged controls, optional occurrence fixtures, and two repetitions each of the long-chain/single-trigger workloads. No timing threshold or adoption is encoded.
+
+Owner changes check both pinned baseline timing observations instead of one and explicitly require safe_to_continue with completion/validation after restoration. Completed baseline build revision remains2d867; expected harness/candidate HEAD is1af646 until root updates it after further research commits. An ancestor check plus every intervening/net changed path under artifacts/ permits artifact-only commits without inventing a new baseline build. All six source pins and three baseline binary hashes stay exact.
+
+Root must inspect catalog, source captures and disabled CONFIG, update expected_head after commits, and activate with an exact CONFIG hash. Missing occurrence package may be added only by sealing its catalog entry and resealing the adapter/CONFIG before execution. Final audit covers build/wake, correctness, controls, optional occurrence, long_timing/repeat-1/2 and single_timing/repeat-1/2. A failed/partial run needs an audit scoped to the actual launched receipts. A fresh baseline after restoration is needed before interpreting resumed timings as a comparison.
+
+Preparation initially inherited historical timing evidence. Root owns replacing baseline_observations/evidence with fresh incremental-long-a1-v1 and incremental-single-a1-v1 terminal records before activation. Do not treat inherited overnight runs as the resumed comparison baseline.

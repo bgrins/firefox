@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Canvas font rejection preserves state around revert-rule</title>
+<link rel="help" href="https://html.spec.whatwg.org/multipage/canvas.html#dom-context-2d-font">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-rule-keyword">
+<meta name="assert" content="Supplementary safety diagnostic: rejected literal and substituted canvas font values preserve the previous font and leave the context usable.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+window.canvasFontObservations = [];
+
+const cases = [
+  ["literal", "Canvas font literal revert-rule preserves the previous font"],
+  ["substituted", "Canvas font substituted revert-rule preserves the previous font and remains usable"],
+];
+
+for (const [index, [kind, name]] of cases.entries()) {
+  test(t => {
+    assert_implements(CSS.supports("font-size", "revert-rule"), "Rule rollback support is required");
+    const canvas = document.createElement("canvas");
+    document.body.append(canvas);
+    t.add_cleanup(() => canvas.remove());
+    assert_true(canvas.isConnected, "Use a connected main-thread canvas");
+    const context = canvas.getContext("2d");
+    assert_not_equals(context, null, "A 2D context is available");
+    const missing = `--cold-canvas-missing-${index}`;
+    assert_equals(getComputedStyle(canvas).getPropertyValue(missing), "", "The fresh custom property is absent");
+    context.font = "17px serif";
+    const before = context.font;
+    assert_equals(before, "17px serif", "The valid initial font was accepted");
+    const value = kind === "literal" ? "revert-rule" : `var(${missing}, revert-rule)`;
+    const observation = {kind, value, before, phase: "assigning"};
+    window.canvasFontObservations.push(observation);
+
+    context.font = value;
+    observation.after = context.font;
+    observation.phase = "returned";
+    context.font = "19px monospace";
+    observation.usable = context.font;
+    observation.phase = "complete";
+
+    assert_equals(observation.after, before, "The rejected value preserves the previous font");
+    assert_equals(observation.usable, "19px monospace", "A later valid font is accepted");
+  }, name);
+}
+</script>
