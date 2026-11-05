@@ -1,0 +1,33 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -873,7 +873,6 @@
+ struct DeclarationSourceIndex<'a> {
+     remaining: Option<DeclarationSources<'a>>,
+     owners: FxHashMap<*const PropertyDeclaration, &'a PropertyDeclarationBlock>,
+-    blocks: FxHashSet<*const PropertyDeclarationBlock>,
+ }
+ 
+ impl<'a> DeclarationSourceIndex<'a> {
+@@ -885,7 +884,6 @@
+         Self {
+             remaining: Some(remaining),
+             owners: FxHashMap::default(),
+-            blocks: FxHashSet::default(),
+         }
+     }
+ 
+@@ -914,7 +912,13 @@
+             let Some(block) = block else {
+                 continue;
+             };
+-            if !self.blocks.insert(block as *const PropertyDeclarationBlock) {
++            let Some(first) = block.declarations().first() else {
++                continue;
++            };
++            if self
++                .owners
++                .contains_key(&(first as *const PropertyDeclaration))
++            {
+                 continue;
+             }
+             self.owners.reserve(block.declarations().len());

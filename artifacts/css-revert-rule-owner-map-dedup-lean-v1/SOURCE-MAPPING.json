@@ -1,0 +1,19 @@
+{
+  "candidate": {
+    "path": "artifacts/css-revert-rule-owner-map-dedup-candidate-v1/candidate/servo/components/style/properties/cascade.rs",
+    "sha256": "cac13ba7ff2bbdfd54b906d7854a8ba703c2b013770ed4d121eb6b16af1bed6e",
+    "excerpt": "struct DeclarationSourceIndex<'a> {\n    remaining: Option<DeclarationSources<'a>>,\n    owners: FxHashMap<*const PropertyDeclaration, &'a PropertyDeclarationBlock>,\n}\n\nimpl<'a> DeclarationSourceIndex<'a> {\n    fn new(sources: &DeclarationSources<'a>) -> Self {\n        let remaining = match *sources {\n            DeclarationSources::Rules(rules, guards) => DeclarationSources::Rules(rules, guards),\n            DeclarationSources::Block(block) => DeclarationSources::Block(block),\n        };\n        Self {\n            remaining: Some(remaining),\n            owners: FxHashMap::default(),\n        }\n    }\n\n    fn owner(&mut self, declaration: &PropertyDeclaration) -> &'a PropertyDeclarationBlock {\n        let address = declaration as *const PropertyDeclaration;\n        if let Some(block) = self.owners.get(&address) {\n            return *block;\n        }\n        while let Some(source) = self.remaining.take() {\n            let block = match source {\n                DeclarationSources::Block(block) => Some(block),\n                DeclarationSources::Rules(node, guards) => {\n                    self.remaining = node\n                        .parent()\n                        .map(|parent| DeclarationSources::Rules(parent, guards));\n                    node.style_source().map(|source| {\n                        let guard = node\n                            .cascade_priority()\n                            .cascade_level()\n                            .origin()\n                            .guard(guards);\n                        source.read(guard)\n                    })\n                },\n            };\n            let Some(block) = block else {\n                continue;\n            };\n            let Some(first) = block.declarations().first() else {\n                continue;\n            };\n            if self\n                .owners\n                .contains_key(&(first as *const PropertyDeclaration))\n            {\n                continue;\n            }\n            self.owners.reserve(block.declarations().len());\n            for entry in block.declarations() {\n                self.owners\n                    .insert(entry as *const PropertyDeclaration, block);\n            }\n            if let Some(owner) = self.owners.get(&address) {\n                return *owner;\n            }\n        }\n        panic!(\"Declaration must belong to an applicable block\");\n    }\n}\n\n"
+  },
+  "baseline": {
+    "path": "artifacts/css-revert-rule-incremental-index-candidate-v1/candidate/servo/components/style/properties/cascade.rs",
+    "sha256": "d32913bd213ebaf1e5bbff4ed7117ec8af0003990807f6a3f2c3f5ed7ded41f1"
+  },
+  "native_to_model": {
+    "remaining take/parent advancement": "ownerScan consumes node before visitOwners, including source-less and empty nodes",
+    "owners.contains_key(first_original_address)": "Option.isSome on owners first; hashmap get/contains contract explicit",
+    "whole-block insertion": "unchanged IndexedExclusions.insertEntries",
+    "removed blocks field": "erase discards reference Cursor.seen; no empty-block membership is claimed representable",
+    "prefix/full key/check callsites": "candidate unchanged; ownerCheck transfers same prefix gate and key membership",
+    "all histories": "arbitrary_history_equivalence equates erased reference state and optimized state"
+  }
+}

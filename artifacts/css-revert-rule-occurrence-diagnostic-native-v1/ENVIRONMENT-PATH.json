@@ -1,0 +1,38 @@
+{
+  "revision": "3c2e1969bcc7f134ba7b009772909bd717d8d541",
+  "files": [
+    {
+      "path": "testing/web-platform/tests/tools/wptrunner/wptrunner/browsers/firefox.py",
+      "sha256": "44d106e125c0012b8b7cd4afb34d89c68ca4187f43fdf5ff8518da80cffcd54e",
+      "excerpts": [
+        {
+          "name": "get_environ",
+          "text": "def get_environ(logger, binary, debug_info, headless, gmp_path, chaos_mode_flags=None, e10s=True):\n    # Hack: test_environment expects a bin_suffix key in mozinfo that in gecko infrastructure\n    # is set in the build system. Set it manually here.\n    if \"bin_suffix\" not in mozinfo.info:\n        mozinfo.info[\"bin_suffix\"] = (\".exe\" if sys.platform in [\"win32\", \"msys\", \"cygwin\"]\n                                      else \"\")\n\n    # test_environment has started returning None values for some environment variables\n    # that are only set in a gecko checkout\n    env = {key: value for key, value in\n           test_environment(xrePath=os.path.abspath(os.path.dirname(binary)),\n                            debugger=debug_info is not None,\n                            useLSan=True,\n                            log=logger).items()\n           if value is not None}\n\n    if gmp_path is not None:\n        env[\"MOZ_GMP_PATH\"] = gmp_path\n    # Disable window occlusion. Bug 1733955\n    env[\"MOZ_WINDOW_OCCLUSION\"] = \"0\"\n    if chaos_mode_flags is not None:\n        env[\"MOZ_CHAOSMODE\"] = hex(chaos_mode_flags)\n    if headless:\n        env[\"MOZ_HEADLESS\"] = \"1\"\n    if not e10s:\n        env[\"MOZ_FORCE_DISABLE_E10S\"] = \"1\"\n    return env\n\n\ndef setup_leak_report(leak_check, profile, env):\n    leak_report_file = None\n    if leak_check:\n        filename = \"runtests_leaks_%s.log\" % os.getpid()\n        if profile is not None:\n            leak_report_file = os.path.join(profile.profile, filename)\n        else:\n            leak_report_file = os.path.join(tempfile.gettempdir(), filename)\n        if os.path.exists(leak_report_file):\n            os.remove(leak_report_file)\n        env[\"XPCOM_MEM_BLOAT_LOG\"] = leak_report_file\n\n    return leak_report_file\n\n\nclass FirefoxInstanceManager:\n    __metaclass__ ="
+        },
+        {
+          "name": "FirefoxRunner",
+          "text": "runner = FirefoxRunner(profile=profile,\n                               binary=cmd[0],\n                               cmdargs=cmd[1:],\n                               env=env,\n                               process_class=ProcessHandler,\n                               process_args={\"processOutputLine\": [output_handler]})\n        instance = BrowserInstance(self.logger, runner, marionette_port,\n                                   output_handler, leak_report_file)\n\n        self.logger.debug(\"Starting F"
+        }
+      ]
+    },
+    {
+      "path": "testing/mozbase/mozrunner/mozrunner/utils.py",
+      "sha256": "a73523a3420ad32d679d5e941979fa91a41542802481d53a474de338f8f26680",
+      "excerpts": [
+        {
+          "name": "test_environment",
+          "text": "def test_environment(\n    xrePath, env=None, crashreporter=True, debugger=False, useLSan=False, log=None\n):\n    \"\"\"\n    populate OS environment variables for mochitest and reftests.\n\n    Originally comes from automationutils.py. Don't use that for new code.\n    \"\"\"\n\n    env = os.environ.copy() if env is None else env\n    log = log or _raw_log()\n\n    assert os.path.isabs(xrePath)\n\n    if mozinfo.isMac:\n        ldLibraryPath = os.path.join(os.path.dirname(xrePath), \"MacOS\")\n    else:\n        ldLibraryPath = xrePath\n\n    envVar = None\n    if mozinfo.isLinux:\n        envVar = \"LD_LIBRARY_PATH\"\n    elif mozinfo.isMac:\n        envVar = \"DYLD_LIBRARY_PATH\"\n    elif mozinfo.isWin:\n        envVar = \"PATH\"\n    if envVar:\n        envValue = (\n            (env.get(envVar), str(ldLibraryPath))\n            if mozinfo.isWin\n            else (ldLibraryPath, env.get(envVar))\n        )\n        env[envVar] = os.path.pathsep.join([path for path in envValue if path])\n\n    # Allow non-packaged builds to access symlinked modules in the source dir\n    env[\"MOZ_DEVELOPER_REPO_DIR\"] = mozinfo.info.get(\"topsrcdir\")\n    env[\"MOZ_DEVELOPER_OBJ_DIR\"] = mozinfo.info.get(\"topobjdir\")\n\n    # crashreporter\n    env[\"GNOME_DISABLE_CRASH_DIALOG\"] = \"1\"\n    env[\"XRE_NO_WINDOWS_CRASH_DIALOG\"] = \"1\"\n\n    if crashreporter and not debugger:\n        env[\"MOZ_CRASHREPORTER_NO_REPORT\"] = \"1\"\n        env[\"MOZ_CRASHREPORTER\"] = \"1\"\n        env[\"MOZ_CRASHREPORTER_SHUTDOWN\"] = \"1\"\n    else:\n        env[\"MOZ_CRASHREPORTER_DISABLE\"] = \"1\"\n\n    # Crash on non-local network connections by default.\n    # MOZ_DISABLE_NONLOCAL_CONNECTIONS can be set to \"0\" to temporarily\n    # enable non-local connections for the purposes of local testing.  Don't\n    # override the user's choice here.  See bug 1049688.\n    env.setdefault(\"MOZ_DISABLE_NONLOCAL_CONNECTIONS\", \"1\")\n\n    # Only enable verbose WebRTC logging in CI.\n    if \"MOZ_AUTOMATION\" in os.environ:\n        env.setdefault(\"MOZ_LOG\", \"signaling:3,mtransport:4,DataChannel:3,jsep:4\")\n        env.setdefault(\"R_LOG_LEVEL\", \"6\")\n        env.setdefault(\"R_LOG_DESTINATION\", \"stderr\")\n        env.setdefault(\"R_LOG_VERBOSE\", \"1\")\n\n    # Ask NSS to use lower-security password enc"
+        }
+      ]
+    }
+  ],
+  "path": [
+    "browser/occurrence.py constructs phase_env with CSS_OCCURRENCE_TRACE=1",
+    "subprocess.Popen starts mach wpt with phase_env",
+    "Firefox get_environ calls mozrunner.test_environment",
+    "test_environment copies os.environ by default",
+    "get_environ filters only None values and sets its other defaults",
+    "FirefoxRunner receives resulting env"
+  ],
+  "actual_browser_probe": "Retained native diagnostic records required separately; setting a subprocess environment is not itself runtime evidence"
+}
