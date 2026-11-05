@@ -1,0 +1,164 @@
+@@ -21,8 +21,8 @@
+ use crate::properties::{
+     CASCADE_PROPERTY, CSSWideKeyword, ComputedValues, DeclarationImportanceIterator, LonghandId,
+     LonghandIdSet, PrioritaryPropertyId, PrioritaryPropertyIdSet, PropertyDeclaration,
+-    PropertyDeclarationId, PropertyFlags, PropertyIdRef, ShorthandsWithPropertyReferencesCache,
+-    StyleBuilder, property_counts,
++    PropertyDeclarationBlock, PropertyDeclarationId, PropertyFlags, PropertyIdRef,
++    ShorthandsWithPropertyReferencesCache, StyleBuilder, property_counts,
+ };
+ use crate::properties::{CustomDeclaration, CustomDeclarationValue, UnparsedValue};
+ use crate::properties_and_values::rule::Descriptors as PropertyDescriptors;
+@@ -42,7 +42,7 @@
+ use crate::values::specified::length::FontBaseSize;
+ use crate::values::specified::position::PositionTryFallbacksTryTactic;
+ use crate::values::{computed, specified};
+-use crate::{FxHashMap, Namespace};
++use crate::{FxHashMap, FxHashSet, Namespace};
+ use hashbrown::hash_map::{Entry, EntryRef};
+ use selectors::matching::ElementSelectorFlags;
+ use servo_arc::Arc;
+@@ -858,12 +864,143 @@
+ 
+ type NonCustomPropertyReferences = NonCustomReferenceMap<Vec<(LonghandId, Arc<UnparsedValue>)>>;
+ 
++enum DeclarationSources<'a> {
++    Rules(&'a StrongRuleNode, &'a StylesheetGuards<'a>),
++    Block(&'a PropertyDeclarationBlock),
++}
++
++struct DeclarationSourceIndex<'a> {
++    remaining: Option<DeclarationSources<'a>>,
++    owners: FxHashMap<*const PropertyDeclaration, &'a PropertyDeclarationBlock>,
++    blocks: FxHashSet<*const PropertyDeclarationBlock>,
++}
++
++impl<'a> DeclarationSourceIndex<'a> {
++    fn new(sources: &DeclarationSources<'a>) -> Self {
++        let remaining = match *sources {
++            DeclarationSources::Rules(rules, guards) => DeclarationSources::Rules(rules, guards),
++            DeclarationSources::Block(block) => DeclarationSources::Block(block),
++        };
++        Self {
++            remaining: Some(remaining),
++            owners: FxHashMap::default(),
++            blocks: FxHashSet::default(),
++        }
++    }
++
++    fn owner(&mut self, declaration: &PropertyDeclaration) -> &'a PropertyDeclarationBlock {
++        let address = declaration as *const PropertyDeclaration;
++        if let Some(block) = self.owners.get(&address) {
++            return *block;
++        }
++        while let Some(source) = self.remaining.take() {
++            let block = match source {
++                DeclarationSources::Block(block) => Some(block),
++                DeclarationSources::Rules(node, guards) => {
++                    self.remaining = node
++                        .parent()
++                        .map(|parent| DeclarationSources::Rules(parent, guards));
++                    node.style_source().map(|source| {
++                        let guard = node
++                            .cascade_priority()
++                            .cascade_level()
++                            .origin()
++                            .guard(guards);
++                        source.read(guard)
++                    })
++                },
++            };
++            let Some(block) = block else {
++                continue;
++            };
++            if !self.blocks.insert(block as *const PropertyDeclarationBlock) {
++                continue;
++            }
++            self.owners.reserve(block.declarations().len());
++            for entry in block.declarations() {
++                self.owners
++                    .insert(entry as *const PropertyDeclaration, block);
++            }
++            if let Some(owner) = self.owners.get(&address) {
++                return *owner;
++            }
++        }
++        panic!("Declaration must belong to an applicable block");
++    }
++}
++
++#[derive(Clone, Copy, Eq, Hash, PartialEq)]
++struct RuleExclusionPrefix {
++    property: LonghandId,
++    priority: CascadePriority,
++}
++
++impl RuleExclusionPrefix {
++    fn new(property: LonghandId, priority: CascadePriority) -> Self {
++        Self {
++            property,
++            priority: priority.unimportant(),
++        }
++    }
++}
++
++#[derive(Eq, Hash, PartialEq)]
++struct RuleExclusionKey {
++    prefix: RuleExclusionPrefix,
++    block: *const PropertyDeclarationBlock,
++}
++
++struct RuleExclusions<'a> {
++    sources: DeclarationSourceIndex<'a>,
++    prefixes: FxHashSet<RuleExclusionPrefix>,
++    excluded: FxHashSet<RuleExclusionKey>,
++}
++
++impl<'a> RuleExclusions<'a> {
++    #[cold]
++    fn new(sources: &DeclarationSources<'a>) -> Self {
++        Self {
++            sources: DeclarationSourceIndex::new(sources),
++            prefixes: FxHashSet::default(),
++            excluded: FxHashSet::default(),
++        }
++    }
++
++    fn contains(
++        &mut self,
++        property: LonghandId,
++        priority: CascadePriority,
++        declaration: &PropertyDeclaration,
++    ) -> bool {
++        let prefix = RuleExclusionPrefix::new(property, priority);
++        if !self.prefixes.contains(&prefix) {
++            return false;
++        }
++        let block = self.sources.owner(declaration);
++        self.excluded.contains(&RuleExclusionKey { prefix, block })
++    }
++
++    fn insert(
++        &mut self,
++        property: LonghandId,
++        priority: CascadePriority,
++        declaration: &PropertyDeclaration,
++    ) {
++        let block = self.sources.owner(declaration);
++        let prefix = RuleExclusionPrefix::new(property, priority);
++        self.prefixes.insert(prefix);
++        self.excluded.insert(RuleExclusionKey { prefix, block });
++    }
++}
++
+ pub(crate) struct Cascade<'a> {
+     first_line_reparenting: FirstLineReparenting<'a>,
+     stylist: &'a Stylist,
+     ignore_colors: bool,
+     seen: SeenSet<'a>,
+     reverted: RevertedSet,
++    sources: Option<DeclarationSources<'a>>,
++    rule_exclusions: Option<Box<RuleExclusions<'a>>>,
+     author_or_user_specified: LonghandIdSet,
+     declarations_to_apply_unless_overridden: DeclarationsToApplyUnlessOverriden,
+     may_have_custom_property_cycles: bool,
