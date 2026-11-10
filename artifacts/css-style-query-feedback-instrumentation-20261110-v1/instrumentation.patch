@@ -1,0 +1,241 @@
+--- a/dom/animation/Animation.h
++++ b/dom/animation/Animation.h
+@@ -58,6 +58,20 @@
+ 
+ namespace dom {
+ 
++bool CSSFeedbackTracing();
++void CSSFeedbackLog(const char* aEvent, const void* aObject,
++                    const char* aFormat, ...);
++class CSSFeedbackScope {
++ public:
++  CSSFeedbackScope(const char* aEvent, const void* aObject, bool aStyle = false);
++  ~CSSFeedbackScope();
++ private:
++  const char* mEvent;
++  const void* mObject;
++  bool mStyle;
++  unsigned long long mOldCall = 0;
++};
++
+ class AnimationEffect;
+ class AsyncFinishNotification;
+ class CSSAnimation;
+@@ -90,6 +104,8 @@
+   };
+ 
+   explicit Animation(nsIGlobalObject* aGlobal);
++  void TraceCSSFeedback(const char* aEvent,
++                        const AnimationTimeline* aNext = nullptr) const;
+ 
+   // Constructs a copy of |aOther| with a new effect and timeline.
+   // This is only intended to be used while making a static clone of a document
+--- a/dom/animation/Animation.cpp
++++ b/dom/animation/Animation.cpp
+@@ -3,6 +3,11 @@
+  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ 
+ #include "Animation.h"
++#include <cstdarg>
++#include <cstdio>
++#include <cstdlib>
++#include <unistd.h>
++#include "mozilla/ScopeExit.h"
+ 
+ #include "AnimationUtils.h"
+ #include "mozAutoDocUpdate.h"
+@@ -37,6 +42,86 @@
+ 
+ namespace mozilla::dom {
+ 
++static unsigned long long sFeedbackSequence = 0;
++static unsigned long long sFeedbackCallSequence = 0;
++static unsigned long long sFeedbackStyleCall = 0;
++static unsigned sFeedbackStyleDepth = 0;
++
++bool CSSFeedbackTracing() {
++  static const bool enabled = std::getenv("MOZ_CSS_FEEDBACK_TRACE") != nullptr;
++  if (enabled) {
++    MOZ_ASSERT(NS_IsMainThread());
++  }
++  return enabled;
++}
++
++void CSSFeedbackLog(const char* aEvent, const void* aObject,
++                    const char* aFormat, ...) {
++  if (!CSSFeedbackTracing() || sFeedbackSequence > 20000) {
++    return;
++  }
++  const auto sequence = ++sFeedbackSequence;
++  if (sequence == 20001) {
++    std::fprintf(stderr, "CSSFB pid=%ld seq=%llu event=cap limit=20000\n",
++                 static_cast<long>(getpid()), sequence);
++    return;
++  }
++  std::fprintf(stderr,
++               "CSSFB pid=%ld seq=%llu style_call=%llu style_depth=%u event=%s object=%p ",
++               static_cast<long>(getpid()), sequence, sFeedbackStyleCall,
++               sFeedbackStyleDepth, aEvent, aObject);
++  va_list args;
++  va_start(args, aFormat);
++  std::vfprintf(stderr, aFormat, args);
++  va_end(args);
++  std::fputc('\n', stderr);
++}
++
++CSSFeedbackScope::CSSFeedbackScope(const char* aEvent, const void* aObject,
++                                   bool aStyle)
++    : mEvent(aEvent), mObject(aObject), mStyle(aStyle) {
++  if (!CSSFeedbackTracing()) {
++    return;
++  }
++  if (mStyle) {
++    mOldCall = sFeedbackStyleCall;
++    sFeedbackStyleCall = ++sFeedbackCallSequence;
++    ++sFeedbackStyleDepth;
++  }
++  CSSFeedbackLog(mEvent, mObject, "edge=enter");
++}
++
++CSSFeedbackScope::~CSSFeedbackScope() {
++  if (!CSSFeedbackTracing()) {
++    return;
++  }
++  CSSFeedbackLog(mEvent, mObject, "edge=exit");
++  if (mStyle) {
++    --sFeedbackStyleDepth;
++    sFeedbackStyleCall = mOldCall;
++  }
++}
++
++void Animation::TraceCSSFeedback(const char* aEvent,
++                                  const AnimationTimeline* aNext) const {
++  if (!CSSFeedbackTracing() || !AsCSSAnimation()) {
++    return;
++  }
++  const auto target = GetTargetForAnimation();
++  if (!target || !target.mElement->GetID() ||
++      !target.mElement->GetID()->Equals(u"outside", 7)) {
++    return;
++  }
++  CSSFeedbackLog(aEvent, this,
++      "animation_index=%llu target=%p document=%p timeline=%p next=%p start_null=%d hold_null=%d pending=%u auto_align=%d rate=%.17g",
++      static_cast<unsigned long long>(mAnimationIndex),
++      static_cast<const void*>(target.mElement),
++      static_cast<const void*>(target.mElement->OwnerDoc()),
++      static_cast<const void*>(mTimeline.get()), static_cast<const void*>(aNext),
++      int(mStartTime.IsNull()), int(mHoldTime.IsNull()), unsigned(mPendingState),
++      int(mAutoAlignStartTime), mPlaybackRate);
++}
++
+ // Static members
+ uint64_t Animation::sNextAnimationIndex = 0;
+ 
+@@ -321,6 +406,8 @@
+ bool Animation::SetTimelineNoUpdate(AnimationTimeline* aTimeline,
+                                     const ScopedTimelineName& aTimelineName,
+                                     FromJS aFromJS) {
++  TraceCSSFeedback("rebind.enter", aTimeline);
++  auto feedbackExit = MakeScopeExit([&] { TraceCSSFeedback("rebind.exit", aTimeline); });
+   if (aFromJS == FromJS::No &&
+       (PropertiesOverridenByJS() & CSSAnimationProperties::Timeline)) {
+     return false;
+@@ -1301,6 +1388,8 @@
+ // ---------------------------------------------------------------------------
+ 
+ void Animation::Tick(AnimationTimeline::TickState& aTickState) {
++  TraceCSSFeedback("tick.enter");
++  auto feedbackExit = MakeScopeExit([&] { TraceCSSFeedback("tick.exit"); });
+   MakeReadyAndMaybeTrigger();
+   UpdateTiming(SeekFlag::NoSeek, SyncNotifyFlag::Sync);
+ 
+@@ -1325,6 +1414,8 @@
+ }
+ 
+ bool Animation::MakeReadyAndMaybeTrigger() {
++  TraceCSSFeedback("ready.enter");
++  auto feedbackExit = MakeScopeExit([&] { TraceCSSFeedback("ready.exit"); });
+   // FIXME: We probably need to do this only if the timeline data or range is
+   // changed. For now we always call the procedure per spec.
+   AutoAlignStartTime();
+@@ -1346,6 +1437,8 @@
+ }
+ 
+ bool Animation::TryTriggerNow() {
++  TraceCSSFeedback("trigger.enter");
++  auto feedbackExit = MakeScopeExit([&] { TraceCSSFeedback("trigger.exit"); });
+   if (!Pending()) {
+     return true;
+   }
+@@ -2425,6 +2518,8 @@
+ // https://drafts.csswg.org/scroll-animations-1/#event-loop
+ // https://drafts.csswg.org/web-animations-2/#auto-aligning-start-time
+ void Animation::AutoAlignStartTime() {
++  TraceCSSFeedback("align.enter");
++  auto feedbackExit = MakeScopeExit([&] { TraceCSSFeedback("align.exit"); });
+   // If the auto-align start time flag is false, abort this procedure.
+   if (!mAutoAlignStartTime) {
+     return;
+--- a/dom/animation/ScrollTimeline.cpp
++++ b/dom/animation/ScrollTimeline.cpp
+@@ -13,6 +13,7 @@
+ #include "mozilla/ServoStyleConsts.h"
+ #include "mozilla/StaticPrefs_layout.h"
+ #include "mozilla/dom/Animation.h"
++#include "mozilla/ScopeExit.h"
+ #include "mozilla/dom/AnimationTimelinesController.h"
+ #include "mozilla/dom/CSSNumericValueBinding.h"
+ #include "mozilla/dom/CSSUnitValue.h"
+@@ -257,6 +258,7 @@
+ }
+ 
+ void ScrollTimeline::WillRefresh() {
++  CSSFeedbackScope feedbackScope("refresh", this);
+   UpdateCachedCurrentTime();
+ 
+   if (!mDocument->GetPresShell()) {
+@@ -277,6 +279,7 @@
+ }
+ 
+ bool ScrollTimeline::UpdateIfStale() {
++  CSSFeedbackScope feedbackScope("stale", this);
+   // The scroll timeline may be stale if there are any updates in
+   // RenderingPhase::AnimationFrameCallbacks and RenderingPhase::Layout.
+   // We have to check if the ranges are still valid.
+@@ -399,6 +402,18 @@
+ ScrollTimeline::~ScrollTimeline() { Teardown(); }
+ 
+ bool ScrollTimeline::UpdateCachedCurrentTime() {
++  CSSFeedbackLog("cache.enter", this, "document=%p source=%p cached=%d",
++                 static_cast<const void*>(mDocument.get()),
++                 mCachedStateSnapshot ? static_cast<const void*>(mCachedStateSnapshot->SourceElement()) : nullptr,
++                 int(bool(mCachedCurrentTime)));
++  auto feedbackExit = MakeScopeExit([&] {
++    CSSFeedbackLog("cache.exit", this, "document=%p source=%p cached=%d position=%lld range=%lld",
++                   static_cast<const void*>(mDocument.get()),
++                   mCachedStateSnapshot ? static_cast<const void*>(mCachedStateSnapshot->SourceElement()) : nullptr,
++                   int(bool(mCachedCurrentTime)),
++                   mCachedCurrentTime ? static_cast<long long>(mCachedCurrentTime->mPosition) : 0,
++                   mCachedCurrentTime ? static_cast<long long>(mCachedCurrentTime->mMaxScrollOffset) : 0);
++  });
+   const auto prevCachedCurrentTime = std::move(mCachedCurrentTime);
+ 
+   mCachedCurrentTime.reset();
+--- a/layout/style/ServoStyleSet.cpp
++++ b/layout/style/ServoStyleSet.cpp
+@@ -3,6 +3,7 @@
+  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ 
+ #include "mozilla/ServoStyleSet.h"
++#include "mozilla/dom/Animation.h"
+ 
+ #include "COLRFonts.h"
+ #include "PseudoStyleType.h"
+@@ -802,6 +803,7 @@
+ }
+ 
+ bool ServoStyleSet::StyleDocument(ServoTraversalFlags aFlags) {
++  dom::CSSFeedbackScope feedbackScope("style", mDocument, true);
+   AUTO_PROFILER_LABEL_CATEGORY_PAIR_RELEVANT_FOR_JS(LAYOUT_StyleComputation);
+   MOZ_ASSERT(GetPresContext(), "Styling a document without a shell?");
+ 
