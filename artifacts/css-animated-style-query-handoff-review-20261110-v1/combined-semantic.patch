@@ -1,0 +1,160 @@
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -322,26 +322,42 @@
+ 
+     let traversal = RecalcStyleOnly::new(shared_style_context);
+     let root = driver::traverse_dom(&traversal, token, thread_pool);
+-    if traversal.needs_normal_descendant_restyle() {
+-        let mut has_styled_child = false;
+-        for child_node in root.traversal_children() {
++    let mut certified = HashSet::new();
++    let mut prefix = Vec::new();
++    for producer in traversal.normal_descendant_restyle_producers() {
++        for child_node in producer.traversal_children() {
+             let Some(child) = child_node.as_element() else {
+                 continue;
+             };
+-            let mut child_data = child.mutate_data();
+-            let Some(child_data) = child_data.as_mut() else {
+-                continue;
+-            };
+-            if !child_data.has_styles() {
+-                continue;
++            {
++                let mut child_data = child.mutate_data();
++                let Some(child_data) = child_data.as_mut() else {
++                    continue;
++                };
++                if !child_data.has_styles() {
++                    continue;
++                }
++                assert_ne!(child, root);
++                child_data
++                    .hint
++                    .insert(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT);
+             }
+-            child_data
+-                .hint
+-                .insert(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT);
+-            has_styled_child = true;
+-        }
+-        if has_styled_child {
+-            unsafe { root.set_dirty_descendants() };
++            let mut ancestor = child.traversal_parent();
++            loop {
++                let element = ancestor.expect("Should reach the traversal root");
++                if certified.contains(&element) {
++                    break;
++                }
++                prefix.push(element);
++                if element == root {
++                    break;
++                }
++                ancestor = element.traversal_parent();
++            }
++            for element in prefix.drain(..).rev() {
++                unsafe { element.set_dirty_descendants() };
++                certified.insert(element);
++            }
+         }
+     }
+ }
+--- a/servo/components/style/gecko/traversal.rs
++++ b/servo/components/style/gecko/traversal.rs
+@@ -5,35 +5,35 @@
+ //! Gecko-specific bits for the styling DOM traversal.
+ 
+ use crate::context::{SharedStyleContext, StyleContext};
+-use crate::dom::{TElement, TNode};
++use crate::dom::{SendElement, TElement, TNode};
+ use crate::gecko::wrapper::{GeckoElement, GeckoNode};
+ use crate::invalidation::element::restyle_hints::RestyleHint;
+ use crate::traversal::{DomTraversal, recalc_style_at};
+-use std::sync::atomic::{AtomicBool, Ordering};
++use std::sync::Mutex;
+ 
+ /// This is the simple struct that Gecko uses to encapsulate a DOM traversal for
+ /// styling.
+-pub struct RecalcStyleOnly<'a> {
++pub struct RecalcStyleOnly<'a, 'le> {
+     shared: SharedStyleContext<'a>,
+-    normal_descendant_restyle: AtomicBool,
++    normal_descendant_restyle: Mutex<Vec<SendElement<GeckoElement<'le>>>>,
+ }
+ 
+-impl<'a> RecalcStyleOnly<'a> {
++impl<'a, 'le> RecalcStyleOnly<'a, 'le> {
+     /// Create a `RecalcStyleOnly` traversal from a `SharedStyleContext`.
+     pub fn new(shared: SharedStyleContext<'a>) -> Self {
+         RecalcStyleOnly {
+             shared,
+-            normal_descendant_restyle: AtomicBool::new(false),
++            normal_descendant_restyle: Mutex::new(Vec::new()),
+         }
+     }
+ 
+-    /// Whether animation styling produced descendant font-dependent work.
+-    pub fn needs_normal_descendant_restyle(&self) -> bool {
+-        self.normal_descendant_restyle.load(Ordering::Relaxed)
++    /// Consume the producers after all traversal workers have joined.
++    pub fn normal_descendant_restyle_producers(self) -> Vec<SendElement<GeckoElement<'le>>> {
++        self.normal_descendant_restyle.into_inner().unwrap()
+     }
+ }
+ 
+-impl<'recalc, 'le> DomTraversal<GeckoElement<'le>> for RecalcStyleOnly<'recalc> {
++impl<'recalc, 'le> DomTraversal<GeckoElement<'le>> for RecalcStyleOnly<'recalc, 'le> {
+     fn process_preorder<F>(
+         &self,
+         context: &mut StyleContext<GeckoElement<'le>>,
+@@ -45,10 +45,14 @@
+         if let Some(el) = node.as_element() {
+             let mut data = unsafe { el.ensure_data() };
+             let child_hint = recalc_style_at(self, context, el, &mut data, note_child);
++            drop(data);
+             if self.shared.traversal_flags.for_animation_only()
+                 && child_hint.intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
+             {
+-                self.normal_descendant_restyle.store(true, Ordering::Relaxed);
++                self.normal_descendant_restyle
++                    .lock()
++                    .unwrap()
++                    .push(unsafe { SendElement::new(el) });
+             }
+         }
+     }
+--- a/layout/style/ServoStyleSet.cpp
++++ b/layout/style/ServoStyleSet.cpp
+@@ -805,11 +805,11 @@
+   AUTO_PROFILER_LABEL_CATEGORY_PAIR_RELEVANT_FOR_JS(LAYOUT_StyleComputation);
+   MOZ_ASSERT(GetPresContext(), "Styling a document without a shell?");
+ 
++  PreTraverse(aFlags);
+   if (!mDocument->GetServoRestyleRoot()) {
+     return false;
+   }
+ 
+-  PreTraverse(aFlags);
+   const SnapshotTable& snapshots = Snapshots();
+ 
+   // Restyle the document from the root element and each of the document level
+@@ -863,8 +863,8 @@
+     }
+   }
+ 
+-  // If there are still animation restyles needed, trigger a second traversal to
+-  // update CSS animations or transitions' styles.
++  // Process animation restyles generated by the preceding traversal until no
++  // eligible CSS animation or transition restyles remain.
+   //
+   // Note that we need to check the style root again, because doing another
+   // PreTraverse on the EffectCompositor might alter the style root. But we
+@@ -875,7 +875,7 @@
+   // values once at the begin of a tick. As a result, even if the previous
+   // traversal caused, for example, the font-size to change, the SMIL style
+   // won't be updated until the next tick anyway.
+-  if (GetPresContext()->EffectCompositor()->PreTraverse(aFlags)) {
++  while (GetPresContext()->EffectCompositor()->PreTraverse(aFlags)) {
+     DocumentStyleRootIterator iter(mDocument->GetServoRestyleRoot());
+     while (Element* root = iter.GetNextStyleRoot()) {
+       AutoPrepareTraversal guard(this);

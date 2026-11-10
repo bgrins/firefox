@@ -1,0 +1,17 @@
+>>>  109:     pub fn propagate(&mut self, traversal_flags: &TraversalFlags) -> Self {
+     110:         // In the middle of an animation only restyle, we don't need to
+     111:         // propagate any restyle hints, and we need to remove ourselves.
+     112:         if traversal_flags.for_animation_only() {
+     113:             self.remove_animation_hints();
+     114:             return Self::empty();
+     115:         }
+     116: 
+     117:         debug_assert!(
+     118:             !self.has_animation_hint(),
+     119:             "There should not be any animation restyle hints \
+     120:              during normal traversal"
+     121:         );
+     122: 
+     123:         // Else we should clear ourselves, and return the propagated hint.
+     124:         std::mem::take(self).propagate_for_non_animation_restyle()
+     125:     }

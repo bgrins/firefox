@@ -1,0 +1,928 @@
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/components/style/gecko/traversal.rs:9:
+ use crate::gecko::wrapper::{GeckoElement, GeckoNode};
+ use crate::invalidation::element::restyle_hints::RestyleHint;
+ use crate::traversal::{DomTraversal, recalc_style_at};
+[31m-use std::sync::atomic::{AtomicBool, Ordering};
+(B[m use std::sync::Mutex;
+[32m+use std::sync::atomic::{AtomicBool, Ordering};
+(B[m 
+ /// This is the simple struct that Gecko uses to encapsulate a DOM traversal for
+ /// styling.
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/components/style/gecko/traversal.rs:58:
+             if self.shared.traversal_flags.for_animation_only()
+                 && child_hint.intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
+             {
+[31m-                self.normal_descendant_restyle.store(true, Ordering::Relaxed);
+(B[m[32m+                self.normal_descendant_restyle
+(B[m[32m+                    .store(true, Ordering::Relaxed);
+(B[m             }
+             let query_hint = child_hint
+                 & (RestyleHint::RESTYLE_IF_AFFECTED_BY_STYLE_QUERIES
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:677:
+             } else {
+                 to.clone()
+             }
+[31m-        },
+(B[m[32m+        }
+(B[m     }
+ }
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:776:
+             Some(property_id) => property_id,
+             None => {
+                 return $ret;
+[31m-            },
+(B[m[32m+            }
+(B[m         }
+     }};
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:787:
+             Some(property_id) => property_id,
+             None => {
+                 return $ret;
+[31m-            },
+(B[m[32m+            }
+(B[m         }
+     }};
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:836:
+         _ => {
+             debug_assert!(false, "Other color properties are not supported yet");
+             false
+[31m-        },
+(B[m[32m+        }
+(B[m     }
+ }
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:869:
+     match property {
+         LonghandId::BackgroundColor => {
+             Arc::new(AnimationValue::BackgroundColor(Color::Absolute(animated))).into()
+[31m-        },
+(B[m[32m+        }
+(B[m         _ => panic!("Should be background-color property"),
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:923:
+     match *value {
+         AnimationValue::OffsetPath(ref value) => {
+             *output = ToAnimatedValue::from_animated_value(value.clone())
+[31m-        },
+(B[m[32m+        }
+(B[m         _ => unreachable!("Expected offset-path"),
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:1328:
+             // Compute the current value for the compositor animations.
+             from.animate(to, Procedure::Interpolate { progress: *p })
+                 .ok()
+[31m-        },
+(B[m[32m+        }
+(B[m         _ => None,
+     };
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:1426:
+         Some(p) => {
+             let name = p.name();
+             (name.as_bytes().as_ptr(), name.len())
+[31m-        },
+(B[m[32m+        }
+(B[m         None => (ptr::null(), 0),
+     };
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:1443:
+             Ok(p) => {
+                 *$found = true;
+                 p
+[31m-            },
+(B[m[32m+            }
+(B[m             Err(..) => {
+                 *$found = false;
+                 return $default;
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:1450:
+[31m-            },
+(B[m[32m+            }
+(B[m         }
+     }};
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:1477:
+             return stylist
+                 .get_custom_property_registration(&property_name)
+                 .inherits();
+[31m-        },
+(B[m[32m+        }
+(B[m         PropertyId::NonCustom(id) => match id.longhand_or_shorthand() {
+             Ok(lh) => lh,
+             Err(sh) => sh.longhands().next().unwrap(),
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:2979:
+                 return None;
+             }
+             matching_mode = MatchingMode::ForStatelessPseudoElement;
+[31m-        },
+(B[m[32m+        }
+(B[m         None => {
+             // Do not attempt to match if a pseudo element is requested and
+             // this is not a pseudo element selector, or vice versa.
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:2986:
+             if selector.has_pseudo_element() {
+                 return None;
+             }
+[31m-        },
+(B[m[32m+        }
+(B[m     };
+ 
+     let host = host.map(GeckoElement);
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:3023:
+                 })
+             });
+             scope_root.map(|root| on_match(Some(root)))
+[31m-        },
+(B[m[32m+        }
+(B[m     })
+ }
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:3116:
+             Ok(selectors) => {
+                 rule.selectors = selectors;
+                 true
+[31m-            },
+(B[m[32m+            }
+(B[m             Err(_) => false,
+         }
+     })
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:3262:
+                         matches_selector_list(&selectors, element, ctx)
+                     })
+                 })
+[31m-            },
+(B[m[32m+            }
+(B[m         };
+         if matches {
+             result.push(element);
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:3294:
+     // https://w3c.github.io/csswg-drafts/cssom/#dom-cssimportrule-layername
+     read_locked_arc(rule, |rule: &ImportRule| match rule.layer {
+         ImportLayer::Named(ref name) => name.to_css(&mut CssWriter::new(result)).unwrap(), // "return the layer name declared in the at-rule itself"
+[31m-        ImportLayer::Anonymous => {}, // "or an empty string if the layer is anonymous"
+(B[m[32m+        ImportLayer::Anonymous => {} // "or an empty string if the layer is anonymous"
+(B[m         ImportLayer::None => result.set_is_void(true), // "or null if the at-rule does not declare a layer"
+     })
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:3439:
+                 rule.keyframes.push(keyframe);
+             });
+             true
+[31m-        },
+(B[m[32m+        }
+(B[m         Err(..) => false,
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:3558:
+             Ok(selectors) => {
+                 rule.selectors = selectors;
+                 true
+[31m-            },
+(B[m[32m+            }
+(B[m             Err(_) => false,
+         }
+     })
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:3832:
+             Some(d) => {
+                 *out = d;
+                 true
+[31m-            },
+(B[m[32m+            }
+(B[m             None => false,
+         }
+     })
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:4070:
+                         match hint {
+                             FontFaceSourceFormat::Keyword(kw) => {
+                                 out.push(FontFaceSourceListComponent::FormatHintKeyword(*kw))
+[31m-                            },
+(B[m[32m+                            }
+(B[m                             FontFaceSourceFormat::String(s) => {
+                                 out.push(FontFaceSourceListComponent::FormatHintString {
+                                     length: s.len(),
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:4077:
+                                     utf8_bytes: s.as_ptr(),
+                                 })
+[31m-                            },
+(B[m[32m+                            }
+(B[m                         }
+                     }
+                     if !url.tech_flags.is_empty() {
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:4083:
+                         out.push(FontFaceSourceListComponent::TechFlags(url.tech_flags));
+                     }
+[31m-                },
+(B[m[32m+                }
+(B[m                 Source::Local(ref name) => {
+                     out.push(FontFaceSourceListComponent::Local(name.name.as_ptr()));
+[31m-                },
+(B[m[32m+                }
+(B[m             }
+         }
+     })
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:4170:
+             Ok(changed) => {
+                 *out_changed = changed;
+                 true
+[31m-            },
+(B[m[32m+            }
+(B[m             Err(..) => false,
+         }
+     })
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:4203:
+         Ok(name) => {
+             write_locked_arc(rule, |rule: &mut CounterStyleRule| rule.set_name(name));
+             true
+[31m-        },
+(B[m[32m+        }
+(B[m         Err(_) => false,
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:4376:
+                         symbol: symbol_to_string(&s.symbol),
+                     })
+                     .collect()
+[31m-            },
+(B[m[32m+            }
+(B[m             None => style::OwnedSlice::default(),
+         };
+     })
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:4452:
+             _ => {
+                 debug_assert!(false, "Not extends system");
+                 ptr::null_mut()
+[31m-            },
+(B[m[32m+            }
+(B[m         }
+     })
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:4470:
+             _ => {
+                 debug_assert!(false, "Not fixed system");
+                 0
+[31m-            },
+(B[m[32m+            }
+(B[m         }
+     })
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:4696:
+             } else {
+                 doc_data.default_computed_values().clone().into()
+             };
+[31m-        },
+(B[m[32m+        }
+(B[m     };
+ 
+     let pseudo_element = PseudoElement::from_pseudo_type(
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:4731:
+         None => {
+             debug_assert!(is_probe);
+             Strong::null()
+[31m-        },
+(B[m[32m+        }
+(B[m     }
+ }
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:4840:
+                             Some(element),
+                         )
+                     })
+[31m-                },
+(B[m[32m+                }
+(B[m                 _ => {
+                     // Unfortunately, we can't assert that inherited_styles, if
+                     // present, is pointer-equal to styles.primary(), or even
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:4864:
+                     // impossible to assert anything about the two styles
+                     // matching here, unfortunately.
+                     styles.pseudos.get(&pseudo).cloned()
+[31m-                },
+(B[m[32m+                }
+(B[m             }
+[31m-        },
+(B[m[32m+        }
+(B[m         PseudoElementCascadeType::Precomputed => unreachable!("No anonymous boxes"),
+         PseudoElementCascadeType::Lazy => {
+             debug_assert!(
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:4884:
+                 is_probe,
+                 matching_func,
+             )
+[31m-        },
+(B[m[32m+        }
+(B[m     };
+ 
+     if is_probe {
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:5195:
+             let mut block = PropertyDeclarationBlock::new();
+             block.extend(declarations.drain(), Importance::Normal);
+             Arc::new(global_style_data.shared_lock.wrap(block)).into()
+[31m-        },
+(B[m[32m+        }
+(B[m         Err(_) => Strong::null(),
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:5260:
+         Some(value) => {
+             *output = value;
+             true
+[31m-        },
+(B[m[32m+        }
+(B[m         _ => false,
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:5332:
+                 return false;
+             }
+             (TimelineRangeName::None, p.resolve())
+[31m-        },
+(B[m[32m+        }
+(B[m         KeyframeOffset::KeyframeSelector(s) => (s.range_name, Some(s.percentage.0)),
+     }) else {
+         return false;
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:5398:
+                         unsafe { Gecko_AddPropertyToSet(set, *p) };
+                     }
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m             None => {
+                 if *p == NonCustomCSSPropertyId::eCSSPropertyExtra_variable && custom {
+                     unsafe { Gecko_AddPropertyToSet(set, *p) };
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:5405:
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m         }
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:5771:
+                 PropertyTypedValueList::Unsupported(
+                     Arc::new(global_style_data.shared_lock.wrap(decls.clone())).into(),
+                 )
+[31m-            },
+(B[m[32m+            }
+(B[m 
+             Ok(Some(typed_value_list)) => PropertyTypedValueList::Typed(typed_value_list),
+         }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:5986:
+             );
+ 
+             nsresult::NS_OK
+[31m-        },
+(B[m[32m+        }
+(B[m         Err(_) => nsresult::NS_ERROR_DOM_SYNTAX_ERR,
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:6128:
+         Ok(numeric_type) => {
+             *result = numeric_type;
+             true
+[31m-        },
+(B[m[32m+        }
+(B[m         Err(..) => false,
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:6146:
+         Ok(numeric_type) => {
+             *result = numeric_type;
+             true
+[31m-        },
+(B[m[32m+        }
+(B[m         Err(..) => false,
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:6176:
+         Ok(numeric_type) => {
+             *result = numeric_type;
+             true
+[31m-        },
+(B[m[32m+        }
+(B[m         Err(..) => false,
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:6895:
+         Ok(r) => {
+             *dest = r;
+             true
+[31m-        },
+(B[m[32m+        }
+(B[m         Err(..) => false,
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:6941:
+                 Err(..) => {
+                     debug_assert!(false, "how?");
+                     return false;
+[31m-                },
+(B[m[32m+                }
+(B[m             };
+             &zero
+[31m-        },
+(B[m[32m+        }
+(B[m     };
+ 
+     match left.animate(right, Procedure::Interpolate { progress }) {
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:6951:
+         Ok(r) => {
+             *dest = r;
+             true
+[31m-        },
+(B[m[32m+        }
+(B[m         Err(..) => false,
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:7219:
+                 } else {
+                     dummy_url_data()
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m             CssSupportsUrlContext::Chrome => dummy_chrome_url_data(),
+         }
+     };
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:7285:
+             let damage = data.damage;
+             data.clear_restyle_state();
+             damage
+[31m-        },
+(B[m[32m+        }
+(B[m         None => {
+             warn!("Trying to get change hint from unstyled element");
+             *was_restyled = false;
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:7292:
+             GeckoRestyleDamage::empty()
+[31m-        },
+(B[m[32m+        }
+(B[m     };
+ 
+     debug!("Servo_TakeChangeHint: {:?}, damage={:?}", element, damage);
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:7369:
+                         None
+                     },
+                 )
+[31m-            },
+(B[m[32m+            }
+(B[m             None => Some(styles.primary().clone()),
+         }
+     };
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:7858:
+                 &mut AttributeTracker::new(&element),
+             );
+             animation.map_or(Strong::null(), |value| Arc::new(value).into())
+[31m-        },
+(B[m[32m+        }
+(B[m         _ => Strong::null(),
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:8090:
+ 
+                     properties_set_at_current_offset.insert(id);
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m         }
+     }
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:8157:
+                         .mPropertyValues
+                         .push(make_declaration_pair(declaration));
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m         }
+     }
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:8496:
+             for dependency in v {
+                 collector.add_dependency(dependency, *element, *scope);
+             }
+[31m-        },
+(B[m[32m+        }
+(B[m         None => (),
+     };
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:8925:
+                 ),
+                 &data.stylist,
+             );
+[31m-        },
+(B[m[32m+        }
+(B[m         _ => (),
+     };
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:9042:
+                 ),
+                 &data.stylist,
+             );
+[31m-        },
+(B[m[32m+        }
+(B[m         _ => (),
+     };
+     let invalidator = RelativeSelectorInvalidator {
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:9133:
+             return style
+                 .computed_or_resolved_value(longhand, context, value)
+                 .unwrap();
+[31m-        },
+(B[m[32m+        }
+(B[m         Err(shorthand) => shorthand,
+     };
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:9196:
+             None => {
+                 *result = PropertyTypedValueList::None;
+                 return true;
+[31m-            },
+(B[m[32m+            }
+(B[m             Some(value) => {
+                 let value = value.to_declared_value();
+                 *result = match value.to_typed_value_list() {
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:9216:
+                         PropertyTypedValueList::Unsupported(
+                             Arc::new(global_style_data.shared_lock.wrap(block)).into(),
+                         )
+[31m-                    },
+(B[m[32m+                    }
+(B[m                 };
+                 return true;
+[31m-            },
+(B[m[32m+            }
+(B[m         },
+     };
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:9240:
+                         style.computed_or_resolved_declaration(longhand, None),
+                         Importance::Normal,
+                     );
+[31m-                },
+(B[m[32m+                }
+(B[m                 Err(shorthand) => {
+                     for longhand in shorthand.longhands() {
+                         block.push(
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:9248:
+                             Importance::Normal,
+                         );
+                     }
+[31m-                },
+(B[m[32m+                }
+(B[m             };
+ 
+             PropertyTypedValueList::Unsupported(
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:9255:
+                 Arc::new(global_style_data.shared_lock.wrap(block)).into(),
+             )
+[31m-        },
+(B[m[32m+        }
+(B[m 
+         Some(typed_value_list) => PropertyTypedValueList::Typed(typed_value_list),
+     };
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:9356:
+                         for dependency in v {
+                             collector.add_dependency(dependency, *element, scope);
+                         }
+[31m-                    },
+(B[m[32m+                    }
+(B[m                     None => (),
+                 };
+             })
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:9377:
+                 for dependency in v {
+                     collector.add_dependency(dependency, *element, scope);
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m             None => (),
+         };
+     });
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:9397:
+                     for dependency in v {
+                         collector.add_dependency(dependency, element, scope);
+                     }
+[31m-                },
+(B[m[32m+                }
+(B[m                 None => (),
+             };
+         })
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:9694:
+         Some(d) => {
+             data = d.borrow();
+             Some(data.stylist.device())
+[31m-        },
+(B[m[32m+        }
+(B[m         None => None,
+     };
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:9762:
+         Err(_) => {
+             // Can't parse the color space? Fail the conversion.
+             return false;
+[31m-        },
+(B[m[32m+        }
+(B[m     };
+ 
+     let mut input = Parser::new(unsafe { from_color.as_str_unchecked() });
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:9795:
+             // Can't do anything with a non-absolute color from here, so we
+             // fail the conversion.
+             return false;
+[31m-        },
+(B[m[32m+        }
+(B[m     };
+ 
+     let color = color.to_color_space(to_color_space);
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:9859:
+         },
+         Unpacked::Length(..) | Unpacked::Percentage(..) => {
+             CalcAnchorPositioningFunctionResolution::Valid(lp.clone())
+[31m-        },
+(B[m[32m+        }
+(B[m     };
+ }
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:9915:
+         Ok(margin) => {
+             *result = margin;
+             true
+[31m-        },
+(B[m[32m+        }
+(B[m         Err(..) => false,
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:10110:
+                     Ok(len) => len,
+                     Err(..) => return false,
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m             specified::FontSize::Keyword(info) => {
+                 let keyword = if info.kw != specified::FontSizeKeyword::Math {
+                     info.kw
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:10127:
+                     )
+                     .0
+                     .px()
+[31m-            },
+(B[m[32m+            }
+(B[m             // smaller, larger not currently supported
+             specified::FontSize::Smaller
+             | specified::FontSize::Larger
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:10134:
+             | specified::FontSize::System(_) => {
+                 return false;
+[31m-            },
+(B[m[32m+            }
+(B[m         };
+     }
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:10345:
+         Err(message) => {
+             error_message.assign(&message);
+             ptr::null()
+[31m-        },
+(B[m[32m+        }
+(B[m     }
+ }
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:10415:
+         Ok(c) => {
+             *result = c;
+             true
+[31m-        },
+(B[m[32m+        }
+(B[m         Err(..) => false,
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:10661:
+         Ok(v) => {
+             *out = v;
+             true
+[31m-        },
+(B[m[32m+        }
+(B[m         Err(..) => false,
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:10726:
+         Ok((r, g, b)) => {
+             *out = AbsoluteColor::new(ColorSpace::Srgb, r, g, b, 1.0);
+             true
+[31m-        },
+(B[m[32m+        }
+(B[m         _ => false,
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:10940:
+             Token::CurlyBracketBlock => {
+                 found_start = true;
+                 break;
+[31m-            },
+(B[m[31m-            _ => {},
+(B[m[32m+            }
+(B[m[32m+            _ => {}
+(B[m         }
+ 
+         if token.is_parse_error() {
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11206:
+             let mut unit_text = nsCString::new();
+             unit_text.assign(unit.as_bytes());
+             Some(unit_text)
+[31m-        },
+(B[m[32m+        }
+(B[m         _ => None,
+     };
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11281:
+     match result {
+         Ok(l) => {
+             AnchorPositioningFunctionResolution::Resolved(computed::LengthPercentage::new_length(l))
+[31m-        },
+(B[m[32m+        }
+(B[m         Err(()) => resolve_inset_fallback(func.fallback.as_ref(), params, prop_side),
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11299:
+         computed::Inset::Auto => AnchorPositioningFunctionResolution::Invalid,
+         computed::Inset::LengthPercentage(lp) => {
+             AnchorPositioningFunctionResolution::ResolvedReference(lp as *const _)
+[31m-        },
+(B[m[32m+        }
+(B[m         computed::Inset::AnchorSizeFunction(f) => do_resolve_anchor_size(
+             f,
+             params,
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11319:
+                 ),
+                 Err(_) => AnchorPositioningFunctionResolution::Invalid,
+             }
+[31m-        },
+(B[m[32m+        }
+(B[m     }
+ }
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11354:
+             computed::Inset::Auto => AnchorPositioningFunctionResolution::Invalid,
+             computed::Inset::LengthPercentage(lp) => {
+                 AnchorPositioningFunctionResolution::ResolvedReference(lp as *const _)
+[31m-            },
+(B[m[32m+            }
+(B[m             computed::Inset::AnchorFunction(f) => {
+                 let side = match allowed {
+                     AllowAnchorPosResolutionInCalcPercentage::Both(s) => s,
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11361:
+                     AllowAnchorPosResolutionInCalcPercentage::AnchorSizeOnly(_) => {
+                         return AnchorPositioningFunctionResolution::Invalid;
+[31m-                    },
+(B[m[32m+                    }
+(B[m                 };
+                 resolve_anchor_function(f, params, side)
+[31m-            },
+(B[m[32m+            }
+(B[m             computed::Inset::AnchorSizeFunction(f) => do_resolve_anchor_size(f, params, allowed),
+             computed::Inset::AnchorContainingCalcFunction(clp) => {
+                 let Unpacked::Calc(clp) = clp.unpack() else {
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11375:
+                     ),
+                     Err(_) => AnchorPositioningFunctionResolution::Invalid,
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m         }
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11393:
+             computed::Margin::Auto => AnchorPositioningFunctionResolution::Invalid,
+             computed::Margin::LengthPercentage(lp) => {
+                 AnchorPositioningFunctionResolution::ResolvedReference(lp as *const _)
+[31m-            },
+(B[m[32m+            }
+(B[m             computed::Margin::AnchorSizeFunction(f) => do_resolve_anchor_size(f, params, allowed),
+             computed::Margin::AnchorContainingCalcFunction(clp) => {
+                 let Unpacked::Calc(clp) = clp.unpack() else {
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11405:
+                     ),
+                     Err(_) => AnchorPositioningFunctionResolution::Invalid,
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m         }
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11430:
+             | computed::Size::FitContentFunction(_) => AnchorPositioningFunctionResolution::Invalid,
+             computed::Size::LengthPercentage(lp) => {
+                 AnchorPositioningFunctionResolution::ResolvedReference(&lp.0 as *const _)
+[31m-            },
+(B[m[32m+            }
+(B[m             computed::Size::AnchorSizeFunction(f) => do_resolve_anchor_size(f, params, allowed),
+             computed::Size::AnchorContainingCalcFunction(clp) => {
+                 let Unpacked::Calc(clp) = clp.0.unpack() else {
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11444:
+                     ),
+                     Err(_) => AnchorPositioningFunctionResolution::Invalid,
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m         }
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11468:
+             | computed::MaxSize::Stretch
+             | computed::MaxSize::FitContentFunction(_) => {
+                 AnchorPositioningFunctionResolution::Invalid
+[31m-            },
+(B[m[32m+            }
+(B[m             computed::MaxSize::LengthPercentage(lp) => {
+                 AnchorPositioningFunctionResolution::ResolvedReference(&lp.0 as *const _)
+[31m-            },
+(B[m[32m+            }
+(B[m             computed::MaxSize::AnchorSizeFunction(f) => do_resolve_anchor_size(f, params, allowed),
+             computed::MaxSize::AnchorContainingCalcFunction(clp) => {
+                 let Unpacked::Calc(clp) = clp.0.unpack() else {
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11485:
+                     ),
+                     Err(_) => AnchorPositioningFunctionResolution::Invalid,
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m         }
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11508:
+     match result {
+         Ok(l) => {
+             AnchorPositioningFunctionResolution::Resolved(computed::LengthPercentage::new_length(l))
+[31m-        },
+(B[m[32m+        }
+(B[m         Err(()) => return Value::resolve_fallback(func.fallback.as_ref(), params, allowed),
+     }
+ }
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11867:
+                 Ok(n) => n,
+                 Err(_) => return,
+             }
+[31m-        },
+(B[m[32m+        }
+(B[m         Token::Percentage { unit_value, .. } => CalcNode::Leaf(Leaf::Percentage(
+             CalcPercentageLeaf::new(*unit_value, Optional::None),
+         )),
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11878:
+                 return;
+             };
+             CalcNode::Leaf(Leaf::Length(length))
+[31m-        },
+(B[m[32m+        }
+(B[m         _ => return,
+     };
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11910:
+             }
+ 
+             Leaf::Length(NoCalcLength::from_px(p.get() * percentage_basis))
+[31m-        },
+(B[m[32m+        }
+(B[m         Leaf::Length(l) => {
+             let result = l.to_computed_value(&context);
+             Leaf::Length(NoCalcLength::from_computed_value(&result))
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11917:
+[31m-        },
+(B[m[32m+        }
+(B[m         Leaf::TreeCountingFunction(t) => {
+             let result = t.to_computed_value(&context) as f32;
+             Leaf::Number(NoCalcNumber::from_computed_value(&result))
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11921:
+[31m-        },
+(B[m[32m+        }
+(B[m         ref l => l.clone(),
+     });
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11942:
+             // out when we already handled a node
+             match res {
+                 SimplificationResult::Simplified => return,
+[31m-                _ => {},
+(B[m[32m+                _ => {}
+(B[m             }
+ 
+             match n.as_leaf() {
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11949:
+                 None => {
+                     res = n.simplify_and_sort_direct_children();
+[31m-                },
+(B[m[31m-                _ => {},
+(B[m[32m+                }
+(B[m[32m+                _ => {}
+(B[m             }
+         });
+ 
+Diff in /Users/bgrins/code/firefox/artifacts/css-animated-style-query-handoff-review-20261110-v1/candidate/servo/ports/geckolib/glue.rs:11967:
+                     value = new_value;
+                     out.push(nsCString::from(&value));
+                 }
+[31m-            },
+(B[m[32m+            }
+(B[m         }
+     }
+ }

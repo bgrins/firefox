@@ -1,0 +1,34 @@
+>>>  591:     fn restyle_kind_for_animation(
+     592:         &self,
+     593:         shared_context: &SharedStyleContext,
+     594:     ) -> Option<RestyleKind> {
+     595:         debug_assert!(shared_context.traversal_flags.for_animation_only());
+     596:         debug_assert!(self.has_styles());
+     597: 
+     598:         // FIXME: We should ideally restyle here, but it is a hack to work around our weird
+     599:         // animation-only traversal stuff: If we're display: none and the rules we could
+     600:         // match could change, we consider our style up-to-date. This is because re-cascading with
+     601:         // and old style doesn't guarantee returning the correct animation style (that's
+     602:         // bug 1393323). So if our display changed, and it changed from display: none, we would
+     603:         // incorrectly forget about it and wouldn't be able to correctly style our descendants
+     604:         // later.
+     605:         // XXX Figure out if this still makes sense.
+     606:         let hint = self.hint;
+     607:         if self.styles.is_display_none() && hint.intersects(RestyleHint::RESTYLE_SELF) {
+     608:             return None;
+     609:         }
+     610: 
+     611:         let style = self.styles.primary();
+     612:         // Return either CascadeWithReplacements or CascadeOnly in case of animation-only restyle.
+     613:         // I.e. animation-only restyle never does selector matching.
+     614:         if hint.has_animation_hint() {
+     615:             return Some(RestyleKind::CascadeWithReplacements(
+     616:                 hint & RestyleHint::for_animations(),
+     617:             ));
+     618:         }
+     619: 
+     620:         if needs_to_recascade_self(hint, style) {
+     621:             return Some(RestyleKind::CascadeOnly);
+     622:         }
+     623:         None
+     624:     }

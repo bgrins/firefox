@@ -1,0 +1,18 @@
+      }
+  
+      fn matches(
+          &self,
+          ctx: &computed::Context,
+          attribute_tracker: &mut AttributeTracker,
+      ) -> KleeneValue {
+          ctx.builder
+servo/components/style/queries/condition.rs:258:             .add_flags(ComputedValueFlags::DEPENDS_ON_CONTAINER_STYLE_QUERY);
+          match *self {
+              StyleQuery::Feature(ref f) => f.matches(ctx, attribute_tracker),
+              StyleQuery::Not(ref c) => !c.matches(ctx, attribute_tracker),
+              StyleQuery::InParens(ref c) => c.matches(ctx, attribute_tracker),
+              StyleQuery::Operation(ref conditions, op) => {
+                  debug_assert!(!conditions.is_empty(), "We never create an empty op");
+                  match op {
+                      Operator::And => KleeneValue::any_false(conditions.iter(), |c| {
+Total matches: 1

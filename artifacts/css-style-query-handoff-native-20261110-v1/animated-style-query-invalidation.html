@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Animated custom properties invalidate style queries</title>
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#animated-containers">
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#style-container">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+for (const mode of ["animated-named", "ordinary-named", "animated-unnamed", "ordinary-unnamed"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    const animated = mode.startsWith("animated-");
+    const named = !mode.endsWith("-unnamed");
+    frame.srcdoc = `<!doctype html><style>
+      #query { --gate: off; ${named ? "container-name: gate;" : ""}
+        ${animated ? "animation: gate 1s linear both paused;" : ""} }
+      #query.on { --gate: on; }
+      #target { color: rgb(0, 0, 0); }
+      #target.rematch { outline-width: 1px; }
+      @container ${named ? "gate" : ""} style(--gate: on) {
+        #target { color: rgb(0, 128, 0); }
+      }
+      @keyframes gate { from { --gate: off; } to { --gate: on; } }
+    </style><div id="query"><div id="target"></div></div>`;
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const query = frame.contentDocument.getElementById("query");
+    const target = frame.contentDocument.getElementById("target");
+    const color = () => win.getComputedStyle(target).color;
+    assert_equals(color(), "rgb(0, 0, 0)", "Initial query does not match");
+    const driver = animated ? query.getAnimations()[0] : null;
+    if (animated) {
+      assert_true(driver instanceof win.CSSAnimation, "CSS animation driver exists");
+      driver.currentTime = 750;
+    } else {
+      query.classList.add("on");
+    }
+    const observation = {mode, first: color(),
+      gate: win.getComputedStyle(query).getPropertyValue("--gate").trim(),
+      repeat: color()};
+    if (animated) {
+      observation.progress = driver.effect.getComputedTiming().progress;
+      observation.playState = driver.playState;
+    }
+    await new Promise(resolve => win.requestAnimationFrame(resolve));
+    await new Promise(resolve => win.requestAnimationFrame(resolve));
+    observation.afterFrames = color();
+    target.classList.add("rematch");
+    observation.afterRematch = color();
+    if (typeof dump === "function") {
+      dump(`SQ_COLOR ${JSON.stringify(observation)}\n`);
+    }
+    assert_equals(observation.gate, "on", "Animated or ordinary source changed");
+    if (animated) {
+      assert_equals(observation.progress, 0.75, "Source animation sample is established");
+      assert_equals(observation.playState, "paused", "Source animation stays paused");
+    }
+    assert_equals(observation.afterRematch, "rgb(0, 128, 0)", "Forced matching control");
+    assert_equals(observation.first, "rgb(0, 128, 0)", "First read observes changed query");
+    assert_equals(observation.repeat, observation.first, "Repeated read agrees");
+    assert_equals(observation.afterFrames, observation.first, "Frame processing agrees");
+  }, `Animated style query invalidation: ${mode}`);
+}
+</script>
