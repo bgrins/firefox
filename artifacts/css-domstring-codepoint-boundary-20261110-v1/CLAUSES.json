@@ -1,0 +1,140 @@
+{
+  "mapping": "manually selected and interpreted; byte extraction automatic, not a prose correctness theorem",
+  "clauses": [
+    {
+      "source": "webidl",
+      "anchor": "idl-DOMString",
+      "model_or_boundary": "CodeUnit domain; nullable and coercion excluded",
+      "start": 238781,
+      "end": 239619,
+      "sha256": "135dc23564917f064e523ca34a7ccaed40368731b67c843f7991b652d0954c31",
+      "markup": "<h4 oldids=\"dom-DOMString\" id=\"idl-DOMString\" interface>DOMString</h4>\n\nThe {{DOMString}} type corresponds to [=strings=].\n\nNote: <emu-val>null</emu-val> is not a value of type {{DOMString}}. To allow\n<emu-val>null</emu-val>, a [=nullable type|nullable=] {{DOMString}}, written as\n<code>DOMString?</code> in IDL, needs to be used.\n\nNote: A {{DOMString}} value might include unmatched [=surrogate=] [=code points=]. Use {{USVString}}\nif this is not desirable.\n\nThere is no way to represent a constant {{DOMString}}\nvalue in IDL, although {{DOMString}} [=dictionary member=] [=dictionary member/default values=]\nand [=optional argument|operation optional argument=] [=optional argument/default values=]\ncan be set to [=value of string literal tokens|the value=] of a\n<emu-t class=\"regex\"><a href=\"#prod-string\">string</a></emu-t> literal.\n\n"
+    },
+    {
+      "source": "webidl",
+      "anchor": "js-DOMString",
+      "model_or_boundary": "caller boundary: same units after successful ToString",
+      "start": 314389,
+      "end": 315128,
+      "sha256": "fe0e82dc227c60bec32dc7d54ceba27ec2496463b1ec18f99c91c8d24e8ba464",
+      "markup": "<div id=\"js-to-DOMString\" algorithm=\"convert a JavaScript value to DOMString\">\n    <span id=\"es-to-DOMString\"></span>\n\n    A JavaScript value |V| is [=converted to an IDL value|converted=]\n    to an IDL {{DOMString}} value by running the following algorithm:\n\n    1.  If |V| is <emu-val>null</emu-val> and the conversion is to an IDL type\n        [=extended attribute associated with|associated with=] the [{{LegacyNullToEmptyString}}] extended\n        attribute, then return the {{DOMString}} value that represents the empty string.\n    1.  Let |x| be [=?=] <a abstract-op>ToString</a>(|V|).\n    1.  Return the IDL {{DOMString}} value that represents the same sequence of code units as the one the JavaScript String value |x| represents.\n"
+    },
+    {
+      "source": "webidl",
+      "anchor": "js-USVString",
+      "model_or_boundary": "separate USVString conversion; not modeled as DOMString",
+      "start": 316630,
+      "end": 317481,
+      "sha256": "d3ffd4272900b0a55f7d76f425f1c66f6c40ca24e683628561183c7e24b39869",
+      "markup": "<h4 id=\"js-USVString\" oldids=\"es-USVString\">USVString</h4>\n\n<div id=\"js-to-USVString\" algorithm=\"convert a JavaScript value to USVString\">\n    <span id=\"es-to-USVString\"></span>\n\n    A JavaScript value |V| is [=converted to an IDL value|converted=]\n    to an IDL {{USVString}} value by running the following algorithm:\n\n    1.  Let |string| be the result of [=converted to an IDL value|converting=] |V|\n        to a {{DOMString}}.\n    1.  Return an IDL {{USVString}} value that is the result of\n        [=string/convert|converting=] |string| to a sequence of [=scalar values=].\n</div>\n\n<div id=\"USVString-to-js\" algorithm=\"convert an USVString to a JavaScript value\">\n    <span id=\"USVString-to-es\"></span>\n\n    The result of [=converted to a JavaScript value|converting=]\n    an IDL {{USVString}} value |S| to a JavaScript\n    value is |S|.\n</div>\n\n\n"
+    },
+    {
+      "source": "infra",
+      "anchor": "string",
+      "model_or_boundary": "CodeUnit domain; interpretation delegates to ECMA",
+      "start": 45396,
+      "end": 46697,
+      "sha256": "5a4747a8a2e73b7894125e8fe88ca8933b0593c8b9b5758e9e701abc11d36cd3",
+      "markup": "<h3 id=strings>Strings</h3>\n\n<p>A <dfn export lt=\"string|JavaScript string\">string</dfn> is a sequence of\n<a for=/>16-bit unsigned integers</a>, also known as <dfn export lt=\"code unit\">code units</dfn>. A\n<a>string</a> is also known as a <a id=\"javascript-string\">JavaScript string</a>.\n<a for=/>Strings</a> are denoted by double quotes and monospace font.\n\n<p class=example id=example-string-notation>\"<code>Hello, world!</code>\" is a string.\n\n<p class=note>This is different from how <cite>Unicode</cite> defines \"code unit\". In particular it\nrefers exclusively to how <cite>Unicode</cite> defines it for Unicode 16-bit strings. [[UNICODE]]\n\n<p>A <a>string</a> can also be interpreted as containing <a>code points</a>, per the conversion\ndefined in <a>The String Type</a> section of the JavaScript specification. [[!ECMA-262]]\n\n<p class=note>This conversion process converts surrogate pairs into their corresponding\n<a>scalar value</a> and maps any remaining surrogates to their corresponding <a>code point</a>,\nleaving them effectively as-is.\n\n<p class=example id=example-javascript-string-in-code-points>A <a>string</a> consisting of the\n<a>code units</a> 0xD83D, 0xDCA9, and 0xD800, when interpreted as containing <a>code points</a>,\nwould consist of the <a>code points</a> U+1F4A9 and U+D800.\n\n"
+    },
+    {
+      "source": "infra",
+      "anchor": "javascript-string-convert",
+      "model_or_boundary": "scalarize effect",
+      "start": 47993,
+      "end": 48186,
+      "sha256": "a7326dcb7511a8b252b4c00900543720647a4f68cd60160e4b4e33254e756591",
+      "markup": "<p>To <dfn export for=\"string,JavaScript string\" id=javascript-string-convert>convert</dfn> a\n<a>string</a> into a <a>scalar value string</a>, replace any <a>surrogates</a> with U+FFFD (�).\n\n"
+    },
+    {
+      "source": "ecma",
+      "anchor": "sec-ecmascript-language-types-string-type",
+      "model_or_boundary": "Step rules; JavaScriptLength boundary",
+      "start": 103453,
+      "end": 106354,
+      "sha256": "6fd6ff673253714e00231eb49d940fa705b9ca9f10b18f444b9db46e9421ce0f",
+      "markup": "    <emu-clause id=\"sec-ecmascript-language-types-string-type\" oldids=\"sec-terms-and-definitions-string-value,sec-terms-and-definitions-string-type\">\n      <h1>The String Type</h1>\n      <p>The <dfn variants=\"is a String,is not a String\">String type</dfn> is the set of all ordered sequences of zero or more 16-bit unsigned integer values (“elements”) up to a maximum length of 2<sup>53</sup> - 1 elements. The String type is generally used to represent textual data in a running ECMAScript program, in which case each element in the String is treated as a UTF-16 code unit value. Each element is regarded as occupying a position within the sequence. These positions are indexed with non-negative integers. The first element (if any) is at index 0, the next element (if any) at index 1, and so on. The length of a String is the number of elements (i.e., 16-bit values) within it. The empty String has length zero and therefore contains no elements.</p>\n      <p>ECMAScript operations that do not interpret String contents apply no further semantics. Operations that do interpret String values treat each element as a single UTF-16 code unit. However, ECMAScript does not restrict the value of or relationships between these code units, so operations that further interpret String contents as sequences of Unicode code points encoded in UTF-16 must account for ill-formed subsequences. Such operations apply special treatment to every code unit with a numeric value in the inclusive interval from 0xD800 to 0xDBFF (defined by the Unicode Standard as a <dfn id=\"leading-surrogate\" variants=\"leading surrogates\">leading surrogate</dfn>, or more formally as a <dfn id=\"high-surrogate-code-unit\" variants=\"high-surrogate code units\">high-surrogate code unit</dfn>) and every code unit with a numeric value in the inclusive interval from 0xDC00 to 0xDFFF (defined as a <dfn id=\"trailing-surrogate\" variants=\"trailing surrogates\">trailing surrogate</dfn>, or more formally as a <dfn id=\"low-surrogate-code-unit\" variants=\"low-surrogate code units\">low-surrogate code unit</dfn>) using the following rules:</p>\n      <ul>\n        <li>\n          A code unit that is not a leading surrogate and not a trailing surrogate is interpreted as a code point with the same value.\n        </li>\n        <li>\n          A sequence of two code units, where the first code unit _c1_ is a leading surrogate and the second code unit _c2_ a trailing surrogate, is a <dfn id=\"surrogate-pair\" variants=\"surrogate pairs\">surrogate pair</dfn> and is interpreted as a code point with the value (_c1_ - 0xD800) × 0x400 + (_c2_ - 0xDC00) + 0x10000. (See <emu-xref href=\"#sec-utf16decodesurrogatepair\"></emu-xref>)\n        </li>\n        <li>\n          A code unit that is a leading surrogate or trailing surrogate, but is not part of a surrogate pair, is interpreted as a code point with the same value.\n        </li>\n      </ul>\n"
+    },
+    {
+      "source": "ecma",
+      "anchor": "sec-utf16decodesurrogatepair",
+      "model_or_boundary": "pairPoint; numeric Step.pair",
+      "start": 881203,
+      "end": 881935,
+      "sha256": "c33cbcc0e53289038c637f71e8e9d07c4e109905f7add1b4189ed69e38277cf9",
+      "markup": "    <emu-clause id=\"sec-utf16decodesurrogatepair\" type=\"abstract operation\" oldids=\"sec-utf16decode,utf16decodesurrogatepair\">\n      <h1>\n        Static Semantics: UTF16SurrogatePairToCodePoint (\n          _lead_: a code unit,\n          _trail_: a code unit,\n        ): a code point\n      </h1>\n      <dl class=\"header\">\n        <dt>description</dt>\n        <dd>Two code units that form a UTF-16 surrogate pair are converted to a code point.</dd>\n      </dl>\n      <emu-alg>\n        1. Assert: _lead_ is a leading surrogate and _trail_ is a trailing surrogate.\n        1. Let _codePoint_ be (_lead_ - 0xD800) × 0x400 + (_trail_ - 0xDC00) + 0x10000.\n        1. Return the code point _codePoint_.\n      </emu-alg>\n    </emu-clause>\n\n"
+    },
+    {
+      "source": "ecma",
+      "anchor": "sec-codepointat",
+      "model_or_boundary": "next; Step; exact count/suffix; no unpaired Boolean or arbitrary-index wrapper",
+      "start": 881935,
+      "end": 883802,
+      "sha256": "9938c5a527e3da407225ad1644a2b8cbdbcfc3a2cce4e8929bf20942a1802e7b",
+      "markup": "    <emu-clause id=\"sec-codepointat\" type=\"abstract operation\">\n      <h1>\n        Static Semantics: CodePointAt (\n          _string_: a String,\n          _position_: a non-negative integer,\n        ): a Record with fields [[CodePoint]] (a code point), [[CodeUnitCount]] (a positive integer), and [[IsUnpairedSurrogate]] (a Boolean)\n      </h1>\n      <dl class=\"header\">\n        <dt>description</dt>\n        <dd>It interprets _string_ as a sequence of UTF-16 encoded code points, as described in <emu-xref href=\"#sec-ecmascript-language-types-string-type\"></emu-xref>, and reads from it a single code point starting with the code unit at index _position_.</dd>\n      </dl>\n      <emu-alg>\n        1. Let _size_ be the length of _string_.\n        1. Assert: _position_ ≥ 0 and _position_ &lt; _size_.\n        1. Let _first_ be the code unit at index _position_ within _string_.\n        1. Let _codePoint_ be the code point whose numeric value is the numeric value of _first_.\n        1. If _first_ is neither a leading surrogate nor a trailing surrogate, then\n          1. Return the Record { [[CodePoint]]: _codePoint_, [[CodeUnitCount]]: 1, [[IsUnpairedSurrogate]]: *false* }.\n        1. If _first_ is a trailing surrogate or _position_ + 1 = _size_, then\n          1. Return the Record { [[CodePoint]]: _codePoint_, [[CodeUnitCount]]: 1, [[IsUnpairedSurrogate]]: *true* }.\n        1. Let _second_ be the code unit at index _position_ + 1 within _string_.\n        1. If _second_ is not a trailing surrogate, then\n          1. Return the Record { [[CodePoint]]: _codePoint_, [[CodeUnitCount]]: 1, [[IsUnpairedSurrogate]]: *true* }.\n        1. Set _codePoint_ to UTF16SurrogatePairToCodePoint(_first_, _second_).\n        1. Return the Record { [[CodePoint]]: _codePoint_, [[CodeUnitCount]]: 2, [[IsUnpairedSurrogate]]: *false* }.\n      </emu-alg>\n    </emu-clause>\n\n"
+    },
+    {
+      "source": "ecma",
+      "anchor": "sec-stringtocodepoints",
+      "model_or_boundary": "decode; Decoded",
+      "start": 883802,
+      "end": 884796,
+      "sha256": "527db2e5288a64793cf723b668cf992d15a54cdb3d7a3b7bc5d9f81b9d2f71c7",
+      "markup": "    <emu-clause id=\"sec-stringtocodepoints\" type=\"abstract operation\" oldids=\"sec-utf16decodestring\">\n      <h1>\n        Static Semantics: StringToCodePoints (\n          _string_: a String,\n        ): a List of code points\n      </h1>\n      <dl class=\"header\">\n        <dt>description</dt>\n        <dd>It returns the sequence of Unicode code points that results from interpreting _string_ as UTF-16 encoded Unicode text as described in <emu-xref href=\"#sec-ecmascript-language-types-string-type\"></emu-xref>.</dd>\n      </dl>\n      <emu-alg>\n        1. Let _codePoints_ be a new empty List.\n        1. Let _size_ be the length of _string_.\n        1. Let _position_ be 0.\n        1. Repeat, while _position_ &lt; _size_,\n          1. Let _codePoint_ be CodePointAt(_string_, _position_).\n          1. Append _codePoint_.[[CodePoint]] to _codePoints_.\n          1. Set _position_ to _position_ + _codePoint_.[[CodeUnitCount]].\n        1. Return _codePoints_.\n      </emu-alg>\n    </emu-clause>\n\n"
+    },
+    {
+      "source": "cssom",
+      "anchor": "cssomstring-type",
+      "model_or_boundary": "implementation chooses DOMString or USVString",
+      "start": 13870,
+      "end": 14257,
+      "sha256": "9c33cf009bf125ec492c21b597160edbd0420a3cc8b3687ccdfd30960e08f58b",
+      "markup": "CSSOMString {#cssomstring-type}\n===============================\n\nMost strings in CSSOM interfaces use the <dfn interface>CSSOMString</dfn> type.\nEach implementation chooses to define it as either {{USVString}} or {{DOMString}}:\n\n<pre class=\"def lang-webidl\">\ntypedef USVString CSSOMString;\n</pre>\n\nOr, alternatively:\n\n<pre class=\"def lang-webidl\">\ntypedef DOMString CSSOMString;\n</pre>\n\n"
+    },
+    {
+      "source": "cssom",
+      "anchor": "the-cssstylesheet-interface",
+      "model_or_boundary": "caller IDL; replaceSync explicitly USVString",
+      "start": 40393,
+      "end": 40810,
+      "sha256": "1752077877048bc26fae15b35e0b15d9aa265927e4b9b5dffb85f770cdccd6b6",
+      "markup": "interface CSSStyleSheet : StyleSheet {\n  constructor(optional CSSStyleSheetInit options = {});\n\n  readonly attribute CSSRule? ownerRule;\n  [SameObject] readonly attribute CSSRuleList cssRules;\n  unsigned long insertRule(CSSOMString rule, optional unsigned long index = 0);\n  undefined deleteRule(unsigned long index);\n\n  Promise&lt;CSSStyleSheet> replace(USVString text);\n  undefined replaceSync(USVString text);\n};\n\n"
+    },
+    {
+      "source": "cssom",
+      "anchor": "dom-cssstylesheet-insertrule",
+      "model_or_boundary": "guarded normative call to parse a rule",
+      "start": 41823,
+      "end": 42630,
+      "sha256": "60aaa8e5cbbdf29f4c5595ec54ecada18de408b0c27c66a2cb8c10cacb9c3410",
+      "markup": "The <dfn method for=CSSStyleSheet>insertRule(<var>rule</var>, <var>index</var>)</dfn> method must run the following steps:\n\n<ol>\n <li>If the <a>origin-clean flag</a> is unset,\n <a>throw</a> a {{SecurityError}} exception.\n <li>If the <a>disallow modification flag</a> is set, throw a {{NotAllowedError}} {{DOMException}}.\n <li>Let <var>parsed rule</var> be the return value of invoking <a>parse a rule</a> with <var>rule</var>.\n <li>If <var>parsed rule</var> is a syntax error, throw a {{SyntaxError}} {{DOMException}}.\n <li>If <var>parsed rule</var> is an <a>@import</a> rule, and the <a>constructed flag</a> is set, throw\n a {{SyntaxError}} {{DOMException}}.\n <li>Return the result of invoking <a>insert a CSS rule</a> <var>rule</var> in the <a for=CSSStyleSheet>CSS rules</a>\n at <var>index</var>.\n</ol>\n\n"
+    },
+    {
+      "source": "css",
+      "anchor": "normalize-into-a-token-stream",
+      "model_or_boundary": "string branch invokes code-point filtering",
+      "start": 73322,
+      "end": 74048,
+      "sha256": "ee51cef787d5d86a8de9f58226e83965ba09db9cb4c98963eac2c0b72a74ac49",
+      "markup": "\t<div algorithm=\"normalize into a list of tokens\">\n\t\tThe algorithms here operate on a token stream as input,\n\t\tbut for convenience\n\t\tcan also be invoked with a number of other value types.\n\n\t\tTo <dfn export local-lt=\"normalize\">normalize into a token stream</dfn> a given |input|:\n\n\t\t1. If |input| is already a [=token stream=],\n\t\t\treturn it.\n\n\t\t2. If |input| is a list of CSS [=tokens=] and/or [=component values=],\n\t\t\tcreate a new [=token stream=]\n\t\t\twith |input| as its [=token stream/tokens=],\n\t\t\tand return it.\n\n\t\t3. If |input| is a [=string=],\n\t\t\tthen [=filter code points=] from |input|,\n\t\t\t[=tokenize=] the result,\n\t\t\tand return the stream of tokens.\n\n\t\t4. Assert: Only the preceding types should be passed as |input|."
+    },
+    {
+      "source": "css",
+      "anchor": "parse-rule",
+      "model_or_boundary": "parse-rule normalizes input",
+      "start": 81671,
+      "end": 81856,
+      "sha256": "a21ea40c607642b11c0357904342b3226bd66aef367c88759d7ec4998dce613d",
+      "markup": "<h4 id=\"parse-rule\">\nParse a rule</h4>\n\n\t<div algorithm>\n\t\tTo <dfn export>parse a rule</dfn> from |input|:\n\n\t\t<ol>\n\t\t\t<li>\n\t\t\t\t[=Normalize=] |input|,\n\t\t\t\tand set |input| to the result.\n"
+    },
+    {
+      "source": "css",
+      "anchor": "input-preprocessing",
+      "model_or_boundary": "accepted CodePointInput model; preprocessing boundary",
+      "start": 18677,
+      "end": 19668,
+      "sha256": "6c6cf63279a8cc0e12483db5382382078323f87a804b234d6b65454153aad44b",
+      "markup": "<h3 id=\"input-preprocessing\">\nPreprocessing the input stream</h3>\n\n\tThe <dfn>input stream</dfn> consists of the [=filtered code points=]\n\tpushed into it as the input byte stream is decoded.\n\n\t<div algorithm>\n\t\tTo <dfn for=CSS lt=\"filter code points|filtered code points\">filter code points</dfn>\n\t\tfrom a stream of (unfiltered) [=code points=] |input|:\n\n\t\t<ul>\n\t\t\t<li>\n\t\t\t\tReplace any U+000D CARRIAGE RETURN (CR) <a>code points</a>,\n\t\t\t\tU+000C FORM FEED (FF) <a>code points</a>,\n\t\t\t\tor pairs of U+000D CARRIAGE RETURN (CR) followed by U+000A LINE FEED (LF) in |input|\n\t\t\t\tby a single U+000A LINE FEED (LF) <a>code point</a>.\n\n\t\t\t<li>\n\t\t\t\tReplace any U+0000 NULL or <a>surrogate</a> <a>code points</a> in |input|\n\t\t\t\twith U+FFFD REPLACEMENT CHARACTER (�).\n\n\t\t\t\tNote: The only way to produce a <a>surrogate</a> <a>code point</a> in CSS content is by directly assigning a <code>DOMString</code> with one in it via an OM operation.\n\t\t</ul>\n\t</div>\n\n\t<wpt>\n\t\tinput-preprocessing.html\n\t</wpt>\n\n\n"
+    }
+  ]
+}

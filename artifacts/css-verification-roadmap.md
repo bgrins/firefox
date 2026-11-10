@@ -43,7 +43,7 @@ Signing resumed successfully. New signed commits are:
 | c1209aa91006 | Final same-rule native validation, comparisons, lint and delivery decision |
 | 0f18d294fbac | Same-rule rollback fix: two Rust files and three WPT changes (#164) |
 
-The original Bloom milestones 1–6 remain conditional results at their recorded revisions. The standalone CSS Lean repository remains at 162b20fb7c53a0ab89b20875a965baee98fb66bb. No whole-CSS or whole-Stylo verification is claimed. Historical detailed milestones remain under css-continuation-roadmap-20261104-v278.
+The original Bloom milestones 1–6 remain conditional results at their recorded revisions. The standalone CSS Lean repository is at 06893e4890871614f763dc8c955100852ebdd5ac. No whole-CSS or whole-Stylo verification is claimed. Historical detailed milestones remain under css-continuation-roadmap-20261104-v278.
 
 ## Next work, in order
 
@@ -86,3 +86,5 @@ The obligation-conservation continuation changes research only; #160 stays held 
 The bounded native obligation experiment completed a successful instrumented build and two passing WPT callbacks, then restored the current scope-cache browser and all eight native source files. Independent application/source/index/process audits passed and the approximately 1 GB backup was removed. The trace has malformed tagged startup records outside the strictly parsed observation intervals, so it makes no whole-run conservation claim. The original C repair remains held; the catalogue is unchanged.
 
 The initial-admission probe is prepared in css-animation-initial-admission-probe-20261110-v1. CSS/WAAPI display animation is disabled by product default; SVG SMIL supplies a separate source-supported reveal hypothesis. Three callbacks cover SMIL plus CSS font work, ordinary reveal, and literal-font control. Root authenticated twelve native inputs and replayed syntax, registration, WPT lint and manifest preparation. No browser execution is claimed yet. Next run the bounded instrumented candidate with the display-animation preference explicitly false, recording initial AnimationOnly admission, its task mask, exact call/iteration and CSS delivery. SMIL sampling precedes iteration zero; this does not imply repeated SMIL injection in the inner drain.
+
+The DOMString code-unit boundary is checked in css-domstring-codepoint-boundary-20261110-v1. Root independently replayed 17 source-only inputs: 46 declaration audits (28 new), 34 observations and 11 controls passed, including a deliberately shared vocabulary error that correspondence alone cannot catch. Fifteen normative source spans were authenticated. The finite-list adapter composes with accepted code-point preprocessing; its CSSOM caller trace is conditional, and no native conversion implementation is verified. Next integrate this accepted adapter into the standalone library without broadening those claims. Temporary proof outputs were removed.

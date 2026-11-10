@@ -1,0 +1,73 @@
+Traceback (most recent call last):
+  File "/Users/bgrins/code/firefox/artifacts/css-domstring-codepoint-boundary-20261110-v1/check.py", line 179, in <module>
+    main()
+    ~~~~^^
+  File "/Users/bgrins/code/firefox/artifacts/css-domstring-codepoint-boundary-20261110-v1/check.py", line 132, in main
+    run(name + "-proof", [lean, "Correctness.lean"], mutant, False)
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bgrins/code/firefox/artifacts/css-domstring-codepoint-boundary-20261110-v1/check.py", line 73, in run
+    raise ValueError("Unexpected negative diagnostic: " + name + "\n" + output)
+ValueError: Unexpected negative diagnostic: pair-not-combined-proof
+Correctness.lean:79:6: error: Type mismatch: After simplification, term
+  congrArg (fun x => x :: decode rest) equal
+ has type
+  pairPoint u v lead trail :: decode rest = p :: decode rest
+but is expected to have type
+  (if Leading u ∧ Trailing v then unitPoint u :: decode (v :: rest) else unitPoint u :: decode (v :: rest)) =
+    p :: decode rest
+Correctness.lean:98:53: error: Application type mismatch: The argument
+  rfl
+has type
+  ?m.90 = ?m.90
+but is expected to have type
+  ↑?m.83 = (↑u - 55296) * 1024 + (↑v - 56320) + 65536
+in the application
+  Step.pair u v ?m.83 tail pair.left pair.right rfl
+Correctness.lean:100:70: error: Application type mismatch: The argument
+  rfl
+has type
+  ?m.101 = ?m.101
+but is expected to have type
+  ↑?m.97 = ↑u
+in the application
+  Step.single u ?m.97 (v :: tail)
+    (Eq.mpr
+      (id
+        (Eq.trans
+          (forall_congr fun v_1 =>
+            Eq.trans
+              (forall_congr fun tail_1 =>
+                Eq.trans
+                  (implies_congr (List.cons.injEq v tail v_1 tail_1)
+                    (Eq.trans not_and._simp_1
+                      (Eq.trans
+                        (implies_congr (Eq.refl (Leading u))
+                          (Eq.trans not_and._simp_1 (implies_congr (Eq.refl (56320 ≤ ↑v_1)) Nat.not_le._simp_1)))
+                        and_imp._simp_1)))
+                  and_imp._simp_1)
+              forall_apply_eq_imp_iff._simp_1)
+          forall_eq'._simp_1))
+      (Eq.mp
+        (Eq.trans not_and._simp_1
+          (Eq.trans
+            (implies_congr (Eq.refl (Leading u))
+              (Eq.trans not_and._simp_1 (implies_congr (Eq.refl (56320 ≤ ↑v)) Nat.not_le._simp_1)))
+            and_imp._simp_1))
+        pair))
+    rfl
+Correctness.lean:101:0: warning: unused `termination_by`, function is not recursive
+Correctness.lean:97:31: warning: This simp argument is unused:
+  dite_eq_left pair
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [decode]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+Correctness.lean:99:31: warning: This simp argument is unused:
+  dite_eq_right pair
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [decode]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+
