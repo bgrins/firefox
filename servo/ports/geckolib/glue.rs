@@ -344,6 +344,46 @@ fn traverse_subtree(
             unsafe { root.set_dirty_descendants() };
         }
     }
+    let mut query_restyle_ancestors = HashSet::new();
+    let mut query_restyle_path = Vec::new();
+    for (producer, hint) in traversal.style_query_restyle_producers() {
+        let mut has_styled_child = false;
+        for child_node in producer.traversal_children() {
+            let Some(child) = child_node.as_element() else {
+                continue;
+            };
+            {
+                let mut child_data = child.mutate_data();
+                let Some(child_data) = child_data.as_mut() else {
+                    continue;
+                };
+                if !child_data.has_styles() {
+                    continue;
+                }
+                child_data.hint.insert(hint);
+                has_styled_child = true;
+            }
+        }
+        if !has_styled_child {
+            continue;
+        }
+        let mut ancestor = Some(*producer);
+        loop {
+            let element = ancestor.expect("Should reach the traversal root");
+            if query_restyle_ancestors.contains(&element) {
+                break;
+            }
+            query_restyle_path.push(element);
+            if element == root {
+                break;
+            }
+            ancestor = element.traversal_parent();
+        }
+        for element in query_restyle_path.drain(..).rev() {
+            unsafe { element.set_dirty_descendants() };
+            query_restyle_ancestors.insert(element);
+        }
+    }
 }
 
 /// Traverses the subtree rooted at `root` for restyling.
