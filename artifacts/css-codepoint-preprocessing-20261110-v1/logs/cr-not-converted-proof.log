@@ -1,0 +1,53 @@
+/Users/bgrins/code/firefox/artifacts/css-codepoint-preprocessing-20261110-v1/Correctness.lean:23:25: error: unsolved goals
+case carriageReturn
+p : CodePoint
+equal : ↑p = 13
+⊢ (if Surrogate p then '�' else Char.ofNat 13) = '\n'
+/Users/bgrins/code/firefox/artifacts/css-codepoint-preprocessing-20261110-v1/Correctness.lean:29:17: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  if ↑p = 13 ∨ ↑p = 12 then ?m.145 else ?m.146
+in the target expression
+  (if ↑p = 12 then '\n' else if ↑p = 0 ∨ Surrogate p then '�' else Char.ofNat ↑p) = '�'
+
+case surrogate
+p : CodePoint
+surrogate : Surrogate p
+cr : ↑p ≠ 13
+ff : ↑p ≠ 12
+⊢ (if ↑p = 12 then '\n' else if ↑p = 0 ∨ Surrogate p then '�' else Char.ofNat ↑p) = '�'
+/Users/bgrins/code/firefox/artifacts/css-codepoint-preprocessing-20261110-v1/Correctness.lean:32:17: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  if ↑p = 13 ∨ ↑p = 12 then ?m.180 else ?m.181
+in the target expression
+  (if ↑p = 12 then '\n' else if ↑p = 0 ∨ Surrogate p then '�' else Char.ofNat ↑p) = c
+
+case ordinary
+p : CodePoint
+c : Char
+cr : ↑p ≠ 13
+ff : ↑p ≠ 12
+nul : ↑p ≠ 0
+same : c.toNat = ↑p
+noSurrogate : ¬Surrogate p
+⊢ (if ↑p = 12 then '\n' else if ↑p = 0 ∨ Surrogate p then '�' else Char.ofNat ↑p) = c
+/Users/bgrins/code/firefox/artifacts/css-codepoint-preprocessing-20261110-v1/Correctness.lean:36:4: error: Type mismatch: After simplification, term
+  Point.carriageReturn p cr
+ has type
+  Point p '\n'
+but is expected to have type
+  Point p (if Surrogate p then '�' else Char.ofNat 13)
+/Users/bgrins/code/firefox/artifacts/css-codepoint-preprocessing-20261110-v1/Correctness.lean:42:15: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  if ↑p = 13 ∨ ↑p = 12 then ?m.75 else ?m.76
+in the target expression
+  Point p (if ↑p = 12 then '\n' else if ↑p = 0 ∨ Surrogate p then '�' else Char.ofNat ↑p)
+
+case pos
+p : CodePoint
+cr : ¬↑p = 13
+ff : ¬↑p = 12
+nul : ¬↑p = 0
+surrogate : Surrogate p
+⊢ Point p (if ↑p = 12 then '\n' else if ↑p = 0 ∨ Surrogate p then '�' else Char.ofNat ↑p)
+'CssSemantics.CodePointInput.preprocess_iff' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+'CssSemantics.CodePointInput.preprocess_normalized' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+'CssSemantics.CodePointInput.preprocess_length_le' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+'CssSemantics.CodePointInput.surrogate_cons' depends on axioms: [propext, sorryAx, Quot.sound]
+'CssSemantics.CodePointInput.ofNat?_none_iff' depends on axioms: [propext]

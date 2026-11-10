@@ -1,0 +1,53 @@
+/Users/bgrins/code/firefox/artifacts/css-codepoint-preprocessing-20261110-v1/Correctness.lean:25:15: error: unsolved goals
+case null
+p : CodePoint
+equal : ↑p = 0
+⊢ False
+/Users/bgrins/code/firefox/artifacts/css-codepoint-preprocessing-20261110-v1/Correctness.lean:29:52: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  if ?m.150 ∨ Surrogate p then ?m.153 else ?m.154
+in the target expression
+  (if Surrogate p then '�' else Char.ofNat ↑p) = '�'
+
+case surrogate
+p : CodePoint
+surrogate : Surrogate p
+cr : ↑p ≠ 13
+ff : ↑p ≠ 12
+⊢ (if Surrogate p then '�' else Char.ofNat ↑p) = '�'
+/Users/bgrins/code/firefox/artifacts/css-codepoint-preprocessing-20261110-v1/Correctness.lean:32:52: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  if ↑p = 0 ∨ Surrogate p then ?m.196 else ?m.197
+in the target expression
+  (if Surrogate p then '�' else Char.ofNat ↑p) = c
+
+case ordinary
+p : CodePoint
+c : Char
+cr : ↑p ≠ 13
+ff : ↑p ≠ 12
+nul : ↑p ≠ 0
+same : c.toNat = ↑p
+noSurrogate : ¬Surrogate p
+⊢ (if Surrogate p then '�' else Char.ofNat ↑p) = c
+/Users/bgrins/code/firefox/artifacts/css-codepoint-preprocessing-20261110-v1/Correctness.lean:40:4: error: Type mismatch: After simplification, term
+  Point.null p nul
+ has type
+  Point p '�'
+but is expected to have type
+  Point p (if Surrogate p then '�' else Char.ofNat 0)
+/Users/bgrins/code/firefox/artifacts/css-codepoint-preprocessing-20261110-v1/Correctness.lean:42:50: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  if ?m.80 ∨ Surrogate p then ?m.83 else ?m.84
+in the target expression
+  Point p (if Surrogate p then '�' else Char.ofNat ↑p)
+
+case pos
+p : CodePoint
+cr : ¬↑p = 13
+ff : ¬↑p = 12
+nul : ¬↑p = 0
+surrogate : Surrogate p
+⊢ Point p (if Surrogate p then '�' else Char.ofNat ↑p)
+'CssSemantics.CodePointInput.preprocess_iff' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+'CssSemantics.CodePointInput.preprocess_normalized' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+'CssSemantics.CodePointInput.preprocess_length_le' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+'CssSemantics.CodePointInput.surrogate_cons' depends on axioms: [propext, sorryAx, Quot.sound]
+'CssSemantics.CodePointInput.ofNat?_none_iff' depends on axioms: [propext]

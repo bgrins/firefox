@@ -1,0 +1,13 @@
+# Independent preprocessing review
+
+Root read the four new Lean files, the checker and clause extractor, the retained CSS preprocessing section, and Infra's code-point and surrogate definitions. The manually authored relation matches the intended finite-code-point-list interpretation of those clauses. This is a reviewed interpretation, not mechanical derivation of semantics from English.
+
+The domain change is substantive: `Fin 0x110000` admits surrogates that `Char` cannot represent. `Point.ordinary` cannot accidentally preserve one because its output is a valid `Char` with the same numeric value. `NotPair` prevents the single-point relation rule from consuming CR separately when immediately followed by LF. The output normalization predicate omits a separate surrogate exclusion because the output type already enforces scalar validity.
+
+`scalar_refinement` lifts the old relation into the new one for every embedded scalar list. It preserves the previous scalar behavior without assuming that the new surrogate cases were present in the old input domain. The idempotence theorem explicitly re-embeds scalar output; it makes no claim about decoding twice. Numeric admission must use `ofNat?`/`filterValues`, since a `Fin` numeral is not a rejecting decoder.
+
+Root independently copied exactly eleven source/manifest files into a fresh directory, with no compiled files, generated clauses or previous result receipts. The replay checked the new model, copied scalar reference, nine theorem dependency audits, twenty-one examples and eleven controls. Each of the eight semantic mutants typechecked before its unchanged relational proof and direct concrete witness failed. The other controls reject an invalid bounded-value construction and drift in each pinned specification source.
+
+Root also independently checked all seven clause byte spans against the retained source bytes, rather than accepting the extraction report alone. `ROOT-REPLAY.json`, `ROOT-CHECK.json` and `root-replay-logs/` retain the results. The temporary replay directory was removed after success. No browser was run for this review, and this artifact identifies no Firefox bug.
+
+Important remaining boundaries are finite-list versus incremental-stream processing, code points versus UTF-16 units, byte decoding, the manually authored prose interpretation, and native implementation correspondence. The `[CR]`/`[LF]` chunk example in the report correctly prevents treating this as a stateless per-chunk streaming API. The new model is suitable for integration as a separate preprocessing layer while preserving the existing scalar API; that integration is a separate change.
