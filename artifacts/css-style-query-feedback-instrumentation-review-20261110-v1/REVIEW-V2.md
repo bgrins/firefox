@@ -1,0 +1,9 @@
+# Atomic-record instrumentation follow-up
+
+Verdict: suitable for the bounded native rerun. Independently reviewed patch `1fc04b711c6dbfdd6453e97b4974a04c02dd9be8d2b6b14396ce2b6febd8c576`. Four Git bases and copied files authenticate, and the exact patch reconstructs. The only changes from the previously reviewed candidate are `<cerrno>` and the diagnostic logger in Animation.cpp. Native event hooks, filters, stored fields and style scopes remain byte-identical.
+
+The logger formats into a fixed 512-byte stack buffer and writes each complete record in one OS write. Prefix validation reserves a newline byte; body validation rejects truncation; normal records are at most 511 bytes. Cap and error records also use one bounded write. This is below the POSIX minimum pipe atomic-write size and eliminates the observed multi-operation CSSFB fragmentation when stderr is a pipe. No allocation or new timing/style getter is introduced.
+
+EINTR retries occur only when the write returned a negative result. A short or failed write attempts a trace-error marker and permanently disables further logging; it does not emit the remaining fragment as a new record. Error/cap/format paths remain bounded. A permanently unwritable stderr can also lose the error marker, so successful capture and completeness checks remain assumptions; absence of a marker alone does not certify delivery. A partial record joined to an error marker is deliberately an invalid interval for analysis.
+
+No additional compile/API problem found by inspection. Root owns compilation and runtime validation. All main-thread, pointer lifetime, non-unique animation index, raw-nullness and no-performance-claim qualifications in REVIEW.md still apply. A single write does not establish relative ordering with QF output through another stream. Require strict grammar, per-PID continuity and balanced scopes in native2 before making bounded absence claims.

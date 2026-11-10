@@ -1,0 +1,109 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Style-query feedback through named scroll timelines</title>
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#animated-containers">
+<link rel="help" href="https://drafts.csswg.org/scroll-animations-1/#timeline-scoping">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+function scalar(value) {
+  return value === null || typeof value === "number" ? value : value.toString();
+}
+
+for (const mode of ["opposed", "aligned", "constant-query", "stable-underlying"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    frame.width = "640";
+    frame.height = "480";
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    const query = mode === "constant-query" ? "--switch" : "--gate";
+    const underlying = mode === "stable-underlying" ? "on" : "idle";
+    frame.srcdoc = `<!doctype html><style>
+      html, body { margin: 0; }
+      #outside { container-name: gate; timeline-scope: --t;
+        --gate: ${underlying}; --switch: on;
+        animation: gate 1s linear both; animation-timeline: --t; }
+      .scroller { width: 160px; height: 100px; overflow: auto; }
+      .filler { height: 300px; }
+      #fallback { scroll-timeline: --t block; }
+      @container gate style(${query}: on) {
+        .armed #provider { scroll-timeline: --t block; }
+      }
+      @keyframes gate { from { --gate: off; } to { --gate: on; } }
+    </style><div id="outside">
+      <div id="fallback" class="scroller"><div class="filler"></div></div>
+      <div id="provider" class="scroller"><div class="filler"></div></div>
+    </div>`;
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    const outside = doc.getElementById("outside");
+    const fallback = doc.getElementById("fallback");
+    const provider = doc.getElementById("provider");
+    assert_true(win.CSS.supports("animation-timeline", "--t"));
+    assert_equals(fallback.scrollHeight - fallback.clientHeight, 200);
+    assert_equals(provider.scrollHeight - provider.clientHeight, 200);
+    fallback.scrollTop = 150;
+    provider.scrollTop = mode === "opposed" ? 50 : 150;
+    const animations = outside.getAnimations();
+    assert_equals(animations.length, 1);
+    const animation = animations[0];
+    assert_true(animation instanceof win.CSSAnimation);
+    const mark = (phase, value = {}) => {
+      if (typeof dump === "function") {
+        dump(`QF_PROBE ${JSON.stringify({mode, phase, ...value})}\n`);
+      }
+    };
+    const observe = phase => {
+      const gate = win.getComputedStyle(outside).getPropertyValue("--gate").trim();
+      const timing = animation.effect.getComputedTiming();
+      const timeline = animation.timeline;
+      const value = {gate, source: timeline?.source?.id ?? null,
+        timelineTime: scalar(timeline?.currentTime ?? null),
+        currentTime: scalar(animation.currentTime), progress: timing.progress,
+        localTime: scalar(timing.localTime), pending: animation.pending,
+        playState: animation.playState,
+        providerName: win.getComputedStyle(provider).scrollTimelineName,
+        repeatGate: win.getComputedStyle(outside).getPropertyValue("--gate").trim()};
+      mark(phase, value);
+      return value;
+    };
+    let baseline;
+    for (let i = 0; i < 24; ++i) {
+      await new Promise(resolve => win.requestAnimationFrame(resolve));
+      baseline = observe(`prepare-${i}`);
+      if (baseline.source === "fallback" && baseline.gate === "on" &&
+          !baseline.pending && baseline.progress !== null &&
+          Math.abs(baseline.progress - 0.75) < 0.001) {
+        break;
+      }
+    }
+    assert_equals(baseline.source, "fallback", "Established fallback timeline");
+    assert_equals(baseline.gate, "on", "Baseline animation selects on");
+    assert_false(baseline.pending, "Baseline sampling is established");
+    assert_equals(baseline.playState, "running", "Baseline animation is running");
+    assert_equals(animation.playbackRate, 1, "Playback rate is nonzero");
+    assert_approx_equals(baseline.progress, 0.75, 0.001);
+    mark("armed-before");
+    outside.classList.add("armed");
+    mark("armed-after");
+    for (let i = 0; i < 4; ++i) {
+      observe(`sync-${i}`);
+    }
+    for (let i = 0; i < 12; ++i) {
+      await new Promise(resolve => win.requestAnimationFrame(resolve));
+      observe(`frame-${i}`);
+    }
+    assert_equals(outside.getAnimations()[0], animation, "Animation identity preserved");
+    assert_equals(fallback.scrollTop, 150, "Fallback offset remains fixed");
+    assert_equals(provider.scrollTop, mode === "opposed" ? 50 : 150,
+                  "Provider offset remains fixed");
+    mark("complete");
+  }, `Style-query timeline feedback: ${mode}`);
+}
+</script>
