@@ -1,0 +1,28 @@
+LoweringLaws.lean:23:38: error: Tactic `rfl` failed: The left-hand side
+  run
+    (match (none, final).fst with
+    | some value => pure (some value)
+    | none =>
+      (Program.getState.bind fun after => Program.putState { input := state.input, error := after.error }).bind fun x =>
+        pure none)
+    (none, final).snd
+is not definitionally equal to the right-hand side
+  match (none, final) with
+  | (none, snd) => (none, state)
+  | (some value, final) => (some value, final)
+
+case mk.none
+α : Type
+program : Program (Option α)
+state final : State
+outcome : run program state = (none, final)
+⊢ run
+      (match (none, final).fst with
+      | some value => pure (some value)
+      | none =>
+        (Program.getState.bind fun after => Program.putState { input := state.input, error := after.error }).bind
+          fun x => pure none)
+      (none, final).snd =
+    match (none, final) with
+    | (none, snd) => (none, state)
+    | (some value, final) => (some value, final)

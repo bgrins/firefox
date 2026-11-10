@@ -1,0 +1,25 @@
+LoweringLaws.lean:63:15: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  run (transaction ?program) ?state
+in the target expression
+  run
+      ((lower left).bind fun first =>
+        match first with
+        | none => pure none
+        | some a => (lower right).bind fun second => pure (Option.map (fun b => (a, b)) second))
+      state =
+    observed state (ParserIR.run (left.pair right) state)
+
+case pair
+shape a✝ b✝ : Shape
+left : Parser a✝
+right : Parser b✝
+leftIH : ∀ (state : State), run (lower left) state = observed state (ParserIR.run left state)
+rightIH : ∀ (state : State), run (lower right) state = observed state (ParserIR.run right state)
+state : State
+⊢ run
+      ((lower left).bind fun first =>
+        match first with
+        | none => pure none
+        | some a => (lower right).bind fun second => pure (Option.map (fun b => (a, b)) second))
+      state =
+    observed state (ParserIR.run (left.pair right) state)

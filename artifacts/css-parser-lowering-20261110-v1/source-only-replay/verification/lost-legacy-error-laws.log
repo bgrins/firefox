@@ -1,0 +1,137 @@
+LoweringLaws.lean:7:0: error: Not a definitional equality: the left-hand side
+  run (Program.legacy program) state
+is not definitionally equal to the right-hand side
+  CssDerivation.run program state
+LoweringLaws.lean:8:69: error: Type mismatch
+  rfl
+has type
+  ?m.8 = ?m.8
+but is expected to have type
+  run (Program.legacy program) state = CssDerivation.run program state
+LoweringLaws.lean:10:0: error: Not a definitional equality: the left-hand side
+  run (pure value) state
+is not definitionally equal to the right-hand side
+  (value, state)
+LoweringLaws.lean:10:88: error: Type mismatch
+  rfl
+has type
+  ?m.9 = ?m.9
+but is expected to have type
+  run (pure value) state = (value, state)
+LoweringLaws.lean:23:38: error: Tactic `rfl` failed: The left-hand side
+  run
+    (match (none, final).fst with
+    | some value => pure (some value)
+    | none => (Program.putState state).bind fun x => pure none)
+    (none, final).snd
+is not definitionally equal to the right-hand side
+  match (none, final) with
+  | (none, snd) => (none, state)
+  | (some value, final) => (some value, final)
+
+case mk.none
+α : Type
+program : Program (Option α)
+state final : State
+outcome : run program state = (none, final)
+⊢ run
+      (match (none, final).fst with
+      | some value => pure (some value)
+      | none => (Program.putState state).bind fun x => pure none)
+      (none, final).snd =
+    match (none, final) with
+    | (none, snd) => (none, state)
+    | (some value, final) => (some value, final)
+LoweringLaws.lean:23:38: error: Tactic `rfl` failed: The left-hand side
+  run
+    (match (some val✝, final).fst with
+    | some value => pure (some value)
+    | none => (Program.putState state).bind fun x => pure none)
+    (some val✝, final).snd
+is not definitionally equal to the right-hand side
+  match (some val✝, final) with
+  | (none, snd) => (none, state)
+  | (some value, final) => (some value, final)
+
+case mk.some
+α : Type
+program : Program (Option α)
+state final : State
+val✝ : α
+outcome : run program state = (some val✝, final)
+⊢ run
+      (match (some val✝, final).fst with
+      | some value => pure (some value)
+      | none => (Program.putState state).bind fun x => pure none)
+      (some val✝, final).snd =
+    match (some val✝, final) with
+    | (none, snd) => (none, state)
+    | (some value, final) => (some value, final)
+LoweringLaws.lean:43:19: error: unsolved goals
+case legacy
+shape : Shape
+t✝ : FirstOrder.Ty
+program : FirstOrder.Stmt [] t✝
+state : State
+⊢ (FirstOrder.interpret program FirstOrder.Env.nil { input := state.input, error := false }).fst =
+      (FirstOrder.interpret program FirstOrder.Env.nil state).fst ∧
+    { input := (FirstOrder.interpret program FirstOrder.Env.nil { input := state.input, error := false }).snd.input,
+        error := false } =
+      (FirstOrder.interpret program FirstOrder.Env.nil state).snd
+LoweringLaws.lean:49:18: error: unsolved goals
+case pos
+shape : Shape
+predicate : Predicate
+state : State
+c : Char
+rest : List Char
+input : state.input = c :: rest
+accepted : accepts predicate c = true
+⊢ state.error = false
+LoweringLaws.lean:52:19: error: unsolved goals
+case scan
+shape : Shape
+predicate : Predicate
+state : State
+⊢ state.error = false
+LoweringLaws.lean:59:17: error: unsolved goals
+case nonempty.some.cons
+shape : Shape
+parser : Parser (Shape.base FirstOrder.Ty.chars)
+ih : ∀ (state : State), run (lower parser) state = observed state (ParserIR.run parser state)
+state final : State
+head✝ : Char
+tail✝ : List Char
+result : ParserIR.run parser state = some (head✝ :: tail✝, final)
+⊢ { input := final.input, error := false } = final
+LoweringLaws.lean:67:17: error: unsolved goals
+case pair.some.some
+shape a✝ b✝ : Shape
+left : Parser a✝
+right : Parser b✝
+leftIH : ∀ (state : State), run (lower left) state = observed state (ParserIR.run left state)
+rightIH : ∀ (state : State), run (lower right) state = observed state (ParserIR.run right state)
+state : State
+a : a✝.Value
+next : State
+first : ParserIR.run left state = some (a, next)
+val✝ : b✝.Value × State
+second : ParserIR.run right next = some val✝
+⊢ { input := val✝.snd.input, error := false } = val✝.snd
+LoweringLaws.lean:82:23: error: unsolved goals
+case optional.none
+shape a✝ : Shape
+parser : Parser a✝
+ih : ∀ (state : State), run (lower parser) state = observed state (ParserIR.run parser state)
+state : State
+result : ParserIR.run parser state = none
+⊢ { input := state.input, error := false } = state
+
+case optional.some
+shape a✝ : Shape
+parser : Parser a✝
+ih : ∀ (state : State), run (lower parser) state = observed state (ParserIR.run parser state)
+state : State
+val✝ : a✝.Value × State
+result : ParserIR.run parser state = some val✝
+⊢ { input := val✝.snd.input, error := false } = val✝.snd
