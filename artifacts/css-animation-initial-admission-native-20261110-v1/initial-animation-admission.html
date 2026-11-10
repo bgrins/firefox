@@ -1,0 +1,101 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Font animation dependencies in a revealed SVG subtree</title>
+<link rel="help" href="https://www.w3.org/TR/smil-animation/">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+window.initialAdmissionObservations = [];
+
+function mark(mode, phase, fields = {}) {
+  if (typeof dump === "function") {
+    dump(`IA_PROBE ${JSON.stringify({mode, phase, ...fields})}\n`);
+  }
+}
+
+for (const mode of ["smil-animated", "normal-animated", "smil-literal"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    const smil = mode.startsWith("smil-");
+    const animated = mode.endsWith("-animated");
+    frame.srcdoc = `<!doctype html><html><style>
+      html { font-size: 32px; }
+      #host.visible { display: inline; }
+      .rem-node { font-size: ${animated ? "11px" : "2rem"}; }
+      .em-node { font-size: ${animated ? "11px" : "2em"}; }
+      ${animated ? `
+        .rem-node { animation: rem-size 100s linear both paused; }
+        .em-node { animation: em-size 100s linear both paused; }
+      ` : ""}
+      @keyframes rem-size { from, to { font-size: 2rem; } }
+      @keyframes em-size { from, to { font-size: 2em; } }
+    </style><body>
+      <svg id="svg" width="100" height="100">
+        <g id="host" display="none">
+          ${smil ? `<animate attributeName="display" values="none;inline"
+            calcMode="discrete" begin="0s" dur="100s" fill="freeze"/>` : ""}
+          <foreignObject width="100" height="100">
+            <div xmlns="http://www.w3.org/1999/xhtml" id="first" class="rem-node">
+              <div id="second" class="em-node"><div id="third" class="em-node">
+                <div id="leaf" class="em-node">leaf</div>
+              </div></div>
+            </div>
+          </foreignObject>
+        </g>
+      </svg>`;
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    const svg = doc.getElementById("svg");
+    const host = doc.getElementById("host");
+    const leaf = doc.getElementById("leaf");
+    if (smil) {
+      svg.pauseAnimations();
+      svg.setCurrentTime(0);
+    }
+    assert_equals(win.getComputedStyle(host).display, "none", "Hidden before reveal");
+    const observation = {mode, phase: "prepared"};
+    window.initialAdmissionObservations.push(observation);
+    mark(mode, "stimulus-begin");
+    observation.phase = "stimulus";
+    if (smil) {
+      svg.setCurrentTime(75);
+    } else {
+      host.classList.add("visible");
+    }
+    mark(mode, "stimulus-return");
+    observation.phase = "getter";
+    mark(mode, "getter-begin");
+    observation.firstLeaf = win.getComputedStyle(leaf).fontSize;
+    mark(mode, "getter-return", {value: observation.firstLeaf});
+    observation.repeatLeaf = win.getComputedStyle(leaf).fontSize;
+    observation.hostDisplay = win.getComputedStyle(host).display;
+    observation.paused = smil ? svg.animationsPaused() : null;
+    observation.time = smil ? svg.getCurrentTime() : null;
+    const animations = doc.getAnimations();
+    observation.animationTargets = animations.map(animation => animation.effect.target.id).sort();
+    observation.cssAnimationsPaused = animations.every(animation =>
+      animation instanceof win.CSSAnimation && animation.playState === "paused");
+    observation.phase = "complete";
+    mark(mode, "complete", {observation});
+    assert_equals(observation.hostDisplay, "inline", "Revealed host");
+    if (smil) {
+      assert_true(observation.paused, "SMIL timeline remains paused");
+      assert_equals(observation.time, 75, "One explicit seek");
+    }
+    assert_array_equals(observation.animationTargets,
+                        animated ? ["first", "leaf", "second", "third"] : [],
+                        "Expected CSS animation targets");
+    assert_true(observation.cssAnimationsPaused, "CSS font animations remain paused");
+    assert_equals(observation.firstLeaf, "512px", "First leaf read includes all dependencies");
+    assert_equals(observation.repeatLeaf, "512px", "Repeated leaf read remains settled");
+  }, `Revealed font dependency chain: ${mode}`);
+}
+</script>

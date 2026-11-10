@@ -1,0 +1,229 @@
+servo/components/style/dom.rs
+119: pub trait TDocument: Sized + Copy + Clone {
+120:     /// The concrete `TNode` type.
+121:     type ConcreteNode: TNode<ConcreteDocument = Self>;
+122: 
+123:     /// Get this document as a `TNode`.
+124:     fn as_node(&self) -> Self::ConcreteNode;
+125: 
+126:     /// Returns whether this document is an HTML document.
+127:     fn is_html_document(&self) -> bool;
+128: 
+530:         context: &SharedStyleContext,
+531:     ) -> Option<Arc<Locked<PropertyDeclarationBlock>>>;
+532: 
+533:     /// Get this element's state, for non-tree-structural pseudos.
+534:     fn state(&self) -> ElementState;
+535: 
+536:     /// Returns whether this element has a `part` attribute.
+537:     fn has_part_attr(&self) -> bool;
+538: 
+539:     /// Returns whether this element exports any part from its shadow tree.
+540:     fn exports_any_part(&self) -> bool;
+541: 
+542:     /// The ID for this element.
+543:     fn id(&self) -> Option<&WeakAtom>;
+544: 
+545:     /// Internal iterator for the classes of this element.
+546:     fn each_class<F>(&self, callback: F)
+547:     where
+
+servo/components/style/gecko/wrapper.rs
+108: /// A simple wrapper over `Document`.
+109: #[derive(Clone, Copy)]
+110: pub struct GeckoDocument<'ld>(pub &'ld structs::Document);
+111: 
+112: impl<'ld> TDocument for GeckoDocument<'ld> {
+113:     type ConcreteNode = GeckoNode<'ld>;
+114: 
+115:     #[inline]
+116:     fn as_node(&self) -> Self::ConcreteNode {
+117:         GeckoNode(&self.0._base)
+118:     }
+119: 
+524:     #[inline]
+525:     fn owner_doc(&self) -> Self::ConcreteDocument {
+526:         debug_assert!(!self.node_info().mDocument.is_null());
+527:         GeckoDocument(unsafe { &*self.node_info().mDocument })
+528:     }
+1290:         F: FnMut(&AtomIdent),
+1291:     {
+1292:         if let Some(slots) = self.extended_slots() {
+1293:             unsafe {
+1294:                 for atom in slots.mCustomStates.iter() {
+1295:                     AtomIdent::with(atom.mRawPtr, &mut callback)
+1296:                 }
+1297:             }
+1298:         }
+1299:     }
+1300: 
+1301:     #[inline]
+1302:     fn each_exported_part<F>(&self, name: &AtomIdent, callback: F)
+1303:     where
+1304:         F: FnMut(&AtomIdent),
+1491:         unsafe {
+1492:             Gecko_UpdateAnimations(
+1493:                 self.0,
+1494:                 before_change_values,
+1495:                 computed_values_opt,
+1496:                 tasks.bits(),
+1497:             );
+1498:         }
+1499:     }
+1500: 
+1501:     #[inline]
+1502:     fn has_animations(&self, _: &SharedStyleContext) -> bool {
+1503:         self.has_any_animation()
+1504:     }
+1505: 
+1506:     fn has_css_animations(&self, _: &SharedStyleContext, _: Option<PseudoElement>) -> bool {
+1507:         self.may_have_animations() && unsafe { Gecko_ElementHasCSSAnimations(self.0) }
+1508:     }
+1509: 
+1510:     fn has_css_transitions(&self, _: &SharedStyleContext, _: Option<PseudoElement>) -> bool {
+1511:         self.may_have_animations() && unsafe { Gecko_ElementHasCSSTransitions(self.0) }
+1512:     }
+1513: 
+1514:     // Detect if there are any changes that require us to update transitions.
+1515:     //
+1516:     // This is used as a more thoroughgoing check than the cheaper
+1517:     // might_need_transitions_update check.
+1518:     //
+1519:     // The following logic shadows the logic used on the Gecko side
+1520:     // (nsTransitionManager::DoUpdateTransitions) where we actually perform the
+1521:     // update.
+1522:     //
+1523:     // https://drafts.csswg.org/css-transitions/#starting
+1524:     fn needs_transitions_update(
+1525:         &self,
+1526:         before_change_style: &ComputedValues,
+1527:         after_change_style: &ComputedValues,
+1528:     ) -> bool {
+1529:         let after_change_ui_style = after_change_style.get_ui();
+1530:         let existing_transitions = self.css_transitions_info();
+1531: 
+1532:         if after_change_style.get_box().get_display().is_none()
+1533:             && !crate::pref!("layout.css.display-animations.enabled")
+
+servo/components/style/gecko_string_cache/mod.rs
+366: impl fmt::Debug for WeakAtom {
+367:     fn fmt(&self, w: &mut fmt::Formatter) -> fmt::Result {
+368:         write!(w, "Gecko WeakAtom({:p}, {})", self, self)
+369:     }
+370: }
+371: 
+372: impl fmt::Display for WeakAtom {
+373:     fn fmt(&self, w: &mut fmt::Formatter) -> fmt::Result {
+374:         for c in self.chars() {
+375:             w.write_char(c.unwrap_or(char::REPLACEMENT_CHARACTER))?
+376:         }
+377:         Ok(())
+378:     }
+
+servo/components/style/matching.rs
+440:     fn process_animations(
+441:         &self,
+442:         context: &mut StyleContext<Self>,
+443:         old_styles: &mut ElementStyles,
+444:         new_styles: &mut ResolvedElementStyles,
+445:         important_rules_changed: bool,
+446:     ) {
+447:         use crate::context::UpdateAnimationsTasks;
+448: 
+449:         let old_values = &old_styles.primary;
+450:         if context.shared.traversal_flags.for_animation_only() && old_values.is_some() {
+451:             return;
+452:         }
+453: 
+454:         // Bug 868975: These steps should examine and update the visited styles
+455:         // in addition to the unvisited styles.
+456: 
+531:         }
+532: 
+533:         if !tasks.is_empty() {
+534:             let task = crate::context::SequentialTask::update_animations(
+535:                 *self,
+536:                 before_change_style,
+537:                 tasks,
+538:             );
+539:             context.thread_local.tasks.push(task);
+540:         }
+541:     }
+
+servo/components/style/context.rs
+411: #[cfg(feature = "gecko")]
+412: bitflags! {
+413:     /// Represents which tasks are performed in a SequentialTask of
+414:     /// UpdateAnimations which is a result of normal restyle.
+415:     pub struct UpdateAnimationsTasks: u8 {
+416:         /// Update CSS Animations.
+417:         const CSS_ANIMATIONS = structs::UpdateAnimationsTasks_CSSAnimations;
+418:         /// Update CSS Transitions.
+419:         const CSS_TRANSITIONS = structs::UpdateAnimationsTasks_CSSTransitions;
+420:         /// Update effect properties.
+421:         const EFFECT_PROPERTIES = structs::UpdateAnimationsTasks_EffectProperties;
+422:         /// Update animation cacade results for animations running on the compositor.
+423:         const CASCADE_RESULTS = structs::UpdateAnimationsTasks_CascadeResults;
+424:         /// Display property was changed from none.
+425:         /// Script animations keep alive on display:none elements, so we need to trigger
+426:         /// the second animation restyles for the script animations in the case where
+427:         /// the display property was changed from 'none' to others.
+428:         const DISPLAY_CHANGED_FROM_NONE = structs::UpdateAnimationsTasks_DisplayChangedFromNone;
+429:         /// Update CSS named scroll progress timelines.
+430:         const SCROLL_TIMELINES = structs::UpdateAnimationsTasks_ScrollTimelines;
+431:         /// Update CSS named view progress timelines.
+432:         const VIEW_TIMELINES = structs::UpdateAnimationsTasks_ViewTimelines;
+433:         /// Update CSS timeline scopes, which affect visibility of both scroll and view timelines.
+434:         const TIMELINE_SCOPES = structs::UpdateAnimationsTasks_TimelineScopes;
+435:     }
+462: impl<E: TElement> SequentialTask<E> {
+463:     /// Executes this task.
+464:     pub fn execute(self) {
+465:         use self::SequentialTask::*;
+466:         debug_assert!(thread_state::get().contains(ThreadState::LAYOUT));
+467:         match self {
+468:             Unused(_) => unreachable!(),
+469:             #[cfg(feature = "gecko")]
+470:             UpdateAnimations {
+471:                 el,
+472:                 before_change_style,
+473:                 tasks,
+474:             } => {
+475:                 el.update_animations(before_change_style, tasks);
+476:             },
+477:         }
+
+layout/style/ServoStyleSet.cpp
+void ServoStyleSet::StyleNewSubtree(Element* aRoot) {
+  MOZ_ASSERT(GetPresContext());
+  MOZ_ASSERT(!aRoot->HasServoData());
+  MOZ_ASSERT(aRoot->GetFlattenedTreeParentNodeForStyle(),
+             "Not in the flat tree? Fishy!");
+  PreTraverseSync();
+  AutoPrepareTraversal guard(this);
+
+  // Do the traversal. The snapshots will not be used.
+  const SnapshotTable& snapshots = Snapshots();
+  auto flags = ServoTraversalFlags::Empty;
+  if (ShouldTraverseInParallel()) {
+    flags |= ServoTraversalFlags::ParallelTraversal;
+  }
+
+  DebugOnly<bool> postTraversalRequired =
+      Servo_TraverseSubtree(aRoot, mRawData.get(), &snapshots, flags);
+  MOZ_ASSERT(!postTraversalRequired);
+
+  // Annoyingly, the newly-styled content may have animations that need
+  // starting, which requires traversing them again. Mark the elements
+  // that need animation processing, then do a forgetful traversal to
+  // update the styles and clear the animation bits.
+  if (GetPresContext()->EffectCompositor()->PreTraverseInSubtree(flags,
+                                                                 aRoot)) {
+    postTraversalRequired =
+        Servo_TraverseSubtree(aRoot, mRawData.get(), &snapshots,
+                              ServoTraversalFlags::AnimationOnly |
+                                  ServoTraversalFlags::FinalAnimationTraversal);
+    MOZ_ASSERT(!postTraversalRequired);
+  }
+}
+
