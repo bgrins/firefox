@@ -1,0 +1,287 @@
+servo/components/style/traversal.rs
+169:     fn element_needs_traversal(
+170:         el: E,
+171:         traversal_flags: TraversalFlags,
+172:         data: Option<&ElementData>,
+173:     ) -> bool {
+174:         debug!(
+175:             "element_needs_traversal({:?}, {:?}, {:?})",
+176:             el, traversal_flags, data
+177:         );
+178: 
+179:         // Unwrap the data.
+180:         let data = match data {
+181:             Some(d) if d.has_styles() => d,
+182:             _ => return true,
+183:         };
+184: 
+185:         if traversal_flags.for_animation_only() {
+186:             // In case of animation-only traversal we need to traverse the element if the element
+187:             // has animation only dirty descendants bit, or animation-only restyle hint.
+188:             return el.has_animation_only_dirty_descendants()
+189:                 || data.hint.has_animation_hint_or_recascade();
+190:         }
+191: 
+192:         // If the dirty descendants bit is set, we need to traverse no matter
+193:         // what. Skip examining the ElementData.
+194:         if el.has_dirty_descendants() {
+195:             return true;
+196:         }
+197: 
+198:         // If we have a restyle hint or need to recascade, we need to visit the
+199:         // element.
+200:         //
+201:         // Note that this is different than checking has_current_styles_for_traversal(),
+202:         // since that can return true even if we have a restyle hint indicating
+203:         // that the element's descendants (but not necessarily the element) need
+204:         // restyling.
+205:         if !data.hint.is_empty() {
+206:             return true;
+207:         }
+208: 
+209:         // Servo uses the post-order traversal for flow construction, so we need
+210:         // to traverse any element with damage so that we can perform fixup /
+350: {
+351:     let flags = context.shared.traversal_flags;
+352:     let is_initial_style = !data.has_styles();
+353: 
+354:     context.thread_local.statistics.elements_traversed += 1;
+355:     debug_assert!(
+356:         flags.intersects(TraversalFlags::AnimationOnly)
+357:             || is_initial_style
+358:             || !element.has_snapshot()
+359:             || element.handled_snapshot(),
+360:         "Should've handled snapshots here already"
+361:     );
+362: 
+363:     let has_animations = !flags.for_animation_only()
+364:         && data
+365:             .hint
+366:             .intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
+367:         && element.has_animations(context.shared);
+368:     let restyle_kind = data.restyle_kind(context.shared, has_animations);
+369:     debug!(
+370:         "recalc_style_at: {:?} (restyle_kind={:?}, dirty_descendants={:?}, data={:?})",
+371:         element,
+372:         restyle_kind,
+373:         element.has_dirty_descendants(),
+374:         data
+375:     );
+376: 
+377:     let mut child_restyle_hint = RestyleHint::empty();
+378: 
+379:     // Compute style for this element if necessary.
+380:     if let Some(restyle_kind) = restyle_kind {
+381:         child_restyle_hint = compute_style(context, element, data, restyle_kind);
+382: 
+383:         if !element.matches_user_and_content_rules() {
+384:             // We must always cascade native anonymous subtrees, since they
+385:             // may have pseudo-elements underneath that would inherit from the
+386:             // closest non-NAC ancestor instead of us.
+387:             child_restyle_hint |= RestyleHint::RECASCADE_SELF;
+388:         }
+389: 
+390:         // If we're restyling this element to display:none, throw away all style
+391:         // data in the subtree, notify the caller to early-return.
+392:         if data.styles.is_display_none() {
+393:             debug!(
+394:                 "{:?} style is display:none - clearing data from descendants.",
+395:                 element
+396:             );
+397:             unsafe {
+398:                 clear_descendant_data(element);
+399:             }
+400:         }
+401: 
+671: fn note_children<E, D, F>(
+672:     context: &mut StyleContext<E>,
+673:     element: E,
+674:     propagated_hint: RestyleHint,
+675:     is_initial_style: bool,
+676:     mut note_child: F,
+677: ) where
+678:     E: TElement,
+679:     D: DomTraversal<E>,
+680:     F: FnMut(E::ConcreteNode),
+681: {
+682:     trace!("note_children: {:?}", element);
+683:     let flags = context.shared.traversal_flags;
+684: 
+685:     // Loop over all the traversal children.
+686:     for child_node in element.traversal_children() {
+687:         let Some(child) = child_node.as_element() else {
+688:             continue;
+689:         };
+690: 
+691:         let mut child_data = child.mutate_data();
+692:         let mut child_data = child_data.as_deref_mut();
+693:         trace!(
+694:             " > {:?} -> {:?} + {:?}, pseudo: {:?}",
+695:             child,
+696:             child_data.as_ref().map(|d| d.hint),
+697:             propagated_hint,
+698:             child.implemented_pseudo_element()
+699:         );
+700: 
+701:         if let Some(ref mut child_data) = child_data {
+702:             child_data.hint.insert(propagated_hint);
+703: 
+704:             // Handle element snapshots and invalidation of descendants and siblings
+705:             // as needed.
+706:             //
+707:             // NB: This will be a no-op if there's no snapshot.
+708:             child_data.invalidate_style_if_needed(
+709:                 child,
+710:                 context.shared,
+711:                 Some(&context.thread_local.stack_limit_checker),
+712:                 &mut context.thread_local.selector_caches,
+713:             );
+714:         }
+715: 
+716:         if D::element_needs_traversal(child, flags, child_data.map(|d| &*d)) {
+717:             note_child(child_node);
+718: 
+719:             // Set the dirty descendants bit on the parent as needed, so that we
+720:             // can find elements during the post-traversal.
+721:             //
+722:             // Note that these bits may be cleared again at the bottom of
+723:             // recalc_style_at if requested by the caller.
+724:             if !is_initial_style {
+725:                 if flags.for_animation_only() {
+726:                     unsafe {
+727:                         element.set_animation_only_dirty_descendants();
+728:                     }
+729:                 } else {
+730:                     unsafe {
+731:                         element.set_dirty_descendants();
+732:                     }
+733:                 }
+734:             }
+735:         }
+736:     }
+
+servo/components/style/data.rs
+559:     pub fn restyle_kind(
+560:         &self,
+561:         shared_context: &SharedStyleContext,
+562:         has_animations: bool,
+563:     ) -> Option<RestyleKind> {
+564:         let style = match self.styles.primary {
+565:             Some(ref s) => s,
+566:             None => return Some(RestyleKind::MatchAndCascade),
+567:         };
+568: 
+569:         if shared_context.traversal_flags.for_animation_only() {
+570:             return self.restyle_kind_for_animation(shared_context);
+571:         }
+572: 
+573:         let hint = self.hint;
+574:         if hint.is_empty() {
+575:             return None;
+
+servo/components/style/matching.rs
+440:     fn process_animations(
+441:         &self,
+442:         context: &mut StyleContext<Self>,
+443:         old_styles: &mut ElementStyles,
+444:         new_styles: &mut ResolvedElementStyles,
+445:         important_rules_changed: bool,
+446:     ) {
+447:         use crate::context::UpdateAnimationsTasks;
+448: 
+449:         let old_values = &old_styles.primary;
+450:         if context.shared.traversal_flags.for_animation_only() && old_values.is_some() {
+451:             return;
+452:         }
+453: 
+454:         // Bug 868975: These steps should examine and update the visited styles
+455:         // in addition to the unvisited styles.
+456: 
+457:         let mut tasks = UpdateAnimationsTasks::empty();
+458: 
+459:         if old_values.as_deref().map_or_else(
+460:             || {
+461:                 new_styles
+462:                     .primary_style()
+463:                     .get_ui()
+464:                     .specifies_timeline_scope()
+465:             },
+466:             |old| {
+467:                 !old.get_ui()
+468:                     .timeline_scope_equals(new_styles.primary_style().get_ui())
+469:             },
+470:         ) {
+471:             tasks.insert(UpdateAnimationsTasks::TIMELINE_SCOPES);
+472:         }
+473: 
+474:         if old_values.as_deref().map_or_else(
+475:             || {
+476:                 new_styles
+477:                     .primary_style()
+478:                     .get_ui()
+479:                     .specifies_scroll_timelines()
+480:             },
+481:             |old| {
+482:                 !old.get_ui()
+483:                     .scroll_timelines_equals(new_styles.primary_style().get_ui())
+484:             },
+485:         ) {
+486:             tasks.insert(UpdateAnimationsTasks::SCROLL_TIMELINES);
+487:         }
+488: 
+489:         if old_values.as_deref().map_or_else(
+490:             || {
+491:                 new_styles
+492:                     .primary_style()
+493:                     .get_ui()
+494:                     .specifies_view_timelines()
+495:             },
+496:             |old| {
+497:                 !old.get_ui()
+498:                     .view_timelines_equals(new_styles.primary_style().get_ui())
+499:             },
+500:         ) {
+501:             tasks.insert(UpdateAnimationsTasks::VIEW_TIMELINES);
+502:         }
+503: 
+504:         if self.needs_animations_update(
+505:             context,
+506:             old_values.as_deref(),
+507:             new_styles.primary_style(),
+508:             /* pseudo_element = */ None,
+509:         ) {
+510:             tasks.insert(UpdateAnimationsTasks::CSS_ANIMATIONS);
+511:             tasks.insert(UpdateAnimationsTasks::EFFECT_PROPERTIES);
+512:         }
+513: 
+514:         let before_change_style =
+515:             self.process_transitions(context, old_values.as_ref(), new_styles);
+516:         if before_change_style.is_some() {
+517:             tasks.insert(UpdateAnimationsTasks::CSS_TRANSITIONS);
+518:         }
+519: 
+520:         if self.has_animations(context.shared) {
+521:             tasks.insert(UpdateAnimationsTasks::EFFECT_PROPERTIES);
+522:             if important_rules_changed {
+523:                 tasks.insert(UpdateAnimationsTasks::CASCADE_RESULTS);
+524:             }
+525:             if new_styles
+526:                 .primary_style()
+527:                 .is_display_property_changed_from_none(old_values.as_deref())
+528:             {
+529:                 tasks.insert(UpdateAnimationsTasks::DISPLAY_CHANGED_FROM_NONE);
+530:             }
+531:         }
+532: 
+533:         if !tasks.is_empty() {
+534:             let task = crate::context::SequentialTask::update_animations(
+535:                 *self,
+536:                 before_change_style,
+537:                 tasks,
+538:             );
+539:             context.thread_local.tasks.push(task);
+540:         }
+541:     }
+542: 
+543:     #[cfg(feature = "servo")]
+544:     fn process_animations(
