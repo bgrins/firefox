@@ -1,0 +1,50 @@
+>>>  436: void KeyframeEffect::UpdateProperties(const ComputedStyle* aStyle,
+     437:                                       const AnimationTimeline* aTimeline) {
+     438:   MOZ_ASSERT(aStyle);
+     439: 
+     440:   nsTArray<AnimationProperty> properties = BuildProperties(
+     441:       aStyle, aTimeline ? aTimeline
+     442:                         : (mAnimation ? mAnimation->GetTimeline() : nullptr));
+     443: 
+     444:   bool propertiesChanged = mProperties != properties;
+     445: 
+     446:   // We need to update base styles even if any properties are not changed at all
+     447:   // since base styles might have been changed due to parent style changes, etc.
+     448:   bool baseStylesChanged = false;
+     449:   EnsureBaseStyles(aStyle, properties, aTimeline,
+     450:                    !propertiesChanged ? &baseStylesChanged : nullptr);
+     451: 
+     452:   if (!propertiesChanged) {
+     453:     if (baseStylesChanged) {
+     454:       RequestRestyle(EffectCompositor::RestyleType::Layer);
+     455:     }
+     456:     return;
+     457:   }
+     458: 
+     459:   // Preserve the state of the mIsRunningOnCompositor flag.
+     460:   nsCSSPropertyIDSet runningOnCompositorProperties;
+     461: 
+     462:   for (const AnimationProperty& property : mProperties) {
+     463:     if (property.mIsRunningOnCompositor) {
+     464:       runningOnCompositorProperties.AddProperty(property.mProperty.mId);
+     465:     }
+     466:   }
+     467: 
+     468:   mProperties = std::move(properties);
+     469:   UpdateEffectSet();
+     470: 
+     471:   mCumulativeChanges = {};
+     472:   for (AnimationProperty& property : mProperties) {
+     473:     property.mIsRunningOnCompositor =
+     474:         runningOnCompositorProperties.HasProperty(property.mProperty);
+     475:     CalculateCumulativeChangesForProperty(property);
+     476:   }
+     477: 
+     478:   MarkCascadeNeedsUpdate();
+     479: 
+     480:   if (mAnimation) {
+     481:     mAnimation->NotifyEffectPropertiesUpdated();
+     482:   }
+     483: 
+     484:   RequestRestyle(EffectCompositor::RestyleType::Layer);
+     485: }

@@ -1,0 +1,5 @@
+Root read the repair design and controls against the independently executed target and underlying-value baselines and retained D65652 review. Root replayed source/prior-work authentication. This accepts the investigation and next implementation boundaries, not a native candidate.
+
+The important additional constraint is CSSOM cache lifetime: eligibility must be considered before a generation-based cached-style return, and query-composed styles must not survive cancellation merely because an EffectSet disappears. The normal lazy matching path and internal no-flush callers should retain their existing behavior. Scratch endpoint preparation, timing selection and recascade need explicit interfaces before compilation can establish more than narrow test success.
+
+This is a known S4 issue with a broader implementation surface than its six target-test failures suggest. The current plan is retained for a separate prototype; no drop-in animation-rule hook is accepted. The existing untracked operation/endpoint drafts remain preserved and unintegrated. No additional repaired bug, native proof, or runtime result is claimed by this design.

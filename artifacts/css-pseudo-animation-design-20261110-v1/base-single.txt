@@ -1,0 +1,54 @@
+>>>  551: void KeyframeEffect::EnsureBaseStyle(
+     552:     const AnimationProperty& aProperty, nsPresContext* aPresContext,
+     553:     const ComputedStyle* aComputedStyle, const AnimationTimeline* aTimeline,
+     554:     RefPtr<const ComputedStyle>& aBaseComputedStyle) {
+     555:   auto needBaseStyleForScrollTimeline =
+     556:       [this](const AnimationProperty& aProperty,
+     557:              const AnimationTimeline* aTimeline) {
+     558:         static constexpr TimeDuration zeroDuration;
+     559:         const TimingParams& timing = NormalizedTiming();
+     560:         // For scroll-timeline with a positive delay, it's possible to scroll
+     561:         // back and forth between delay phase and active phase, so we need to
+     562:         // keep its base style and maybe use it to override the animations in
+     563:         // delay on the compositor.
+     564:         return aTimeline && aTimeline->IsScrollTimeline() &&
+     565:                nsCSSPropertyIDSet::CompositorAnimatables().HasProperty(
+     566:                    aProperty.mProperty) &&
+     567:                (timing.Delay() > zeroDuration ||
+     568:                 timing.EndDelay() > zeroDuration);
+     569:       };
+     570:   auto hasAdditiveValues = [](const AnimationProperty& aProperty) {
+     571:     for (const AnimationPropertySegment& segment : aProperty.mSegments) {
+     572:       if (!segment.HasReplaceableValues()) {
+     573:         return true;
+     574:       }
+     575:     }
+     576:     return false;
+     577:   };
+     578: 
+     579:   // Note: Check base style for compositor (i.e. for scroll-driven animations)
+     580:   // first because it is much cleaper.
+     581:   const bool needBaseStyle =
+     582:       needBaseStyleForScrollTimeline(aProperty, aTimeline) ||
+     583:       hasAdditiveValues(aProperty);
+     584:   if (!needBaseStyle) {
+     585:     return;
+     586:   }
+     587: 
+     588:   if (!aBaseComputedStyle) {
+     589:     MOZ_ASSERT(mTarget, "Should have a valid target");
+     590: 
+     591:     Element* animatingElement =
+     592:         mTarget.mElement->GetPseudoElement(mTarget.mPseudoRequest);
+     593:     if (!animatingElement) {
+     594:       return;
+     595:     }
+     596:     aBaseComputedStyle = aPresContext->StyleSet()->GetBaseContextForElement(
+     597:         animatingElement, aComputedStyle);
+     598:   }
+     599:   RefPtr<StyleAnimationValue> baseValue =
+     600:       Servo_ComputedValues_ExtractAnimationValue(aBaseComputedStyle,
+     601:                                                  &aProperty.mProperty)
+     602:           .Consume();
+     603:   mBaseValues.InsertOrUpdate(aProperty.mProperty, std::move(baseValue));
+     604: }

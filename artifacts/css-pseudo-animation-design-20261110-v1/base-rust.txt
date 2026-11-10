@@ -1,0 +1,22 @@
+      let property = match OwnedPropertyDeclarationId::from_gecko_css_property_id(property_id) {
+          Some(property) => property,
+          None => return Strong::null(),
+      };
+      value_map
+          .get(&property)
+          .map_or(Strong::null(), |value| Arc::new(value.clone()).into())
+  }
+  
+  #[unsafe(no_mangle)]
+servo/ports/geckolib/glue.rs:1128: pub extern "C" fn Servo_StyleSet_GetBaseComputedValuesForElement(
+      raw_style_set: &PerDocumentStyleData,
+      element: &RawGeckoElement,
+      computed_values: &ComputedValues,
+      snapshots: *const ServoElementSnapshotTable,
+  ) -> Strong<ComputedValues> {
+      debug_assert!(!snapshots.is_null());
+      let computed_values = unsafe { ArcBorrow::from_ref(computed_values) };
+  
+      let rules = match computed_values.rules {
+          None => return computed_values.clone_arc().into(),
+Total matches: 1

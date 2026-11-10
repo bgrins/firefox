@@ -1,0 +1,66 @@
+  
+      let restriction = pseudo.map_or(PropertyFlags::empty(), |p| p.property_restriction());
+  
+      let global_style_data = &*GLOBAL_STYLE_DATA;
+      let guard = global_style_data.shared_lock.read();
+      let default_values = data.default_computed_values();
+servo/ports/geckolib/glue.rs:7608:     let mut attribute_tracker = AttributeTracker::new(&element);
+  
+      for (index, keyframe) in keyframes.iter().enumerate() {
+          let ref mut animation_values = computed_keyframes[index];
+  
+          let mut seen = PropertyDeclarationIdSet::default();
+          let mut iter = PrioritizedPropertyIter::new(&keyframe.mPropertyValues);
+                      if let PropertyDeclaration::Custom(ref declaration) = *decl {
+                          builder.cascade(&mut context, declaration, priority);
+                      }
+                  }
+              }
+              iter.reset();
+servo/ports/geckolib/glue.rs:7645:             builder.build(&mut context, &mut attribute_tracker);
+          };
+  
+          let mut property_index = 0;
+          for property in iter {
+              if simulate_compute_values_failure(property) {
+                  continue;
+      if !parser.seen_arbitrary_substitution_functions() || !variable_value.has_references() {
+          return None;
+      }
+  
+      // Build the attributes Map that ComputedSubstitutionFunctions needs
+      let stylist = &data.stylist;
+servo/ports/geckolib/glue.rs:11612:     let mut attribute_tracker = AttributeTracker::new(&element);
+      let mut substitution_functions = custom_properties::ComputedSubstitutionFunctions::new(
+          Some(style.custom_properties().clone()),
+          None,
+      );
+      let attributes: style::custom_properties_map::OwnMap = variable_value
+          .references
+              };
+              let mut replacement_context = style::substitution::SubstitutionReplacementContext::new(
+                  None,
+                  &substitution_functions,
+                  stylist,
+                  context,
+servo/ports/geckolib/glue.rs:11630:                 &mut attribute_tracker,
+              );
+              let arg = attr.replace_arg(&variable_value, &mut replacement_context);
+              let arg = arg.value.filter(|arg| arg.has_type())?;
+              let value = arg
+                  .name
+                  .value_for_cycle_resolution(&mut replacement_context, &variable_value.url_data)
+          // TODO(Bug 2071366) - Thread the property being explained through InspectorUtils so
+          // that random() resolves the same way it does in the cascade.
+          None,
+          &substitution_functions,
+          stylist,
+          &context,
+servo/ports/geckolib/glue.rs:11651:         &mut attribute_tracker,
+      ) else {
+          return None;
+      };
+  
+      Some(result.css.to_string())
+  }
+Total matches: 5

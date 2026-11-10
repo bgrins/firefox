@@ -1,0 +1,110 @@
+>>> 1046: pub struct AttributeTracker<'a> {
+    1047:     /// The element that queries for attributes.
+    1048:     pub context: &'a dyn ElementContext,
+    1049:     /// The set of attributes we have queried.
+    1050:     pub references: AttributeReferences,
+    1051: }
+    1052: 
+    1053: impl<'a> AttributeTracker<'a> {
+    1054:     /// Construct a new attribute tracker trivially.
+    1055:     pub fn new(context: &'a dyn ElementContext) -> Self {
+    1056:         Self {
+    1057:             context,
+    1058:             references: None,
+    1059:         }
+    1060:     }
+    1061: 
+    1062:     /// Construct a new dummy attribute tracker
+    1063:     pub fn new_dummy() -> Self {
+    1064:         Self {
+    1065:             context: &DummyElementContext {},
+    1066:             references: None,
+    1067:         }
+    1068:     }
+    1069: 
+    1070:     /// Extract the queried references and consume self
+    1071:     pub fn finalize(self) -> AttributeReferences {
+    1072:         self.references
+    1073:     }
+    1074: 
+    1075:     /// Query the value and save the name of the attribtue.
+    1076:     pub fn query(&mut self, name: &LocalName, namespace: &Namespace) -> Option<String> {
+    1077:         // We need to save namespaces in case we are thinking of sharing this element's
+    1078:         // style with another.
+    1079:         // i.e if elment a has ns1::attr="blue"
+    1080:         // and element b has ns2::attr="blue"
+    1081:         // a and b can only share style if ns1 and ns2 resolve to the same namespace.
+    1082:         self.references
+    1083:             .get_or_insert_default()
+    1084:             .entry_ref(name)
+    1085:             .or_default()
+    1086:             .push(namespace.clone());
+    1087:         self.context.get_attr(name, namespace)
+    1088:     }
+    1089: }
+    1090: 
+    1091: /// A dummy ElementContext that returns default values to any query.
+    1092: #[derive(Clone, Debug, PartialEq)]
+    1093: pub struct DummyElementContext;
+    1094: 
+    1095: impl ElementContext for DummyElementContext {
+    1096:     fn get_attr(&self, _attr: &LocalName, _namespace: &Namespace) -> Option<String> {
+    1097:         None
+    1098:     }
+    1099: 
+    1100:     fn opaque_element(&self) -> Option<OpaqueElement> {
+    1101:         None
+    1102:     }
+    1103: 
+    1104:     fn opaque_parent(&self) -> Option<OpaqueNode> {
+    1105:         None
+    1106:     }
+    1107: 
+    1108:     fn random_seed(&self) -> Option<u64> {
+    1109:         None
+    1110:     }
+    1111: 
+    1112:     fn get_tree_counting_result(&self, _: &mut TreeCountingCaches) -> TreeCountingResult {
+    1113:         TreeCountingResult::default()
+    1114:     }
+    1115: }
+    1116: 
+    1117: /// TNode and TElement aren't Send because we want to be careful and explicit
+    1118: /// about our parallel traversal. However, there are certain situations
+    1119: /// (including but not limited to the traversal) where we need to send DOM
+    1120: /// objects to other threads.
+    1121: ///
+    1122: /// That's the reason why `SendNode` exists.
+    1123: #[derive(Clone, Debug, PartialEq)]
+    1124: pub struct SendNode<N: TNode>(N);
+    1125: unsafe impl<N: TNode> Send for SendNode<N> {}
+    1126: impl<N: TNode> SendNode<N> {
+    1127:     /// Unsafely construct a SendNode.
+    1128:     pub unsafe fn new(node: N) -> Self {
+    1129:         SendNode(node)
+    1130:     }
+    1131: }
+    1132: impl<N: TNode> Deref for SendNode<N> {
+    1133:     type Target = N;
+    1134:     fn deref(&self) -> &N {
+    1135:         &self.0
+    1136:     }
+    1137: }
+    1138: 
+    1139: /// Same reason as for the existence of SendNode, SendElement does the proper
+    1140: /// things for a given `TElement`.
+    1141: #[derive(Debug, Eq, Hash, PartialEq)]
+    1142: pub struct SendElement<E: TElement>(E);
+    1143: unsafe impl<E: TElement> Send for SendElement<E> {}
+    1144: impl<E: TElement> SendElement<E> {
+    1145:     /// Unsafely construct a SendElement.
+    1146:     pub unsafe fn new(el: E) -> Self {
+    1147:         SendElement(el)
+    1148:     }
+    1149: }
+    1150: impl<E: TElement> Deref for SendElement<E> {
+    1151:     type Target = E;
+    1152:     fn deref(&self) -> &E {
+    1153:         &self.0
+    1154:     }
+    1155: }

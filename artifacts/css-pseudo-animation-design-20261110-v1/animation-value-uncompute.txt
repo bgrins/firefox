@@ -1,0 +1,64 @@
+      if flags.contains(ElementSelectorFlags::RELATIVE_SELECTOR_SEARCH_DIRECTION_SIBLING) {
+          gecko_flags |= NodeSelectorFlags::RelativeSelectorSearchDirectionSibling.0;
+      }
+      if flags.contains(ElementSelectorFlags::MAY_HAVE_TREE_COUNTING_FUNCTION) {
+          gecko_flags |= NodeSelectorFlags::MayHaveTreeCountingFunction.0;
+      }
+  
+      gecko_flags
+  }
+  
+servo/components/style/gecko/wrapper.rs:1019: fn get_animation_rule(
+      element: &GeckoElement,
+      cascade_level: CascadeLevel,
+  ) -> Option<Arc<Locked<PropertyDeclarationBlock>>> {
+      // There's a very rough correlation between the number of effects
+      // (animations) on an element and the number of properties it is likely to
+      // animate, so we use that as an initial guess for the size of the
+      // AnimationValueMap in order to reduce the number of re-allocations needed.
+      let effect_count = unsafe { Gecko_GetAnimationEffectCount(element.0) };
+      // Also, we should try to reuse the PDB, to avoid creating extra rule nodes.
+      let mut animation_values = AnimationValueMap::with_capacity_and_hasher(
+              let raw: &structs::StyleLockedDeclarationBlock =
+                  slots.mSMILOverrideStyleDeclaration.mRawPtr.as_ref()?;
+              Some(ArcBorrow::from_ref(raw))
+          }
+      }
+  
+      fn animation_rule(
+          &self,
+          _: &SharedStyleContext,
+      ) -> Option<Arc<Locked<PropertyDeclarationBlock>>> {
+servo/components/style/gecko/wrapper.rs:1267:         get_animation_rule(self, CascadeLevel::Animations)
+      }
+  
+      fn transition_rule(
+          &self,
+          _: &SharedStyleContext,
+      ) -> Option<Arc<Locked<PropertyDeclarationBlock>>> {
+          get_animation_rule(self, CascadeLevel::Transitions)
+      }
+  
+      #[inline]
+          &self,
+          _: &SharedStyleContext,
+      ) -> Option<Arc<Locked<PropertyDeclarationBlock>>> {
+          get_animation_rule(self, CascadeLevel::Animations)
+      }
+  
+      fn transition_rule(
+          &self,
+          _: &SharedStyleContext,
+      ) -> Option<Arc<Locked<PropertyDeclarationBlock>>> {
+servo/components/style/gecko/wrapper.rs:1274:         get_animation_rule(self, CascadeLevel::Transitions)
+      }
+  
+      #[inline]
+      fn state(&self) -> ElementState {
+          ElementState::from_bits_retain(self.state_internal())
+      }
+  
+      #[inline]
+      fn has_part_attr(&self) -> bool {
+          self.as_node()
+Total matches: 3

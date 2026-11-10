@@ -1,0 +1,62 @@
+>>>  623: void KeyframeEffect::ComposeStyle(
+     624:     StyleAnimationValueMap& aComposeResult,
+     625:     const InvertibleAnimatedPropertyIDSet& aPropertiesToSkip,
+     626:     EndpointBehavior aEndpointBehavior) {
+     627:   ComputedTiming computedTiming = GetComputedTiming(nullptr, aEndpointBehavior);
+     628: 
+     629:   // If the progress is null, we don't have fill data for the current
+     630:   // time so we shouldn't animate.
+     631:   if (computedTiming.mProgress.IsNull()) {
+     632:     return;
+     633:   }
+     634: 
+     635:   for (size_t propIdx = 0, propEnd = mProperties.Length(); propIdx != propEnd;
+     636:        ++propIdx) {
+     637:     const AnimationProperty& prop = mProperties[propIdx];
+     638: 
+     639:     MOZ_ASSERT(prop.mSegments[0].mFromKey <= 0.0, "incorrect first from key");
+     640:     MOZ_ASSERT(prop.mSegments[prop.mSegments.Length() - 1].mToKey >= 1.0,
+     641:                "incorrect last to key");
+     642: 
+     643:     if (aPropertiesToSkip.HasProperty(prop.mProperty)) {
+     644:       continue;
+     645:     }
+     646: 
+     647:     MOZ_ASSERT(prop.mSegments.Length() > 0,
+     648:                "property should not be in animations if it has no segments");
+     649: 
+     650:     // FIXME: Maybe cache the current segment?
+     651:     const AnimationPropertySegment *segment = prop.mSegments.Elements(),
+     652:                                    *segmentEnd =
+     653:                                        segment + prop.mSegments.Length();
+     654:     while (segment->mToKey <= computedTiming.mProgress.Value()) {
+     655:       MOZ_ASSERT(segment->mFromKey <= segment->mToKey, "incorrect keys");
+     656:       if ((segment + 1) == segmentEnd) {
+     657:         break;
+     658:       }
+     659:       ++segment;
+     660:       MOZ_ASSERT(segment->mFromKey == (segment - 1)->mToKey, "incorrect keys");
+     661:     }
+     662:     MOZ_ASSERT(segment->mFromKey <= segment->mToKey, "incorrect keys");
+     663:     MOZ_ASSERT(segment >= prop.mSegments.Elements() &&
+     664:                    size_t(segment - prop.mSegments.Elements()) <
+     665:                        prop.mSegments.Length(),
+     666:                "out of array bounds");
+     667: 
+     668:     ComposeStyleRule(aComposeResult, prop, *segment, computedTiming);
+     669:   }
+     670: 
+     671:   // If the animation produces a change hint that affects the overflow region,
+     672:   // we need to record the current time to unthrottle the animation
+     673:   // periodically when the animation is being throttled because it's scrolled
+     674:   // out of view.
+     675:   if (HasPropertiesThatMightAffectOverflow()) {
+     676:     nsPresContext* presContext =
+     677:         nsContentUtils::GetContextForContent(mTarget.mElement);
+     678:     EffectSet* effectSet = EffectSet::Get(mTarget);
+     679:     if (presContext && effectSet) {
+     680:       TimeStamp now = presContext->RefreshDriver()->MostRecentRefresh();
+     681:       effectSet->UpdateLastOverflowAnimationSyncTime(now);
+     682:     }
+     683:   }
+     684: }

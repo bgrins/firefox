@@ -1,0 +1,64 @@
+      MOZ_ASSERT(a->GetAnimation());
+      MOZ_ASSERT(b->GetAnimation());
+      const int32_t cmp =
+          a->GetAnimation()->CompareCompositeOrder(*b->GetAnimation(), mCache);
+      MOZ_ASSERT(Equals(a, b) || cmp != 0);
+      return cmp < 0;
+    }
+  };
+  }  // namespace
+  
+dom/animation/EffectCompositor.cpp:338: static void ComposeSortedEffects(
+      const nsTArray<KeyframeEffect*>& aSortedEffects,
+      const EffectSet* aEffectSet, EffectCompositor::CascadeLevel aCascadeLevel,
+      StyleAnimationValueMap* aAnimationValues,
+      dom::EndpointBehavior aEndpointBehavior =
+          dom::EndpointBehavior::Exclusive) {
+    const bool isTransition =
+        aCascadeLevel == EffectCompositor::CascadeLevel::Transitions;
+    // Transitions should be overridden by running animations of the same
+    // property per https://drafts.csswg.org/css-transitions/#application:
+    //
+      }
+      sortedEffectList.AppendElement(effect);
+    }
+  
+    if (sortedEffectList.IsEmpty()) {
+      return false;
+    }
+  
+    sortedEffectList.Sort(EffectCompositeOrderComparator());
+  
+dom/animation/EffectCompositor.cpp:425:   ComposeSortedEffects(sortedEffectList, effectSet, aCascadeLevel,
+                         aAnimationValues);
+  
+    MOZ_ASSERT(effectSet == EffectSet::Get(aElement, aPseudoRequest),
+               "EffectSet should not change while composing style");
+  
+    return true;
+  }
+  
+  bool EffectCompositor::ComposeServoAnimationRuleForEffect(
+      KeyframeEffect& aEffect, CascadeLevel aCascadeLevel,
+    if (effectSet) {
+      for (KeyframeEffect* effect : *effectSet) {
+        if (comparator.LessThan(effect, &aEffect)) {
+          sortedEffectList.AppendElement(effect);
+        }
+      }
+      sortedEffectList.Sort(comparator);
+    }
+    sortedEffectList.AppendElement(&aEffect);
+  
+dom/animation/EffectCompositor.cpp:486:   ComposeSortedEffects(sortedEffectList, effectSet, aCascadeLevel,
+                         aAnimationValues, aEndpointBehavior);
+  
+    MOZ_ASSERT(effectSet == EffectSet::Get(target),
+               "EffectSet should not change while composing style");
+  
+    return true;
+  }
+  
+  bool EffectCompositor::HasPendingStyleUpdates() const {
+    for (auto& elementSet : mElementsToRestyle) {
+Total matches: 3

@@ -1,0 +1,43 @@
+          let mut pseudo_styles = EagerPseudoStyles::default();
+  
+          if self
+              .element
+              .implemented_pseudo_element()
+              .is_none_or(|p| p.is_element_backed())
+          {
+              let layout_parent_style_for_pseudo =
+                  layout_parent_style_for_pseudo(&primary_style, layout_parent_style);
+              SelectorImpl::each_eagerly_cascaded_pseudo_element(|pseudo| {
+servo/components/style/style_resolver.rs:310:                 let pseudo_style = self.resolve_pseudo_style(
+                      &pseudo,
+                      &primary_style,
+                      layout_parent_style_for_pseudo,
+                  );
+  
+                  if let Some(style) = pseudo_style {
+                      if !matches!(self.pseudo_resolution, PseudoElementResolution::Force)
+                          && eager_pseudo_is_definitely_not_generated(&pseudo, &style.0)
+                      {
+                          return;
+                  }
+              }
+  
+              ResolvedElementStyles {
+                  primary: primary_style,
+                  pseudos: pseudo_styles,
+              }
+          })
+      }
+  
+servo/components/style/style_resolver.rs:458:     fn resolve_pseudo_style(
+          &mut self,
+          pseudo: &PseudoElement,
+          originating_element_style: &PrimaryStyle,
+          layout_parent_style: Option<&ComputedValues>,
+      ) -> Option<ResolvedStyle> {
+          let MatchingResults {
+              rule_node,
+              mut flags,
+          } = self.match_pseudo(
+              &originating_element_style.style.0,
+Total matches: 2

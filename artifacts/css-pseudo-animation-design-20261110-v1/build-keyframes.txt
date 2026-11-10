@@ -1,0 +1,106 @@
+      const CSSPropertyId& aProperty, const nsACString& aStringValue,
+      dom::Document* aDocument);
+  
+  static bool HasValidOffsets(const nsTArray<Keyframe>& aKeyframes);
+  
+  #ifdef DEBUG
+  static void MarkAsComputeValuesFailureKey(PropertyValuePair& aPair);
+  
+  #endif
+  
+dom/animation/KeyframeUtils.cpp:213: static nsTArray<ComputedKeyframeValues> GetComputedKeyframeValues(
+      const nsTArray<Keyframe>& aKeyframes, dom::Element* aElement,
+      const PseudoStyleRequest& aPseudoRequest,
+      const ComputedStyle* aComputedValues);
+  
+  static void BuildSegmentsFromValueEntries(
+      nsTArray<KeyframeValueEntry>& aEntries,
+      nsTArray<AnimationProperty>& aResult);
+  
+  static void GetKeyframeListFromPropertyIndexedKeyframe(
+      JSContext* aCx, dom::Document* aDocument, JS::Handle<JS::Value> aValue,
+  
+  /* static */
+  nsTArray<AnimationProperty> KeyframeUtils::GetAnimationPropertiesFromKeyframes(
+      const nsTArray<Keyframe>& aKeyframes, dom::Element* aElement,
+      const PseudoStyleRequest& aPseudoRequest, const ComputedStyle* aStyle,
+      dom::CompositeOperation aEffectComposite,
+      const dom::AnimationTimeline* aTimeline) {
+    nsTArray<AnimationProperty> result;
+  
+    const nsTArray<ComputedKeyframeValues> computedValues =
+dom/animation/KeyframeUtils.cpp:384:       GetComputedKeyframeValues(aKeyframes, aElement, aPseudoRequest, aStyle);
+    if (computedValues.IsEmpty()) {
+      // In rare cases GetComputedKeyframeValues might fail and return an empty
+      // array, in which case we likewise return an empty array from here.
+      return result;
+    }
+  
+    MOZ_ASSERT(aKeyframes.Length() == computedValues.Length(),
+               "Array length mismatch");
+  
+    nsTArray<KeyframeValueEntry> entries(aKeyframes.Length());
+  nsTArray<AnimationProperty> KeyframeUtils::GetAnimationPropertiesFromKeyframes(
+      const nsTArray<Keyframe>& aKeyframes, dom::Element* aElement,
+      const PseudoStyleRequest& aPseudoRequest, const ComputedStyle* aStyle,
+      dom::CompositeOperation aEffectComposite,
+      const dom::AnimationTimeline* aTimeline) {
+    nsTArray<AnimationProperty> result;
+  
+    const nsTArray<ComputedKeyframeValues> computedValues =
+        GetComputedKeyframeValues(aKeyframes, aElement, aPseudoRequest, aStyle);
+    if (computedValues.IsEmpty()) {
+dom/animation/KeyframeUtils.cpp:386:     // In rare cases GetComputedKeyframeValues might fail and return an empty
+      // array, in which case we likewise return an empty array from here.
+      return result;
+    }
+  
+    MOZ_ASSERT(aKeyframes.Length() == computedValues.Length(),
+               "Array length mismatch");
+  
+    nsTArray<KeyframeValueEntry> entries(aKeyframes.Length());
+  
+    const size_t len = aKeyframes.Length();
+               "Only shorthand property values can be marked as failure values");
+  
+    aPair.mSimulateComputeValuesFailure = true;
+  }
+  
+  #endif
+  
+  /**
+   * The variation of the above function. This is for Servo backend.
+   */
+dom/animation/KeyframeUtils.cpp:820: static nsTArray<ComputedKeyframeValues> GetComputedKeyframeValues(
+      const nsTArray<Keyframe>& aKeyframes, dom::Element* aElement,
+      const PseudoStyleRequest& aPseudoRequest,
+      const ComputedStyle* aComputedStyle) {
+    MOZ_ASSERT(aElement);
+  
+    nsTArray<ComputedKeyframeValues> result;
+  
+    nsPresContext* presContext = nsContentUtils::GetContextForContent(aElement);
+    if (!presContext) {
+      // This has been reported to happen with some combinations of content
+  
+    nsPresContext* presContext = nsContentUtils::GetContextForContent(aElement);
+    if (!presContext) {
+      // This has been reported to happen with some combinations of content
+      // (particularly involving resize events and layout flushes? See bug 1407898
+      // and bug 1408420) but no reproducible steps have been found.
+      // For now we just return an empty array.
+      return result;
+    }
+  
+dom/animation/KeyframeUtils.cpp:837:   result = presContext->StyleSet()->GetComputedKeyframeValuesFor(
+        aKeyframes, aElement, aPseudoRequest, aComputedStyle);
+    return result;
+  }
+  
+  static void AppendInitialSegment(AnimationProperty* aAnimationProperty,
+                                   const KeyframeValueEntry& aFirstEntry) {
+    AnimationPropertySegment* segment =
+        aAnimationProperty->mSegments.AppendElement();
+    segment->mFromKey = 0.0f;
+    segment->mToKey = aFirstEntry.mOffset;
+Total matches: 5

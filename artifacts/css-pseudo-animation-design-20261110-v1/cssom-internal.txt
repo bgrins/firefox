@@ -1,0 +1,53 @@
+>>>  537: nsComputedDOMStyle::DoGetComputedStyleNoFlush(const Element* aElement,
+     538:                                               const PseudoStyleRequest& aPseudo,
+     539:                                               PresShell* aPresShell,
+     540:                                               StyleType aStyleType) {
+     541:   MOZ_ASSERT(aElement, "NULL element");
+     542: 
+     543:   // If the content has a pres shell, we must use it.  Otherwise we'd
+     544:   // potentially mix rule trees by using the wrong pres shell's style
+     545:   // set.  Using the pres shell from the content also means that any
+     546:   // content that's actually *in* a document will get the style from the
+     547:   // correct document.
+     548:   PresShell* presShell = nsContentUtils::GetPresShellForContent(aElement);
+     549:   bool inDocWithShell = true;
+     550:   if (!presShell) {
+     551:     inDocWithShell = false;
+     552:     presShell = aPresShell;
+     553:     if (!presShell) {
+     554:       return nullptr;
+     555:     }
+     556:   }
+     557: 
+     558:   MOZ_ASSERT(aPseudo.IsPseudoElementOrNotPseudo());
+     559:   if (!aElement->IsInComposedDoc()) {
+     560:     // Don't return styles for disconnected elements, that makes no sense. This
+     561:     // can only happen with a non-null presShell for cross-document calls.
+     562:     return nullptr;
+     563:   }
+     564: 
+     565:   if (!IsInFlatTree(*aElement)) {
+     566:     return nullptr;
+     567:   }
+     568: 
+     569:   if (inDocWithShell && aStyleType == StyleType::All) {
+     570:     if (const Element* element = aElement->GetPseudoElement(aPseudo)) {
+     571:       if (element->HasServoData()) {
+     572:         const ComputedStyle* result =
+     573:             Servo_Element_GetMaybeOutOfDateStyle(element);
+     574:         return do_AddRef(result);
+     575:       }
+     576:     }
+     577:   }
+     578: 
+     579:   // No frame has been created, or we have a pseudo, or we're looking
+     580:   // for the default style, so resolve the style ourselves.
+     581:   ServoStyleSet* styleSet = presShell->StyleSet();
+     582: 
+     583:   StyleRuleInclusion rules = aStyleType == StyleType::DefaultOnly
+     584:                                  ? StyleRuleInclusion::DefaultOnly
+     585:                                  : StyleRuleInclusion::All;
+     586:   RefPtr<ComputedStyle> result =
+     587:       styleSet->ResolveStyleLazily(*aElement, aPseudo, rules);
+     588:   return result.forget();
+     589: }

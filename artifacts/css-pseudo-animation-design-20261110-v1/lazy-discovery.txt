@@ -1,0 +1,40 @@
+>>> 1298: already_AddRefed<ComputedStyle> ServoStyleSet::ResolveStyleLazily(
+    1299:     const Element& aElement, const PseudoStyleRequest& aPseudoRequest,
+    1300:     StyleRuleInclusion aRuleInclusion) {
+    1301:   PreTraverseSync();
+    1302:   MOZ_ASSERT(!StylistNeedsUpdate());
+    1303: 
+    1304:   AutoSetInServoTraversal guard(this);
+    1305: 
+    1306:   /**
+    1307:    * NB: This is needed because we process animations and transitions on the
+    1308:    * pseudo-elements themselves, not on the parent's EagerPseudoStyles.
+    1309:    *
+    1310:    * That means that that style doesn't account for animations, and we can't do
+    1311:    * that easily from the traversal without doing wasted work.
+    1312:    *
+    1313:    * As such, we just lie here a bit, which is the entrypoint of
+    1314:    * getComputedStyle, the only API where this can be observed, to look at the
+    1315:    * style of the pseudo-element if it exists instead.
+    1316:    */
+    1317:   const Element* elementForStyleResolution = &aElement;
+    1318:   PseudoStyleType pseudoTypeForStyleResolution = aPseudoRequest.mType;
+    1319:   if (auto* pseudo = aElement.GetPseudoElement(aPseudoRequest)) {
+    1320:     elementForStyleResolution = pseudo;
+    1321:     pseudoTypeForStyleResolution = PseudoStyleType::NotPseudo;
+    1322:   }
+    1323: 
+    1324:   nsPresContext* pc = GetPresContext();
+    1325:   MOZ_ASSERT(pc, "For now, no style resolution without a pres context");
+    1326:   auto* restyleManager = pc->RestyleManager();
+    1327:   const bool canUseCache = aRuleInclusion == StyleRuleInclusion::All &&
+    1328:                            aElement.OwnerDoc() == mDocument &&
+    1329:                            pc->PresShell()->DidInitialize();
+    1330:   return Servo_ResolveStyleLazily(
+    1331:              elementForStyleResolution, pseudoTypeForStyleResolution,
+    1332:              aPseudoRequest.mIdentifier.get(), aRuleInclusion,
+    1333:              &restyleManager->Snapshots(),
+    1334:              restyleManager->GetUndisplayedRestyleGeneration(), canUseCache,
+    1335:              mRawData.get())
+    1336:       .Consume();
+    1337: }

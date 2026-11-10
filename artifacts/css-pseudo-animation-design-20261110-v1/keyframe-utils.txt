@@ -1,0 +1,47 @@
+>>>  376: nsTArray<AnimationProperty> KeyframeUtils::GetAnimationPropertiesFromKeyframes(
+     377:     const nsTArray<Keyframe>& aKeyframes, dom::Element* aElement,
+     378:     const PseudoStyleRequest& aPseudoRequest, const ComputedStyle* aStyle,
+     379:     dom::CompositeOperation aEffectComposite,
+     380:     const dom::AnimationTimeline* aTimeline) {
+     381:   nsTArray<AnimationProperty> result;
+     382: 
+     383:   const nsTArray<ComputedKeyframeValues> computedValues =
+     384:       GetComputedKeyframeValues(aKeyframes, aElement, aPseudoRequest, aStyle);
+     385:   if (computedValues.IsEmpty()) {
+     386:     // In rare cases GetComputedKeyframeValues might fail and return an empty
+     387:     // array, in which case we likewise return an empty array from here.
+     388:     return result;
+     389:   }
+     390: 
+     391:   MOZ_ASSERT(aKeyframes.Length() == computedValues.Length(),
+     392:              "Array length mismatch");
+     393: 
+     394:   nsTArray<KeyframeValueEntry> entries(aKeyframes.Length());
+     395: 
+     396:   const size_t len = aKeyframes.Length();
+     397:   for (size_t i = 0; i < len; ++i) {
+     398:     const Keyframe& frame = aKeyframes[i];
+     399:     if (frame.IsRangedKeyframe() && std::isnan(frame.mComputedOffset)) {
+     400:       // This may happen if the animation doesn't associate with a view
+     401:       // timeline, or the timeline is inactive. We just skip this keyframe.
+     402:       continue;
+     403:     }
+     404:     for (auto& value : computedValues[i]) {
+     405:       MOZ_ASSERT(!std::isnan(frame.mComputedOffset), "Invalid computed offset");
+     406:       KeyframeValueEntry* entry = entries.AppendElement();
+     407:       entry->mOffset = frame.mComputedOffset;
+     408:       entry->mProperty = value.mProperty;
+     409:       entry->mValue = value.mValue;
+     410:       entry->mTimingFunction = frame.mTimingFunction;
+     411:       // The following assumes that CompositeOperation is a strict subset of
+     412:       // CompositeOperationOrAuto.
+     413:       entry->mComposite =
+     414:           frame.mComposite == dom::CompositeOperationOrAuto::Auto
+     415:               ? aEffectComposite
+     416:               : static_cast<dom::CompositeOperation>(frame.mComposite);
+     417:     }
+     418:   }
+     419: 
+     420:   BuildSegmentsFromValueEntries(entries, result);
+     421:   return result;
+     422: }

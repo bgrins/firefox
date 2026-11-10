@@ -1,0 +1,22 @@
+      debug_assert!(
+          element.has_current_styles(&*data),
+          "Resolving style on {:?} without current styles: {:?}",
+          element,
+          data
+      );
+      data.styles.primary().clone().into()
+  }
+  
+  #[unsafe(no_mangle)]
+servo/ports/geckolib/glue.rs:7318: pub extern "C" fn Servo_ResolveStyleLazily(
+      element: &RawGeckoElement,
+      pseudo_type: PseudoStyleType,
+      functional_pseudo_parameter: *mut nsAtom,
+      rule_inclusion: StyleRuleInclusion,
+      snapshots: *const ServoElementSnapshotTable,
+      cache_generation: u64,
+      can_use_cache: bool,
+      raw_data: &PerDocumentStyleData,
+  ) -> Strong<ComputedValues> {
+      debug_assert!(!snapshots.is_null());
+Total matches: 1

@@ -1,0 +1,57 @@
+>>>  493: void KeyframeEffect::EnsureBaseStyles(
+     494:     const ComputedStyle* aComputedValues,
+     495:     const nsTArray<AnimationProperty>& aProperties,
+     496:     const AnimationTimeline* aTimeline, bool* aBaseStylesChanged) {
+     497:   if (aBaseStylesChanged != nullptr) {
+     498:     *aBaseStylesChanged = false;
+     499:   }
+     500: 
+     501:   if (!mTarget) {
+     502:     return;
+     503:   }
+     504: 
+     505:   BaseValuesHashmap previousBaseStyles;
+     506:   if (aBaseStylesChanged != nullptr) {
+     507:     previousBaseStyles = std::move(mBaseValues);
+     508:   }
+     509: 
+     510:   mBaseValues.Clear();
+     511: 
+     512:   nsPresContext* presContext =
+     513:       nsContentUtils::GetContextForContent(mTarget.mElement);
+     514:   // If |aProperties| is empty we're not going to dereference |presContext| so
+     515:   // we don't care if it is nullptr.
+     516:   //
+     517:   // We could just return early when |aProperties| is empty and save looking up
+     518:   // the pres context, but that won't save any effort normally since we don't
+     519:   // call this function if we have no keyframes to begin with. Furthermore, the
+     520:   // case where |presContext| is nullptr is so rare (we've only ever seen in
+     521:   // fuzzing, and even then we've never been able to reproduce it reliably)
+     522:   // it's not worth the runtime cost of an extra branch.
+     523:   MOZ_ASSERT(presContext || aProperties.IsEmpty(),
+     524:              "Typically presContext should not be nullptr but if it is"
+     525:              " we should have also failed to calculate the computed values"
+     526:              " passed-in as aProperties");
+     527: 
+     528:   if (!aTimeline) {
+     529:     // If we pass a valid timeline, we use it (note: this happens when we create
+     530:     // a new animation or replace the old one, for CSS Animations and CSS
+     531:     // Transitions). Otherwise, we check the timeline from |mAnimation|.
+     532:     aTimeline = mAnimation ? mAnimation->GetTimeline() : nullptr;
+     533:   }
+     534: 
+     535:   RefPtr<const ComputedStyle> baseComputedStyle;
+     536:   for (const AnimationProperty& property : aProperties) {
+     537:     EnsureBaseStyle(property, presContext, aComputedValues, aTimeline,
+     538:                     baseComputedStyle);
+     539:   }
+     540: 
+     541:   if (aBaseStylesChanged != nullptr &&
+     542:       std::any_of(
+     543:           mBaseValues.cbegin(), mBaseValues.cend(), [&](const auto& entry) {
+     544:             return AnimationValue(entry.GetData()) !=
+     545:                    AnimationValue(previousBaseStyles.Get(entry.GetKey()));
+     546:           })) {
+     547:     *aBaseStylesChanged = true;
+     548:   }
+     549: }
