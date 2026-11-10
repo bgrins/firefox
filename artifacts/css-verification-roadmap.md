@@ -2,14 +2,19 @@
 
 Continue finding observable CSS/Stylo bugs, verifying relevant models and code, and preparing independently reviewable local fix-and-test commits. Research precedes production repairs. Keep work local; no push, Try run or external submission.
 
-## Current position — November 5, 2026
+## Current position — November 10, 2026
 
-The catalogue contains 163 committed browser repair entries, including held #160 and excluding #120. This is not a count of newly discovered upstream issues. The generic ArcSlice library repair is recorded separately. See css-all-work-readout-20261105-v13/README.md for all commits, priorities and qualifications.
+The catalogue contains 164 committed browser repair entries, including held #160 and excluding #120. This is not a count of newly discovered upstream issues. The generic ArcSlice library repair is recorded separately. See css-all-work-readout-20261110-v14/README.md for all commits, priorities and qualifications.
 
 Signing resumed successfully. New signed commits are:
 
 | Commit | Content |
 | --- | --- |
+| fac90af04d60 | Source-only shared-media rebase preserving current root-identity and rollback repairs |
+| 664b08bcb7ce | Root-animation identity repair: one Rust file and four WPT resources (#165) |
+| acece22fa877 | Fresh root-identity build, installed Nightly baseline and 47 passing candidate assertions |
+| de2f6ccd1a1a | Independent source-linked CSS Syntax to Lean derivation prototype |
+| 935c1e2916dc | Retained root-identity comparison and fresh local baseline |
 | 92bb75455480 | Recovery audit and roadmap |
 | dfddd364baf6 | Empty ArcSlice research and validation |
 | 836b5a688284 | Three-file empty ArcSlice repair with in-crate Rust test |
@@ -31,11 +36,11 @@ The original Bloom milestones 1–6 remain conditional results at their recorded
 
 ## Next work, in order
 
-1. Review held #160's producer-local handoff and dependency-drain repair with its root-self prerequisite. The completed bounded causal experiment already explains the historical broad-handoff timeout; do not repeat it. Full native scheduling refinement and global convergence remain unproved.
-2. Publish completed root-self font animation, CSSOM stylesheet-move, and shared-media/scope-cache repairs in separate fix-and-WPT commits after prerequisite review. Root-self comparison improved 120 PASS / 9 FAIL to 129 PASS. Keep canvas substitution pending its compatibility decision.
+1. Review held #160 as a combined producer-local handoff and dependency-drain repair. The producer-only comparison is already complete: A and B both retained 137 PASS / 27 FAIL; combined C passed 164. The completed causal trace explains the historical broad-handoff timeout; do not repeat either experiment. Full native scheduling refinement and global convergence remain unproved. Root-self identity is now committed separately as #165.
+2. Rebase and validate CSSOM stylesheet-move and shared-media/scope-cache repairs on the current stack, then publish separate fix-and-WPT commits. The shared-media source-only rebase is prepared in css-shared-sheet-media-rebase-20261110-v1, without replacing newer root-identity or rollback changes. Root-self #165 passed a fresh 47-assertion candidate run; nine target failures also reproduce in installed Nightly. Keep canvas substitution pending its compatibility decision.
 3. Follow up the committed same-rule fix's dense-case allocation cost and isolated upstream readiness. #164 explicitly requires #163; the five-file source patch is not independently cherry-pickable onto the pre-project ancestor. Dense Rule256 remains 25.27–25.80 microseconds/update versus 10.43–10.94 baseline. Single-trigger256 is 8.61–9.00 versus 8.44–8.85. These are bounded synthetic comparisons, not release-page estimates. Profile many-longhand cases before claiming a general allocation or performance improvement.
 4. Continue broader Arc/DST verification: allocation, provenance, cross-language transfer and shared-UA serialization remain separate from the committed empty-allocation fix.
-5. Expand the CSS model where it resolves implementation questions. Preserve spec provenance, assumptions, counterexamples, matched browser comparisons and unresolved specification issues. A theorem about a model does not establish whole-native correctness.
+5. Extend the separate spec-derivation experiment to three small Syntax algorithms, keeping one held out during grammar design. The first source-linked predicate, independent bridge proofs and four failure controls replay successfully; prose interpretation and extraction remain unproved. See css-spec-derivation-investigation-20261110-v1/REPORT.md. Expand the CSS model where it resolves implementation questions. Preserve spec provenance, assumptions, counterexamples, matched browser comparisons and unresolved specification issues. A theorem about a model does not establish whole-native correctness.
 
 ## Completed rollback evidence
 
@@ -53,6 +58,8 @@ Twenty incremental-index axiom audits and twelve owner-map refinement audits pas
 
 The committed empty-ArcSlice repair has an in-crate regression test, strict Miri comparisons, C++ alignment checks, a kernel-checked layout model and a successful native build. No browser-reachable over-aligned element type is known, so no unrelated WPT was added and the browser-entry count was not increased.
 
-The fresh baseline build in css-rollback-performance-baseline-build-v1 includes both the committed ArcSlice and cumulative rollback repairs at 2d867102694a. The cold-C performance owner restored that exact application and the committed sources; independent restoration audit and the final baseline browser run passed. That restoration was the experiment baseline, not the current installed application. The later committed build in css-same-rule-committed-build-v1 successfully rebuilt Nightly.app from #164 and intentionally leaves the same-rule fix installed for manual testing.
+The fresh baseline build in css-rollback-performance-baseline-build-v1 includes both the committed ArcSlice and cumulative rollback repairs at 2d867102694a. The cold-C performance owner restored that exact application and the committed sources; independent restoration audit and the final baseline browser run passed. That restoration was the experiment baseline, not the current installed application. The later committed build in css-same-rule-committed-build-v1 successfully rebuilt Nightly.app from #164 and left the same-rule fix installed at that checkpoint.
 
 All completed native/browser experiments are closed. Signing failures, the early sandbox recovery and formatter incident remain retained historical evidence. Use explicit file selections for commits and scoped formatter paths. Do not run bare mach format on this long research branch. Remove owned build targets, temporary profiles and backups only after their processes close and required evidence is retained. The old D64 probe is preserved in css-rollback-probe-preservation-v1; the committed D48 file is the tested #163 delivery.
+
+The November 10 native build now leaves the #165 root-identity repair installed in the local Nightly.app. The build source and binary hashes, 47 passing assertions, two matched baseline pages and installed Nightly comparison are recorded in css-root-self-resume-20261110-v1. Its build metadata predates the final native commit; exact delivery bytes were verified. The independent spec-derivation replay and shared-media rebase used temporary directories that have been removed.
