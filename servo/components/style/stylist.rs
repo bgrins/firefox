@@ -213,6 +213,7 @@ impl CascadeDataDifference {
 struct CascadeDataCacheKey {
     media_query_results: Vec<MediaListKey>,
     contents: StyleSheetContentList,
+    sheet_indices: Vec<usize>,
 }
 
 unsafe impl Send for CascadeDataCacheKey {}
@@ -279,7 +280,7 @@ where
 
         let mut key = CascadeDataCacheKey::default();
         let mut custom_media_map = CustomMediaMap::default();
-        for (sheet, media_matches) in collection.sheets_with_media_matches() {
+        for (index, (sheet, media_matches)) in collection.sheets_with_media_matches().enumerate() {
             *media_matches = Some(CascadeData::collect_applicable_media_query_results_into(
                 device,
                 sheet,
@@ -288,6 +289,9 @@ where
                 &mut key.contents,
                 &mut custom_media_map,
             ));
+            if *media_matches == Some(true) {
+                key.sheet_indices.push(index);
+            }
         }
 
         let new_entry;
@@ -4503,7 +4507,7 @@ impl CascadeData {
                                 | ImplicitScopeRoot::InShadowTree(_) => {
                                     // Style data can be shared between shadow trees, so we must
                                     // query the implicit root for that specific tree.
-                                    // Shared stylesheet means shared sheet indices, so we can
+                                    // Cache keys preserve effective sheet indices, so we can
                                     // use that to locate the implicit root.
                                     // Technically, this can also be applied to the light tree,
                                     // but that requires also knowing about what cascade level we're at.

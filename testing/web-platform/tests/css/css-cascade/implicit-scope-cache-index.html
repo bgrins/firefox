@@ -1,0 +1,94 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Implicit scope roots with different inactive stylesheet prefixes</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-6/#scope-limits">
+<meta name="assert" content="An inactive preceding stylesheet must not change an implicit scope's owner-relative root in a shadow tree.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.scope-cache-host { color: rgb(255, 0, 0); }
+</style>
+<body>
+<script>
+"use strict";
+window.implicitScopeCacheObservations = [];
+const RED = "rgb(255, 0, 0)";
+const GREEN = "rgb(0, 128, 0)";
+
+async function loadedLink(t, parent, href) {
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = href;
+  const ready = new Promise((resolve, reject) => {
+    link.onload = t.step_func(resolve);
+    link.onerror = t.step_func(() => reject(new Error("Setup: stylesheet failed to load")));
+  });
+  parent.append(link);
+  await ready;
+  return link;
+}
+
+async function makeRoot(t, prefix, href, record, role) {
+  const host = document.createElement("div");
+  host.className = "scope-cache-host";
+  const root = host.attachShadow({mode: "open"});
+  root.innerHTML = '<div class="prefix"><span class="target outside">outside</span></div>' +
+    '<div class="active"><span class="target inside">inside</span></div>';
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const outside = root.querySelector(".outside");
+  const inside = root.querySelector(".inside");
+  if (prefix) {
+    const link = await loadedLink(t, root.querySelector(".prefix"),
+      "resources/implicit-scope-cache-prefix.css");
+    const matched = getComputedStyle(host).getPropertyValue("--scope-prefix-loaded").trim();
+    record.calibrations.push({role, prefixMatched: matched});
+    assert_equals(matched, "yes", "Setup: matching prefix resource loaded");
+    link.media = "not all";
+    const inactive = getComputedStyle(host).getPropertyValue("--scope-prefix-loaded").trim();
+    record.calibrations.push({role, prefixInactive: inactive});
+    assert_equals(inactive, "", "Setup: prefix is inactive before the scoped sheet is inserted");
+  }
+  await loadedLink(t, root.querySelector(".active"), href);
+  const marker = getComputedStyle(host).getPropertyValue("--scope-cache-loaded").trim();
+  record.calibrations.push({role, activeLoaded: marker});
+  assert_equals(marker, "yes", "Setup: scoped resource's unscoped load marker applies");
+  return {host, outside, inside};
+}
+
+function sample(root) {
+  return {
+    outside: getComputedStyle(root.outside).color,
+    inside: getComputedStyle(root.inside).color
+  };
+}
+
+async function compareRoots(t, label, donorPrefix, receiverPrefix, shared) {
+  assert_implements("CSSScopeRule" in window, "@scope is required");
+  assert_false(matchMedia("not all").matches, "Setup: prefix media never matches");
+  const record = {label, donorPrefix, receiverPrefix, shared, phase: "setup", calibrations: []};
+  window.implicitScopeCacheObservations.push(record);
+  const common = "resources/implicit-scope-cache-active.css?case=" + label;
+  const donor = await makeRoot(t, donorPrefix, common, record, "donor");
+  record.donorInitial = sample(donor);
+  assert_equals(record.donorInitial.inside, GREEN, "Setup: donor implicit scope applies inside its owner parent");
+  assert_equals(record.donorInitial.outside, RED, "Setup: donor implicit scope excludes its sibling");
+  const receiver = await makeRoot(t, receiverPrefix,
+    shared ? common : common + "&unique=receiver", record, "receiver");
+  record.donorAfter = sample(donor);
+  record.receiver = sample(receiver);
+  record.phase = "observed";
+  assert_equals(record.receiver.inside, GREEN, "Receiver implicit scope applies inside its own owner parent");
+  assert_equals(record.receiver.outside, RED, "Receiver implicit scope excludes its sibling");
+  assert_equals(record.donorAfter.inside, GREEN, "Donor implicit scope remains inside its owner parent");
+  assert_equals(record.donorAfter.outside, RED, "Donor implicit scope still excludes its sibling");
+  record.phase = "complete";
+}
+
+promise_test(t => compareRoots(t, "zero-to-one", false, true, true),
+  "Shared implicit scope with an inactive prefix only in the receiving shadow root");
+promise_test(t => compareRoots(t, "one-to-zero", true, false, true),
+  "Shared implicit scope with an inactive prefix only in the donor shadow root");
+promise_test(t => compareRoots(t, "unique-control", false, true, false),
+  "Unique stylesheet URL preserves implicit scope with an inactive receiving prefix");
+</script>
