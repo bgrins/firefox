@@ -4,12 +4,15 @@ Continue finding observable CSS/Stylo bugs, verifying relevant models and code, 
 
 ## Current position — November 10, 2026
 
-The catalogue contains 168 committed browser repair entries, including held #160 and excluding #120. This is not a count of newly discovered upstream issues. The generic ArcSlice library repair is recorded separately. See css-all-work-readout-20261110-v16/README.md for all commits, priorities and qualifications.
+The catalogue contains 169 committed browser repair entries, including held #160 and excluding #120. This is not a count of newly discovered upstream issues. The generic ArcSlice library repair is recorded separately. See css-all-work-readout-20261110-v17/README.md for all commits, priorities and qualifications.
 
 Signing resumed successfully. New signed commits are:
 
 | Commit | Content |
 | --- | --- |
+| 90e0949346b5 | Bug 2085413 query handoff repair: two Rust files and one 13-case WPT (#170) |
+| e8b99c53cd3e | Query-handoff proof and exact final WPT acceptance |
+| 04bf4f36c804 | Query-only source review, native 26-case comparison and restoration |
 | b8d134179280 | Animation obligation conservation: 30 checked theorems, eight negative controls and native hint-posting boundaries |
 | 191083fb76eb | Typed stateful CSS escape derivation: full-result proof, 18 examples, 12 controls and independent source-only replay |
 | 8424404304d6 | Implicit-scope host-context cache repair: one Rust file and two WPT resources (#169) |
@@ -109,4 +112,6 @@ The style-query timeline calibration uncovered an earlier matching failure. The 
 
 The query-only handoff candidate for existing bug 2085413 now builds and passes 26/26 callbacks versus 17 PASS / 9 FAIL on the exact baseline selection. All twelve font controls remain passing; the six boundary controls and both animated timeline-query cases pass. Source review authenticates the two-file patch and unchanged #160 font blocks; the private rooted-path set avoids repeated ancestry walks. Independent complete restoration passes. See css-style-query-handoff-native-20261110-v1. Finish the focused delivery WPT and its parallel-worker run before the standalone repair commit. No drain-loop change or global convergence claim is included.
 
-Final bug2085413 acceptance is complete in css-style-query-handoff-delivery-runtime-20261110-v1: exact single WPT, thirteen callbacks, baseline3PASS10FAIL becomes13PASS with STYLO_THREADS=4. Complete restoration is independently verified. The separate handoff Lean model has37 laws,25 observations and seven controls, independently replayed from nine source inputs. It proves mask delivery and certified-path coverage under a finite stable subtree contract; native queue completeness/lifetimes/reverse insertion and global convergence remain unproved. The tested twoRustfiles plus singleWPT are ready for the standalone repair commit; research remains preceding.
+Final bug 2085413 acceptance is complete in css-style-query-handoff-delivery-runtime-20261110-v1: exact single WPT, thirteen callbacks, baseline 3 PASS / 10 FAIL becomes 13 PASS with STYLO_THREADS=4. Complete restoration is independently verified. The separate handoff Lean model has 37 laws, 25 observations and seven controls, independently replayed from nine source inputs. It proves mask delivery and certified-path coverage under a finite stable subtree contract; native queue completeness/lifetimes/reverse insertion and global convergence remain unproved. The tested two Rust files plus singleWPT are ready for the standalone repair commit; research remains preceding.
+
+Fix 170 is now signed as 90e0949346b5: exactly two Rust files and one WPT for known bug 2085413. Research precedes it; no push or Try. The authoritative catalogue is v17 with 169 entries; #160 remains held, #120 excluded, ArcSlice separate. Animation-taint remains unfixed. Next return to the held scheduling proof using the now-correct style-query route to literal timeline changes; do not repeat the forbidden direct-var route or claim global convergence from these finite handoff results. The fresh committed-source build succeeds and is left installed for manual testing; css-style-query-current-build-20261110-v1/build-result.json is now the current local browser receipt. Its exact source bytes passed the preceding comparisons; those browser tests were not repeated on this final rebuild.
