@@ -1,0 +1,74 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Implicit scope root kind across shared shadow stylesheets</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-6/#scope-limits">
+<meta name="assert" content="Shared stylesheets preserve implicit scope matching for shadow hosts and nested owner parents.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+window.implicitScopeRootKindObservations = [];
+const GREEN = "rgb(0, 128, 0)";
+const CLEAR = "rgba(0, 0, 0, 0)";
+
+async function makeRoot(t, direct, href, record, role) {
+  const host = document.createElement("div");
+  const shadow = host.attachShadow({mode: "open"});
+  const container = document.createElement("div");
+  container.textContent = "scope target";
+  shadow.append(container);
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = href;
+  const loaded = new Promise((resolve, reject) => {
+    link.onload = t.step_func(resolve);
+    link.onerror = t.step_func(() => reject(new Error("Setup: stylesheet failed to load")));
+  });
+  (direct ? shadow : container).append(link);
+  await loaded;
+  const marker = getComputedStyle(host).getPropertyValue("--scope-kind-loaded").trim();
+  record.calibrations.push({role, marker});
+  assert_equals(marker, "yes", "Setup: external resource's unscoped marker applies");
+  return {host, container};
+}
+
+function sample(root) {
+  return {
+    host: getComputedStyle(root.host).backgroundColor,
+    container: getComputedStyle(root.container).backgroundColor
+  };
+}
+
+function verify(value, direct, label) {
+  assert_equals(value.host, direct ? GREEN : CLEAR, label + ": host matches only a direct implicit scope root");
+  assert_equals(value.container, direct ? CLEAR : GREEN, label + ": nested parent matches only its own implicit scope");
+}
+
+async function compareRoots(t, label, donorDirect, receiverDirect, shared) {
+  assert_implements("CSSScopeRule" in window, "@scope is required");
+  const record = {label, donorDirect, receiverDirect, shared, phase: "setup", calibrations: []};
+  window.implicitScopeRootKindObservations.push(record);
+  const common = "resources/implicit-scope-root-kind.css?case=" + label;
+  const donor = await makeRoot(t, donorDirect, common, record, "donor");
+  record.donorInitial = sample(donor);
+  verify(record.donorInitial, donorDirect, "Setup: donor");
+  const receiver = await makeRoot(t, receiverDirect,
+    shared ? common : common + "&unique=receiver", record, "receiver");
+  record.donorAfter = sample(donor);
+  record.receiver = sample(receiver);
+  record.phase = "observed";
+  verify(record.receiver, receiverDirect, "Receiver");
+  verify(record.donorAfter, donorDirect, "Donor after receiver insertion");
+  record.phase = "complete";
+}
+
+promise_test(t => compareRoots(t, "nested-to-host", false, true, true),
+  "Shared implicit scope changes from a nested parent to a shadow host");
+promise_test(t => compareRoots(t, "host-to-nested", true, false, true),
+  "Shared implicit scope changes from a shadow host to a nested parent");
+promise_test(t => compareRoots(t, "unique-control", false, true, false),
+  "Unique stylesheet URL preserves a receiving shadow-host implicit scope");
+</script>

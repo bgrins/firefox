@@ -214,6 +214,7 @@ struct CascadeDataCacheKey {
     media_query_results: Vec<MediaListKey>,
     contents: StyleSheetContentList,
     sheet_indices: Vec<usize>,
+    implicit_scope_host_contexts: Vec<bool>,
 }
 
 unsafe impl Send for CascadeDataCacheKey {}
@@ -287,6 +288,7 @@ where
                 guard,
                 &mut key.media_query_results,
                 &mut key.contents,
+                &mut key.implicit_scope_host_contexts,
                 &mut custom_media_map,
             ));
             if *media_matches == Some(true) {
@@ -3925,6 +3927,7 @@ impl CascadeData {
         guard: &SharedRwLockReadGuard,
         results: &mut Vec<MediaListKey>,
         contents_list: &mut StyleSheetContentList,
+        implicit_scope_host_contexts: &mut Vec<bool>,
         custom_media_map: &mut CustomMediaMap,
     ) -> bool
     where
@@ -3936,6 +3939,12 @@ impl CascadeData {
         if !stylesheet.is_effective_for_device(device, custom_media_map, guard) {
             return false;
         }
+
+        implicit_scope_host_contexts.push(
+            stylesheet
+                .implicit_scope_root()
+                .is_some_and(|root| root.matches_shadow_host()),
+        );
 
         debug!(" + {:?}", stylesheet);
         let contents = stylesheet.contents(guard);
