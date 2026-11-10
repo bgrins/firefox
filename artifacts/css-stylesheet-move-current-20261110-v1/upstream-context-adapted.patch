@@ -1,0 +1,148 @@
+--- a/dom/base/LinkStyle.cpp
++++ b/dom/base/LinkStyle.cpp
+@@ -217,11 +217,36 @@
+   return nullptr;
+ }
+ 
+-void LinkStyle::BindToTree() {
++void LinkStyle::BindToTree(bool aIsMove) {
++  if (aIsMove) {
++    if (mStyleSheet && mStyleSheet->IsComplete() &&
++        !AsContent().IsInSVGUseShadowTree() &&
++        AsContent().GetContainingDocumentOrShadowRoot()) {
++      AsContent().OwnerDoc()->EnsureCSSLoader().InsertSheetInTree(*mStyleSheet);
++    }
++    return;
++  }
+   if (mUpdatesEnabled) {
+     nsContentUtils::AddScriptRunner(NS_NewRunnableFunction(
+         "LinkStyle::BindToTree",
+         [this, pin = RefPtr{&AsContent()}] { UpdateStyleSheetInternal(); }));
++  }
++}
++
++void LinkStyle::UnbindFromTree(Document* aOldDocument,
++                               ShadowRoot* aOldShadowRoot, bool aIsMove) {
++  if (!aIsMove) {
++    (void)UpdateStyleSheetInternal(aOldDocument, aOldShadowRoot);
++    return;
++  }
++  // Preserve the sheet and its rules, but invalidate its old cascade position.
++  if (mStyleSheet && mStyleSheet->IsComplete() &&
++      !AsContent().IsInSVGUseShadowTree()) {
++    if (aOldShadowRoot) {
++      aOldShadowRoot->RemoveStyleSheet(*mStyleSheet);
++    } else if (aOldDocument) {
++      aOldDocument->RemoveStyleSheet(*mStyleSheet);
++    }
+   }
+ }
+ 
+--- a/dom/base/LinkStyle.h
++++ b/dom/base/LinkStyle.h
+@@ -304,7 +304,9 @@
+    */
+   void MaybeFinishCopyStyleSheet(Document* aDocument);
+ 
+-  void BindToTree();
++  void BindToTree(bool aIsMove);
++  void UnbindFromTree(Document* aOldDocument, ShadowRoot* aOldShadowRoot,
++                      bool aIsMove);
+ 
+   RefPtr<mozilla::StyleSheet> mStyleSheet;
+   nsCOMPtr<nsIPrincipal> mTriggeringPrincipal;
+--- a/dom/html/HTMLLinkElement.cpp
++++ b/dom/html/HTMLLinkElement.cpp
+@@ -24,6 +24,7 @@
+ #include "mozilla/dom/ReferrerInfo.h"
+ #include "mozilla/dom/ScriptLoader.h"
+ #include "mozilla/dom/UnbindContext.h"
++#include "mozilla/dom/UnbindContext.h"
+ #include "nsAttrValueInlines.h"
+ #include "nsAttrValueOrString.h"
+ #include "nsContentUtils.h"
+@@ -93,7 +94,7 @@
+     TryDNSPrefetchOrPreconnectOrPrefetchOrPreloadOrPrerender();
+   }
+ 
+-  LinkStyle::BindToTree();
++  LinkStyle::BindToTree(aContext.IsMove());
+ 
+   if (IsInUncomposedDoc()) {
+     if (AttrValueIs(kNameSpaceID_None, nsGkAtoms::rel, nsGkAtoms::localization,
+@@ -143,7 +144,7 @@
+ 
+   nsGenericHTMLElement::UnbindFromTree(aContext);
+ 
+-  (void)UpdateStyleSheetInternal(oldDoc, oldShadowRoot);
++  LinkStyle::UnbindFromTree(oldDoc, oldShadowRoot, aContext.IsMove());
+ }
+ 
+ bool HTMLLinkElement::ParseAttribute(int32_t aNamespaceID, nsAtom* aAttribute,
+--- a/dom/html/HTMLStyleElement.cpp
++++ b/dom/html/HTMLStyleElement.cpp
+@@ -4,10 +4,12 @@
+ #include "mozilla/dom/HTMLStyleElement.h"
+ 
+ #include "mozilla/StyleSheet.h"
++#include "mozilla/dom/BindContext.h"
+ #include "mozilla/dom/Document.h"
+ #include "mozilla/dom/FetchPriority.h"
+ #include "mozilla/dom/HTMLStyleElementBinding.h"
+ #include "mozilla/dom/ReferrerInfo.h"
++#include "mozilla/dom/UnbindContext.h"
+ #include "nsContentUtils.h"
+ #include "nsDOMTokenList.h"
+ #include "nsGkAtoms.h"
+@@ -100,7 +102,7 @@
+ nsresult HTMLStyleElement::BindToTree(BindContext& aContext, nsINode& aParent) {
+   nsresult rv = nsGenericHTMLElement::BindToTree(aContext, aParent);
+   NS_ENSURE_SUCCESS(rv, rv);
+-  LinkStyle::BindToTree();
++  LinkStyle::BindToTree(aContext.IsMove());
+   return rv;
+ }
+ 
+@@ -112,7 +114,7 @@
+ 
+   nsGenericHTMLElement::UnbindFromTree(aContext);
+ 
+-  (void)UpdateStyleSheetInternal(oldDoc, oldShadow);
++  LinkStyle::UnbindFromTree(oldDoc, oldShadow, aContext.IsMove());
+ }
+ 
+ bool HTMLStyleElement::ParseAttribute(int32_t aNamespaceID, nsAtom* aAttribute,
+--- a/dom/svg/SVGStyleElement.cpp
++++ b/dom/svg/SVGStyleElement.cpp
+@@ -6,11 +6,13 @@
+ 
+ #include "mozilla/RefPtr.h"
+ #include "mozilla/StyleSheet.h"
++#include "mozilla/dom/BindContext.h"
+ #include "mozilla/dom/Document.h"
+ #include "mozilla/dom/Element.h"
+ #include "mozilla/dom/FetchPriority.h"
+ #include "mozilla/dom/ReferrerInfo.h"
+ #include "mozilla/dom/SVGStyleElementBinding.h"
++#include "mozilla/dom/UnbindContext.h"
+ #include "nsCOMPtr.h"
+ #include "nsContentUtils.h"
+ 
+@@ -64,7 +66,7 @@
+ nsresult SVGStyleElement::BindToTree(BindContext& aContext, nsINode& aParent) {
+   nsresult rv = SVGStyleElementBase::BindToTree(aContext, aParent);
+   NS_ENSURE_SUCCESS(rv, rv);
+-  LinkStyle::BindToTree();
++  LinkStyle::BindToTree(aContext.IsMove());
+   return rv;
+ }
+ 
+@@ -72,7 +74,7 @@
+   nsCOMPtr<Document> oldDoc = GetUncomposedDoc();
+   ShadowRoot* oldShadow = GetContainingShadow();
+   SVGStyleElementBase::UnbindFromTree(aContext);
+-  (void)UpdateStyleSheetInternal(oldDoc, oldShadow);
++  LinkStyle::UnbindFromTree(oldDoc, oldShadow, aContext.IsMove());
+ }
+ 
+ void SVGStyleElement::AfterSetAttr(int32_t aNameSpaceID, nsAtom* aName,

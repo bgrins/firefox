@@ -1,0 +1,24 @@
+# Direct owner move and associated stylesheet state
+
+**REACHED for a loaded, connected style owner moved with `moveBefore()` within one connected document or shadow root, without changing its text/attributes.** The association and CSSOM rule list survive the move; cascade order and implicit scope context can change. This conclusion concerns state-preserving move, not remove/append.
+
+1. [DOM moveBefore](https://dom.spec.whatwg.org/#dom-parentnode-movebefore) invokes [move](https://dom.spec.whatwg.org/#move). Move adjusts the parent child lists and invokes moving steps, explicitly excluding insertion/removing steps. See the sealed predecessor trace for the full algorithm and connection definitions.
+2. [HTML style](https://html.spec.whatwg.org/multipage/semantics.html#the-style-element) updates its style block on parser completion, becoming connected/disconnected, and changes to its own children. Moving the connected owner does none of these. Changes to the old/new parent's children are not changes to the style owner's text children. An internal restyle/reorder does not authorize replacing its associated sheet.
+3. [CSSOM association](https://drafts.csswg.org/cssom/#associated-css-style-sheet) identifies the sheet through its owner node in the document/shadow sheet collection; [sheet](https://drafts.csswg.org/cssom/#dom-linkstyle-sheet) returns that sheet. [insertRule](https://drafts.csswg.org/cssom/#dom-cssstylesheet-insertrule) changes its CSS rule list, not the owner's text. With no association-replacement trigger, the returned object and those rules remain usable after move.
+4. The analogous already-loaded link case preserves its owner, URL, connectivity and root. HTML's stylesheet-link moving behavior can change render-blocking participation without declaring a sheet replacement. The predecessor contains the link processing trace and existing no-refetch test. This is not a claim that arbitrary URL/attribute changes, pending loads or ordinary removal preserve a sheet, nor a claim about whether a new network request occurs.
+
+The current text does not contain one sentence saying `sheet === oldSheet` for every move. The bounded identity conclusion follows from the association getter and absence of the defined replacement triggers; it is stronger than merely retaining the same rendered style. The installed-browser result is separate evidence, not the basis for the normative rule.
+
+# Exact a6 source correspondence
+
+The native predecessor pins the move/Unbind chain and both HTML owners. `nsINode::MoveBefore` sets move context, but `HTMLStyleElement::UnbindFromTree` and `HTMLLinkElement::UnbindFromTree` unconditionally call `UpdateStyleSheetInternal` with the old document/shadow root. `LinkStyle::DoUpdateStyleSheet` removes a completed sheet and calls `SetStyleSheet(nullptr)` before its URI fastpath. `SetStyleSheet` clears the previous sheet's owner node. Bind schedules sheet updating again.
+
+The newly copied `Loader::LoadInlineStyle` reads DOM text. Its inline cache accepts unmodified cached sheets and clones them; a miss creates a new sheet and parses the text. External `Loader::CreateSheet` also clones a complete cached sheet or creates a new wrapper. Thus caching can avoid network work while still replacing the CSSOM object. `StyleSheet::InsertRuleInternal` changes the CSSOM rule list, not the DOM source text. These paths explain loss of an inserted rule after the owner is rebound, rather than showing a missing scope rebuild.
+
+A repair must preserve association/CSSOM while still updating ordering and scope-dependent style data. Simply suppressing collection invalidation would trade this problem for stale cascade/scope context. No candidate repair or native execution is included here.
+
+# Existing coverage and limits
+
+Bounded Searchfox searches found no CSSOM mutation/identity assertions in `dom/nodes/moveBefore` or moveBefore references under `css/cssom`. Existing `stylesheet-no-refetch.html` checks resource fetch count, and `stylesheet-cascade-order.html` checks reordered cascade. They do not check inserted rules or association identity. This is a bounded coverage finding, not an exhaustive absence claim.
+
+The diagnostic intentionally reads and mutates cssRules: unlike shared-sheet cache probes, CSSOM uniqueness is itself under test. Four independent rows cover style/link and stationary/moved controls. Initial load/red style and inserted green rule are calibrated before movement. Moves go to another parent, direct shadow child and original parent. Immediate/task snapshots and a final insert through the saved handle retain all observations. Link uses an owned Blob URL, waits for initial load and records setup errors. A transient post-move null does not alone prove permanent rule loss; actual identity replacement and retained old-handle behavior are recorded separately.

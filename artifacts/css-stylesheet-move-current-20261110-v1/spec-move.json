@@ -1,0 +1,370 @@
+{
+  "anchor": "move",
+  "content": "To **move** a [node](DOM#concept-node) *node* into a [node](DOM#concept-node) *newParent* before null or a [node](DOM#concept-node) *child*:\n\n1. If *newParent*’s [shadow-including root](DOM#concept-shadow-including-root) is not the same as *node*’s [shadow-including root](DOM#concept-shadow-including-root), then [throw](WEBIDL#dfn-throw) a \"[`HierarchyRequestError`](WEBIDL#hierarchyrequesterror)\" [`DOMException`](WEBIDL#idl-DOMException).\n\n    > **Note:** This has the side effect of ensuring that a move is only performed if *newParent*’s [connected](DOM#connected) is *node*’s [connected](DOM#connected).\n2. If *node* is a [host-including inclusive ancestor](DOM#concept-tree-host-including-inclusive-ancestor) of *newParent*, then [throw](WEBIDL#dfn-throw) a \"[`HierarchyRequestError`](WEBIDL#hierarchyrequesterror)\" [`DOMException`](WEBIDL#idl-DOMException).\n3. If *child* is non-null and its [parent](DOM#concept-tree-parent) is not *newParent*, then [throw](WEBIDL#dfn-throw) a \"[`NotFoundError`](WEBIDL#notfounderror)\" [`DOMException`](WEBIDL#idl-DOMException).\n4. If *node* is not an [`Element`](DOM#element) or a [`CharacterData`](DOM#characterdata) [node](DOM#concept-node), then [throw](WEBIDL#dfn-throw) a \"[`HierarchyRequestError`](WEBIDL#hierarchyrequesterror)\" [`DOMException`](WEBIDL#idl-DOMException).\n5. If *node* is a [`Text`](DOM#text) [node](DOM#concept-node) and *newParent* is a [document](DOM#concept-document), then [throw](WEBIDL#dfn-throw) a \"[`HierarchyRequestError`](WEBIDL#hierarchyrequesterror)\" [`DOMException`](WEBIDL#idl-DOMException).\n6. If *newParent* is a [document](DOM#concept-document), *node* is an [`Element`](DOM#element) [node](DOM#concept-node), and either *newParent* has an [element](DOM#concept-element) [child](DOM#concept-tree-child), *child* is a [doctype](DOM#concept-doctype), or *child* is non-null and a [doctype](DOM#concept-doctype) is [following](DOM#concept-tree-following) *child* then [throw](WEBIDL#dfn-throw) a \"[`HierarchyRequestError`](WEBIDL#hierarchyrequesterror)\" [`DOMException`](WEBIDL#idl-DOMException).\n7. Let *oldParent* be *node*’s [parent](DOM#concept-tree-parent).\n8. [Assert](INFRA#assert): *oldParent* is non-null.\n9. Run the [live range pre-remove steps](DOM#live-range-pre-remove-steps), given *node*.\n10. For each [`NodeIterator`](DOM#nodeiterator) object *iterator* whose [root](DOM#concept-traversal-root)’s [node document](DOM#concept-node-document) is *node*’s [node document](DOM#concept-node-document): run the [`NodeIterator` pre-remove steps](DOM#nodeiterator-pre-removing-steps) given *node* and *iterator*.\n11. Let *oldPreviousSibling* be *node*’s [previous sibling](DOM#concept-tree-previous-sibling).\n12. Let *oldNextSibling* be *node*’s [next sibling](DOM#concept-tree-next-sibling).\n13. [Remove](INFRA#list-remove) *node* from *oldParent*’s [children](DOM#concept-tree-child).\n14. If *node* is [assigned](DOM#slotable-assigned), then run [assign slottables](DOM#assign-slotables) for *node*’s [assigned slot](DOM#slotable-assigned-slot).\n15. If *oldParent*’s [root](DOM#concept-tree-root) is a [shadow root](DOM#concept-shadow-root), and *oldParent* is a [slot](DOM#concept-slot) whose [assigned nodes](DOM#slot-assigned-nodes) [is empty](INFRA#list-is-empty), then run [signal a slot change](DOM#signal-a-slot-change) for *oldParent*.\n16. If *node* has an [inclusive descendant](DOM#concept-tree-inclusive-descendant) that is a [slot](DOM#concept-slot):\n\n    1. Run [assign slottables for a tree](DOM#assign-slotables-for-a-tree) with *oldParent*’s [root](DOM#concept-tree-root).\n    2. Run [assign slottables for a tree](DOM#assign-slotables-for-a-tree) with *node*.\n17. [Add transient registered observers](DOM#add-transient-registered-observers) given *node* and *oldParent*.\n18. If *child* is non-null:\n\n    1. For each [live range](DOM#concept-live-range) whose [start node](DOM#concept-range-start-node) is *newParent* and [start offset](DOM#concept-range-start-offset) is greater than *child*’s [index](DOM#concept-tree-index): increase its [start offset](DOM#concept-range-start-offset) by 1.\n    2. For each [live range](DOM#concept-live-range) whose [end node](DOM#concept-range-end-node) is *newParent* and [end offset](DOM#concept-range-end-offset) is greater than *child*’s [index](DOM#concept-tree-index): increase its [end offset](DOM#concept-range-end-offset) by 1.\n19. Let *newPreviousSibling* be *child*’s [previous sibling](DOM#concept-tree-previous-sibling) if *child* is non-null, and *newParent*’s [last child](DOM#concept-tree-last-child) otherwise.\n20. If *child* is null, then [append](INFRA#set-append) *node* to *newParent*’s [children](DOM#concept-tree-child).\n21. Otherwise, [insert](INFRA#list-insert) *node* into *newParent*’s [children](DOM#concept-tree-child) before *child*’s [index](DOM#concept-tree-index).\n22. If *newParent* is a [shadow host](DOM#element-shadow-host) whose [shadow root](DOM#concept-shadow-root)’s [slot assignment](DOM#shadowroot-slot-assignment) is \"`named`\" and *node* is a [slottable](DOM#concept-slotable), then [assign a slot](DOM#assign-a-slot) for *node*.\n23. If *newParent*’s [root](DOM#concept-tree-root) is a [shadow root](DOM#concept-shadow-root), and *newParent* is a [slot](DOM#concept-slot) whose [assigned nodes](DOM#slot-assigned-nodes) [is empty](INFRA#list-is-empty), then run [signal a slot change](DOM#signal-a-slot-change) for *newParent*.\n24. Run [assign slottables for a tree](DOM#assign-slotables-for-a-tree) with *node*’s [root](DOM#concept-tree-root).\n25. For each [shadow-including inclusive descendant](DOM#concept-shadow-including-inclusive-descendant) *inclusiveDescendant* of *node*, in [shadow-including tree order](DOM#concept-shadow-including-tree-order):\n\n    1. Let *isSubtreeRoot* be true if *inclusiveDescendant* is *node*; otherwise false.\n    2. Run the [moving steps](DOM#concept-node-move-ext) with *inclusiveDescendant*, *isSubtreeRoot*, and *oldParent*.\n\n        > **Note:** Because the [move](DOM#move) algorithm is a separate primitive from [insert](DOM#concept-node-insert) and [remove](DOM#concept-node-remove), it does not invoke the [insertion steps](DOM#concept-node-insert-ext) or [removing steps](DOM#concept-node-remove-ext) for *inclusiveDescendant*.\n    3. If *inclusiveDescendant* is [custom](DOM#concept-element-custom) and *newParent* is [connected](DOM#connected), then [enqueue a custom element callback reaction](HTML#enqueue-a-custom-element-callback-reaction) with *inclusiveDescendant*, callback name \"`connectedMoveCallback`\", and « ».\n26. [Queue a tree mutation record](DOM#queue-a-tree-mutation-record) for *oldParent* with « », « *node* », *oldPreviousSibling*, and *oldNextSibling*.\n27. [Queue a tree mutation record](DOM#queue-a-tree-mutation-record) for *newParent* with « *node* », « », *newPreviousSibling*, and *child*.",
+  "effects": [
+    {
+      "additional_locations": 1,
+      "execution": [
+        "inline",
+        "separate",
+        "unknown"
+      ],
+      "id": "ef_e6c5f8c3e2980985",
+      "kind": "scheduling.enqueue",
+      "location": {
+        "anchor": "queue-a-mutation-observer-compound-microtask",
+        "spec": "DOM",
+        "step_path": [
+          3
+        ],
+        "url": "https://dom.spec.whatwg.org#ref-for-queue-a-microtask"
+      },
+      "other_locations": [
+        {
+          "anchor": "enqueue-an-element-on-the-appropriate-element-queue",
+          "spec": "HTML",
+          "step_path": [
+            2,
+            4
+          ],
+          "url": "https://html.spec.whatwg.org#custom-element-reactions:queue-a-microtask"
+        }
+      ],
+      "params": {
+        "queue": "microtask",
+        "source": null
+      }
+    },
+    {
+      "additional_locations": 1,
+      "execution": [
+        "inline",
+        "separate",
+        "unknown"
+      ],
+      "id": "ef_009154a5783874c9",
+      "kind": "scheduling.enqueue",
+      "location": {
+        "anchor": "notify-about-rejected-promises",
+        "spec": "HTML",
+        "step_path": [
+          4
+        ],
+        "url": "https://html.spec.whatwg.org#unhandled-promise-rejections:queue-a-global-task"
+      },
+      "other_locations": [
+        {
+          "anchor": "report-an-exception",
+          "spec": "HTML",
+          "step_path": [
+            7,
+            2
+          ],
+          "url": "https://html.spec.whatwg.org#runtime-script-errors:queue-a-global-task"
+        }
+      ],
+      "params": {
+        "queue": "task",
+        "source": "DOM manipulation task source"
+      }
+    },
+    {
+      "execution": [
+        "inline",
+        "separate",
+        "unknown"
+      ],
+      "id": "ef_caaaa988dbc1eb1d",
+      "kind": "scheduling.enqueue",
+      "location": {
+        "anchor": "queue-a-global-task",
+        "spec": "HTML",
+        "step_path": [
+          3
+        ],
+        "url": "https://html.spec.whatwg.org#queuing-tasks:queue-a-task-2"
+      },
+      "params": {
+        "queue": "task",
+        "source": null
+      }
+    },
+    {
+      "execution": [
+        "inline",
+        "separate",
+        "unknown"
+      ],
+      "id": "ef_1f3cd71bb6dfabd0",
+      "kind": "scheduling.parallel",
+      "location": {
+        "anchor": "queue-a-microtask",
+        "spec": "HTML",
+        "step_path": [
+          1
+        ],
+        "url": "https://html.spec.whatwg.org#queuing-tasks:in-parallel"
+      },
+      "params": {}
+    },
+    {
+      "additional_locations": 1,
+      "execution": [
+        "inline",
+        "separate",
+        "unknown"
+      ],
+      "id": "ef_50a1019f945d2d1f",
+      "kind": "script.invoke",
+      "location": {
+        "anchor": "notify-mutation-observers",
+        "spec": "DOM",
+        "step_path": [
+          6,
+          4
+        ],
+        "url": "https://dom.spec.whatwg.org#ref-for-invoke-a-callback-function"
+      },
+      "other_locations": [
+        {
+          "anchor": "invoke-custom-element-reactions",
+          "spec": "HTML",
+          "step_path": [
+            1,
+            3,
+            1
+          ],
+          "url": "https://html.spec.whatwg.org#custom-element-reactions:es-invoking-callback-functions"
+        }
+      ],
+      "params": {
+        "mechanism": "callback-function"
+      }
+    },
+    {
+      "execution": [
+        "inline",
+        "separate",
+        "unknown"
+      ],
+      "id": "ef_a438de3869cfed51",
+      "kind": "script.invoke",
+      "location": {
+        "anchor": "report-an-exception",
+        "spec": "HTML",
+        "step_path": [
+          3
+        ],
+        "url": "https://html.spec.whatwg.org#runtime-script-errors:run-a-classic-script"
+      },
+      "params": {
+        "mechanism": "classic-script"
+      }
+    },
+    {
+      "execution": [
+        "inline",
+        "separate",
+        "unknown"
+      ],
+      "id": "ef_d09aaa2e6411d3ef",
+      "kind": "script.invoke",
+      "location": {
+        "anchor": "concept-event-listener-inner-invoke",
+        "spec": "DOM",
+        "step_path": [
+          2,
+          13
+        ],
+        "url": "https://dom.spec.whatwg.org#ref-for-call-a-user-objects-operation"
+      },
+      "params": {
+        "mechanism": "user-object-operation"
+      }
+    },
+    {
+      "execution": [
+        "inline",
+        "separate",
+        "unknown"
+      ],
+      "id": "ef_1e4743f6ce11d676",
+      "kind": "event.dispatch",
+      "location": {
+        "anchor": "concept-event-fire",
+        "spec": "DOM",
+        "step_path": [
+          6
+        ],
+        "url": "https://dom.spec.whatwg.org#ref-for-concept-event-dispatch②⑤"
+      },
+      "params": {
+        "name": null
+      }
+    },
+    {
+      "additional_locations": 1,
+      "execution": [
+        "inline",
+        "separate",
+        "unknown"
+      ],
+      "id": "ef_c7cea10d5daad060",
+      "kind": "event.fire",
+      "location": {
+        "anchor": "report-an-exception",
+        "spec": "HTML",
+        "step_path": [
+          6,
+          2
+        ],
+        "url": "https://html.spec.whatwg.org#runtime-script-errors:concept-event-fire"
+      },
+      "other_locations": [
+        {
+          "anchor": "report-an-exception",
+          "spec": "HTML",
+          "step_path": [
+            7,
+            2,
+            2
+          ],
+          "url": "https://html.spec.whatwg.org#runtime-script-errors:concept-event-fire-2"
+        }
+      ],
+      "params": {
+        "name": "error"
+      }
+    },
+    {
+      "execution": [
+        "inline",
+        "unknown"
+      ],
+      "id": "ef_465649ef31f51514",
+      "kind": "event.fire",
+      "location": {
+        "anchor": "notify-mutation-observers",
+        "spec": "DOM",
+        "step_path": [
+          7
+        ],
+        "url": "https://dom.spec.whatwg.org#ref-for-concept-event-fire⑧"
+      },
+      "params": {
+        "name": "slotchange"
+      }
+    },
+    {
+      "execution": [
+        "inline",
+        "separate",
+        "unknown"
+      ],
+      "id": "ef_303890cc398024b0",
+      "kind": "event.fire",
+      "location": {
+        "anchor": "notify-about-rejected-promises",
+        "spec": "HTML",
+        "step_path": [
+          4,
+          1,
+          2
+        ],
+        "url": "https://html.spec.whatwg.org#unhandled-promise-rejections:concept-event-fire"
+      },
+      "params": {
+        "name": "unhandledrejection"
+      }
+    },
+    {
+      "additional_locations": 2,
+      "execution": [
+        "inline",
+        "separate",
+        "unknown"
+      ],
+      "id": "ef_24f44a1c94ec0106",
+      "kind": "execution.context",
+      "location": {
+        "anchor": "call-a-user-objects-operation",
+        "spec": "WEBIDL",
+        "step_path": [
+          15,
+          1
+        ],
+        "url": "https://webidl.spec.whatwg.org#ref-for-clean-up-after-running-a-callback"
+      },
+      "other_locations": [
+        {
+          "anchor": "construct-a-callback-function",
+          "spec": "WEBIDL",
+          "step_path": [
+            13,
+            1
+          ],
+          "url": "https://webidl.spec.whatwg.org#ref-for-clean-up-after-running-a-callback②"
+        },
+        {
+          "anchor": "invoke-a-callback-function",
+          "spec": "WEBIDL",
+          "step_path": [
+            14,
+            1
+          ],
+          "url": "https://webidl.spec.whatwg.org#ref-for-clean-up-after-running-a-callback①"
+        }
+      ],
+      "params": {
+        "operation": "cleanup-callback"
+      }
+    }
+  ],
+  "effects_status": {
+    "analysis_id": "an_e2c468566a3e3578",
+    "coverage": "partial",
+    "issues": [
+      "missing_spec",
+      "unsupported_structure",
+      "unresolved_invocation",
+      "unresolved_body_binding"
+    ],
+    "omitted": 3,
+    "semantics": "may",
+    "state": "ready"
+  },
+  "incoming_refs": {
+    "command": "webspec-index refs DOM#move -d incoming -l 5",
+    "total": 5
+  },
+  "navigation": {
+    "children": [],
+    "next": {
+      "anchor": "concept-node-replace",
+      "title": "replace"
+    },
+    "parent": {
+      "anchor": "mutation-algorithms",
+      "number": "4.2.3",
+      "title": "Mutation algorithms"
+    },
+    "prev": {
+      "anchor": "concept-node-move-ext",
+      "title": "moving steps"
+    }
+  },
+  "outgoing_refs": {
+    "command": "webspec-index refs DOM#move -d outgoing -l 62",
+    "total": 62
+  },
+  "sha": "hash:4254d3e06a65a1b03e2b3903353e6c67275ecafa5f11138f70e2740efba177ea",
+  "spec": "DOM",
+  "state": {
+    "callers": 1,
+    "calls": 10,
+    "command": "webspec-index state DOM#move --callers"
+  },
+  "title": "move",
+  "type": "algorithm",
+  "url": "https://dom.spec.whatwg.org/#move"
+}
