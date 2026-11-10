@@ -1,0 +1,120 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SMIL font-size root-relative units use the target identity</title>
+<meta name="timeout" content="long">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<link rel="help" href="https://svgwg.org/specs/animations/#InterfaceSVGSVGElement">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+window.smilRootObservations = [];
+const svgNamespace = "http://www.w3.org/2000/svg";
+
+async function loadSVG(t, path) {
+  const frame = document.createElement("iframe");
+  t.add_cleanup(() => frame.remove());
+  const loaded = new Promise((resolve, reject) => {
+    frame.onload = resolve;
+    frame.onerror = reject;
+  });
+  frame.src = path;
+  document.body.append(frame);
+  await loaded;
+  const win = frame.contentWindow;
+  await win.document.fonts.ready;
+  return {win, doc: win.document, root: win.document.documentElement};
+}
+
+function settle(win) {
+  return new Promise(resolve => {
+    win.requestAnimationFrame(() => win.requestAnimationFrame(resolve));
+  });
+}
+
+function animate(doc, target, property, from, to) {
+  const animation = doc.createElementNS(svgNamespace, "animate");
+  for (const [name, value] of Object.entries({
+    attributeName: property, from, to, begin: "indefinite",
+    dur: "2s", fill: "freeze", calcMode: "linear"
+  })) {
+    animation.setAttribute(name, value);
+  }
+  target.append(animation);
+  return animation;
+}
+
+async function sample(t, kind, unit) {
+  const row = {kind, unit, first: null, settled: null};
+  window.smilRootObservations.push(row);
+  if (unit !== "px") {
+    const reference = await loadSVG(t, "resources/root-font-reference.svg");
+    reference.root.setAttribute("class", unit);
+    row.reference = parseFloat(reference.win.getComputedStyle(reference.root).fontSize);
+    await settle(reference.win);
+    row.referenceSettled = parseFloat(reference.win.getComputedStyle(reference.root).fontSize);
+  }
+  const {win, doc, root} = await loadSVG(t, "resources/root-font-target.svg");
+  const target = kind === "root" ? root : doc.getElementById(kind);
+  const clock = doc.getElementById("clock");
+  row.documentType = doc.contentType;
+  row.documentRoot = root.namespaceURI === svgNamespace && root.localName === "svg";
+  row.targetIsRoot = target === doc.documentElement;
+  row.underlyingRootSize = parseFloat(win.getComputedStyle(root).fontSize);
+  row.underlyingRootLine = parseFloat(win.getComputedStyle(root).lineHeight);
+  row.underlyingTargetSize = parseFloat(win.getComputedStyle(target).fontSize);
+  root.pauseAnimations();
+  root.setCurrentTime(0);
+  const size = animate(doc, target, "font-size",
+                       unit === "px" ? "20px" : `1${unit}`,
+                       unit === "px" ? "40px" : `3${unit}`);
+  const timing = animate(doc, clock, "opacity", "0.2", "0.8");
+  size.beginElement();
+  timing.beginElement();
+  root.setCurrentTime(1);
+  row.first = parseFloat(win.getComputedStyle(target).fontSize);
+  row.clockFirst = parseFloat(win.getComputedStyle(clock).opacity);
+  row.timeFirst = root.getCurrentTime();
+  row.pausedFirst = root.animationsPaused();
+  await settle(win);
+  row.settled = parseFloat(win.getComputedStyle(target).fontSize);
+  row.clockSettled = parseFloat(win.getComputedStyle(clock).opacity);
+  row.timeSettled = root.getCurrentTime();
+  row.pausedSettled = root.animationsPaused();
+  row.expected = unit === "px" ? 30 : kind === "root" ? row.reference :
+    unit === "rem" ? 46 : 74;
+
+  assert_true(row.documentRoot, "target has a standalone SVG document root");
+  assert_equals(row.documentType, "image/svg+xml", "SVG document MIME type");
+  assert_equals(row.targetIsRoot, kind === "root", "actual document-root identity");
+  assert_equals(row.underlyingRootSize, 23, "undisturbed literal root size");
+  assert_equals(row.underlyingRootLine, 37, "undisturbed literal root line height");
+  assert_equals(row.underlyingTargetSize, kind === "root" ? 23 : 11,
+                "undisturbed target size");
+  if (unit !== "px") {
+    assert_true(Number.isFinite(row.reference) && row.reference > 0,
+                "independent ordinary-root reference resolved");
+    assert_approx_equals(row.referenceSettled, row.reference, 0.02,
+                         "ordinary-root reference is stable");
+  }
+  for (const phase of ["First", "Settled"]) {
+    assert_true(row[`paused${phase}`], `${phase}: SVG timeline is paused`);
+    assert_approx_equals(row[`time${phase}`], 1, 0.001, `${phase}: requested midpoint`);
+    assert_approx_equals(row[`clock${phase}`], 0.5, 0.001,
+                         `${phase}: independent literal opacity animation`);
+  }
+  assert_approx_equals(row.first, row.expected, 0.02, "synchronous font-size");
+  assert_approx_equals(row.settled, row.expected, 0.02, "settled font-size");
+}
+
+for (const unit of ["rem", "rlh"]) {
+  for (const kind of ["root", "child", "nested"]) {
+    promise_test(t => sample(t, kind, unit),
+                 `SMIL ${kind} font-size ${unit} uses the actual document-root identity`);
+  }
+}
+promise_test(t => sample(t, "root", "px"),
+             "SMIL root literal font-size interpolates at the paused midpoint");
+</script>

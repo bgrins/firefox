@@ -7443,19 +7443,22 @@ fn create_context_for_animation<'a>(
     per_doc_data: &'a PerDocumentStyleDataImpl,
     style: &'a ComputedValues,
     parent_style: Option<&'a ComputedValues>,
+    is_root_element: bool,
     for_smil_animation: bool,
     rule_cache_conditions: &'a mut RuleCacheConditions,
     container_size_query: ContainerSizeQuery<'a>,
     element_context: &'a dyn ElementContext,
     tree_counting_caches: &'a mut TreeCountingCaches,
 ) -> Context<'a> {
+    let mut builder = StyleBuilder::for_derived_style(
+        per_doc_data.stylist.device(),
+        Some(&per_doc_data.stylist),
+        style,
+        parent_style,
+    );
+    builder.is_root_element = is_root_element;
     Context::new_for_animation(
-        StyleBuilder::for_derived_style(
-            per_doc_data.stylist.device(),
-            Some(&per_doc_data.stylist),
-            style,
-            parent_style,
-        ),
+        builder,
         for_smil_animation,
         per_doc_data.stylist.quirks_mode(),
         rule_cache_conditions,
@@ -7554,6 +7557,7 @@ pub extern "C" fn Servo_GetComputedKeyframeValues(
         &data,
         &style,
         parent_style,
+        element.is_root() && pseudo.is_none(),
         /* for_smil_animation = */ false,
         &mut conditions,
         container_size_query,
@@ -7733,6 +7737,7 @@ pub extern "C" fn Servo_GetAnimationValues(
         &data,
         &style,
         parent_style,
+        element.is_root(),
         /* for_smil_animation = */ true,
         &mut conditions,
         container_size_query,
@@ -7782,6 +7787,7 @@ pub extern "C" fn Servo_AnimationValue_Compute(
         &data,
         style,
         parent_style,
+        element.is_root(),
         /* for_smil_animation = */ false,
         &mut conditions,
         container_size_query,
@@ -11687,6 +11693,7 @@ impl<'a> ContextForSubstitution<'a> {
             data,
             style,
             self.parent_style.as_deref(),
+            self.element.is_root() && !self.is_pseudo,
             /* for_smil_animation = */ false,
             &mut self.conditions,
             ContainerSizeQuery::for_element(
