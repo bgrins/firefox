@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Computed font sizes settle animation dependencies before returning</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<link rel="help" href="https://drafts.csswg.org/css-animations-1/#animations">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+const nextFrame = win => new Promise(resolve => win.requestAnimationFrame(resolve));
+
+for (const animatedRoot of [false]) {
+  for (const [depth, multiplier] of [[4, 2]]) {
+    for (const phase of ["startup", "unrelated restyle"]) {
+      promise_test(async t => {
+        const frame = document.createElement("iframe");
+        t.add_cleanup(() => frame.remove());
+        const loaded = new Promise(resolve => frame.onload = resolve);
+        let chain = '<div class="rem-node">';
+        for (let level = 1; level < depth; level++) {
+          chain += '<div class="em-node">';
+        }
+        chain += "leaf" + "</div>".repeat(depth);
+        frame.srcdoc = `<!doctype html><html><style>
+          html { font-size: ${animatedRoot ? 23 : 32}px; }
+          ${animatedRoot ? "html.active { animation: root-size 100s linear both paused; }" : ""}
+          .rem-node, .em-node { font-size: 11px; }
+          .active .rem-node { animation: rem-size 100s linear both paused; }
+          .active .em-node { animation: em-size 100s linear both paused; }
+          .restyled { background-color: rgb(1, 2, 3); }
+          @keyframes root-size { from, to { font-size: 32px; } }
+          @keyframes rem-size { from, to { font-size: 2rem; } }
+          @keyframes em-size { from, to { font-size: ${multiplier}em; } }
+        </style>${chain}`;
+        document.body.append(frame);
+        await loaded;
+
+        const win = frame.contentWindow;
+        const root = frame.contentDocument.documentElement;
+        const nodes = [...frame.contentDocument.querySelectorAll(".rem-node, .em-node")];
+        const leaf = nodes.at(-1);
+        assert_array_equals(nodes.map(node => win.getComputedStyle(node).fontSize),
+                            Array(depth).fill("11px"), "Initial descendant font sizes");
+        dump(`RFDP_JS_BEGIN ${phase}:activation\n`);
+        root.classList.add("active");
+
+        let actual = win.getComputedStyle(leaf).fontSize;
+        dump(`RFDP_JS_END ${phase}:activation actual=${actual}\n`);
+        if (phase === "unrelated restyle") {
+          await nextFrame(win);
+          await nextFrame(win);
+          dump("RFDP_JS_BEGIN unrelated:mutation\n");
+          leaf.classList.add("restyled");
+          actual = win.getComputedStyle(leaf).fontSize;
+          dump(`RFDP_JS_END unrelated:mutation actual=${actual}\n`);
+          assert_equals(win.getComputedStyle(leaf).backgroundColor, "rgb(1, 2, 3)",
+                        "The unrelated declaration is applied");
+        }
+        assert_equals(actual, `${64 * multiplier ** (depth - 1)}px`,
+                      "The getter includes all font animation dependencies");
+      }, `${animatedRoot ? "Animated" : "Literal"} root, depth ${depth}, ${multiplier}em descendants, ${phase}`);
+    }
+  }
+}
+</script>

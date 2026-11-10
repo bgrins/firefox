@@ -1,0 +1,655 @@
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -322,26 +322,42 @@
+ 
+     let traversal = RecalcStyleOnly::new(shared_style_context);
+     let root = driver::traverse_dom(&traversal, token, thread_pool);
+-    if traversal.needs_normal_descendant_restyle() {
+-        let mut has_styled_child = false;
+-        for child_node in root.traversal_children() {
++    let mut certified = HashSet::new();
++    let mut prefix = Vec::new();
++    for producer in traversal.normal_descendant_restyle_producers() {
++        for child_node in producer.traversal_children() {
+             let Some(child) = child_node.as_element() else {
+                 continue;
+             };
+-            let mut child_data = child.mutate_data();
+-            let Some(child_data) = child_data.as_mut() else {
+-                continue;
+-            };
+-            if !child_data.has_styles() {
+-                continue;
++            {
++                let mut child_data = child.mutate_data();
++                let Some(child_data) = child_data.as_mut() else {
++                    continue;
++                };
++                if !child_data.has_styles() {
++                    continue;
++                }
++                assert_ne!(child, root);
++                child_data
++                    .hint
++                    .insert(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT);
+             }
+-            child_data
+-                .hint
+-                .insert(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT);
+-            has_styled_child = true;
+-        }
+-        if has_styled_child {
+-            unsafe { root.set_dirty_descendants() };
++            let mut ancestor = child.traversal_parent();
++            loop {
++                let element = ancestor.expect("Should reach the traversal root");
++                if certified.contains(&element) {
++                    break;
++                }
++                prefix.push(element);
++                if element == root {
++                    break;
++                }
++                ancestor = element.traversal_parent();
++            }
++            for element in prefix.drain(..).rev() {
++                unsafe { element.set_dirty_descendants() };
++                certified.insert(element);
++            }
+         }
+     }
+ }
+--- a/servo/components/style/gecko/traversal.rs
++++ b/servo/components/style/gecko/traversal.rs
+@@ -5,35 +5,35 @@
+ //! Gecko-specific bits for the styling DOM traversal.
+ 
+ use crate::context::{SharedStyleContext, StyleContext};
+-use crate::dom::{TElement, TNode};
++use crate::dom::{SendElement, TElement, TNode};
+ use crate::gecko::wrapper::{GeckoElement, GeckoNode};
+ use crate::invalidation::element::restyle_hints::RestyleHint;
+ use crate::traversal::{DomTraversal, recalc_style_at};
+-use std::sync::atomic::{AtomicBool, Ordering};
++use std::sync::Mutex;
+ 
+ /// This is the simple struct that Gecko uses to encapsulate a DOM traversal for
+ /// styling.
+-pub struct RecalcStyleOnly<'a> {
++pub struct RecalcStyleOnly<'a, 'le> {
+     shared: SharedStyleContext<'a>,
+-    normal_descendant_restyle: AtomicBool,
++    normal_descendant_restyle: Mutex<Vec<SendElement<GeckoElement<'le>>>>,
+ }
+ 
+-impl<'a> RecalcStyleOnly<'a> {
++impl<'a, 'le> RecalcStyleOnly<'a, 'le> {
+     /// Create a `RecalcStyleOnly` traversal from a `SharedStyleContext`.
+     pub fn new(shared: SharedStyleContext<'a>) -> Self {
+         RecalcStyleOnly {
+             shared,
+-            normal_descendant_restyle: AtomicBool::new(false),
++            normal_descendant_restyle: Mutex::new(Vec::new()),
+         }
+     }
+ 
+-    /// Whether animation styling produced descendant font-dependent work.
+-    pub fn needs_normal_descendant_restyle(&self) -> bool {
+-        self.normal_descendant_restyle.load(Ordering::Relaxed)
++    /// Consume the producers after all traversal workers have joined.
++    pub fn normal_descendant_restyle_producers(self) -> Vec<SendElement<GeckoElement<'le>>> {
++        self.normal_descendant_restyle.into_inner().unwrap()
+     }
+ }
+ 
+-impl<'recalc, 'le> DomTraversal<GeckoElement<'le>> for RecalcStyleOnly<'recalc> {
++impl<'recalc, 'le> DomTraversal<GeckoElement<'le>> for RecalcStyleOnly<'recalc, 'le> {
+     fn process_preorder<F>(
+         &self,
+         context: &mut StyleContext<GeckoElement<'le>>,
+@@ -45,10 +45,14 @@
+         if let Some(el) = node.as_element() {
+             let mut data = unsafe { el.ensure_data() };
+             let child_hint = recalc_style_at(self, context, el, &mut data, note_child);
++            drop(data);
+             if self.shared.traversal_flags.for_animation_only()
+                 && child_hint.intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
+             {
+-                self.normal_descendant_restyle.store(true, Ordering::Relaxed);
++                self.normal_descendant_restyle
++                    .lock()
++                    .unwrap()
++                    .push(unsafe { SendElement::new(el) });
+             }
+         }
+     }
+--- a/layout/style/ServoStyleSet.cpp
++++ b/layout/style/ServoStyleSet.cpp
+@@ -1,6 +1,27 @@
+ /* This Source Code Form is subject to the terms of the Mozilla Public
+  * License, v. 2.0. If a copy of the MPL was not distributed with this
+  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++#include <unistd.h>
++#include <atomic>
++#include <cstdio>
++#include <cstdlib>
++
++static bool RFDPTraceServoStyleSet() {
++  if (!std::getenv("MOZ_ROOT_FONT_DRAIN_TRACE")) {
++    return false;
++  }
++  static std::atomic<unsigned> count{0};
++  unsigned value = count.load(std::memory_order_relaxed);
++  while (value <= 4096 && !count.compare_exchange_weak(
++                              value, value + 1, std::memory_order_relaxed)) {
++  }
++  if (value == 4096) {
++    std::fprintf(stderr, "RFDP pid=%ld capped file=%s limit=4096\n",
++                 static_cast<long>(getpid()), __FILE__);
++  }
++  return value < 4096;
++}
+ 
+ #include "mozilla/ServoStyleSet.h"
+ 
+@@ -802,14 +823,28 @@
+ }
+ 
+ bool ServoStyleSet::StyleDocument(ServoTraversalFlags aFlags) {
++  static std::atomic<unsigned long long> calls{0};
++  const auto call = calls.fetch_add(1, std::memory_order_relaxed);
++  unsigned long long iteration = 0;
++  if (RFDPTraceServoStyleSet()) {
++    std::fprintf(
++        stderr,
++        "RFDP pid=%ld document-enter set=%p document=%p call=%llu flags=%u\n",
++        static_cast<long>(getpid()), static_cast<void*>(this),
++        static_cast<void*>(mDocument), call, unsigned(aFlags));
++  }
+   AUTO_PROFILER_LABEL_CATEGORY_PAIR_RELEVANT_FOR_JS(LAYOUT_StyleComputation);
+   MOZ_ASSERT(GetPresContext(), "Styling a document without a shell?");
+ 
++  PreTraverse(aFlags);
+   if (!mDocument->GetServoRestyleRoot()) {
++    if (RFDPTraceServoStyleSet()) {
++      std::fprintf(stderr, "RFDP pid=%ld document-no-root set=%p call=%llu\n",
++                   static_cast<long>(getpid()), static_cast<void*>(this), call);
++    }
+     return false;
+   }
+ 
+-  PreTraverse(aFlags);
+   const SnapshotTable& snapshots = Snapshots();
+ 
+   // Restyle the document from the root element and each of the document level
+@@ -823,6 +858,15 @@
+   // Do the first traversal.
+   DocumentStyleRootIterator iter(mDocument->GetServoRestyleRoot());
+   while (Element* root = iter.GetNextStyleRoot()) {
++    if (RFDPTraceServoStyleSet()) {
++      std::fprintf(stderr,
++                   "RFDP pid=%ld document-root set=%p call=%llu iteration=%llu "
++                   "root_node=%p flags=%u\n",
++                   static_cast<long>(getpid()), static_cast<void*>(this), call,
++                   iteration,
++                   static_cast<const void*>(static_cast<const nsINode*>(root)),
++                   unsigned(aFlags));
++    }
+     MOZ_ASSERT(MayTraverseFrom(root));
+ 
+     Element* parent = root->GetFlattenedTreeParentElementForStyle();
+@@ -863,8 +907,8 @@
+     }
+   }
+ 
+-  // If there are still animation restyles needed, trigger a second traversal to
+-  // update CSS animations or transitions' styles.
++  // Process animation restyles generated by the preceding traversal until no
++  // eligible CSS animation or transition restyles remain.
+   //
+   // Note that we need to check the style root again, because doing another
+   // PreTraverse on the EffectCompositor might alter the style root. But we
+@@ -875,9 +919,29 @@
+   // values once at the begin of a tick. As a result, even if the previous
+   // traversal caused, for example, the font-size to change, the SMIL style
+   // won't be updated until the next tick anyway.
+-  if (GetPresContext()->EffectCompositor()->PreTraverse(aFlags)) {
++  while (GetPresContext()->EffectCompositor()->PreTraverse(aFlags)) {
++    if (iteration != ~0ULL) {
++      ++iteration;
++    }
++    if (RFDPTraceServoStyleSet()) {
++      std::fprintf(
++          stderr,
++          "RFDP pid=%ld drain-selected set=%p call=%llu iteration=%llu\n",
++          static_cast<long>(getpid()), static_cast<void*>(this), call,
++          iteration);
++    }
+     DocumentStyleRootIterator iter(mDocument->GetServoRestyleRoot());
+     while (Element* root = iter.GetNextStyleRoot()) {
++      if (RFDPTraceServoStyleSet()) {
++        std::fprintf(
++            stderr,
++            "RFDP pid=%ld document-root set=%p call=%llu iteration=%llu "
++            "root_node=%p flags=%u\n",
++            static_cast<long>(getpid()), static_cast<void*>(this), call,
++            iteration,
++            static_cast<const void*>(static_cast<const nsINode*>(root)),
++            unsigned(aFlags));
++      }
+       AutoPrepareTraversal guard(this);
+       postTraversalRequired |=
+           Servo_TraverseSubtree(root, mRawData.get(), &snapshots, aFlags) ||
+@@ -886,6 +950,13 @@
+     }
+   }
+ 
++  if (RFDPTraceServoStyleSet()) {
++    std::fprintf(
++        stderr,
++        "RFDP pid=%ld document-exit set=%p call=%llu iteration=%llu post=%d\n",
++        static_cast<long>(getpid()), static_cast<void*>(this), call, iteration,
++        int(postTraversalRequired));
++  }
+   return postTraversalRequired;
+ }
+ 
+--- a/dom/animation/EffectCompositor.cpp
++++ b/dom/animation/EffectCompositor.cpp
+@@ -1,6 +1,27 @@
+ /* This Source Code Form is subject to the terms of the Mozilla Public
+  * License, v. 2.0. If a copy of the MPL was not distributed with this
+  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++#include <unistd.h>
++#include <atomic>
++#include <cstdio>
++#include <cstdlib>
++
++static bool RFDPTraceEffectCompositor() {
++  if (!std::getenv("MOZ_ROOT_FONT_DRAIN_TRACE")) {
++    return false;
++  }
++  static std::atomic<unsigned> count{0};
++  unsigned value = count.load(std::memory_order_relaxed);
++  while (value <= 4096 && !count.compare_exchange_weak(
++                              value, value + 1, std::memory_order_relaxed)) {
++  }
++  if (value == 4096) {
++    std::fprintf(stderr, "RFDP pid=%ld capped file=%s limit=4096\n",
++                 static_cast<long>(getpid()), __FILE__);
++  }
++  return value < 4096;
++}
+ 
+ #include "EffectCompositor.h"
+ 
+@@ -214,6 +235,18 @@
+   PseudoElementHashEntry::KeyType key = {aElement, aPseudoRequest};
+ 
+   bool& restyleEntry = elementsToRestyle.LookupOrInsert(key, false);
++  if (RFDPTraceEffectCompositor()) {
++    std::fprintf(
++        stderr,
++        "RFDP pid=%ld request compositor=%p target_node=%p pseudo=%u "
++        "pseudo_id=%p level=%u type=%u posted_before=%d\n",
++        static_cast<long>(getpid()), static_cast<void*>(this),
++        static_cast<const void*>(static_cast<const nsINode*>(aElement)),
++        static_cast<unsigned>(aPseudoRequest.mType),
++        static_cast<const void*>(aPseudoRequest.mIdentifier.get()),
++        static_cast<unsigned>(aCascadeLevel),
++        static_cast<unsigned>(aRestyleType), int(restyleEntry));
++  }
+   if (aRestyleType == RestyleType::Throttled) {
+     mPresContext->PresShell()->SetNeedThrottledAnimationFlush();
+   } else {
+@@ -221,6 +254,17 @@
+     // and invalidates the restyleEntry reference.
+     // (It shouldn't, but just to be sure.)
+     bool skipRestyle = std::exchange(restyleEntry, true);
++    if (RFDPTraceEffectCompositor()) {
++      std::fprintf(
++          stderr,
++          "RFDP pid=%ld request-post compositor=%p target_node=%p pseudo=%u "
++          "pseudo_id=%p level=%u skip=%d\n",
++          static_cast<long>(getpid()), static_cast<void*>(this),
++          static_cast<const void*>(static_cast<const nsINode*>(aElement)),
++          static_cast<unsigned>(aPseudoRequest.mType),
++          static_cast<const void*>(aPseudoRequest.mIdentifier.get()),
++          static_cast<unsigned>(aCascadeLevel), int(skipRestyle));
++    }
+     if (!skipRestyle) {
+       PostRestyleForAnimation(aElement, aPseudoRequest, aCascadeLevel);
+     }
+@@ -260,6 +304,18 @@
+              "Restyle request during restyling should be requested only on "
+              "the main-thread. e.g. after the parallel traversal");
+   if (ServoStyleSet::IsInServoTraversal() || mIsInPreTraverse) {
++    if (RFDPTraceEffectCompositor()) {
++      std::fprintf(
++          stderr,
++          "RFDP pid=%ld post-deferred compositor=%p target_node=%p "
++          "normalized_node=%p pseudo=%u pseudo_id=%p level=%u pretraverse=%d\n",
++          static_cast<long>(getpid()), static_cast<void*>(this),
++          static_cast<const void*>(static_cast<const nsINode*>(aElement)),
++          static_cast<const void*>(static_cast<const nsINode*>(element)),
++          static_cast<unsigned>(aPseudoRequest.mType),
++          static_cast<const void*>(aPseudoRequest.mIdentifier.get()),
++          static_cast<unsigned>(aCascadeLevel), int(mIsInPreTraverse));
++    }
+     MOZ_ASSERT(hint == RestyleHint::RESTYLE_CSS_ANIMATIONS ||
+                hint == RestyleHint::RESTYLE_CSS_TRANSITIONS);
+ 
+@@ -276,6 +332,18 @@
+ 
+   MOZ_ASSERT(!mPresContext->RestyleManager()->IsInStyleRefresh());
+ 
++  if (RFDPTraceEffectCompositor()) {
++    std::fprintf(
++        stderr,
++        "RFDP pid=%ld post-shell compositor=%p target_node=%p "
++        "normalized_node=%p pseudo=%u pseudo_id=%p level=%u\n",
++        static_cast<long>(getpid()), static_cast<void*>(this),
++        static_cast<const void*>(static_cast<const nsINode*>(aElement)),
++        static_cast<const void*>(static_cast<const nsINode*>(element)),
++        static_cast<unsigned>(aPseudoRequest.mType),
++        static_cast<const void*>(aPseudoRequest.mIdentifier.get()),
++        static_cast<unsigned>(aCascadeLevel));
++  }
+   mPresContext->PresShell()->RestyleForAnimation(element, hint);
+ }
+ 
+@@ -798,6 +866,21 @@
+ 
+ bool EffectCompositor::PreTraverseInSubtree(ServoTraversalFlags aFlags,
+                                             Element* aRoot) {
++  if (RFDPTraceEffectCompositor()) {
++    std::fprintf(stderr,
++                 "RFDP pid=%ld pre-enter compositor=%p root_node=%p flags=%u\n",
++                 static_cast<long>(getpid()), static_cast<void*>(this),
++                 static_cast<const void*>(static_cast<const nsINode*>(aRoot)),
++                 static_cast<unsigned>(aFlags));
++  }
++  if (RFDPTraceEffectCompositor()) {
++    for (size_t i = 0; i < kCascadeLevelCount; ++i) {
++      std::fprintf(stderr,
++                   "RFDP pid=%ld pre-queue compositor=%p level=%zu count=%u\n",
++                   static_cast<long>(getpid()), static_cast<void*>(this), i,
++                   unsigned(mElementsToRestyle[CascadeLevel(i)].Count()));
++    }
++  }
+   MOZ_ASSERT(NS_IsMainThread());
+   MOZ_ASSERT(!aRoot || nsContentUtils::GetPresShellForContent(aRoot),
+              "Traversal root, if provided, should be bound to a display "
+@@ -902,6 +985,18 @@
+         continue;
+       }
+ 
++      if (RFDPTraceEffectCompositor()) {
++        std::fprintf(
++            stderr,
++            "RFDP pid=%ld pre-selected compositor=%p target_node=%p pseudo=%u "
++            "pseudo_id=%p level=%u posted=%d\n",
++            static_cast<long>(getpid()), static_cast<void*>(this),
++            static_cast<const void*>(
++                static_cast<const nsINode*>(target.mElement)),
++            static_cast<unsigned>(target.mPseudoRequest.mType),
++            static_cast<const void*>(target.mPseudoRequest.mIdentifier.get()),
++            static_cast<unsigned>(cascadeLevel), int(iter.Data()));
++      }
+       // We need to post restyle hints even if the target is not in EffectSet to
+       // ensure the final restyling for removed animations.
+       // We can't call PostRestyleEvent directly here since we are still in the
+@@ -922,9 +1017,34 @@
+       }
+ 
+       for (KeyframeEffect* effect : *effects) {
++        if (RFDPTraceEffectCompositor()) {
++          std::fprintf(
++              stderr,
++              "RFDP pid=%ld will-compose compositor=%p effect=%p "
++              "target_node=%p pseudo=%u pseudo_id=%p level=%u\n",
++              static_cast<long>(getpid()), static_cast<void*>(this),
++              static_cast<void*>(effect),
++              static_cast<const void*>(
++                  static_cast<const nsINode*>(target.mElement)),
++              unsigned(target.mPseudoRequest.mType),
++              static_cast<const void*>(target.mPseudoRequest.mIdentifier.get()),
++              unsigned(cascadeLevel));
++        }
+         effect->GetAnimation()->WillComposeStyle();
+       }
+ 
++      if (RFDPTraceEffectCompositor()) {
++        std::fprintf(
++            stderr,
++            "RFDP pid=%ld select-remove compositor=%p target_node=%p pseudo=%u "
++            "pseudo_id=%p level=%u\n",
++            static_cast<long>(getpid()), static_cast<void*>(this),
++            static_cast<const void*>(
++                static_cast<const nsINode*>(target.mElement)),
++            unsigned(target.mPseudoRequest.mType),
++            static_cast<const void*>(target.mPseudoRequest.mIdentifier.get()),
++            unsigned(cascadeLevel));
++      }
+       // Remove the element from the list of elements to restyle since we are
+       // about to restyle it.
+       iter.Remove();
+@@ -939,6 +1059,20 @@
+     }
+   }
+ 
++  if (RFDPTraceEffectCompositor()) {
++    for (size_t i = 0; i < kCascadeLevelCount; ++i) {
++      std::fprintf(
++          stderr,
++          "RFDP pid=%ld pre-remaining compositor=%p level=%zu count=%u\n",
++          static_cast<long>(getpid()), static_cast<void*>(this), i,
++          unsigned(mElementsToRestyle[CascadeLevel(i)].Count()));
++    }
++  }
++  if (RFDPTraceEffectCompositor()) {
++    std::fprintf(stderr, "RFDP pid=%ld pre-exit compositor=%p found=%d\n",
++                 static_cast<long>(getpid()), static_cast<void*>(this),
++                 int(foundElementsNeedingRestyle));
++  }
+   return foundElementsNeedingRestyle;
+ }
+ 
+--- a/layout/style/RestyleManager.cpp
++++ b/layout/style/RestyleManager.cpp
+@@ -1,6 +1,28 @@
+ /* This Source Code Form is subject to the terms of the Mozilla Public
+  * License, v. 2.0. If a copy of the MPL was not distributed with this
+  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++#include <unistd.h>
++#include <atomic>
++#include <cstdio>
++#include <cstdlib>
++
++static bool RFDPTraceRestyleManager() {
++  if (!std::getenv("MOZ_ROOT_FONT_DRAIN_TRACE")) {
++    return false;
++  }
++  static std::atomic<unsigned> count{0};
++  unsigned value = count.load(std::memory_order_relaxed);
++  while (value <= 4096 && !count.compare_exchange_weak(
++                              value, value + 1, std::memory_order_relaxed)) {
++  }
++  if (value == 4096) {
++    std::fprintf(stderr, "RFDP pid=%ld capped file=%s limit=4096\n",
++                 static_cast<long>(getpid()), __FILE__);
++  }
++  return value < 4096;
++}
++
+ 
+ #include "mozilla/RestyleManager.h"
+ 
+@@ -2528,6 +2550,18 @@
+     Element* aElement, const PseudoStyleRequest& aPseudoRequest,
+     RestyleHint aRestyleHint) {
+   Element* elementToRestyle = aElement->GetPseudoElement(aPseudoRequest);
++  if (RFDPTraceRestyleManager()) {
++    std::fprintf(stderr,
++                 "RFDP pid=%ld hint-map target_node=%p normalized_node=%p "
++                 "pseudo=%u pseudo_id=%p animation=%d transition=%d\n",
++                 static_cast<long>(getpid()),
++                 static_cast<const void*>(static_cast<const nsINode*>(aElement)),
++                 static_cast<const void*>(static_cast<const nsINode*>(elementToRestyle)),
++                 unsigned(aPseudoRequest.mType),
++                 static_cast<const void*>(aPseudoRequest.mIdentifier.get()),
++                 int(aRestyleHint == RestyleHint::RESTYLE_CSS_ANIMATIONS),
++                 int(aRestyleHint == RestyleHint::RESTYLE_CSS_TRANSITIONS));
++  }
+   if (!elementToRestyle) {
+     // FIXME: Bug 1371107: When reframing happens,
+     // EffectCompositor::mElementsToRestyle still has unbound old pseudo
+--- a/servo/components/style/gecko/wrapper.rs
++++ b/servo/components/style/gecko/wrapper.rs
+@@ -834,6 +834,10 @@
+         );
+ 
+         let Some(mut data) = self.mutate_data() else {
++            if rfdp_trace() {
++                eprintln!("RFDP pid={} hint-discard node={:#x} hint={:?} reason=no-data",
++                    std::process::id(), self.as_node().opaque().0, restyle_hint);
++            }
+             debug!("(Element not styled, discarding hints)");
+             return;
+         };
+@@ -849,6 +853,10 @@
+ 
+         data.hint.insert(restyle_hint);
+         data.damage |= damage;
++        if rfdp_trace() {
++            eprintln!("RFDP pid={} hint-posted node={:#x} hint={:?} merged={:?}",
++                std::process::id(), self.as_node().opaque().0, restyle_hint, data.hint);
++        }
+     }
+ 
+     /// This logic is duplicated in Gecko's nsIContent::IsRootOfNativeAnonymousSubtree.
+@@ -2241,3 +2249,23 @@
+         unsafe { bindings::Gecko_Element_GetSubtreeBloomFilter(self.0) }
+     }
+ }
++
++fn rfdp_trace() -> bool {
++    if std::env::var_os("MOZ_ROOT_FONT_DRAIN_TRACE").is_none() {
++        return false;
++    }
++    static COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
++    use std::sync::atomic::Ordering::Relaxed;
++    match COUNT.fetch_update(Relaxed, Relaxed, |n| (n <= 4096).then_some(n + 1)) {
++        Ok(4096) => {
++            eprintln!(
++                "RFDP pid={} capped file={} limit=4096",
++                std::process::id(),
++                file!()
++            );
++            false
++        },
++        Ok(_) => true,
++        Err(_) => false,
++    }
++}
+--- a/servo/components/style/matching.rs
++++ b/servo/components/style/matching.rs
+@@ -13,9 +13,7 @@
+ use crate::context::{ElementCascadeInputs, QuirksMode};
+ use crate::context::{SharedStyleContext, StyleContext};
+ use crate::data::{ElementData, ElementStyles};
+-use crate::dom::TElement;
+-#[cfg(feature = "servo")]
+-use crate::dom::TNode;
++use crate::dom::{TElement, TNode};
+ use crate::invalidation::element::restyle_hints::RestyleHint;
+ use crate::properties::ComputedValues;
+ use crate::properties::PropertyDeclarationBlock;
+@@ -1017,6 +1015,14 @@
+         let old_styles = data.set_styles(new_styles);
+ 
+         let new_primary_style = data.styles.primary.as_ref().unwrap();
++
++        if rfdp_trace() {
++            eprintln!("RFDP pid={} installed node={:#x} style={:p} flags={:?} initial={} font_px={} thread={:?}",
++                std::process::id(), self.as_node().opaque().0, &**new_primary_style,
++                context.shared.traversal_flags, old_styles.primary.is_none(),
++                new_primary_style.get_font().slow_clone_font_size().computed_size().px(),
++                std::thread::current().id());
++        }
+ 
+         let mut child_restyle_hint = RestyleHint::empty();
+         let is_root = new_primary_style
+@@ -1225,3 +1231,23 @@
+ }
+ 
+ impl<E: TElement> MatchMethods for E {}
++
++fn rfdp_trace() -> bool {
++    if std::env::var_os("MOZ_ROOT_FONT_DRAIN_TRACE").is_none() {
++        return false;
++    }
++    static COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
++    use std::sync::atomic::Ordering::Relaxed;
++    match COUNT.fetch_update(Relaxed, Relaxed, |n| (n <= 4096).then_some(n + 1)) {
++        Ok(4096) => {
++            eprintln!(
++                "RFDP pid={} capped file={} limit=4096",
++                std::process::id(),
++                file!()
++            );
++            false
++        },
++        Ok(_) => true,
++        Err(_) => false,
++    }
++}
+--- a/servo/components/style/traversal.rs
++++ b/servo/components/style/traversal.rs
+@@ -366,6 +366,19 @@
+             .intersects(RestyleHint::RESTYLE_IF_AFFECTED_BY_WM_OR_ANCESTOR_FONT)
+         && element.has_animations(context.shared);
+     let restyle_kind = data.restyle_kind(context.shared, has_animations);
++    if rfdp_trace() {
++        eprintln!(
++            "RFDP pid={} restyle node={:#x} flags={:?} hint={:?} kind={:?} admitted_animation={} initial={} thread={:?}",
++            std::process::id(),
++            element.as_node().opaque().0,
++            flags,
++            data.hint,
++            restyle_kind,
++            has_animations,
++            is_initial_style,
++            std::thread::current().id()
++        );
++    }
+     debug!(
+         "recalc_style_at: {:?} (restyle_kind={:?}, dirty_descendants={:?}, data={:?})",
+         element,
+@@ -769,3 +782,23 @@
+         root.clear_descendant_bits();
+     }
+ }
++
++fn rfdp_trace() -> bool {
++    if std::env::var_os("MOZ_ROOT_FONT_DRAIN_TRACE").is_none() {
++        return false;
++    }
++    static COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
++    use std::sync::atomic::Ordering::Relaxed;
++    match COUNT.fetch_update(Relaxed, Relaxed, |n| (n <= 4096).then_some(n + 1)) {
++        Ok(4096) => {
++            eprintln!(
++                "RFDP pid={} capped file={} limit=4096",
++                std::process::id(),
++                file!()
++            );
++            false
++        },
++        Ok(_) => true,
++        Err(_) => false,
++    }
++}
