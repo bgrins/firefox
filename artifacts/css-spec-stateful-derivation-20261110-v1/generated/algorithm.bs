@@ -1,0 +1,41 @@
+<h4 id="consume-escaped-code-point">
+Consume an escaped code point</h4>
+
+	This section describes how to <dfn>consume an escaped code point</dfn>.
+	It assumes that the U+005C REVERSE SOLIDUS (\) has already been consumed
+	and that the next input code point has already been verified
+	to be part of a valid escape.
+	It will return a <a>code point</a>.
+
+	Consume the <a>next input code point</a>.
+
+	<dl>
+		<dt><a>hex digit</a>
+		<dd>
+			Consume as many <a>hex digits</a> as possible, but no more than 5.
+			<span class='note'>Note that this means 1-6 hex digits have been consumed in total.</span>
+			If the <a>next input code point</a> is
+			<a>whitespace</a>,
+			consume it as well.
+			Interpret the <a>hex digits</a> as a hexadecimal number.
+			If this number is zero,
+			or is for a <a>surrogate</a>,
+			or is greater than the <a>maximum allowed code point</a>,
+			return U+FFFD REPLACEMENT CHARACTER (�).
+			Otherwise, return the <a>code point</a> with that value.
+
+		<dt>EOF
+		<dd>
+			This is a <a>parse error</a>.
+			Return U+FFFD REPLACEMENT CHARACTER (�).
+
+		<dt>anything else
+		<dd>
+			Return the <a>current input code point</a>.
+	</dl>
+
+	<wpt>
+		escaped-eof.html
+	</wpt>
+
+

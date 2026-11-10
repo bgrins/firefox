@@ -1,0 +1,70 @@
+/Users/bgrins/code/firefox/artifacts/css-spec-stateful-derivation-20261110-v1/Bridge.lean:43:16: error: Tactic `rfl` failed: The left-hand side
+  {
+    value :=
+      (CssSemantics.CssEscape.decode
+            (CssSemantics.CssEscape.magnitude (c :: (CssSemantics.CssEscape.scanHex 5 (c :: rest)).fst)),
+          { input := CssSemantics.CssEscape.skipWhitespace (CssSemantics.CssEscape.scanHex 5 (c :: rest)).snd,
+            error := false }).fst,
+    rest :=
+      (CssSemantics.CssEscape.decode
+              (CssSemantics.CssEscape.magnitude (c :: (CssSemantics.CssEscape.scanHex 5 (c :: rest)).fst)),
+            { input := CssSemantics.CssEscape.skipWhitespace (CssSemantics.CssEscape.scanHex 5 (c :: rest)).snd,
+              error := false }).snd.input,
+    eofError :=
+      (CssSemantics.CssEscape.decode
+              (CssSemantics.CssEscape.magnitude (c :: (CssSemantics.CssEscape.scanHex 5 (c :: rest)).fst)),
+            { input := CssSemantics.CssEscape.skipWhitespace (CssSemantics.CssEscape.scanHex 5 (c :: rest)).snd,
+              error := false }).snd.error }
+is not definitionally equal to the right-hand side
+  {
+    value :=
+      CssSemantics.CssEscape.decode
+        (CssSemantics.CssEscape.magnitude (c :: (CssSemantics.CssEscape.scanHex 5 rest).fst)),
+    rest := CssSemantics.CssEscape.skipWhitespace (CssSemantics.CssEscape.scanHex 5 rest).snd, eofError := false }
+
+case cons.isTrue
+c : Char
+rest : List Char
+h✝ : CssSemantics.CssEscape.hex c = true
+⊢ {
+      value :=
+        (CssSemantics.CssEscape.decode
+              (CssSemantics.CssEscape.magnitude (c :: (CssSemantics.CssEscape.scanHex 5 (c :: rest)).fst)),
+            { input := CssSemantics.CssEscape.skipWhitespace (CssSemantics.CssEscape.scanHex 5 (c :: rest)).snd,
+              error := false }).fst,
+      rest :=
+        (CssSemantics.CssEscape.decode
+                (CssSemantics.CssEscape.magnitude (c :: (CssSemantics.CssEscape.scanHex 5 (c :: rest)).fst)),
+              { input := CssSemantics.CssEscape.skipWhitespace (CssSemantics.CssEscape.scanHex 5 (c :: rest)).snd,
+                error := false }).snd.input,
+      eofError :=
+        (CssSemantics.CssEscape.decode
+                (CssSemantics.CssEscape.magnitude (c :: (CssSemantics.CssEscape.scanHex 5 (c :: rest)).fst)),
+              { input := CssSemantics.CssEscape.skipWhitespace (CssSemantics.CssEscape.scanHex 5 (c :: rest)).snd,
+                error := false }).snd.error } =
+    {
+      value :=
+        CssSemantics.CssEscape.decode
+          (CssSemantics.CssEscape.magnitude (c :: (CssSemantics.CssEscape.scanHex 5 rest).fst)),
+      rest := CssSemantics.CssEscape.skipWhitespace (CssSemantics.CssEscape.scanHex 5 rest).snd, eofError := false }
+/Users/bgrins/code/firefox/artifacts/css-spec-stateful-derivation-20261110-v1/Bridge.lean:43:16: error: Tactic `rfl` failed: The left-hand side
+  { value := (c, { input := c :: rest, error := false }).fst,
+    rest := (c, { input := c :: rest, error := false }).snd.input,
+    eofError := (c, { input := c :: rest, error := false }).snd.error }
+is not definitionally equal to the right-hand side
+  { value := c, rest := rest, eofError := false }
+
+case cons.isFalse
+c : Char
+rest : List Char
+h✝ : ¬CssSemantics.CssEscape.hex c = true
+⊢ { value := (c, { input := c :: rest, error := false }).fst,
+      rest := (c, { input := c :: rest, error := false }).snd.input,
+      eofError := (c, { input := c :: rest, error := false }).snd.error } =
+    { value := c, rest := rest, eofError := false }
+'CssDerivation.scan_equivalent' depends on axioms: [propext]
+'CssDerivation.escape_equivalent' depends on axioms: [sorryAx]
+'CssDerivation.escape_spec' depends on axioms: [propext, sorryAx]
+'CssDerivation.eof_exactly' depends on axioms: [propext, sorryAx]
+'CssDerivation.valid_call' depends on axioms: [propext, sorryAx]
+'CssDerivation.preprocessing_boundary' depends on axioms: [propext, Quot.sound]
