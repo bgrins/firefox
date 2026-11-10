@@ -1,0 +1,145 @@
+>>>  794: bool EffectCompositor::PreTraverseInSubtree(ServoTraversalFlags aFlags,
+     795:                                             Element* aRoot) {
+     796:   MOZ_ASSERT(NS_IsMainThread());
+     797:   MOZ_ASSERT(!aRoot || nsContentUtils::GetPresShellForContent(aRoot),
+     798:              "Traversal root, if provided, should be bound to a display "
+     799:              "document");
+     800: 
+     801:   // Convert the root element to the parent element if the root element is
+     802:   // pseudo since we check each element in mElementsToRestyle is in the subtree
+     803:   // of the root element later in this function, but for pseudo elements the
+     804:   // element in mElementsToRestyle is the parent of the pseudo.
+     805:   if (aRoot && (aRoot->IsGeneratedContentContainerForBefore() ||
+     806:                 aRoot->IsGeneratedContentContainerForAfter() ||
+     807:                 aRoot->IsGeneratedContentContainerForBackdrop() ||
+     808:                 aRoot->IsGeneratedContentContainerForMarker())) {
+     809:     aRoot = aRoot->GetParentElement();
+     810:   }
+     811: 
+     812:   AutoRestore<bool> guard(mIsInPreTraverse);
+     813:   mIsInPreTraverse = true;
+     814: 
+     815:   // We need to force flush all throttled animations if we also have
+     816:   // non-animation restyles (since we'll want the up-to-date animation style
+     817:   // when we go to process them so we can trigger transitions correctly), and
+     818:   // if we are currently flushing all throttled animation restyles.
+     819:   bool flushThrottledRestyles =
+     820:       (aRoot && aRoot->HasDirtyDescendantsForServo()) ||
+     821:       (aFlags & ServoTraversalFlags::FlushThrottledAnimations);
+     822: 
+     823:   using ElementsToRestyleIterType =
+     824:       nsTHashMap<PseudoElementHashEntry, bool>::ConstIterator;
+     825:   auto getNeededRestyleTarget =
+     826:       [&](const ElementsToRestyleIterType& aIter) -> NonOwningAnimationTarget {
+     827:     NonOwningAnimationTarget returnTarget;
+     828: 
+     829:     // If aIter.Data() is false, the element only requested a throttled
+     830:     // (skippable) restyle, so we can skip it if flushThrottledRestyles is not
+     831:     // true.
+     832:     if (!flushThrottledRestyles && !aIter.Data()) {
+     833:       return returnTarget;
+     834:     }
+     835: 
+     836:     const NonOwningAnimationTarget& target = aIter.Key();
+     837: 
+     838:     // Skip elements in documents without a pres shell. Normally we filter out
+     839:     // such elements in RequestRestyle but it can happen that, after adding
+     840:     // them to mElementsToRestyle, they are transferred to a different document.
+     841:     //
+     842:     // We will drop them from mElementsToRestyle at the end of the next full
+     843:     // document restyle (at the end of this function) but for consistency with
+     844:     // how we treat such elements in RequestRestyle, we just ignore them here.
+     845:     if (!nsContentUtils::GetPresShellForContent(target.mElement)) {
+     846:       return returnTarget;
+     847:     }
+     848: 
+     849:     // Ignore restyles that aren't in the flattened tree subtree rooted at
+     850:     // aRoot.
+     851:     if (aRoot && !nsContentUtils::ContentIsFlattenedTreeDescendantOfForStyle(
+     852:                      target.mElement, aRoot)) {
+     853:       return returnTarget;
+     854:     }
+     855: 
+     856:     returnTarget = target;
+     857:     return returnTarget;
+     858:   };
+     859: 
+     860:   bool foundElementsNeedingRestyle = false;
+     861: 
+     862:   nsTArray<NonOwningAnimationTarget> elementsWithCascadeUpdates;
+     863:   for (size_t i = 0; i < kCascadeLevelCount; ++i) {
+     864:     CascadeLevel cascadeLevel = CascadeLevel(i);
+     865:     auto& elementSet = mElementsToRestyle[cascadeLevel];
+     866:     for (auto iter = elementSet.ConstIter(); !iter.Done(); iter.Next()) {
+     867:       const NonOwningAnimationTarget& target = getNeededRestyleTarget(iter);
+     868:       if (!target.mElement) {
+     869:         continue;
+     870:       }
+     871: 
+     872:       EffectSet* effects = EffectSet::Get(target);
+     873:       if (!effects || !effects->CascadeNeedsUpdate()) {
+     874:         continue;
+     875:       }
+     876: 
+     877:       elementsWithCascadeUpdates.AppendElement(target);
+     878:     }
+     879:   }
+     880: 
+     881:   for (const NonOwningAnimationTarget& target : elementsWithCascadeUpdates) {
+     882:     MaybeUpdateCascadeResults(target.mElement, target.mPseudoRequest);
+     883:   }
+     884:   elementsWithCascadeUpdates.Clear();
+     885: 
+     886:   for (size_t i = 0; i < kCascadeLevelCount; ++i) {
+     887:     CascadeLevel cascadeLevel = CascadeLevel(i);
+     888:     auto& elementSet = mElementsToRestyle[cascadeLevel];
+     889:     for (auto iter = elementSet.Iter(); !iter.Done(); iter.Next()) {
+     890:       const NonOwningAnimationTarget& target = getNeededRestyleTarget(iter);
+     891:       if (!target.mElement) {
+     892:         continue;
+     893:       }
+     894: 
+     895:       if (target.mElement->GetComposedDoc() != mPresContext->Document()) {
+     896:         iter.Remove();
+     897:         continue;
+     898:       }
+     899: 
+     900:       // We need to post restyle hints even if the target is not in EffectSet to
+     901:       // ensure the final restyling for removed animations.
+     902:       // We can't call PostRestyleEvent directly here since we are still in the
+     903:       // middle of the servo traversal.
+     904:       mPresContext->RestyleManager()->PostRestyleEventForAnimations(
+     905:           target.mElement, target.mPseudoRequest,
+     906:           cascadeLevel == CascadeLevel::Transitions
+     907:               ? RestyleHint::RESTYLE_CSS_TRANSITIONS
+     908:               : RestyleHint::RESTYLE_CSS_ANIMATIONS);
+     909: 
+     910:       foundElementsNeedingRestyle = true;
+     911: 
+     912:       auto* effects = EffectSet::Get(target);
+     913:       if (!effects) {
+     914:         // Drop EffectSets that have been destroyed.
+     915:         iter.Remove();
+     916:         continue;
+     917:       }
+     918: 
+     919:       for (KeyframeEffect* effect : *effects) {
+     920:         effect->GetAnimation()->WillComposeStyle();
+     921:       }
+     922: 
+     923:       // Remove the element from the list of elements to restyle since we are
+     924:       // about to restyle it.
+     925:       iter.Remove();
+     926:     }
+     927: 
+     928:     // If this is a full document restyle, then unconditionally clear
+     929:     // elementSet in case there are any elements that didn't match above
+     930:     // because they were moved to a document without a pres shell after
+     931:     // posting an animation restyle.
+     932:     if (!aRoot && flushThrottledRestyles) {
+     933:       elementSet.Clear();
+     934:     }
+     935:   }
+     936: 
+     937:   return foundElementsNeedingRestyle;
+     938: }

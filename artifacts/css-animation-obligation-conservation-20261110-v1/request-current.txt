@@ -1,0 +1,38 @@
+void EffectCompositor::RequestRestyle(dom::Element* aElement,
+                                      const PseudoStyleRequest& aPseudoRequest,
+                                      RestyleType aRestyleType,
+                                      CascadeLevel aCascadeLevel) {
+  if (!mPresContext) {
+    // Pres context will be null after the effect compositor is disconnected.
+    return;
+  }
+
+  // Ignore animations on orphaned elements and elements in documents without
+  // a pres shell (e.g. XMLHttpRequest responseXML documents).
+  if (!nsContentUtils::GetPresShellForContent(aElement)) {
+    return;
+  }
+
+  auto& elementsToRestyle = mElementsToRestyle[aCascadeLevel];
+  PseudoElementHashEntry::KeyType key = {aElement, aPseudoRequest};
+
+  bool& restyleEntry = elementsToRestyle.LookupOrInsert(key, false);
+  if (aRestyleType == RestyleType::Throttled) {
+    mPresContext->PresShell()->SetNeedThrottledAnimationFlush();
+  } else {
+    // Update hashtable first in case PostRestyleForAnimation mutates it
+    // and invalidates the restyleEntry reference.
+    // (It shouldn't, but just to be sure.)
+    bool skipRestyle = std::exchange(restyleEntry, true);
+    if (!skipRestyle) {
+      PostRestyleForAnimation(aElement, aPseudoRequest, aCascadeLevel);
+    }
+  }
+
+  if (aRestyleType == RestyleType::Layer) {
+    mPresContext->RestyleManager()->IncrementAnimationGeneration();
+    if (auto* effectSet = EffectSet::Get(aElement, aPseudoRequest)) {
+      effectSet->UpdateAnimationGeneration(mPresContext);
+    }
+  }
+}

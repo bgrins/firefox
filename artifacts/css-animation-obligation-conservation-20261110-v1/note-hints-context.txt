@@ -1,0 +1,22 @@
+              .get_bool_flag(nsINode_BooleanFlag::ElementMayHaveStyle)
+      }
+  
+      /// Only safe to call on the main thread, with exclusive access to the
+      /// element and its ancestors.
+      ///
+      /// This function is also called after display property changed for SMIL
+      /// animation.
+      ///
+      /// Also this function schedules style flush.
+servo/components/style/gecko/wrapper.rs:853:     pub unsafe fn note_explicit_hints(&self, restyle_hint: RestyleHint, change_hint: nsChangeHint) {
+          use crate::gecko::restyle_damage::GeckoRestyleDamage;
+  
+          let damage = GeckoRestyleDamage::new(change_hint);
+          debug!(
+              "note_explicit_hints: {:?}, restyle_hint={:?}, change_hint={:?}",
+              self, restyle_hint, change_hint
+          );
+          debug_assert!(unsafe { bindings::Gecko_IsMainThread() });
+          debug_assert!(
+              !(restyle_hint.has_animation_hint() && restyle_hint.has_non_animation_hint()),
+Total matches: 1

@@ -1,0 +1,31 @@
+    pub unsafe fn note_explicit_hints(&self, restyle_hint: RestyleHint, change_hint: nsChangeHint) {
+        use crate::gecko::restyle_damage::GeckoRestyleDamage;
+
+        let damage = GeckoRestyleDamage::new(change_hint);
+        debug!(
+            "note_explicit_hints: {:?}, restyle_hint={:?}, change_hint={:?}",
+            self, restyle_hint, change_hint
+        );
+        debug_assert!(unsafe { bindings::Gecko_IsMainThread() });
+        debug_assert!(
+            !(restyle_hint.has_animation_hint() && restyle_hint.has_non_animation_hint()),
+            "Animation restyle hints should not appear with non-animation restyle hints"
+        );
+
+        let Some(mut data) = self.mutate_data() else {
+            debug!("(Element not styled, discarding hints)");
+            return;
+        };
+
+        // Propagate the bit up the chain.
+        unsafe {
+            if restyle_hint.has_animation_hint() {
+                bindings::Gecko_NoteAnimationOnlyDirtyElement(self.0);
+            } else {
+                bindings::Gecko_NoteDirtyElement(self.0);
+            }
+        }
+
+        data.hint.insert(restyle_hint);
+        data.damage |= damage;
+    }
