@@ -1,0 +1,160 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Named timeline admission from a revealed SVG subtree</title>
+<link rel="help" href="https://drafts.csswg.org/scroll-animations-1/#timeline-scoping">
+<link rel="help" href="https://www.w3.org/TR/smil-animation/">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+window.namedTimelineObservations = [];
+
+function mark(mode, phase, fields = {}) {
+  if (typeof dump === "function") {
+    dump(`NT_PROBE ${JSON.stringify({mode, phase, ...fields})}\n`);
+  }
+}
+
+function timeValue(value) {
+  return value === null || typeof value === "number" ? value : value.toString();
+}
+
+function animationState(animation) {
+  const timing = animation.effect.getComputedTiming();
+  const timeline = animation.timeline;
+  return {
+    timing: {
+      progress: timing.progress,
+      currentIteration: timing.currentIteration,
+      localTime: timeValue(timing.localTime),
+      activeDuration: timeValue(timing.activeDuration),
+      endTime: timeValue(timing.endTime)
+    },
+    timelineSource: timeline && timeline.source ? timeline.source.id : null,
+    timelineTime: timeline ? timeValue(timeline.currentTime) : null,
+    playState: animation.playState,
+    pending: animation.pending
+  };
+}
+
+for (const mode of ["smil-scroll", "normal-scroll", "smil-scope-only"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    frame.width = "640";
+    frame.height = "400";
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    const smil = mode.startsWith("smil-");
+    const scopeOnly = mode === "smil-scope-only";
+    frame.srcdoc = `<!doctype html><html><style>
+      html, body { margin: 0; }
+      #outside {
+        timeline-scope: --t;
+        font-size: 10px;
+        animation: outside-font 1s linear both;
+        animation-timeline: --t;
+      }
+      .scroller { inline-size: 160px; block-size: 100px; overflow: auto; }
+      .filler { block-size: 300px; }
+      #fallback { scroll-timeline: --t block; }
+      #provider { ${scopeOnly ? "timeline-scope: --scopeProbe;" : "scroll-timeline: --t block;"} }
+      #host.visible { display: inline; }
+      @keyframes outside-font {
+        from { font-size: 12px; }
+        to { font-size: 28px; }
+      }
+    </style><body>
+      <div id="outside">outside
+        <div id="fallback" class="scroller"><div class="filler"></div></div>
+        <svg id="svg" width="200" height="120">
+          <g id="host" display="none">
+            ${smil ? `<animate attributeName="display" values="none;inline"
+              calcMode="discrete" begin="0s" dur="100s" fill="freeze"/>` : ""}
+            <foreignObject width="200" height="120">
+              <div xmlns="http://www.w3.org/1999/xhtml" id="provider" class="scroller">
+                <div class="filler"></div>
+              </div>
+            </foreignObject>
+          </g>
+        </svg>
+      </div>`;
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    const outside = doc.getElementById("outside");
+    const fallback = doc.getElementById("fallback");
+    const svg = doc.getElementById("svg");
+    const host = doc.getElementById("host");
+    assert_true(win.CSS.supports("animation-timeline", "--t"), "Named timelines supported");
+    assert_true(win.CSS.supports("timeline-scope", "--t"), "Timeline scopes supported");
+    if (smil) {
+      svg.pauseAnimations();
+      svg.setCurrentTime(0);
+    }
+    assert_equals(win.getComputedStyle(host).display, "none", "Hidden before reveal");
+    assert_equals(fallback.scrollHeight - fallback.clientHeight, 200, "Fallback scroll range");
+    fallback.scrollTop = 100;
+    const animations = outside.getAnimations();
+    assert_equals(animations.length, 1, "One animation on the outside ancestor");
+    const animation = animations[0];
+    assert_true(animation instanceof win.CSSAnimation, "Outside animation is CSS-generated");
+    const observation = {mode, phase: "preparing"};
+    window.namedTimelineObservations.push(observation);
+    for (let attempt = 0; attempt < 24; ++attempt) {
+      await new Promise(resolve => win.requestAnimationFrame(resolve));
+      observation.before = {
+        font: win.getComputedStyle(outside).fontSize,
+        ...animationState(animation)
+      };
+      if (!observation.before.pending && observation.before.timing.progress !== null &&
+          Math.abs(observation.before.timing.progress - 0.5) <= 0.001 &&
+          Math.abs(parseFloat(observation.before.font) - 20) <= 0.01) {
+        break;
+      }
+    }
+    assert_equals(observation.before.timelineSource, "fallback", "Fallback supplies baseline timeline");
+    assert_false(observation.before.pending, "Baseline animation has completed pending setup");
+    assert_equals(observation.before.playState, "running", "Baseline animation is running");
+    assert_not_equals(observation.before.timing.progress, null, "Baseline animation is in effect");
+    assert_approx_equals(observation.before.timing.progress, 0.5, 0.001, "Baseline is halfway scrolled");
+    assert_approx_equals(parseFloat(observation.before.font), 20, 0.01, "Baseline font matches sampled progress");
+    observation.phase = "prepared";
+    mark(mode, "stimulus-begin");
+    observation.phase = "stimulus";
+    if (smil) {
+      svg.setCurrentTime(75);
+    } else {
+      host.classList.add("visible");
+    }
+    mark(mode, "stimulus-return");
+    observation.phase = "getter";
+    mark(mode, "getter-begin");
+    observation.firstFont = win.getComputedStyle(outside).fontSize;
+    mark(mode, "getter-return", {value: observation.firstFont});
+    observation.after = animationState(animation);
+    observation.repeatFont = win.getComputedStyle(outside).fontSize;
+    observation.hostDisplay = win.getComputedStyle(host).display;
+    observation.paused = smil ? svg.animationsPaused() : null;
+    observation.time = smil ? svg.getCurrentTime() : null;
+    observation.fallbackScrollTop = fallback.scrollTop;
+    observation.sameAnimation = outside.getAnimations()[0] === animation;
+    observation.phase = "complete";
+    mark(mode, "complete", {observation});
+    assert_equals(observation.hostDisplay, "inline", "Host revealed");
+    assert_true(observation.sameAnimation, "Outside animation identity preserved");
+    assert_equals(observation.fallbackScrollTop, 100, "Fallback scroll offset unchanged");
+    assert_equals(observation.after.timelineSource, scopeOnly ? "fallback" : "provider",
+                  "Expected source after initial provider or scope admission");
+    if (scopeOnly) {
+      assert_equals(observation.firstFont, observation.before.font, "Unrelated scope keeps the first font sample");
+    }
+    if (smil) {
+      assert_true(observation.paused, "SMIL remains paused");
+      assert_equals(observation.time, 75, "One explicit reveal seek");
+    }
+  }, `Named timeline admission: ${mode}`);
+}
+</script>

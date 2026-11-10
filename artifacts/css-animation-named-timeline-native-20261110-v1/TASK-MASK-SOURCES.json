@@ -1,0 +1,17 @@
+{
+  "revision": "b6f9b206df9c22b1ed2f41b1690614ec308a8471",
+  "sources": {
+    "layout/style/ServoTypes.h": {
+      "sha256": "ff2426503130fb520525c424e15a3cbe1bef6ef7e1b774ac68d3091c106d9e4a",
+      "excerpt": "enum class UpdateAnimationsTasks : uint8_t {\n  CSSAnimations = 1 << 0,\n  CSSTransitions = 1 << 1,\n  EffectProperties = 1 << 2,\n  CascadeResults = 1 << 3,\n  DisplayChangedFromNone = 1 << 4,\n  ScrollTimelines = 1 << 5,\n  ViewTimelines = 1 << 6,\n  TimelineScopes = 1 << 7,\n};\n\n"
+    },
+    "layout/style/GeckoBindings.cpp": {
+      "sha256": "6de005383793f63fd9fd8b201eefafc09425619bb10b7a48e847b31796241ffb",
+      "excerpt": "  // Handle timeline scopes first, because our own scroll/view-linked animations\n  // may be affected.\n  if (aTasks & UpdateAnimationsTasks::TimelineScopes) {\n    presContext->TimelineManager()->UpdateTimelineScopes(element,\n                                                         aComputedData);\n    // We could try to limit the impact here, at least for changes involving not\n    // `all`. However, defer any such optimization until after bug 2024012.\n    presContext->AnimationManager()->UpdateAllNamedTimelineAnimations();\n  }\n\n  // Handle scroll/view timelines first because CSS animations may refer to the\n  // timeline defined by itself.\n  if (aTasks & UpdateAnimationsTasks::ScrollTimelines) {\n    const auto affected = presContext->TimelineManager()->UpdateTimelines(\n        const_cast<Element*>(element), pseudoRequest, aComputedData,\n        TimelineManager::ProgressTimelineType::Scroll);\n    presContext->AnimationManager()->UpdateNamedTimelineAnimations(affected);\n  }\n\n  if (aTasks & UpdateAnimationsTasks::ViewTimelines) {\n    const auto affected = presContext->TimelineManager()->UpdateTimelines(\n        const_cast<Element*>(element), pseudoRequest, aComputedData,\n        TimelineManager::ProgressTimelineType::View);\n    presContext->AnimationManager()->UpdateNamedTimelineAnimations(affected);\n  }\n\n"
+    }
+  },
+  "masks": {
+    "32": "ScrollTimelines",
+    "128": "TimelineScopes"
+  }
+}
