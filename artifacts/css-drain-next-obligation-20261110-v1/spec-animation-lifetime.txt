@@ -1,0 +1,76 @@
+# CSS-ANIMATIONS-1#animations
+
+**CSS Animations Model** (heading)
+
+**SHA**: hash:2edd75d9ff0a946ec4d42d9b348c98835db48d56244d6d4f4d822230ebb7273c
+
+## Content
+
+CSS Animations affect computed property values. This effect happens by adding a specified value to the CSS cascade (\[CSS3CASCADE\]) (at the level for CSS Animations) that will produce the correct computed value for the current state of the animation. As defined in \[CSS3CASCADE\], animations override all normal rules, but are overridden by !important rules.
+
+If at some point in time there are multiple animations specifying behavior for the same property, the animation which occurs last in the value of [animation-name](https://drafts.csswg.org/css-animations-1#propdef-animation-name) will override the other animations at that point.
+
+An animation does not affect the computed value before the application of the animation (that is, when the [animation-name](https://drafts.csswg.org/css-animations-1#propdef-animation-name) property is set on an element) or after it is removed. Furthermore, typically an animation does not affect the computed value before the animation delay has expired or after the end of the animation, but may do so depending on the [animation-fill-mode](https://drafts.csswg.org/css-animations-1#propdef-animation-fill-mode) property.
+
+While running, the animation computes the value of those properties it animates. Other values may take precedence over the animated value according to the CSS cascade (\[CSS3CASCADE\]).
+
+While an animation is applied but has not finished, or has finished but has an [animation-fill-mode](https://drafts.csswg.org/css-animations-1#propdef-animation-fill-mode) of [forwards](https://drafts.csswg.org/css-animations-1#valdef-animation-fill-mode-forwards) or [both](https://drafts.csswg.org/css-animations-1#valdef-animation-fill-mode-both), the user agent must act as if the [will-change](https://drafts.csswg.org/css-will-change-1/#propdef-will-change) property (\[css-will-change-1\]) on the element additionally includes all the properties animated by the animation.
+
+The start time of an animation is the time at which the style applying the animation and the corresponding @keyframes rule are both resolved. If an animation is specified for an element but the corresponding @keyframes rule does not yet exist, the animation cannot start; the animation will start from the beginning as soon as a matching @keyframes rule can be resolved. An animation specified by dynamically modifying the element’s style will start when this style is resolved; that may be immediately in the case of a pseudo style rule such as hover, or may be when the scripting engine returns control to the browser (in the case of style applied by script). Note that dynamically updating keyframe style rules does not start or re-start an animation.
+
+An animation applies to an element if its name appears as one of the identifiers in the computed value of the [animation-name](https://drafts.csswg.org/css-animations-1#propdef-animation-name) property and the animation uses a valid @keyframes rule. Once an animation has started it continues until it ends or the animation-name is removed. Changes to the values of animation properties while the animation is running apply as if the animation had those values from when it began. For example, shortening the [animation-delay](https://drafts.csswg.org/css-animations-1#propdef-animation-delay) may cause the animation to jump forwards or even finish immediately and dispatch an [`animationend`](https://drafts.csswg.org/css-animations-1#eventdef-globaleventhandlers-animationend) event. Conversely, extending the animation-delay may cause an animation to re-start and dispatch an [`animationstart`](https://drafts.csswg.org/css-animations-1#eventdef-globaleventhandlers-animationstart) event.
+
+The same @keyframes rule name may be repeated within an [animation-name](https://drafts.csswg.org/css-animations-1#propdef-animation-name). Changes to the animation-name update existing animations by iterating over the new list of animations from last to first, and, for each animation, finding the *last* matching animation in the list of existing animations. If a match is found, the existing animation is updated using the animation properties corresponding to its position in the new list of animations, whilst maintaining its current playback time as described above. The matching animation is removed from the existing list of animations such that it will not match twice. If a match is not found, a new animation is created. As a result, updating animation-name from ‘a’ to ‘a, a’ will cause the existing animation for ‘a’ to become the *second* animation in the list and a new animation will be created for the first item in the list.
+
+> **Example:** ```
+> div {
+>   animation-name: diagonal-slide;
+>   animation-duration: 5s;
+>   animation-iteration-count: 10;
+> }
+>
+> @keyframes diagonal-slide {
+>
+>   from {
+>     left: 0;
+>     top: 0;
+>   }
+>
+>   to {
+>     left: 100px;
+>     top: 100px;
+>   }
+>
+> }
+> ```
+>
+> This will produce an animation that moves an element from (0, 0) to (100px, 100px) over five seconds and repeats itself nine times (for a total of ten iterations).
+
+Setting the [display](https://drafts.csswg.org/css-display-4/#propdef-display) property to [none](https://drafts.csswg.org/css-display-4/#valdef-display-none) will terminate any running animation applied to the element and its descendants. If an element has a display of none, updating display to a value other than none will start all animations applied to the element by the [animation-name](https://drafts.csswg.org/css-animations-1#propdef-animation-name) property, as well as all animations applied to descendants with display other than none.
+
+While authors can use animations to create dynamically changing content, dynamically changing content can lead to seizures in some users. For information on how to avoid content that can lead to seizures, see Guideline 2.3: Seizures: Do not design content in a way that is known to cause seizures (\[WCAG20\]).
+
+Implementations may ignore animations when the rendering medium is not interactive e.g. when printed. A future version of this specification may define how to render animations for these media.
+
+## Navigation
+
+- Prev: `intro` — Introduction
+- Next: `keyframes` — Declaring Keyframes
+
+## Outgoing refs (10)
+
+`webspec-index refs CSS-ANIMATIONS-1#animations -d outgoing -l 10`
+
+## Incoming refs (1)
+
+- CSS-ANIMATIONS-1#contents
+
+### Possible effects
+
+CSS-ANIMATIONS-1#animations
+
+Partial analysis: additional effects may exist.
+
+No effects detected by this analysis.
+
+Traces and conditions (bounded): `webspec-index effects "CSS-ANIMATIONS-1#animations" --format markdown`

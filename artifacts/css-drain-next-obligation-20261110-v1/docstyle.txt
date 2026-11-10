@@ -1,0 +1,87 @@
+>>>  808: bool ServoStyleSet::StyleDocument(ServoTraversalFlags aFlags) {
+     809:   AUTO_PROFILER_LABEL_CATEGORY_PAIR_RELEVANT_FOR_JS(LAYOUT_StyleComputation);
+     810:   MOZ_ASSERT(GetPresContext(), "Styling a document without a shell?");
+     811: 
+     812:   if (!mDocument->GetServoRestyleRoot()) {
+     813:     return false;
+     814:   }
+     815: 
+     816:   PreTraverse(aFlags);
+     817:   const SnapshotTable& snapshots = Snapshots();
+     818: 
+     819:   // Restyle the document from the root element and each of the document level
+     820:   // NAC subtree roots.
+     821:   bool postTraversalRequired = false;
+     822: 
+     823:   if (ShouldTraverseInParallel()) {
+     824:     aFlags |= ServoTraversalFlags::ParallelTraversal;
+     825:   }
+     826: 
+     827:   // Do the first traversal.
+     828:   DocumentStyleRootIterator iter(mDocument->GetServoRestyleRoot());
+     829:   while (Element* root = iter.GetNextStyleRoot()) {
+     830:     MOZ_ASSERT(MayTraverseFrom(root));
+     831: 
+     832:     Element* parent = root->GetFlattenedTreeParentElementForStyle();
+     833:     MOZ_ASSERT_IF(parent,
+     834:                   !parent->HasAnyOfFlags(Element::kAllServoDescendantBits));
+     835: 
+     836:     if (MOZ_UNLIKELY(!root->HasServoData()) && !parent) {
+     837:       StyleNewSubtree(root);
+     838:       postTraversalRequired = true;
+     839:       continue;
+     840:     }
+     841: 
+     842:     AutoPrepareTraversal guard(this);
+     843: 
+     844:     postTraversalRequired |=
+     845:         Servo_TraverseSubtree(root, mRawData.get(), &snapshots, aFlags) ||
+     846:         root->HasAnyOfFlags(Element::kAllServoDescendantBits |
+     847:                             NODE_NEEDS_FRAME);
+     848: 
+     849:     uint32_t existingBits = mDocument->GetServoRestyleRootDirtyBits();
+     850:     Element* newRoot = nullptr;
+     851:     while (parent && parent->HasDirtyDescendantsForServo()) {
+     852:       MOZ_ASSERT(root == mDocument->GetServoRestyleRoot(),
+     853:                  "Restyle root shouldn't have magically changed");
+     854:       // If any style invalidation was triggered in our siblings, then we may
+     855:       // need to post-traverse them, even if the root wasn't restyled after
+     856:       // all.
+     857:       // We need to propagate the existing bits to the ancestor.
+     858:       parent->SetFlags(existingBits);
+     859:       newRoot = parent;
+     860:       parent = parent->GetFlattenedTreeParentElementForStyle();
+     861:     }
+     862: 
+     863:     if (newRoot) {
+     864:       mDocument->SetServoRestyleRoot(
+     865:           newRoot, existingBits | ELEMENT_HAS_DIRTY_DESCENDANTS_FOR_SERVO);
+     866:       postTraversalRequired = true;
+     867:     }
+     868:   }
+     869: 
+     870:   // If there are still animation restyles needed, trigger a second traversal to
+     871:   // update CSS animations or transitions' styles.
+     872:   //
+     873:   // Note that we need to check the style root again, because doing another
+     874:   // PreTraverse on the EffectCompositor might alter the style root. But we
+     875:   // don't need to worry about NAC, since document-level NAC shouldn't have
+     876:   // animations.
+     877:   //
+     878:   // We don't need to do this for SMIL since SMIL only updates its animation
+     879:   // values once at the begin of a tick. As a result, even if the previous
+     880:   // traversal caused, for example, the font-size to change, the SMIL style
+     881:   // won't be updated until the next tick anyway.
+     882:   if (GetPresContext()->EffectCompositor()->PreTraverse(aFlags)) {
+     883:     DocumentStyleRootIterator iter(mDocument->GetServoRestyleRoot());
+     884:     while (Element* root = iter.GetNextStyleRoot()) {
+     885:       AutoPrepareTraversal guard(this);
+     886:       postTraversalRequired |=
+     887:           Servo_TraverseSubtree(root, mRawData.get(), &snapshots, aFlags) ||
+     888:           root->HasAnyOfFlags(Element::kAllServoDescendantBits |
+     889:                               NODE_NEEDS_FRAME);
+     890:     }
+     891:   }
+     892: 
+     893:   return postTraversalRequired;
+     894: }

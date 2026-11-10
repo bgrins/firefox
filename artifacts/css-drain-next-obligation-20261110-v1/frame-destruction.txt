@@ -1,0 +1,45 @@
+>>> 2143:     StopAnimationsForElementsWithoutFrames() {
+    2144:   nsPresContext* context = mRestyleManager->PresContext();
+    2145:   nsAnimationManager* animationManager = context->AnimationManager();
+    2146:   nsTransitionManager* transitionManager = context->TransitionManager();
+    2147:   const Document* doc = context->Document();
+    2148:   for (auto& [element, pseudoType] : mContents) {
+    2149:     PseudoStyleRequest request(pseudoType);
+    2150:     if (pseudoType == PseudoStyleType::NotPseudo) {
+    2151:       if (element->GetPrimaryFrame()) {
+    2152:         continue;
+    2153:       }
+    2154:       // The contents of view transition pseudos are put together with
+    2155:       // NotPseudo.
+    2156:       const auto type = element->GetPseudoElementType();
+    2157:       if (PseudoStyle::IsViewTransitionPseudoElement(type)) {
+    2158:         request = {type,
+    2159:                    element->HasName()
+    2160:                        ? element->GetParsedAttr(nsGkAtoms::name)->GetAtomValue()
+    2161:                        : nullptr};
+    2162:         // View transition pseudo-elements use the document element to look up
+    2163:         // their animations.
+    2164:         element = doc->GetRootElement();
+    2165:         MOZ_ASSERT(element);
+    2166:       }
+    2167:     } else if (auto* pseudo = element->GetPseudoElement(request);
+    2168:                pseudo && pseudo->GetPrimaryFrame()) {
+    2169:       continue;
+    2170:     }
+    2171: 
+    2172:     // An element animating its own display to none should keep its animation
+    2173:     // running.
+    2174:     if (!IsDisplayNoneRoot(element, request)) {
+    2175:       animationManager->StopAnimationsForElement(element, request);
+    2176:       transitionManager->StopAnimationsForElement(element, request);
+    2177:     }
+    2178: 
+    2179:     // All other animations should keep running but not running on the
+    2180:     // *compositor* at this point.
+    2181:     if (EffectSet* effectSet = EffectSet::Get(element, request)) {
+    2182:       for (KeyframeEffect* effect : *effectSet) {
+    2183:         effect->ResetIsRunningOnCompositor();
+    2184:       }
+    2185:     }
+    2186:   }
+    2187: }
