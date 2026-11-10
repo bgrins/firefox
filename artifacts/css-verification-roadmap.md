@@ -4,12 +4,17 @@ Continue finding observable CSS/Stylo bugs, verifying relevant models and code, 
 
 ## Current position — November 10, 2026
 
-The catalogue contains 166 committed browser repair entries, including held #160 and excluding #120. This is not a count of newly discovered upstream issues. The generic ArcSlice library repair is recorded separately. See css-all-work-readout-20261110-v15/README.md for all commits, priorities and qualifications.
+The catalogue contains 168 committed browser repair entries, including held #160 and excluding #120. This is not a count of newly discovered upstream issues. The generic ArcSlice library repair is recorded separately. See css-all-work-readout-20261110-v16/README.md for all commits, priorities and qualifications.
 
 Signing resumed successfully. New signed commits are:
 
 | Commit | Content |
 | --- | --- |
+| 191083fb76eb | Typed stateful CSS escape derivation: full-result proof, 18 examples, 12 controls and independent source-only replay |
+| 8424404304d6 | Implicit-scope host-context cache repair: one Rust file and two WPT resources (#169) |
+| 6f9376f98c47 | Current host-context build and 14-assertion combined comparison |
+| 8ffd094be532 | Implicit-scope stylesheet-index cache repair: one Rust file and three WPT resources (#168) |
+| 919fcb04ddfe | Current index comparison, Nightly exposure and replayed scope/vector-key proofs |
 | aadc64afe8b7 | Frozen-rule derivation benchmark: two checked predicates, held-out consumption refused, independent source-only replay |
 | ed8bce6fa5d7 | Preserve stylesheet CSSOM state during moves: five native files and seven WPT resources (#167) |
 | b86cd38915d8 | Exact filtered stylesheet-move validation and shared-media interaction controls |
@@ -45,7 +50,7 @@ The original Bloom milestones 1–6 remain conditional results at their recorded
 2. Review standalone readiness of the newly committed stylesheet repairs. #166 passes 47 assertions plus a rendering reference test; #167 passes its exact 31-assertion delivery/control selection and preserves eight shared-media checks. Both defect signatures also reproduce in installed Nightly. The move patch needs the recorded context-only upstream adaptation; neither has an isolated upstream native build. Keep canvas substitution pending its compatibility decision.
 3. Follow up the committed same-rule fix's dense-case allocation cost and isolated upstream readiness. #164 explicitly requires #163; the five-file source patch is not independently cherry-pickable onto the pre-project ancestor. Dense Rule256 remains 25.27–25.80 microseconds/update versus 10.43–10.94 baseline. Single-trigger256 is 8.61–9.00 versus 8.44–8.85. These are bounded synthetic comparisons, not release-page estimates. Profile many-longhand cases before claiming a general allocation or performance improvement.
 4. Continue broader Arc/DST verification: allocation, provenance, cross-language transfer and shared-UA serialization remain separate from the committed empty-allocation fix.
-5. Build a separately versioned stateful derivation IR with explicit remaining input, bounded hexadecimal consumption, scalar replacement and EOF/error behavior. The frozen-rule benchmark proved both training predicates but rejected held-out escape consumption without generating code. Consumption is now development material; choose a fresh held-out algorithm before freezing the extended grammar. See css-spec-derivation-benchmark-20261110-v1/REPORT.md. Preserve independent reference relations, spec provenance, unsupported clauses and negative controls; prose interpretation and compiler correctness remain unproved.
+5. Review and extend the separately versioned stateful derivation experiment. The typed escape program now has complete scalar/remainder/EOF-error correspondence, caller-domain conditions, 18 examples and 12 negative controls. Frozen transfer to consume-number was refused at its result interface. Before extending to decimal/exponent parsing, decide whether a first-order expression/statement IR and checked lowering would reduce the present higher-order/manual boundary. Keep numeric semantics explicit; do not add arbitrary loop fuel. See css-spec-stateful-derivation-20261110-v1/REPORT.md. Source interpretation, general translator correctness and native refinement remain unproved.
 
 ## Completed rollback evidence
 
@@ -70,3 +75,7 @@ All completed native/browser experiments are closed. Signing failures, the early
 The November 10 native build now leaves the #165 root-identity repair installed in the local Nightly.app. The build source and binary hashes, 47 passing assertions, two matched baseline pages and installed Nightly comparison are recorded in css-root-self-resume-20261110-v1. Its build metadata predates the final native commit; exact delivery bytes were verified. The independent spec-derivation replay and shared-media rebase used temporary directories that have been removed.
 
 The later November 10 builds now leave #166 and #167 installed alongside #165. The two native repairs are separate signed commits, each preceded by current validation research. All selected WPT resources are committed. The exact filtered move candidate execution gap is closed; #160 remains held. Temporary upstream/source-only replay directories are removed after successful checks; the active objdir is retained for manual testing.
+
+The subsequent scope-cache builds leave #168 and #169 installed too. The current branch comparison was 10 PASS / 4 FAIL before either repair, 12 PASS / 2 FAIL after index preservation, and 14 PASS after host-context keying, each with four OK harness endings. Installed Nightly reproduces all four scope failures. Each repair has its own native/WPT commit, with no sibling test mixed into it. The 34-theorem abstract key/vector replay and 12 rejected false claims are retained in the preceding index research; complete native cache correctness remains outside that model.
+
+The stateful derivation artifact is committed as 191083fb76eb. Root independently replayed exactly 15 source/manifest files with no generated or compiled inputs; all 18 examples and 12 controls passed and consume-number remained unsupported. Both owned replay directories were removed. The canonical standalone library remains unchanged. Pinned verbatim specification snippets retain their source trailing blank lines; those two artifact whitespace diagnostics were not reformatted.
