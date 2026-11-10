@@ -1,0 +1,106 @@
+      let p = &property.mProperty;
+      let id = get_property_id_from_csspropertyid!(p, false);
+      id.as_shorthand().is_ok() && property.mSimulateComputeValuesFailure
+  }
+  
+  #[cfg(not(feature = "gecko_debug"))]
+  fn simulate_compute_values_failure(_: &PropertyValuePair) -> bool {
+      false
+  }
+  
+servo/ports/geckolib/glue.rs:7484: fn create_context_for_animation<'a>(
+      per_doc_data: &'a PerDocumentStyleDataImpl,
+      style: &'a ComputedValues,
+      parent_style: Option<&'a ComputedValues>,
+      for_smil_animation: bool,
+      rule_cache_conditions: &'a mut RuleCacheConditions,
+      container_size_query: ContainerSizeQuery<'a>,
+      element_context: &'a dyn ElementContext,
+      tree_counting_caches: &'a mut TreeCountingCaches,
+  ) -> Context<'a> {
+      Context::new_for_animation(
+      let parent_data = parent_element.as_ref().and_then(|e| e.borrow_data());
+      let parent_style = parent_data
+          .as_ref()
+          .map(|d| d.styles.primary())
+          .map(|x| &**x);
+  
+      let container_size_query =
+          ContainerSizeQuery::for_element(element, parent_style, pseudo.is_some());
+      let mut conditions = Default::default();
+      let mut tree_counting_caches = TreeCountingCaches::default();
+servo/ports/geckolib/glue.rs:7592:     let mut context = create_context_for_animation(
+          &data,
+          &style,
+          parent_style,
+          /* for_smil_animation = */ false,
+          &mut conditions,
+          container_size_query,
+          &element,
+          &mut tree_counting_caches,
+      );
+  
+      let parent_data = parent_element.as_ref().and_then(|e| e.borrow_data());
+      let parent_style = parent_data
+          .as_ref()
+          .map(|d| d.styles.primary())
+          .map(|x| &**x);
+  
+      let container_size_query =
+          ContainerSizeQuery::for_element(element, None, /* is_pseudo = */ false);
+      let mut conditions = Default::default();
+      let mut tree_counting_caches = TreeCountingCaches::default();
+servo/ports/geckolib/glue.rs:7727:     let mut context = create_context_for_animation(
+          &data,
+          &style,
+          parent_style,
+          /* for_smil_animation = */ true,
+          &mut conditions,
+          container_size_query,
+          &element,
+          &mut tree_counting_caches,
+      );
+  
+      let parent_data = parent_element.as_ref().and_then(|e| e.borrow_data());
+      let parent_style = parent_data
+          .as_ref()
+          .map(|d| d.styles.primary())
+          .map(|x| &**x);
+  
+      let container_size_query =
+          ContainerSizeQuery::for_element(element, None, /* is_pseudo = */ false);
+      let mut conditions = Default::default();
+      let mut tree_counting_caches = TreeCountingCaches::default();
+servo/ports/geckolib/glue.rs:7776:     let mut context = create_context_for_animation(
+          &data,
+          style,
+          parent_style,
+          /* for_smil_animation = */ false,
+          &mut conditions,
+          container_size_query,
+          &element,
+          &mut tree_counting_caches,
+      );
+  
+              conditions: Default::default(),
+              tree_counting_caches: Default::default(),
+          }
+      }
+  
+      fn computed_context<'b>(
+          &'b mut self,
+          data: &'b PerDocumentStyleDataImpl,
+          style: &'b ComputedValues,
+      ) -> Context<'b> {
+servo/ports/geckolib/glue.rs:11693:         create_context_for_animation(
+              data,
+              style,
+              self.parent_style.as_deref(),
+              /* for_smil_animation = */ false,
+              &mut self.conditions,
+              ContainerSizeQuery::for_element(
+                  self.element,
+                  self.parent_style.as_deref(),
+                  self.is_pseudo,
+              ),
+Total matches: 5

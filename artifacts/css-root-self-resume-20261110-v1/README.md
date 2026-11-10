@@ -21,3 +21,15 @@ The current stack contains the earlier font-membership and cancellation repairs.
 The older publisher requires a research commit directly after the historical `a6f396` revision and cannot be used on the current branch. This continuation preserves that publisher and its failed-signing history. It uses explicit path staging on the current clean tracked tree, configured signing, and a research predecessor followed by the five-file native commit. It does not rewrite signed history or change the private IPC project.
 
 The producer-only comparison mentioned as missing in the earlier roadmap is already complete: A and B both had 137 PASS / 27 FAIL; the combined producer-and-drain candidate had 164 PASS. The later broad-handoff trace identifies productive normal readmission and repeated changed-property requeue for the historical stalled combination. Those results supersede the old missing-middle plan. Keep #160 held for review of the combined mechanism and its remaining convergence assumptions; do not rerun either completed experiment.
+
+## Fresh upstream and build checks
+
+Installed Nightly 162.0a1 (application metadata BuildID 20261109214446) reproduced exactly the local baseline's 12 PASS / 9 FAIL and two OK endings on the two proposed pages. The installed application's executable, XUL and application.ini hashes were unchanged across this run. This establishes exposure in that installed Nightly, not a release-channel claim. See installed-nightly-before.json and installed-nightly-result.json.
+
+The source delta also applies without fuzz to glue.rs from Searchfox-indexed Firefox revision 47f2a88cbab9072c8f8f156494b92d6891e488fb. upstream-application.json records that source-only check; no isolated upstream build was performed.
+
+The current local candidate completed mach build binaries -j6 successfully. The first two-job attempt was deliberately interrupted to increase concurrency, after checking its owned process group. Both logs retain a Mach progress reporter KeyError for the export tier; the final native build exited zero. build-result.json records source and installed binary hashes. The spec-derivation research commit was made during the build and changed no native inputs. The candidate root-identity source remained uncommitted during compilation.
+
+## Candidate browser validation
+
+The freshly built local browser passed all 47 subtests across five pages, with five OK harness endings. The two matched target pages changed 12 PASS / 9 FAIL to 21 PASS, preserving every prior pass. The other 26 passing assertions are existing root-font invalidation and cancellation/depth controls; those three pages did not receive a fresh baseline run in this continuation. Binary and all five delivery-file hashes matched build-result.json after execution. See candidate-result.json and candidate-raw.jsonl. Scoped WPT lint and configured Rustfmt both exited zero.
