@@ -1,0 +1,56 @@
+Laws.lean:254:71: error: unsolved goals
+case false.false.false
+count : Nat
+tree : Tree count
+state : Certificates count
+sound : CertificateSound tree state
+producer node : Fin count
+full : ¬node ∈ ancestors tree producer
+clipped : ¬node ∈ clippedAncestors tree state.certified producer
+old : state.dirty node = false
+marked : ¬Ancestor tree producer node
+⊢ ¬node ∈ clippedAncestors tree state.dirty producer
+
+case false.true.true
+count : Nat
+tree : Tree count
+state : Certificates count
+sound : CertificateSound tree state
+producer node : Fin count
+full : node ∈ ancestors tree producer
+clipped : node ∈ clippedAncestors tree state.certified producer
+old : state.dirty node = false
+marked : Ancestor tree producer node
+fresh : state.certified node = false
+⊢ node ∈ clippedAncestors tree state.dirty producer
+Laws.lean:271:4: error: Type mismatch: After simplification, term
+  marked
+ has type
+  state.certified node = true ∨ node ∈ clippedAncestors tree state.dirty producer
+but is expected to have type
+  state.certified node = true ∨ node ∈ clippedAncestors tree state.certified producer
+Laws.lean:282:4: error: unsolved goals
+case neg
+count : Nat
+tree : Tree count
+state : Certificates count
+sound : CertificateSound tree state
+producer node : Fin count
+marked : (certify tree producer state).certified node = true
+ancestor : Fin count
+path : Ancestor tree node ancestor
+fresh : node ∈ clippedAncestors tree state.certified producer
+sourcePath : Ancestor tree producer node
+rootPath : Ancestor tree producer ancestor
+certified : ¬state.certified ancestor = true
+clean : state.certified ancestor = false
+included : ancestor ∈ clippedAncestors tree state.certified producer
+⊢ (state.certified ancestor = true ∨ ancestor ∈ clippedAncestors tree state.dirty producer) ∧
+    (state.dirty ancestor = true ∨ ancestor ∈ clippedAncestors tree state.dirty producer)
+Laws.lean:285:21: warning: This simp argument is unused:
+  included
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [certify]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

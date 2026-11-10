@@ -1,0 +1,48 @@
+Laws.lean:104:91: error: unsolved goals
+count : Nat
+animationOnly : Bool
+producer : Producer count
+⊢ producer.childHint Bit.unnamedQuery = true ∨ producer.childHint Bit.namedQuery = true →
+    animationOnly = true → producer.childHint Bit.font = true
+Laws.lean:126:63: error: unsolved goals
+case unnamedQuery
+count : Nat
+tree : Tree count
+styled : Fin count → Bool
+animationOnly : Bool
+producers : List (Producer count)
+node : Fin count
+producer : Producer count
+present : producer ∈ producers
+animation : animationOnly = true
+edge : tree.parent node = some producer.node
+eligible : styled node = true
+source : producer.childHint Bit.unnamedQuery = true
+⊢ producer.childHint Bit.font = true
+
+case namedQuery
+count : Nat
+tree : Tree count
+styled : Fin count → Bool
+animationOnly : Bool
+producers : List (Producer count)
+node : Fin count
+producer : Producer count
+present : producer ∈ producers
+animation : animationOnly = true
+edge : tree.parent node = some producer.node
+eligible : styled node = true
+source : producer.childHint Bit.namedQuery = true
+⊢ producer.childHint Bit.font = true
+Laws.lean:319:2: error: Tactic `rfl` failed: The left-hand side
+  collected animationOnly
+    { node := producer.node, childHint := fun bit => if bit = Bit.font then font else producer.childHint bit }
+is not definitionally equal to the right-hand side
+  collected animationOnly producer
+
+count : Nat
+producer : Producer count
+font animationOnly : Bool
+⊢ collected animationOnly
+      { node := producer.node, childHint := fun bit => if bit = Bit.font then font else producer.childHint bit } =
+    collected animationOnly producer

@@ -1,0 +1,102 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Animated custom properties update container style queries</title>
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#animated-containers">
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#style-container">
+<link rel="help" href="https://bugzilla.mozilla.org/show_bug.cgi?id=2085413">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+for (const mode of [
+  "named", "unnamed", "ordinary-named", "ordinary-unnamed", "deep",
+  "siblings", "pseudo", "hidden", "nearest-named", "registered",
+  "two-producers", "nearest-unnamed", "reveal",
+]) {
+  promise_test(async t => {
+    const ordinary = mode.startsWith("ordinary-");
+    const named = !mode.endsWith("unnamed");
+    const depth = mode === "deep" ? 256 : named ? 2 : 0;
+    const count = mode === "siblings" ? 8 : 1;
+    const producers = mode === "two-producers" ? 2 : 1;
+    const nearest = mode.startsWith("nearest-");
+    const hidden = mode === "hidden" || mode === "reveal";
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    frame.srcdoc = `<!doctype html><style>
+      ${mode === "registered" ? `@property --gate {
+        syntax: "<custom-ident>"; inherits: false; initial-value: off;
+      }` : ""}
+      .query { --gate: off; ${named ? "container-name: gate;" : ""}
+        ${ordinary ? "" : "animation: gate 1s linear both paused;"} }
+      .query.on { --gate: on; }
+      .target, .target::before { color: black; }
+      .target::before { content: "test"; }
+      .hidden { display: none; }
+      .nearest { --gate: off; ${named ? "container-name: gate;" : ""} }
+      @container ${named ? "gate" : ""} style(--gate: on) {
+        .target, .target::before { color: green; }
+      }
+      @keyframes gate { from { --gate: off; } to { --gate: on; } }
+    </style>${Array.from({length: producers}, (_, p) => `
+      <div class="query" id="query${p}"><div class="${hidden ? "hidden" : ""}">
+        ${"<div>".repeat(depth)}
+        ${Array.from({length: count}, (_, i) =>
+          `<div class="target" id="target${p}-${i}"></div>`).join("")}
+        ${"</div>".repeat(depth)}
+        ${nearest ? `<div class="nearest"><div class="target blocked"></div></div>` : ""}
+      </div></div>`).join("")}`;
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    const queries = [...doc.querySelectorAll(".query")];
+    const targets = [...doc.querySelectorAll(".target:not(.blocked)")];
+    const color = element => win.getComputedStyle(
+      element, mode === "pseudo" ? "::before" : null).color;
+    assert_true([...doc.styleSheets[0].cssRules].some(rule =>
+      rule instanceof win.CSSContainerRule), "Style query parsed");
+    assert_array_equals(targets.map(color), Array(targets.length).fill("rgb(0, 0, 0)"),
+                        "Initially no query matches");
+    const drivers = ordinary ? [] : queries.map(query => {
+      const animations = query.getAnimations();
+      assert_equals(animations.length, 1, "One animation drives each container");
+      assert_true(animations[0] instanceof win.CSSAnimation, "CSS animation driver");
+      return animations[0];
+    });
+    for (const on of [true, false, true]) {
+      for (const query of queries) {
+        if (ordinary) {
+          query.classList.toggle("on", on);
+        }
+      }
+      for (const driver of drivers) {
+        driver.currentTime = on ? 750 : 0;
+      }
+      if (mode === "reveal") {
+        doc.querySelector(".hidden")?.classList.remove("hidden");
+      }
+      const observed = targets.map(color);
+      for (const query of queries) {
+        assert_equals(win.getComputedStyle(query).getPropertyValue("--gate").trim(),
+                      on ? "on" : "off", "Container value changed");
+      }
+      for (const driver of drivers) {
+        assert_equals(driver.effect.getComputedTiming().progress, on ? 0.75 : 0,
+                      "Source sample is established");
+        assert_equals(driver.playState, "paused", "Source animation stays paused");
+      }
+      assert_array_equals(observed,
+                          Array(targets.length).fill(on ? "rgb(0, 128, 0)" : "rgb(0, 0, 0)"),
+                          "First read observes the changed query");
+      for (const blocked of doc.querySelectorAll(".blocked")) {
+        assert_equals(color(blocked), "rgb(0, 0, 0)",
+                      "Nearest container's explicit override remains authoritative");
+      }
+    }
+  }, `Animated custom-property style queries: ${mode}`);
+}
+</script>

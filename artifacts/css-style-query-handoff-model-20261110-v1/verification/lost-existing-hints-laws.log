@@ -1,0 +1,30 @@
+Laws.lean:83:4: error: unsolved goals
+case pos
+count : Nat
+node : Fin count
+bit : Bit
+delivery : Delivery count
+rest : List (Delivery count)
+ih :
+  ∀ (state : State count),
+    (execute rest state).hints node bit = true ↔
+      state.hints node bit = true ∨ ∃ delivery, delivery ∈ rest ∧ node = delivery.child ∧ delivery.hint bit = true
+state : State count
+same : node = delivery.child
+⊢ state.hints delivery.child bit = true →
+    delivery.hint bit = true ∨
+      ∃ delivery_1, delivery_1 ∈ rest ∧ delivery.child = delivery_1.child ∧ delivery_1.hint bit = true
+Laws.lean:83:33: warning: This simp argument is unused:
+  union
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [applyDelivery, same, List.mem_cons, or_assoc]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+Laws.lean:83:55: warning: This simp argument is unused:
+  or_assoc
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [applyDelivery, same, union, List.mem_cons]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

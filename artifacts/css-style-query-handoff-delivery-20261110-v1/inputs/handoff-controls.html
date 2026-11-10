@@ -1,0 +1,61 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Animation-driven style-query handoff boundaries</title>
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#animated-containers">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+for (const mode of ["deep", "siblings", "pseudo", "hidden", "nearest-boundary", "registered"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    const depth = mode === "deep" ? 256 : 2;
+    const targets = mode === "siblings" ? 8 : 1;
+    const children = Array.from({length: targets}, (_, i) =>
+      `<div id="target${i}" class="target"></div>`).join("");
+    frame.srcdoc = `<!doctype html><style>
+      ${mode === "registered" ? '@property --gate { syntax: "<custom-ident>"; inherits: false; initial-value: off; }' : ""}
+      #query { container-name: gate; --gate: off;
+        animation: gate 1s linear both paused; }
+      .target, .target::before { color: rgb(0, 0, 0); }
+      .target::before { content: "test"; }
+      #hidden { ${mode === "hidden" ? "display: none;" : ""} }
+      #nearest { container-name: gate; --gate: off; }
+      @container gate style(--gate: on) {
+        .target, .target::before { color: rgb(0, 128, 0); }
+      }
+      @keyframes gate { from { --gate: off; } to { --gate: on; } }
+    </style><div id="query"><div id="hidden">
+      ${"<div>".repeat(depth)}${children}${"</div>".repeat(depth)}
+      ${mode === "nearest-boundary" ? '<div id="nearest"><div id="blocked" class="target"></div></div>' : ""}
+    </div></div>`;
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    const query = doc.getElementById("query");
+    const driver = query.getAnimations()[0];
+    assert_true(driver instanceof win.CSSAnimation);
+    const pseudo = mode === "pseudo" ? "::before" : null;
+    const color = id => win.getComputedStyle(doc.getElementById(id), pseudo).color;
+    for (let i = 0; i < targets; ++i) {
+      assert_equals(color(`target${i}`), "rgb(0, 0, 0)", "Initial query does not match");
+    }
+    for (const on of [true, false, true]) {
+      driver.currentTime = on ? 750 : 0;
+      const observations = Array.from({length: targets}, (_, i) => color(`target${i}`));
+      assert_equals(win.getComputedStyle(query).getPropertyValue("--gate").trim(),
+                    on ? "on" : "off", "Driver sampled");
+      assert_array_equals(observations, Array(targets).fill(on ? "rgb(0, 128, 0)" : "rgb(0, 0, 0)"),
+                          "All affected targets observe the query change");
+      if (mode === "nearest-boundary") {
+        assert_equals(color("blocked"), "rgb(0, 0, 0)", "Nearest named container remains authoritative");
+      }
+    }
+  }, `Animated style-query handoff control: ${mode}`);
+}
+</script>
