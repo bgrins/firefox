@@ -6,6 +6,7 @@ standalone repair commit and do not increase that repaired-work count.
 | Issue | Relative priority | Evidence | Remaining work |
 | --- | --- | --- | --- |
 | Animation-tainted var() accepted in nonanimatable destinations | B: ordinary-size CSS interoperability; no demonstrated security impact | Same three current-text failures and one passing control in local browser and installed Nightly 162.0a1; see ../css-animation-taint-calibration-runtime-20261110-v1/README.md | Resolve acquisition/lifetime and inheritance policy, implement provenance without regressing attribute-taint, validate and deliver one source+WPT commit |
+| Non-generated pseudo target omits animated computed style (known bug 1615083) | C: existing S4 CSSOM correctness issue; no demonstrated security impact | Fresh local target.html run: six matching expected failures, 17 passing controls, one unrelated placeholder failure; see ../css-pseudo-animation-admission-20261110-v1/README.md | Review prior patch; supply pseudo animation rules and fresh effect-property sets in lazy style resolution |
 
 The inheritance expectation is under discussion in
 [CSSWG issue 13933](https://github.com/w3c/csswg-drafts/issues/13933). Targeted prior-art review is complete in css-animation-taint-contract-review-20261110-v1; novelty is not established. The separate stale timeline

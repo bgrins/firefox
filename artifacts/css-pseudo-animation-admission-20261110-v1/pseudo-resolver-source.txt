@@ -1,0 +1,111 @@
+ 450: 
+ 451:             ResolvedElementStyles {
+ 452:                 primary: primary_style,
+ 453:                 pseudos: pseudo_styles,
+ 454:             }
+ 455:         })
+ 456:     }
+ 457: 
+ 458:     fn resolve_pseudo_style(
+ 459:         &mut self,
+ 460:         pseudo: &PseudoElement,
+ 461:         originating_element_style: &PrimaryStyle,
+ 462:         layout_parent_style: Option<&ComputedValues>,
+ 463:     ) -> Option<ResolvedStyle> {
+ 464:         let MatchingResults {
+ 465:             rule_node,
+ 466:             mut flags,
+ 467:         } = self.match_pseudo(
+ 468:             &originating_element_style.style.0,
+ 469:             pseudo,
+ 470:             VisitedHandlingMode::AllLinksUnvisited,
+ 471:         )?;
+ 472: 
+ 473:         let mut visited_rules = None;
+ 474:         if originating_element_style.style().visited_style().is_some() {
+ 475:             visited_rules = self
+ 476:                 .match_pseudo(
+ 477:                     &originating_element_style.style.0,
+ 478:                     pseudo,
+ 479:                     VisitedHandlingMode::RelevantLinkVisited,
+ 480:                 )
+ 481:                 .map(|results| {
+ 482:                     flags |= results.flags;
+ 483:                     results.rule_node
+ 484:                 });
+ 485:         }
+ 486: 
+ 487:         Some(self.cascade_style_and_visited(
+ 488:             CascadeInputs {
+ 489:                 rules: Some(rule_node),
+ 490:                 visited_rules,
+ 491:                 flags,
+ 492:                 included_cascade_flags: RuleCascadeFlags::empty(),
+ 493:             },
+ 494:             Some(originating_element_style.style()),
+ 495:             layout_parent_style,
+ 496:             Some(pseudo),
+ 497:         ))
+ 498:     }
+ 499: 
+ 500:     fn match_primary(&mut self, visited_handling: VisitedHandlingMode) -> MatchingResults {
+ 501:         debug!(
+ 502:             "Match primary for {:?}, visited: {:?}",
+ 503:             self.element, visited_handling
+ 504:         );
+ 505:         let animation_declarations = self.element.animation_declarations(self.context.shared);
+ 506:         let mut applicable_declarations = ApplicableDeclarationList::new();
+ 507: 
+ 508:         let bloom_filter = self.context.thread_local.bloom_filter.filter();
+ 509:         let selector_caches = &mut self.context.thread_local.selector_caches;
+ 510:         let mut matching_context = MatchingContext::new_for_visited(
+ 511:             MatchingMode::Normal,
+ 512:             Some(bloom_filter),
+ 513:             selector_caches,
+ 514:             visited_handling,
+ 515:             self.context.shared.quirks_mode(),
+ 516:             NeedsSelectorFlags::Yes,
+ 517:             MatchingForInvalidation::No,
+ 518:         );
+ 519: 
+ 520:         let stylist = &self.context.shared.stylist;
+ 521:         // Compute the primary rule node.
+ 522:         stylist.push_applicable_declarations(
+ 523:             self.element,
+ 524:             None,
+ 525:             self.element.style_attribute(),
+ 526:             self.element.smil_override(),
+ 527:             &animation_declarations,
+ 528:             self.rule_inclusion,
+ 529:             &mut applicable_declarations,
+ 530:             &mut matching_context,
+ 531:         );
+ 532: 
+ 533:         let rule_node = stylist
+ 534:             .rule_tree()
+ 535:             .compute_rule_node(&mut applicable_declarations, &self.context.shared.guards);
+ 536: 
+ 537:         if log_enabled!(Trace) {
+ 538:             trace!("Matched rules for {:?}:", self.element);
+ 539:             for rn in rule_node.self_and_ancestors() {
+ 540:                 let source = rn.style_source();
+ 541:                 if source.is_some() {
+ 542:                     trace!(" > {:?}", source);
+ 543:                 }
+ 544:             }
+ 545:         }
+ 546: 
+ 547:         MatchingResults {
+ 548:             rule_node,
+ 549:             flags: matching_context.extra_data.cascade_input_flags,
+ 550:         }
+ 551:     }
+ 552: 
+ 553:     fn match_pseudo(
+ 554:         &mut self,
+ 555:         originating_element_style: &ComputedValues,
+ 556:         pseudo_element: &PseudoElement,
+ 557:         visited_handling: VisitedHandlingMode,
+ 558:     ) -> Option<MatchingResults> {
+ 559:         debug!(
+ 560:             "Match pseudo {:?} for {:?}, visited: {:?}",

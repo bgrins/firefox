@@ -1,0 +1,45 @@
+>>>  388: bool EffectCompositor::GetServoAnimationRule(
+     389:     const dom::Element* aElement, const PseudoStyleRequest& aPseudoRequest,
+     390:     CascadeLevel aCascadeLevel, StyleAnimationValueMap* aAnimationValues) {
+     391:   MOZ_ASSERT(aAnimationValues);
+     392:   // Gecko_GetAnimationRule should have already checked this
+     393:   MOZ_ASSERT(nsContentUtils::GetPresShellForContent(aElement),
+     394:              "Should not be trying to run animations on elements in documents"
+     395:              " without a pres shell (e.g. XMLHttpRequest documents)");
+     396: 
+     397:   EffectSet* effectSet = EffectSet::Get(aElement, aPseudoRequest);
+     398:   if (!effectSet) {
+     399:     return false;
+     400:   }
+     401: 
+     402:   const bool isTransition = aCascadeLevel == CascadeLevel::Transitions;
+     403: 
+     404:   // Get a list of effects sorted by composite order.
+     405:   nsTArray<KeyframeEffect*> sortedEffectList(effectSet->Count());
+     406:   for (KeyframeEffect* effect : *effectSet) {
+     407:     if (isTransition &&
+     408:         effect->GetAnimation()->CascadeLevel() != aCascadeLevel) {
+     409:       // We may need to use transition rules for the animations level for the
+     410:       // case of missing keyframes in animations, but we don't ever need to look
+     411:       // at non-transition levels to build a transition rule. When the effect
+     412:       // set information is out of date (see above), this avoids creating bogus
+     413:       // transition rules, see bug 1605610.
+     414:       continue;
+     415:     }
+     416:     sortedEffectList.AppendElement(effect);
+     417:   }
+     418: 
+     419:   if (sortedEffectList.IsEmpty()) {
+     420:     return false;
+     421:   }
+     422: 
+     423:   sortedEffectList.Sort(EffectCompositeOrderComparator());
+     424: 
+     425:   ComposeSortedEffects(sortedEffectList, effectSet, aCascadeLevel,
+     426:                        aAnimationValues);
+     427: 
+     428:   MOZ_ASSERT(effectSet == EffectSet::Get(aElement, aPseudoRequest),
+     429:              "EffectSet should not change while composing style");
+     430: 
+     431:   return true;
+     432: }

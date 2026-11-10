@@ -1,0 +1,88 @@
+ 553:     fn match_pseudo(
+ 554:         &mut self,
+ 555:         originating_element_style: &ComputedValues,
+ 556:         pseudo_element: &PseudoElement,
+ 557:         visited_handling: VisitedHandlingMode,
+ 558:     ) -> Option<MatchingResults> {
+ 559:         debug!(
+ 560:             "Match pseudo {:?} for {:?}, visited: {:?}",
+ 561:             self.element, pseudo_element, visited_handling
+ 562:         );
+ 563:         debug_assert!(pseudo_element.is_eager());
+ 564: 
+ 565:         let animation_declarations = AnimationDeclarations::default();
+ 566:         let mut applicable_declarations = ApplicableDeclarationList::new();
+ 567: 
+ 568:         let stylist = &self.context.shared.stylist;
+ 569: 
+ 570:         if !self
+ 571:             .element
+ 572:             .may_generate_pseudo(pseudo_element, originating_element_style)
+ 573:         {
+ 574:             return None;
+ 575:         }
+ 576: 
+ 577:         let bloom_filter = self.context.thread_local.bloom_filter.filter();
+ 578:         let selector_caches = &mut self.context.thread_local.selector_caches;
+ 579: 
+ 580:         let mut matching_context = MatchingContext::<'_, E::Impl>::new_for_visited(
+ 581:             MatchingMode::ForStatelessPseudoElement,
+ 582:             Some(bloom_filter),
+ 583:             selector_caches,
+ 584:             visited_handling,
+ 585:             self.context.shared.quirks_mode(),
+ 586:             NeedsSelectorFlags::Yes,
+ 587:             MatchingForInvalidation::No,
+ 588:         );
+ 589:         matching_context.extra_data.originating_element_style = Some(originating_element_style);
+ 590: 
+ 591:         // NB: We handle animation rules for ::before and ::after when
+ 592:         // traversing them.
+ 593:         stylist.push_applicable_declarations(
+ 594:             self.element,
+ 595:             Some(pseudo_element),
+ 596:             None,
+ 597:             None,
+ 598:             &animation_declarations,
+ 599:             self.rule_inclusion,
+ 600:             &mut applicable_declarations,
+ 601:             &mut matching_context,
+ 602:         );
+ 603: 
+ 604:         if applicable_declarations.is_empty() {
+ 605:             return None;
+ 606:         }
+ 607: 
+ 608:         let rule_node = stylist
+ 609:             .rule_tree()
+ 610:             .compute_rule_node(&mut applicable_declarations, &self.context.shared.guards);
+ 611: 
+ 612:         Some(MatchingResults {
+ 613:             rule_node,
+ 614:             flags: matching_context.extra_data.cascade_input_flags,
+ 615:         })
+ 616:     }
+ 617: 
+ 618:     /// Resolve the starting style by recascading with @starting-style rules included, similar to
+ 619:     /// how after_change_style works.
+ 620:     pub fn resolve_starting_style(
+ 621:         &mut self,
+ 622:         primary_style: &Arc<ComputedValues>,
+ 623:     ) -> Option<ResolvedStyle> {
+ 624:         if !RuleTree::has_starting_style(primary_style.rules()) {
+ 625:             return None;
+ 626:         }
+ 627:         let inputs = CascadeInputs {
+ 628:             rules: Some(primary_style.rules().clone()),
+ 629:             visited_rules: primary_style.visited_rules().cloned(),
+ 630:             flags: primary_style.flags.for_cascade_inputs(),
+ 631:             included_cascade_flags: RuleCascadeFlags::STARTING_STYLE,
+ 632:         };
+ 633:         Some(self.cascade_style_and_visited_with_default_parents(inputs))
+ 634:     }
+ 635: 
+ 636:     /// If there is no transition rule in the ComputedValues, it returns None.
+ 637:     pub fn after_change_style(
+ 638:         &mut self,
+ 639:         primary_style: &Arc<ComputedValues>,
+ 640:     ) -> Option<Arc<ComputedValues>> {
