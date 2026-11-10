@@ -1,0 +1,715 @@
+diff --git a/CssSemantics.lean b/CssSemantics.lean
+index 70cb82b..27f4c2d 100644
+--- a/CssSemantics.lean
++++ b/CssSemantics.lean
+@@ -2014,3 +2014,8 @@ import CssSemantics.CssCodePointInput
+ import CssSemantics.CssCodePointInputLaws
+ import CssSemantics.CssCodePointInputRefinement
+ import CssSemantics.CssCodePointInputExamples
++
++import CssSemantics.CssDomStringInput
++import CssSemantics.CssDomStringInputLaws
++import CssSemantics.CssDomStringScalarChoice
++import CssSemantics.CssDomStringInputExamples
+diff --git a/README.md b/README.md
+index 6bb11db..c1b2301 100644
+--- a/README.md
++++ b/README.md
+@@ -40,6 +40,15 @@ This adds no byte decoder or WebIDL/UTF-16 conversion. The full checker includes
+ its proofs and 21 examples; `python3 check.py --coverage-only` checks static
+ coverage/audit registrations without running Lean.
+ 
++## DOMString code-unit boundary
++
++`DomString.decode` combines valid surrogate pairs and preserves unmatched
++surrogates before CSS input filtering. Its relations prove exact remaining input
++and composition with `CodePointInput`; a separate law preserves final filtered
++output under prior surrogate replacement. The [domain and caller contract](research/domstring-input.md)
++qualifies CSSOMString type choice and excludes coercion, re-encoding and complete
++API behavior. Existing input APIs remain unchanged.
++
+ ## Resolved baseline groups
+ 
+ `BaselineAlignment.solve` accepts a finite same-context/flow/preference group with
+diff --git a/check.py b/check.py
+index b680a93..1ff0e68 100644
+--- a/check.py
++++ b/check.py
+@@ -12485,6 +12485,40 @@ EXECUTABLE_CASES = [
+     ("codepoint input invalid suffix rejected", True),
+     ("codepoint input supplied BOM preserved", True),
+     ("codepoint input Unicode separators preserved", True),
++    ("DOMString decode empty", True),
++    ("DOMString decode BMP", True),
++    ("DOMString decode minimum pair", True),
++    ("DOMString decode maximum pair", True),
++    ("DOMString decode supplementary", True),
++    ("DOMString decode pair arithmetic", True),
++    ("DOMString decode isolated leading", True),
++    ("DOMString decode isolated trailing", True),
++    ("DOMString decode reversed", True),
++    ("DOMString decode leading leading trailing", True),
++    ("DOMString decode pair trailing", True),
++    ("DOMString decode leading ASCII trailing", True),
++    ("DOMString decode pair followed by ASCII", True),
++    ("DOMString decode two pairs", True),
++    ("DOMString decode CRLF untouched at boundary", True),
++    ("DOMString decode out of unit domain", True),
++    ("DOMString decode supplementary point is not a unit", True),
++    ("DOMString decode invalid suffix", True),
++    ("DOMString step EOF", True),
++    ("DOMString step singleton", True),
++    ("DOMString step pair exact suffix", True),
++    ("DOMString step unpaired exact suffix", True),
++    ("DOMString step trailing exact suffix", True),
++    ("DOMString step invalid is not EOF", True),
++    ("DOMString filter pair survives", True),
++    ("DOMString filter unpaired replaced", True),
++    ("DOMString filter CRLF", True),
++    ("DOMString filter CRCRLF", True),
++    ("DOMString filter pair CRLF pair", True),
++    ("DOMString filter surrogate separates CRLF", True),
++    ("DOMString filter NUL FF", True),
++    ("DOMString filter reversed surrogates", True),
++    ("DOMString filter truncated pair", True),
++    ("DOMString filter invalid unit", True),
+ ]
+ 
+ 
+diff --git a/coverage.json b/coverage.json
+index dd2b104..6a3e54f 100644
+--- a/coverage.json
++++ b/coverage.json
+@@ -374,6 +374,33 @@
+       "revision": "c67ae1fb1d161b23d0f8c9bf9917ea1993f7b19a",
+       "source_sha256": "687e65669b9d85c2147a139513fe319097cf84af1005f5c9d7cb3d2ade0c1aed",
+       "role": "Code-point domain and surrogate ranges"
++    },
++    {
++      "id": "webidl-domstring-retrieved20261110",
++      "url": "https://raw.githubusercontent.com/whatwg/webidl/0d862c6573d0ecca327b7ba00210e7c051c988b3/index.bs",
++      "status": "Living Standard",
++      "retrieved": "2026-11-10",
++      "revision": "0d862c6573d0ecca327b7ba00210e7c051c988b3",
++      "source_sha256": "b467604348aae390a9734cf639bb77a2505cf88748287831768fc222240cf3e4",
++      "role": "DOMString versus USVString type/conversion boundary"
++    },
++    {
++      "id": "ecma-domstring-retrieved20261110",
++      "url": "https://raw.githubusercontent.com/tc39/ecma262/828d35d00f8584c4a0fbcac7742b57c7b959c3f3/spec.html",
++      "status": "Living Standard",
++      "retrieved": "2026-11-10",
++      "revision": "828d35d00f8584c4a0fbcac7742b57c7b959c3f3",
++      "source_sha256": "f977d170323cfeacaae9086310f46df500a58c3d463ab955d511543b9f64c51c",
++      "role": "Code unit interpretation, surrogate pair arithmetic and CodePointAt/StringToCodePoints"
++    },
++    {
++      "id": "cssom-domstring-retrieved20261110",
++      "url": "https://raw.githubusercontent.com/w3c/csswg-drafts/5823c7a7c3401c6b434dbf3ef88077ea45e30303/cssom-1/Overview.bs",
++      "status": "Editor Draft",
++      "retrieved": "2026-11-10",
++      "revision": "5823c7a7c3401c6b434dbf3ef88077ea45e30303",
++      "source_sha256": "a969093ae15f352b7136e2eb097bacbb7a574480a914547484ce61909592e876",
++      "role": "CSSOMString implementation choice and guarded insertRule caller trace"
+     }
+   ],
+   "features": [
+@@ -15786,6 +15813,61 @@
+         "Byte decoding, encoding detection, BOM decoding policy, WebIDL/UTF-16 conversion, live streams and chunk-boundary processing are excluded. Two supplied surrogate code points replace separately; this does not model conversion of a UTF-16 surrogate pair.",
+         "21 finite kernel-checked and executable observations; no browser/Stylo refinement or new native evidence. Existing scalar tokenizer/source profiles are unchanged."
+       ]
++    },
++    {
++      "id": "finite-domstring-codepoint-boundary",
++      "status": "checked_fragment",
++      "modules": [
++        "CssDomStringInput.lean",
++        "CssDomStringInputLaws.lean",
++        "CssDomStringScalarChoice.lean",
++        "CssDomStringInputExamples.lean"
++      ],
++      "specifications": [
++        "webidl-domstring-retrieved20261110",
++        "ecma-domstring-retrieved20261110",
++        "cssom-domstring-retrieved20261110",
++        "syntax3-codepoint-ed-20261110",
++        "infra-codepoint-retrieved20261110"
++      ],
++      "theorems": [
++        "CssSemantics.DomString.pairPoint_range",
++        "CssSemantics.DomString.unitOfNat?_none_iff",
++        "CssSemantics.DomString.next_single",
++        "CssSemantics.DomString.decode_single",
++        "CssSemantics.DomString.Step.next_result",
++        "CssSemantics.DomString.next_sound",
++        "CssSemantics.DomString.next_iff",
++        "CssSemantics.DomString.next_none_iff",
++        "CssSemantics.DomString.Step.exact_suffix",
++        "CssSemantics.DomString.Step.progress",
++        "CssSemantics.DomString.Step.decode_result",
++        "CssSemantics.DomString.Decoded.result",
++        "CssSemantics.DomString.decode_sound",
++        "CssSemantics.DomString.decode_iff",
++        "CssSemantics.DomString.Decoded.unique",
++        "CssSemantics.DomString.Decoded.length_bounds",
++        "CssSemantics.DomString.preprocess_iff",
++        "CssSemantics.DomString.preprocess_normalized",
++        "CssSemantics.DomString.preprocess_length_le",
++        "CssSemantics.DomString.unpaired_preserved",
++        "CssSemantics.DomString.unpaired_replaced",
++        "CssSemantics.DomString.scalarize_ascii",
++        "CssSemantics.DomString.point_scalarize",
++        "CssSemantics.DomString.notPair_scalarize",
++        "CssSemantics.DomString.Preprocess.scalarized",
++        "CssSemantics.DomString.filter_scalarize",
++        "CssSemantics.DomString.choice_filter_equivalent",
++        "CssSemantics.DomStringExamples.checks_pass"
++      ],
++      "limits": [
++        "Finite lists of 16-bit code units. Valid adjacent leading/trailing surrogate pairs combine; unmatched surrogates remain code points until CSS filtering. Independent Step/Decoded relations preserve exact point, original suffix and one/two-unit consumption.",
++        "Composition with CodePointInput proves normalized nonexpanding scalar output. Scalar replacement before filtering preserves final filtered output; this does not prove all DOMString/USVString API behavior, source storage, serialization or re-encoding equivalent.",
++        "CSSOMString permits implementation choice of DOMString or USVString; replace/replaceSync explicitly use USVString. The insertRule-to-filtering trace is conditional on successful conversion, DOMString choice and pre-parse guards; no CSSOM state machine or browser implementation is proved.",
++        "Natural-number admission rejects units above 0xFFFF; direct Fin numerals can wrap. Arbitrary finite internal list lengths are a superset of ECMAScript strings; JavaScriptLength separately states the 2^53-1 bound and is not enforced by numeric unit admission.",
++        "Manual interpretation of pinned primary sources. Byte decoding, endianness, BOM policy, ToString/coercion behavior, UTF-16 re-encoding, arbitrary-index wrapper, IsUnpairedSurrogate return field, streaming/chunk boundary state and full tokenization are excluded.",
++        "34 ordered kernel-checked/executable observations and three anonymous kernel examples. Existing scalar/codepoint APIs and native/browser evidence are unchanged."
++      ]
+     }
+   ],
+   "next_packages": [
+@@ -16209,6 +16291,12 @@
+         "reviewed_on": "2026-11-10",
+         "contract": "research/codepoint-input.md",
+         "validation_scope": "27 new declarations and 21 examples, clean dependency closure; global static coverage/audit registrations; no refreshed whole-library or browser gate"
++      },
++      {
++        "id": "finite-domstring-codepoint-boundary",
++        "reviewed_on": "2026-11-10",
++        "contract": "research/domstring-input.md",
++        "validation_scope": "28 new declarations/34 observations; clean scoped dependency closure plus existing scalar/codepoint observations and global static registrations; no full-library/browser gate refresh"
+       }
+     ]
+   }
+diff --git a/research/coverage-map.md b/research/coverage-map.md
+index 33b24fe..63f5117 100644
+--- a/research/coverage-map.md
++++ b/research/coverage-map.md
+@@ -17,6 +17,16 @@ clean-source check; the historical whole-library/browser counts above are unchan
+ Byte decoding, WebIDL/UTF-16 conversion and live or chunked streams remain outside
+ this model. The specification mapping is manually reviewed.
+ 
++## Finite DOMString input addition (2026-11-10)
++
++The [DOMString input profile](domstring-input.md) adds code-unit interpretation
++before code-point filtering: exact surrogate-pair arithmetic and suffix
++consumption, preservation of unmatched surrogates, and composition with CSS
++normalization. It adds 28 audited declarations and 34 ordered observations.
++The scoped input-layer check does not refresh the historical whole-library or
++browser gates. CSSOMString type choice and pre-parse guards qualify its caller
++trace; scalar replacement commutes with filtering only at the stated boundary.
++
+ ## What the evidence establishes
+ 
+ | Evidence | Established claim | Remaining boundary |
+@@ -33,6 +43,7 @@ this model. The specification mapping is manually reviewed.
+ | --- | --- | --- | --- |
+ | Ordinary imports with raw scopes | Actual root/resource parsing, per-sheet placement, rich registration views, exact selected-instance source and ownerless child provenance; all-assignment specificity/proximity, origin-specific registry identity and exact source/cascade histories. | [Import-scope evidence](import-scope-browser-evidence.json): 20/20, 240 metadata observations, 15 controls; saved native inputs are distinct from universal model laws. | Imported/ownerless omitted scopes, scoped-import modifiers, nested imports, general Fetch/lifecycle and dynamic invalidation. No-import compatibility is source parsing only, not whole-host equivalence. |
+ | Static inline owner-derived implicit scope | Actual HTML style inventory in document preorder; same-context text/parent acquisition; complete omitted-start source; all-assignment availability and source/candidate/rollback histories. Incompatible owner/outer configurations are explicitly unavailable, including empty blocks. | [Owner-scope evidence](owner-scope-browser-evidence.json): 20/20, 240 metadata readbacks, 15 controls; generic model laws are separate from these finite observations. | Ambiguous above-outer interpretation; imports, shadow/tree-root fallback, linked/adopted sheets, dynamic owner changes, full HTML/CSP lifecycle and general browser refinement. Explicit-rule compatibility requires its exact-image premise. |
++| DOMString code-unit input | Finite 16-bit unit lists; pair interpretation, exact one/two-unit suffixes, decoding/filtering correspondence and filtered-output scalar-choice equality | No new browser evidence; CSSOM caller trace is conditional | Coercion, re-encoding, arbitrary-index/metadata wrapper, streaming and complete API behavior |
+ | CSS code-point input | Finite U+0000..U+10FFFF lists, including surrogates; independent normalization relation, exact existing scalar API refinement, nonexpansion and idempotence | No new browser evidence | Byte decoding, UTF-16 conversion, live streams and chunk-boundary state |
+ | CSS scalar input and tokenization | Preprocessing, dated name classes, escapes, hash flags, ident/function/URL dispatch, string and bad-URL recovery, comments, numeric/percentage/dimension tokens, guarded Unicode ranges, complete priority dispatch, finite token stream and exact original scalar/token provenance | Later selector-source suites exercise selected paths indirectly; tokenizer-only checkpoints did not claim native comparison | Byte/encoding input; full token serialization; browser numeric precision/range equivalence |
+ | Component syntax | Recursive block/function grouping, public component lists, single-component and comma-list entries; exact suffix/EOF/error policies, totality, canonical token construction, component-invocation source intervals and body-closure provenance | Source-selector suites exercise grouping; no independent general CSS parser refinement | Stylesheet objects/public single-rule seam, concrete property grammar dispatch and contextual rule instances |
+diff --git a/tests/Audit.lean b/tests/Audit.lean
+index 1f4ac3f..f10893e 100644
+--- a/tests/Audit.lean
++++ b/tests/Audit.lean
+@@ -11887,3 +11887,32 @@ import CssSemantics
+ #print axioms CssSemantics.CodePointInput.preprocess_idempotent
+ #print axioms CssSemantics.CodePointInput.preserve_ordinary
+ #print axioms CssSemantics.CodePointInputExamples.checks_pass
++
++#print axioms CssSemantics.DomString.pairPoint_range
++#print axioms CssSemantics.DomString.unitOfNat?_none_iff
++#print axioms CssSemantics.DomString.next_single
++#print axioms CssSemantics.DomString.decode_single
++#print axioms CssSemantics.DomString.Step.next_result
++#print axioms CssSemantics.DomString.next_sound
++#print axioms CssSemantics.DomString.next_iff
++#print axioms CssSemantics.DomString.next_none_iff
++#print axioms CssSemantics.DomString.Step.exact_suffix
++#print axioms CssSemantics.DomString.Step.progress
++#print axioms CssSemantics.DomString.Step.decode_result
++#print axioms CssSemantics.DomString.Decoded.result
++#print axioms CssSemantics.DomString.decode_sound
++#print axioms CssSemantics.DomString.decode_iff
++#print axioms CssSemantics.DomString.Decoded.unique
++#print axioms CssSemantics.DomString.Decoded.length_bounds
++#print axioms CssSemantics.DomString.preprocess_iff
++#print axioms CssSemantics.DomString.preprocess_normalized
++#print axioms CssSemantics.DomString.preprocess_length_le
++#print axioms CssSemantics.DomString.unpaired_preserved
++#print axioms CssSemantics.DomString.unpaired_replaced
++#print axioms CssSemantics.DomString.scalarize_ascii
++#print axioms CssSemantics.DomString.point_scalarize
++#print axioms CssSemantics.DomString.notPair_scalarize
++#print axioms CssSemantics.DomString.Preprocess.scalarized
++#print axioms CssSemantics.DomString.filter_scalarize
++#print axioms CssSemantics.DomString.choice_filter_equivalent
++#print axioms CssSemantics.DomStringExamples.checks_pass
+diff --git a/tests/RunExamples.lean b/tests/RunExamples.lean
+index ca93314..77fe0a8 100644
+--- a/tests/RunExamples.lean
++++ b/tests/RunExamples.lean
+@@ -875,3 +875,6 @@ def main : IO Unit := do
+ 
+   for (name, accepted) in CodePointInputExamples.checks do
+     IO.println s!"PASS {name}: {accepted}"
++
++  for (name, accepted) in DomStringExamples.checks do
++    IO.println s!"PASS {name}: {accepted}"
+diff --git a/CssSemantics/CssDomStringInput.lean b/CssSemantics/CssDomStringInput.lean
+new file mode 100644
+index 0000000..8d5ee1d
+--- /dev/null
++++ b/CssSemantics/CssDomStringInput.lean
+@@ -0,0 +1,66 @@
++import CssSemantics.CssCodePointInputLaws
++
++namespace CssSemantics.DomString
++
++open CodePointInput
++
++abbrev CodeUnit := Fin 0x10000
++
++abbrev Leading (u : CodeUnit) : Prop := 0xd800 ≤ u.val ∧ u.val ≤ 0xdbff
++abbrev Trailing (u : CodeUnit) : Prop := 0xdc00 ≤ u.val ∧ u.val ≤ 0xdfff
++
++def unitOfNat? (n : Nat) : Option CodeUnit := if h : n < 0x10000 then some ⟨n, h⟩ else none
++
++def unitPoint (u : CodeUnit) : CodePoint := ⟨u.val, by have := u.isLt; omega⟩
++
++def pairPoint (u v : CodeUnit) (lead : Leading u) (trail : Trailing v) : CodePoint :=
++  ⟨(u.val - 0xd800) * 0x400 + (v.val - 0xdc00) + 0x10000, by
++    obtain ⟨_, _⟩ := lead
++    obtain ⟨_, _⟩ := trail
++    omega⟩
++
++def NoPair (u : CodeUnit) (rest : List CodeUnit) : Prop :=
++  ∀ v tail, rest = v :: tail → ¬ (Leading u ∧ Trailing v)
++
++inductive Step : List CodeUnit → CodePoint → List CodeUnit → Prop where
++  | pair (u v p rest) : Leading u → Trailing v →
++      p.val = (u.val - 0xd800) * 0x400 + (v.val - 0xdc00) + 0x10000 →
++      Step (u :: v :: rest) p rest
++  | single (u p rest) : NoPair u rest → p.val = u.val → Step (u :: rest) p rest
++
++def next : List CodeUnit → Option (CodePoint × List CodeUnit)
++  | [] => none
++  | [u] => some (unitPoint u, [])
++  | u :: v :: rest =>
++      if h : Leading u ∧ Trailing v then some (pairPoint u v h.1 h.2, rest)
++      else some (unitPoint u, v :: rest)
++
++def decode : List CodeUnit → List CodePoint
++  | [] => []
++  | [u] => [unitPoint u]
++  | u :: v :: rest =>
++      if h : Leading u ∧ Trailing v then pairPoint u v h.1 h.2 :: decode rest
++      else unitPoint u :: decode (v :: rest)
++
++inductive Decoded : List CodeUnit → List CodePoint → Prop where
++  | empty : Decoded [] []
++  | cons {source p rest output} : Step source p rest → Decoded rest output →
++      Decoded source (p :: output)
++
++def preprocess (source : List CodeUnit) : List Char := CodePointInput.preprocess (decode source)
++
++def Prepared (source : List CodeUnit) (output : List Char) : Prop :=
++  ∃ points, Decoded source points ∧ CodePointInput.Preprocess points output
++
++def decodeValues (source : List Nat) : Option (List Nat) :=
++  (source.mapM unitOfNat?).map fun units => (decode units).map Fin.val
++
++def prepareValues (source : List Nat) : Option (List Char) :=
++  (source.mapM unitOfNat?).map preprocess
++
++def nextValues (source : List Nat) : Option (Option (Nat × List Nat)) :=
++  (source.mapM unitOfNat?).map fun units => (next units).map fun (p, rest) => (p.val, rest.map Fin.val)
++
++def JavaScriptLength (source : List CodeUnit) : Prop := source.length ≤ 2 ^ 53 - 1
++
++end CssSemantics.DomString
+diff --git a/CssSemantics/CssDomStringInputLaws.lean b/CssSemantics/CssDomStringInputLaws.lean
+new file mode 100644
+index 0000000..e4537a3
+--- /dev/null
++++ b/CssSemantics/CssDomStringInputLaws.lean
+@@ -0,0 +1,147 @@
++import CssSemantics.CssDomStringInput
++
++namespace CssSemantics.DomString
++
++open CodePointInput
++
++theorem pairPoint_range (u v : CodeUnit) (lead : Leading u) (trail : Trailing v) :
++    0x10000 ≤ (pairPoint u v lead trail).val ∧ (pairPoint u v lead trail).val ≤ 0x10ffff := by
++  obtain ⟨_, _⟩ := lead
++  obtain ⟨_, _⟩ := trail
++  simp only [pairPoint]
++  omega
++
++theorem unitOfNat?_none_iff (n : Nat) : unitOfNat? n = none ↔ 0x10000 ≤ n := by
++  simp [unitOfNat?]
++
++theorem next_single (u : CodeUnit) (rest : List CodeUnit) (no : NoPair u rest) :
++    next (u :: rest) = some (unitPoint u, rest) := by
++  cases rest with
++  | nil => rfl
++  | cons v tail => simp [next, no v tail rfl]
++
++theorem decode_single (u : CodeUnit) (rest : List CodeUnit) (no : NoPair u rest) :
++    decode (u :: rest) = unitPoint u :: decode rest := by
++  cases rest with
++  | nil => rfl
++  | cons v tail => simp [decode, no v tail rfl]
++
++theorem Step.next_result {source p rest} (step : Step source p rest) : next source = some (p, rest) := by
++  cases step with
++  | pair u v p rest lead trail value =>
++      have equal : pairPoint u v lead trail = p := Fin.ext value.symm
++      simpa only [next, dite_eq_left (And.intro lead trail)] using congrArg (fun x => some (x, rest)) equal
++  | single u p rest no value =>
++      have equal : unitPoint u = p := Fin.ext value.symm
++      simpa [equal] using next_single u rest no
++
++theorem next_sound {source p rest} (value : next source = some (p, rest)) : Step source p rest := by
++  cases source with
++  | nil => simp [next] at value
++  | cons u tail =>
++      cases tail with
++      | nil =>
++          simp only [next, Option.some.injEq, Prod.mk.injEq] at value
++          rcases value with ⟨rfl, rfl⟩
++          exact .single u (unitPoint u) [] (by simp [NoPair]) rfl
++      | cons v tail =>
++          by_cases pair : Leading u ∧ Trailing v
++          · simp only [next, dite_eq_left pair, Option.some.injEq, Prod.mk.injEq] at value
++            rcases value with ⟨rfl, rfl⟩
++            exact .pair u v _ _ pair.1 pair.2 rfl
++          · simp only [next, dite_eq_right pair, Option.some.injEq, Prod.mk.injEq] at value
++            rcases value with ⟨rfl, rfl⟩
++            exact .single u _ _ (by simpa [NoPair] using pair) rfl
++
++theorem next_iff (source : List CodeUnit) (p : CodePoint) (rest : List CodeUnit) :
++    next source = some (p, rest) ↔ Step source p rest := ⟨next_sound, Step.next_result⟩
++
++theorem next_none_iff (source : List CodeUnit) : next source = none ↔ source = [] := by
++  cases source with
++  | nil => simp [next]
++  | cons u tail => cases tail <;> simp [next]; split <;> simp
++
++theorem Step.exact_suffix {source p rest} (step : Step source p rest) :
++    (source.length = rest.length + 1 ∧ ∃ u, source = u :: rest ∧ p.val = u.val) ∨
++    (source.length = rest.length + 2 ∧ ∃ u v, source = u :: v :: rest ∧
++      Leading u ∧ Trailing v ∧ p.val = (u.val - 0xd800) * 0x400 + (v.val - 0xdc00) + 0x10000) := by
++  cases step with
++  | pair u v p rest lead trail value => exact .inr ⟨by simp, u, v, rfl, lead, trail, value⟩
++  | single u p rest no value => exact .inl ⟨by simp, u, rfl, value⟩
++
++theorem Step.progress {source p rest} (step : Step source p rest) : rest.length < source.length := by
++  cases step <;> simp <;> omega
++
++theorem Step.decode_result {source p rest} (step : Step source p rest) : decode source = p :: decode rest := by
++  cases step with
++  | pair u v p rest lead trail value =>
++      have equal : pairPoint u v lead trail = p := Fin.ext value.symm
++      simpa only [decode, dite_eq_left (And.intro lead trail)] using congrArg (fun x => x :: decode rest) equal
++  | single u p rest no value =>
++      have equal : unitPoint u = p := Fin.ext value.symm
++      simpa [equal] using decode_single u rest no
++
++theorem Decoded.result {source output} (parsed : Decoded source output) : decode source = output := by
++  induction parsed with
++  | empty => rfl
++  | cons step parsed ih => rw [step.decode_result, ih]
++
++theorem decode_sound (source : List CodeUnit) : Decoded source (decode source) := by
++  cases source with
++  | nil => exact .empty
++  | cons u tail =>
++      cases tail with
++      | nil => exact .cons (.single u _ [] (by simp [NoPair]) rfl) .empty
++      | cons v tail =>
++          by_cases pair : Leading u ∧ Trailing v
++          · simp only [decode, dite_eq_left pair]
++            exact .cons (.pair u v _ _ pair.1 pair.2 rfl) (decode_sound tail)
++          · simp only [decode, dite_eq_right pair]
++            exact .cons (.single u _ _ (by simpa [NoPair] using pair) rfl) (decode_sound (v :: tail))
++termination_by source.length
++
++theorem decode_iff (source : List CodeUnit) (output : List CodePoint) :
++    decode source = output ↔ Decoded source output := by
++  constructor
++  · intro same; rw [← same]; exact decode_sound source
++  · exact Decoded.result
++
++theorem Decoded.unique {source left right} (hl : Decoded source left) (hr : Decoded source right) :
++    left = right := hl.result.symm.trans hr.result
++
++theorem Decoded.length_bounds {source output} (parsed : Decoded source output) :
++    output.length ≤ source.length ∧ source.length ≤ 2 * output.length := by
++  induction parsed with
++  | empty => simp
++  | cons step parsed ih =>
++      have sizes := step.exact_suffix
++      simp only [List.length_cons]
++      rcases sizes with ⟨size, _⟩ | ⟨size, _⟩ <;> omega
++
++theorem preprocess_iff (source : List CodeUnit) (output : List Char) :
++    preprocess source = output ↔ Prepared source output := by
++  constructor
++  · intro same
++    exact ⟨decode source, decode_sound source, (CodePointInput.preprocess_iff _ _).mp same⟩
++  · rintro ⟨points, parsed, filtered⟩
++    unfold preprocess
++    rw [parsed.result]
++    exact filtered.result
++
++theorem preprocess_normalized (source : List CodeUnit) : CodePointInput.Normalized (preprocess source) :=
++  CodePointInput.preprocess_normalized (decode source)
++
++theorem preprocess_length_le (source : List CodeUnit) : (preprocess source).length ≤ source.length :=
++  Nat.le_trans (CodePointInput.preprocess_length_le (decode source)) (decode_sound source).length_bounds.1
++
++theorem unpaired_preserved (u : CodeUnit) (rest : List CodeUnit) (no : NoPair u rest) :
++    decode (u :: rest) = unitPoint u :: decode rest := decode_single u rest no
++
++theorem unpaired_replaced (u : CodeUnit) (rest : List CodeUnit) (no : NoPair u rest)
++    (surrogate : 0xd800 ≤ u.val ∧ u.val ≤ 0xdfff) :
++    preprocess (u :: rest) = '�' :: preprocess rest := by
++  unfold preprocess
++  rw [decode_single u rest no]
++  exact CodePointInput.surrogate_cons (unitPoint u) (decode rest) surrogate
++
++end CssSemantics.DomString
+diff --git a/CssSemantics/CssDomStringScalarChoice.lean b/CssSemantics/CssDomStringScalarChoice.lean
+new file mode 100644
+index 0000000..6effa02
+--- /dev/null
++++ b/CssSemantics/CssDomStringScalarChoice.lean
+@@ -0,0 +1,60 @@
++import CssSemantics.CssDomStringInputLaws
++
++namespace CssSemantics.DomString
++
++open CodePointInput
++
++def scalarizePoint (p : CodePoint) : CodePoint :=
++  if Surrogate p then ⟨0xfffd, by decide⟩ else p
++
++def scalarize (source : List CodePoint) : List CodePoint := source.map scalarizePoint
++
++theorem scalarize_ascii (p : CodePoint) (n : Nat) (small : n < 0xd800) :
++    (scalarizePoint p).val = n ↔ p.val = n := by
++  by_cases surrogate : Surrogate p
++  · have lo := surrogate.1
++    have hi := surrogate.2
++    simp only [scalarizePoint, ite_eq_left surrogate]
++    omega
++  · simp [scalarizePoint, surrogate]
++
++theorem point_scalarize (p : CodePoint) : point (scalarizePoint p) = point p := by
++  by_cases surrogate : Surrogate p
++  · have cr : p.val ≠ 0x0d := by obtain ⟨_, _⟩ := surrogate; omega
++    have ff : p.val ≠ 0x0c := by obtain ⟨_, _⟩ := surrogate; omega
++    have replacement : point (⟨0xfffd, by decide⟩ : CodePoint) = '�' := by decide
++    rw [scalarizePoint, ite_eq_left surrogate, replacement]
++    simp [point, cr, ff, surrogate]
++  · simp [scalarizePoint, surrogate]
++
++theorem notPair_scalarize (p : CodePoint) (rest : List CodePoint) (no : NotPair p rest) :
++    NotPair (scalarizePoint p) (scalarize rest) := by
++  cases rest with
++  | nil => simp [scalarize, NotPair]
++  | cons q tail =>
++      have cr := scalarize_ascii p 0x0d (by decide)
++      have lf := scalarize_ascii q 0x0a (by decide)
++      simpa [scalarize, NotPair, cr, lf] using no
++
++theorem Preprocess.scalarized {source output} (parsed : CodePointInput.Preprocess source output) :
++    CodePointInput.Preprocess (scalarize source) output := by
++  induction parsed with
++  | empty => exact .empty
++  | @crlf p q rest output cr lf parsed ih =>
++      exact .crlf ((scalarize_ascii p 0x0d (by decide)).mpr cr)
++        ((scalarize_ascii q 0x0a (by decide)).mpr lf) ih
++  | @single p c rest output no converted parsed ih =>
++      apply CodePointInput.Preprocess.single (notPair_scalarize p rest no) _ ih
++      apply (CodePointInput.point_iff _ _).mp
++      rw [point_scalarize]
++      exact converted.result
++
++theorem filter_scalarize (source : List CodePoint) :
++    CodePointInput.preprocess (scalarize source) = CodePointInput.preprocess source :=
++  (Preprocess.scalarized (CodePointInput.preprocess_sound source)).result
++
++theorem choice_filter_equivalent (source : List CodeUnit) :
++    CodePointInput.preprocess (scalarize (decode source)) = preprocess source :=
++  filter_scalarize (decode source)
++
++end CssSemantics.DomString
+diff --git a/CssSemantics/CssDomStringInputExamples.lean b/CssSemantics/CssDomStringInputExamples.lean
+new file mode 100644
+index 0000000..08bb073
+--- /dev/null
++++ b/CssSemantics/CssDomStringInputExamples.lean
+@@ -0,0 +1,65 @@
++import CssSemantics.CssDomStringScalarChoice
++
++namespace CssSemantics.DomStringExamples
++
++open DomString
++
++def decodeCases : List (String × List Nat × Option (List Nat)) := [
++  ("empty", [], some []),
++  ("BMP", [0x41, 0xd7ff, 0xe000, 0xffff], some [0x41, 0xd7ff, 0xe000, 0xffff]),
++  ("minimum pair", [0xd800, 0xdc00], some [0x10000]),
++  ("maximum pair", [0xdbff, 0xdfff], some [0x10ffff]),
++  ("supplementary", [0xd83d, 0xde00], some [0x1f600]),
++  ("pair arithmetic", [0xd801, 0xdc00], some [0x10400]),
++  ("isolated leading", [0xd800], some [0xd800]),
++  ("isolated trailing", [0xdfff], some [0xdfff]),
++  ("reversed", [0xdc00, 0xd800], some [0xdc00, 0xd800]),
++  ("leading leading trailing", [0xd800, 0xdbff, 0xdfff], some [0xd800, 0x10ffff]),
++  ("pair trailing", [0xd800, 0xdc00, 0xdfff], some [0x10000, 0xdfff]),
++  ("leading ASCII trailing", [0xd800, 0x41, 0xdc00], some [0xd800, 0x41, 0xdc00]),
++  ("pair followed by ASCII", [0xd800, 0xdc00, 0x41, 0x42], some [0x10000, 0x41, 0x42]),
++  ("two pairs", [0xd800, 0xdc00, 0xdbff, 0xdfff], some [0x10000, 0x10ffff]),
++  ("CRLF untouched at boundary", [13, 10], some [13, 10]),
++  ("out of unit domain", [0x10000], none),
++  ("supplementary point is not a unit", [0x1f600], none),
++  ("invalid suffix", [0x41, 0x110000], none)]
++
++def decodeChecks := decodeCases.map fun (name, source, expected) =>
++  ("DOMString decode " ++ name, decide (decodeValues source = expected))
++
++def stepCases : List (String × List Nat × Option (Option (Nat × List Nat))) := [
++  ("EOF", [], some none),
++  ("singleton", [0xd800], some (some (0xd800, []))),
++  ("pair exact suffix", [0xd800, 0xdc00, 13, 10, 0x41], some (some (0x10000, [13, 10, 0x41]))),
++  ("unpaired exact suffix", [0xd800, 0x41, 0xdc00], some (some (0xd800, [0x41, 0xdc00]))),
++  ("trailing exact suffix", [0xdc00, 0xd800, 0xdc00], some (some (0xdc00, [0xd800, 0xdc00]))),
++  ("invalid is not EOF", [0x10000], none)]
++
++def stepChecks := stepCases.map fun (name, source, expected) =>
++  ("DOMString step " ++ name, decide (nextValues source = expected))
++
++def filterCases : List (String × List Nat × Option (List Char)) := [
++  ("pair survives", [0xd83d, 0xde00], some [Char.ofNat 0x1f600]),
++  ("unpaired replaced", [0xd800, 0x41, 0xdfff], some ['�', 'A', '�']),
++  ("CRLF", [13, 10], some ['\n']),
++  ("CRCRLF", [13, 13, 10], some ['\n', '\n']),
++  ("pair CRLF pair", [0xd800, 0xdc00, 13, 10, 0xdbff, 0xdfff],
++    some [Char.ofNat 0x10000, '\n', Char.ofNat 0x10ffff]),
++  ("surrogate separates CRLF", [13, 0xd800, 10], some ['\n', '�', '\n']),
++  ("NUL FF", [0, 12], some ['�', '\n']),
++  ("reversed surrogates", [0xdc00, 0xd800], some ['�', '�']),
++  ("truncated pair", [0x41, 0xd83d], some ['A', '�']),
++  ("invalid unit", [0x10000], none)]
++
++def filterChecks := filterCases.map fun (name, source, expected) =>
++  ("DOMString filter " ++ name, decide (prepareValues source = expected))
++
++def checks := decodeChecks ++ stepChecks ++ filterChecks
++
++theorem checks_pass : checks.all Prod.snd = true := by decide +kernel
++
++example : decodeValues [0xd800] ≠ some [0xfffd] := by decide
++example : prepareValues [0xd800] = prepareValues [0xfffd] := by decide
++example : decodeValues [0xd800, 0xdc00] ≠ some [0xd800, 0xdc00] := by decide
++
++end CssSemantics.DomStringExamples
+diff --git a/research/domstring-input.md b/research/domstring-input.md
+new file mode 100644
+index 0000000..c2c044b
+--- /dev/null
++++ b/research/domstring-input.md
+@@ -0,0 +1,79 @@
++# Finite DOMString code-unit input
++
++`DomString.decode` interprets a finite list of 16-bit code units as code points.
++Adjacent leading/trailing surrogate pairs combine into their supplementary code
++point; unmatched surrogates retain their numeric value. `DomString.preprocess`
++then applies `CodePointInput.preprocess`, which replaces those remaining
++surrogates and performs CSS CRLF/CR/FF/NUL normalization. Existing scalar and
++code-point entry points are unchanged.
++
++`CssDomStringInput` provides the executable adapter and independent `Step` and
++`Decoded` relations. `CssDomStringInputLaws` proves exact code point/suffix
++correspondence, one/two-unit consumption, finite decoding correspondence and
++uniqueness, length bounds and composition with the independent CSS filtering
++relation. `CssDomStringInputExamples` registers 34 ordered observations, a
++kernel-checked aggregate theorem and three additional anonymous examples.
++All 28 named theorems in the four-module package are in the standard audit.
++
++`CssDomStringScalarChoice` proves that replacing surrogate code points with
++U+FFFD before CSS filtering leaves the final filtered result unchanged. This
++filtering-boundary equality does not establish equivalence of all DOMString and
++USVString operations, stored source, serialization, indexing or exceptions.
++It does not model a scalar-value string's re-encoding into code units. A wrong
++early replacement is observable at the adapter output even though filtering can
++hide it, so adapter-level examples matter.
++
++## Specification mapping and caller qualification
++
++WebIDL maps DOMString to Infra strings and preserves the units of the successful
++JavaScript `ToString` result. Infra strings contain 16-bit units; when interpreted
++as code points, they follow ECMAScript's String Type rules. Those rules combine
++valid pairs while preserving unmatched surrogates. The Lean source is a manually
++authored interpretation, not a mechanically verified translation of that prose.
++Its range predicates are shared by the program and relation: internal agreement
++alone does not prove their values match the specification.
++
++CSSOM permits each implementation to define `CSSOMString` as either DOMString
++or USVString. `CSSStyleSheet.insertRule` takes CSSOMString and calls CSS Syntax's
++parse-rule algorithm after the origin-clean and disallow-modification guards.
++Parse-rule normalizes its input; the string branch filters code points before
++tokenizing. Thus the DOMString route is conditional on that type choice,
++successful coercion and the pre-parse guards. `replace` and `replaceSync`
++explicitly take USVString and are not DOMString examples. No Firefox type choice,
++CSSOM state machine or end-to-end browser behavior is proved here.
++
++The primary sources, acquired on 2026-11-10, are pinned in `coverage.json`:
++
++| Source | Immutable version | Full-file SHA-256 |
++| --- | --- | --- |
++| WebIDL types and conversion | [0d862c6573d0ecca327b7ba00210e7c051c988b3](https://github.com/whatwg/webidl/blob/0d862c6573d0ecca327b7ba00210e7c051c988b3/index.bs) | `b467604348aae390a9734cf639bb77a2505cf88748287831768fc222240cf3e4` |
++| Infra strings | [c67ae1fb1d161b23d0f8c9bf9917ea1993f7b19a](https://github.com/whatwg/infra/blob/c67ae1fb1d161b23d0f8c9bf9917ea1993f7b19a/infra.bs) | `687e65669b9d85c2147a139513fe319097cf84af1005f5c9d7cb3d2ade0c1aed` |
++| ECMAScript String Type, CodePointAt, StringToCodePoints | [828d35d00f8584c4a0fbcac7742b57c7b959c3f3](https://github.com/tc39/ecma262/blob/828d35d00f8584c4a0fbcac7742b57c7b959c3f3/spec.html) | `f977d170323cfeacaae9086310f46df500a58c3d463ab955d511543b9f64c51c` |
++| CSSOM caller/type choice | [5823c7a7c3401c6b434dbf3ef88077ea45e30303](https://github.com/w3c/csswg-drafts/blob/5823c7a7c3401c6b434dbf3ef88077ea45e30303/cssom-1/Overview.bs) | `a969093ae15f352b7136e2eb097bacbb7a574480a914547484ce61909592e876` |
++| CSS Syntax input filtering and parser entry | [c410ee5e4d2afe6d8b2e8ce53723b8d1eb3b5b67](https://github.com/w3c/csswg-drafts/blob/c410ee5e4d2afe6d8b2e8ce53723b8d1eb3b5b67/css-syntax-3/Overview.bs) | `4a4a5a3994bda10a56885e66776169d0e05d5a7515b0def4e8859c20e3fd4afc` |
++
++## Domain and limits
++
++Input is `List (Fin 0x10000)`. Numeric callers should use `unitOfNat?`,
++`decodeValues`, `prepareValues` or `nextValues`; direct numeric `Fin` literals
++can wrap. Out-of-range numbers are admission failures, not CSS parse errors.
++`nextValues` distinguishes invalid input (`none`) from admitted empty input
++(`some none`). Supplementary code-point numbers are not valid individual units.
++
++The model covers arbitrary finite list lengths. `JavaScriptLength` separately
++states ECMAScript's 2^53−1 maximum; numeric admission does not enforce it. The
++theorems therefore cover a mathematical superset of actual JavaScript strings.
++There is no byte decoder, endianness/BOM policy, DOM acquisition, general
++ToString/coercion behavior, Unicode normalization, arbitrary-index CodePointAt
++wrapper or IsUnpairedSurrogate return field. No streaming or chunk-boundary
++behavior is proved: splitting a valid pair across chunks changes stateless
++decoding, and CSS filtering additionally has a CRLF boundary.
++
++## Validation scope
++
++`python3 check.py` includes this package in the full build, executable vector and
++axiom audit. `python3 check.py --coverage-only` checks static registrations only.
++The integration used clean sources for the ten-module input dependency closure:
++70 theorem audits and 79 observations (34 new, 21 code-point and 24 scalar), plus
++global static registrations and deliberate integration controls. It does not
++refresh a whole-library proof receipt or any native/browser result.
