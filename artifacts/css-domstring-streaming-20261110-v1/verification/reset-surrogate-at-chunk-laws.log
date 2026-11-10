@@ -1,0 +1,29 @@
+PairLaws.lean:51:23: error: unsolved goals
+case cons
+Input Output : Type
+machine : Machine Input Output
+suffix first : List Input
+rest : List (List Input)
+ih :
+  ∀ (pending : Option Input),
+    batch machine (buffered pending ++ (rest.flatten ++ suffix)) =
+      (chunks machine pending rest).output ++ batch machine (buffered (chunks machine pending rest).pending ++ suffix)
+pending : Option Input
+⊢ (feed machine pending first).output ++
+      ((chunks machine (feed machine pending first).pending rest).output ++
+        batch machine (buffered (chunks machine (feed machine pending first).pending rest).pending ++ suffix)) =
+    (feed machine none first).output ++
+      ((chunks machine (feed machine none first).pending rest).output ++
+        batch machine (buffered (chunks machine (feed machine none first).pending rest).pending ++ suffix))
+PairLaws.lean:75:23: error: unsolved goals
+case cons
+Input Output : Type
+machine : Machine Input Output
+first : List Input
+rest : List (List Input)
+ih : ∀ (pending : Option Input), chunks machine pending rest = feed machine pending rest.flatten
+pending : Option Input
+⊢ (feed machine none first).output ++ (feed machine (feed machine none first).pending rest.flatten).output =
+      (feed machine pending first).output ++ (feed machine (feed machine pending first).pending rest.flatten).output ∧
+    (feed machine (feed machine none first).pending rest.flatten).pending =
+      (feed machine (feed machine pending first).pending rest.flatten).pending

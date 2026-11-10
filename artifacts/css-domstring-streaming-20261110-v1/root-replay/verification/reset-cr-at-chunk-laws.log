@@ -1,0 +1,25 @@
+PipelineLaws.lean:16:23: error: unsolved goals
+case cons
+Input Middle Output : Type
+first : Machine Input Middle
+second : Machine Middle Output
+chunk : List Input
+rest : List (List Input)
+ih :
+  ∀ (inputPending : Option Input) (middlePending : Option Middle),
+    pipeChunks first second inputPending middlePending rest =
+      let decoded := chunks first inputPending rest;
+      let prepared := feed second middlePending decoded.output;
+      { output := prepared.output, inputPending := decoded.pending, middlePending := prepared.pending }
+inputPending : Option Input
+middlePending : Option Middle
+⊢ (feed second none (feed first inputPending chunk).output).output ++
+        (feed second (feed second none (feed first inputPending chunk).output).pending
+            (chunks first (feed first inputPending chunk).pending rest).output).output =
+      (feed second middlePending (feed first inputPending chunk).output).output ++
+        (feed second (feed second middlePending (feed first inputPending chunk).output).pending
+            (chunks first (feed first inputPending chunk).pending rest).output).output ∧
+    (feed second (feed second none (feed first inputPending chunk).output).pending
+          (chunks first (feed first inputPending chunk).pending rest).output).pending =
+      (feed second (feed second middlePending (feed first inputPending chunk).output).pending
+          (chunks first (feed first inputPending chunk).pending rest).output).pending

@@ -1,0 +1,38 @@
+AdapterLaws.lean:13:13: error: Tactic `rfl` failed: The left-hand side
+  batch utf16 [first]
+is not definitionally equal to the right-hand side
+  DomString.decode [first]
+
+case cons.nil
+first : DomString.CodeUnit
+⊢ batch utf16 [first] = DomString.decode [first]
+AdapterLaws.lean:18:8: error: Type mismatch: After simplification, term
+  congrArg (List.cons (DomString.unitPoint first)) (utf16_batch (second :: tail))
+ has type
+  DomString.unitPoint first ::
+      batch
+        { holds := fun unit => decide (DomString.Leading unit),
+          combine := fun first second =>
+            if pair : DomString.Leading first ∧ DomString.Trailing second then
+              some (DomString.pairPoint first second ⋯ ⋯)
+            else none,
+          single := fun unit =>
+            if DomString.Leading unit ∨ DomString.Trailing unit then ⟨65533, utf16._proof_3⟩
+            else DomString.unitPoint unit,
+          unheld := utf16._proof_4 }
+        (second :: tail) =
+    DomString.unitPoint first :: DomString.decode (second :: tail)
+but is expected to have type
+  (if DomString.Leading first ∨ DomString.Trailing first then ⟨65533, utf16._proof_3⟩ else DomString.unitPoint first) ::
+      batch
+        { holds := fun unit => decide (DomString.Leading unit),
+          combine := fun first second =>
+            if pair : DomString.Leading first ∧ DomString.Trailing second then
+              some (DomString.pairPoint first second ⋯ ⋯)
+            else none,
+          single := fun unit =>
+            if DomString.Leading unit ∨ DomString.Trailing unit then ⟨65533, utf16._proof_3⟩
+            else DomString.unitPoint unit,
+          unheld := utf16._proof_4 }
+        (second :: tail) =
+    DomString.unitPoint first :: DomString.decode (second :: tail)
