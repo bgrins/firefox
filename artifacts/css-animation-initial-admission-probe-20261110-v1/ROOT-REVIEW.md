@@ -1,0 +1,9 @@
+# Root probe review
+
+The fixture is a useful conditional reachability test. Its first descendant style read follows the reveal without awaiting another frame or enumerating animations. The hidden-state assertion queries only the host. The later observations check the reveal, paused timeline, expected CSS animation targets and repeated value without changing the first-read oracle. The normal reveal and literal-font variants separate animation dependency work from reveal behavior.
+
+Root authenticated the twelve native source entries and every retained excerpt against their pinned bytes, and independently replayed JavaScript syntax/inert registration and genuine WPT lint/manifest preparation. The three callbacks are prepared; none has been executed in a browser by this artifact. `ROOT-REVIEW.json` and `root-check/RESULT.json` record these checks.
+
+The product-default display-animation preference is false, but the experiment must set it explicitly because test profiles may override defaults. SMIL supplies the proposed independent route. `setCurrentTime` can itself flush existing style before sampling, so its marker interval must remain distinct from the first leaf getter. Native initialization must be attributed to the actual document, target, traversal flags and call/iteration. A normal traversal or `StyleNewSubtree` result cannot substitute for the intended gate.
+
+SMIL sampling occurs before the first subtree traversal; the candidate's repeated compositor-only drain does not sample it again. Initial admission in iteration zero can therefore supply finite initial work and later CSS requests without violating the descendant-phase model. Even a successful trace would not establish recurring initialization or a native infinite loop. The next native experiment needs the actual initial-animation task mask and request-to-installation joins; pixel correctness alone is insufficient.

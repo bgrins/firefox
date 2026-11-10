@@ -1,0 +1,22 @@
+ 654: }
+ 655: 
+ 656: /// https://drafts.csswg.org/css-display-4/#display-animation
+ 657: impl Animate for Display {
+ 658:     #[inline]
+ 659:     fn animate(&self, other: &Self, procedure: Procedure) -> Result<Self, ()> {
+ 660:         match procedure {
+ 661:             Procedure::Interpolate { progress } => {
+ 662:                 if !crate::pref!("layout.css.display-animations.enabled") {
+ 663:                     return animate_discrete(self, other, procedure)
+ 664:                 };
+ 665:                 let (this_weight, other_weight) = procedure.weights();
+ 666:                 match (*self, *other) {
+ 667:                     (_, Display::None) => Ok(if this_weight > 0.0 { *self } else { *other }),
+ 668:                     (Display::None, _) => Ok(if other_weight > 0.0 { *other } else { *self }),
+ 669:                     _ => Ok(if progress >= 0.5 { *other } else { *self }),
+ 670:                 }
+ 671:             },
+ 672:             _ => Err(()),
+ 673:         }
+ 674:     }
+ 675: }

@@ -1,0 +1,22 @@
+ 358: void ServoStyleSet::PreTraverse(ServoTraversalFlags aFlags, Element* aRoot) {
+ 359:   PreTraverseSync();
+ 360: 
+ 361:   // Process animation stuff that we should avoid doing during the parallel
+ 362:   // traversal.
+ 363:   SMILAnimationController* smilController =
+ 364:       mDocument->HasAnimationController() ? mDocument->GetAnimationController()
+ 365:                                           : nullptr;
+ 366: 
+ 367:   MOZ_ASSERT(GetPresContext());
+ 368:   if (aRoot) {
+ 369:     GetPresContext()->EffectCompositor()->PreTraverseInSubtree(aFlags, aRoot);
+ 370:     if (smilController) {
+ 371:       smilController->PreTraverseInSubtree(aRoot);
+ 372:     }
+ 373:   } else {
+ 374:     GetPresContext()->EffectCompositor()->PreTraverse(aFlags);
+ 375:     if (smilController) {
+ 376:       smilController->PreTraverse();
+ 377:     }
+ 378:   }
+ 379: }

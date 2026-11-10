@@ -1,0 +1,22 @@
+ 218: void SVGSVGElement::SetCurrentTime(float seconds) {
+ 219:   if (!mTimedDocumentRoot) {
+ 220:     // we're not the outermost <svg> or not bound to a tree, so silently fail
+ 221:     return;
+ 222:   }
+ 223:   // Make sure the timegraph is up-to-date
+ 224:   if (auto* currentDoc = GetComposedDoc()) {
+ 225:     currentDoc->FlushPendingNotifications(FlushType::Style);
+ 226:   }
+ 227:   if (!mTimedDocumentRoot) {
+ 228:     return;
+ 229:   }
+ 230:   FlushAnimations();
+ 231:   mTimedDocumentRoot->SetCurrentTime(SecondsToSMILTime(seconds));
+ 232:   AnimationNeedsResample();
+ 233:   // Trigger synchronous sample now, to:
+ 234:   //  - Make sure we get an up-to-date paint after this method
+ 235:   //  - re-enable event firing (it got disabled during seeking, and it
+ 236:   //  doesn't get re-enabled until the first sample after the seek -- so
+ 237:   //  let's make that happen now.)
+ 238:   FlushAnimations();
+ 239: }

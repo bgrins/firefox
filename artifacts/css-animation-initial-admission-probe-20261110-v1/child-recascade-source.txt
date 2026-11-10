@@ -1,0 +1,79 @@
+>>>  791:     fn accumulate_damage_for(
+     792:         &self,
+     793:         shared_context: &SharedStyleContext,
+     794:         damage: &mut RestyleDamage,
+     795:         old_values: &ComputedValues,
+     796:         new_values: &ComputedValues,
+     797:         pseudo: Option<&PseudoElement>,
+     798:     ) -> RestyleHint {
+     799:         debug!("accumulate_damage_for: {:?}", self);
+     800:         debug_assert!(
+     801:             !shared_context
+     802:                 .traversal_flags
+     803:                 .contains(TraversalFlags::FinalAnimationTraversal)
+     804:         );
+     805: 
+     806:         let difference = self.compute_style_difference(old_values, new_values, pseudo);
+     807: 
+     808:         *damage |= difference.damage;
+     809: 
+     810:         debug!(" > style difference: {:?}", difference);
+     811: 
+     812:         let mut children_hint = RestyleHint::empty();
+     813:         if old_values.flags.maybe_inherited() != new_values.flags.maybe_inherited() {
+     814:             // Even if the styles are otherwise equal, we need to cascade the children in order to
+     815:             // ensure the correct propagation of inherited computed value flags.
+     816:             debug!(
+     817:                 " > flags changed: {:?} != {:?}",
+     818:                 old_values.flags, new_values.flags
+     819:             );
+     820:             children_hint |= RestyleHint::RECASCADE_SELF;
+     821:         } else if old_values.effective_zoom != new_values.effective_zoom {
+     822:             // Similarly, even if styles are equal, we need to propagate zoom changes.
+     823:             debug!(
+     824:                 " > zoom changed: {:?} != {:?}",
+     825:                 old_values.effective_zoom, new_values.effective_zoom
+     826:             );
+     827:             children_hint |= RestyleHint::RECASCADE_SELF;
+     828:         }
+     829: 
+     830:         let StyleChange::Changed {
+     831:             reset_only,
+     832:             custom_properties_changed,
+     833:         } = difference.change
+     834:         else {
+     835:             return children_hint;
+     836:         };
+     837: 
+     838:         let new_container_name = new_values.get_container_name();
+     839:         if new_container_name != old_values.get_container_name() {
+     840:             // If we're becoming or stopped to become a named container, we need to potentially
+     841:             // restyle children.
+     842:             children_hint |= RestyleHint::RESTYLE_IF_AFFECTED_BY_NAMED_STYLE_CONTAINER;
+     843:         } else if custom_properties_changed {
+     844:             // Custom property changes affect style queries. How specifically depends on whether
+     845:             // we're a named container (more expensive, need to check the subtree) or not.
+     846:             children_hint |= if !new_container_name.is_none() {
+     847:                 RestyleHint::RESTYLE_IF_AFFECTED_BY_NAMED_STYLE_CONTAINER
+     848:             } else {
+     849:                 RestyleHint::RESTYLE_IF_AFFECTED_BY_STYLE_QUERIES
+     850:             };
+     851:         }
+     852: 
+     853:         if reset_only {
+     854:             // If only reset properties changed, we _might_ need to unconditionally restyle, but
+     855:             // most likely we can get away with stopping the cascade at the next level, if our
+     856:             // children don't inherit reset properties.
+     857:             children_hint |=
+     858:                 if need_to_unconditionally_recascade_for_reset_change(old_values, new_values) {
+     859:                     RestyleHint::RECASCADE_SELF
+     860:                 } else {
+     861:                     RestyleHint::RECASCADE_SELF_IF_INHERIT_RESET_STYLE
+     862:                 };
+     863:         } else {
+     864:             // If inherited properties changed, we need to cascade our children.
+     865:             children_hint |= RestyleHint::RECASCADE_SELF;
+     866:         }
+     867: 
+     868:         children_hint
+     869:     }

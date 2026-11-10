@@ -1,0 +1,585 @@
+modules/libpref/init/StaticPrefList.yaml
+10952: - name: layout.css.display-animations.enabled
+10953:   type: RelaxedAtomicBool
+10954:   value: false
+10955:   mirror: always
+10956:   rust: true
+
+dom/animation/KeyframeUtils.cpp
+426: bool KeyframeUtils::IsAnimatableProperty(const CSSPropertyId& aProperty) {
+427:   // Servo considers 'display' animatable (since it's animatable by SMIL), so
+428:   // we keep it non-animatable unless the display animations pref is enabled.
+429:   if (aProperty.mId == eCSSProperty_display &&
+430:       !StaticPrefs::layout_css_display_animations_enabled()) {
+431:     return false;
+432:   }
+433:   return Servo_Property_IsAnimatable(&aProperty);
+434: }
+
+servo/components/style/stylesheets/keyframes_rule.rs
+525:             if declaration_id == PropertyDeclarationId::Longhand(LonghandId::Display)
+526:                 && !crate::pref!("layout.css.display-animations.enabled")
+527:             {
+528:                 continue;
+529:             }
+530: 
+531:             if !declaration_id.is_animatable() {
+532:                 continue;
+
+dom/smil/SMILCSSProperty.cpp
+100: nsresult SMILCSSProperty::SetAnimValue(const SMILValue& aValue) {
+101:   NS_ENSURE_TRUE(IsPropertyAnimatable(mPropId), NS_ERROR_FAILURE);
+102:   return mElement->SMILOverrideStyle()->SetSMILValue(mPropId, aValue);
+103: }
+
+dom/smil/SMILCSSProperty.cpp
+111: bool SMILCSSProperty::IsPropertyAnimatable(NonCustomCSSPropertyId aPropId) {
+112:   // NOTE: Right now, Gecko doesn't recognize the following properties from
+113:   // the SVG Property Index:
+114:   //   alignment-baseline
+115:   //   baseline-shift
+116:   //   color-profile
+117:   //   glyph-orientation-horizontal
+118:   //   glyph-orientation-vertical
+119:   //   kerning
+120:   //   writing-mode
+121: 
+122:   switch (aPropId) {
+123:     case eCSSProperty_clip:
+124:     case eCSSProperty_clip_rule:
+125:     case eCSSProperty_clip_path:
+126:     case eCSSProperty_color:
+127:     case eCSSProperty_color_interpolation:
+128:     case eCSSProperty_color_interpolation_filters:
+129:     case eCSSProperty_cursor:
+130:     case eCSSProperty_display:
+131:     case eCSSProperty_dominant_baseline:
+132:     case eCSSProperty_fill:
+133:     case eCSSProperty_fill_opacity:
+134:     case eCSSProperty_fill_rule:
+135:     case eCSSProperty_filter:
+136:     case eCSSProperty_flood_color:
+137:     case eCSSProperty_flood_opacity:
+138:     case eCSSProperty_font:
+139:     case eCSSProperty_font_family:
+140:     case eCSSProperty_font_size:
+141:     case eCSSProperty_font_size_adjust:
+142:     case eCSSProperty_font_width:
+143:     case eCSSProperty_font_style:
+144:     case eCSSProperty_font_variant:
+145:     case eCSSProperty_font_weight:
+146:     case eCSSProperty_height:
+147:     case eCSSProperty_image_rendering:
+148:     case eCSSProperty_letter_spacing:
+149:     case eCSSProperty_lighting_color:
+150:     case eCSSProperty_marker:
+151:     case eCSSProperty_marker_end:
+152:     case eCSSProperty_marker_mid:
+153:     case eCSSProperty_marker_start:
+154:     case eCSSProperty_mask:
+155:     case eCSSProperty_mask_type:
+156:     case eCSSProperty_opacity:
+157:     case eCSSProperty_overflow:
+158:     case eCSSProperty_pointer_events:
+159:     case eCSSProperty_shape_rendering:
+160:     case eCSSProperty_stop_color:
+161:     case eCSSProperty_stop_opacity:
+162:     case eCSSProperty_stroke:
+163:     case eCSSProperty_stroke_dasharray:
+164:     case eCSSProperty_stroke_dashoffset:
+165:     case eCSSProperty_stroke_linecap:
+166:     case eCSSProperty_stroke_linejoin:
+167:     case eCSSProperty_stroke_miterlimit:
+168:     case eCSSProperty_stroke_opacity:
+169:     case eCSSProperty_stroke_width:
+170:     case eCSSProperty_text_anchor:
+171:     case eCSSProperty_text_decoration:
+172:     case eCSSProperty_text_decoration_line:
+173:     case eCSSProperty_text_rendering:
+174:     case eCSSProperty_vector_effect:
+175:     case eCSSProperty_width:
+176:     case eCSSProperty_visibility:
+177:     case eCSSProperty_word_spacing:
+178:       return true;
+179: 
+180:     // EXPLICITLY NON-ANIMATABLE PROPERTIES:
+181:     // (Some of these aren't supported at all in Gecko -- I've commented those
+182:     // ones out. If/when we add support for them, uncomment their line here)
+183:     // ----------------------------------------------------------------------
+184:     // case eCSSProperty_enable_background:
+185:     // case eCSSProperty_glyph_orientation_horizontal:
+186:     // case eCSSProperty_glyph_orientation_vertical:
+187:     // case eCSSProperty_writing_mode:
+188:     case eCSSProperty_direction:
+189:     case eCSSProperty_unicode_bidi:
+190:       return false;
+191: 
+192:     default:
+193:       return false;
+194:   }
+195: }
+
+dom/smil/SMILAnimationController.cpp
+583: void SMILAnimationController::PreTraverseInSubtree(Element* aRoot) {
+584:   MOZ_ASSERT(NS_IsMainThread());
+585: 
+586:   if (!mMightHavePendingStyleUpdates) {
+587:     return;
+588:   }
+589: 
+590:   nsPresContext* context = mDocument->GetPresContext();
+591:   if (!context) {
+592:     return;
+593:   }
+594: 
+595:   for (SVGAnimationElement* animElement : mAnimationElementTable.Keys()) {
+596:     SMILTargetIdentifier key;
+597:     if (!GetTargetIdentifierForAnimation(animElement, key)) {
+598:       // Something's wrong/missing about animation's target; skip this animation
+599:       continue;
+600:     }
+601: 
+602:     // Ignore restyles that aren't in the flattened tree subtree rooted at
+603:     // aRoot.
+604:     if (aRoot && !nsContentUtils::ContentIsFlattenedTreeDescendantOf(
+605:                      key.mElement, aRoot)) {
+606:       continue;
+607:     }
+608: 
+609:     context->RestyleManager()->PostRestyleEventForAnimations(
+610:         key.mElement, PseudoStyleRequest::NotPseudo(),
+611:         RestyleHint::RESTYLE_SMIL);
+612:   }
+613: 
+614:   // Only clear the mMightHavePendingStyleUpdates flag if we definitely posted
+615:   // all restyles.
+616:   if (!aRoot) {
+617:     mMightHavePendingStyleUpdates = false;
+618:   }
+619: }
+
+dom/svg/SVGSVGElement.cpp
+218: void SVGSVGElement::SetCurrentTime(float seconds) {
+219:   if (!mTimedDocumentRoot) {
+220:     // we're not the outermost <svg> or not bound to a tree, so silently fail
+221:     return;
+222:   }
+223:   // Make sure the timegraph is up-to-date
+224:   if (auto* currentDoc = GetComposedDoc()) {
+225:     currentDoc->FlushPendingNotifications(FlushType::Style);
+226:   }
+227:   if (!mTimedDocumentRoot) {
+228:     return;
+229:   }
+230:   FlushAnimations();
+231:   mTimedDocumentRoot->SetCurrentTime(SecondsToSMILTime(seconds));
+232:   AnimationNeedsResample();
+233:   // Trigger synchronous sample now, to:
+234:   //  - Make sure we get an up-to-date paint after this method
+235:   //  - re-enable event firing (it got disabled during seeking, and it
+236:   //  doesn't get re-enabled until the first sample after the seek -- so
+237:   //  let's make that happen now.)
+238:   FlushAnimations();
+239: }
+
+layout/style/ServoStyleSet.cpp
+357: void ServoStyleSet::PreTraverse(ServoTraversalFlags aFlags, Element* aRoot) {
+358:   PreTraverseSync();
+359: 
+360:   // Process animation stuff that we should avoid doing during the parallel
+361:   // traversal.
+362:   SMILAnimationController* smilController =
+363:       mDocument->HasAnimationController() ? mDocument->GetAnimationController()
+364:                                           : nullptr;
+365: 
+366:   MOZ_ASSERT(GetPresContext());
+367:   if (aRoot) {
+368:     GetPresContext()->EffectCompositor()->PreTraverseInSubtree(aFlags, aRoot);
+369:     if (smilController) {
+370:       smilController->PreTraverseInSubtree(aRoot);
+371:     }
+372:   } else {
+373:     GetPresContext()->EffectCompositor()->PreTraverse(aFlags);
+374:     if (smilController) {
+375:       smilController->PreTraverse();
+376:     }
+377:   }
+378: }
+
+servo/ports/geckolib/glue.rs
+391:     if needs_animation_only_restyle {
+392:         debug!(
+393:             "Servo_TraverseSubtree doing animation-only restyle (aodd={})",
+394:             element.has_animation_only_dirty_descendants()
+395:         );
+396:         traverse_subtree(
+397:             element,
+398:             &global_style_data,
+399:             &per_doc_data,
+400:             &guard,
+401:             traversal_flags | TraversalFlags::AnimationOnly,
+402:             unsafe { &*snapshots },
+403:         );
+404:     }
+405: 
+406:     traverse_subtree(
+407:         element,
+408:         &global_style_data,
+409:         &per_doc_data,
+410:         &guard,
+411:         traversal_flags,
+412:         unsafe { &*snapshots },
+413:     );
+414: 
+415:     debug!(
+416:         "Servo_TraverseSubtree complete (dd={}, aodd={}, lfcd={}, lfc={}, data={:?})",
+417:         element.has_dirty_descendants(),
+
+servo/components/style/properties/helpers/animated_properties.mako.rs
+656: impl Animate for Display {
+657:     #[inline]
+658:     fn animate(&self, other: &Self, procedure: Procedure) -> Result<Self, ()> {
+659:         match procedure {
+660:             Procedure::Interpolate { progress } => {
+661:                 if !crate::pref!("layout.css.display-animations.enabled") {
+662:                     return animate_discrete(self, other, procedure)
+663:                 };
+664:                 let (this_weight, other_weight) = procedure.weights();
+665:                 match (*self, *other) {
+666:                     (_, Display::None) => Ok(if this_weight > 0.0 { *self } else { *other }),
+667:                     (Display::None, _) => Ok(if other_weight > 0.0 { *other } else { *self }),
+668:                     _ => Ok(if progress >= 0.5 { *other } else { *self }),
+669:                 }
+670:             },
+671:             _ => Err(()),
+672:         }
+673:     }
+674: }
+
+artifacts/css-root-font-deferred-drain-diagnostic-v1/candidate/layout/style/ServoStyleSet.cpp
+bool ServoStyleSet::StyleDocument(ServoTraversalFlags aFlags) {
+  AUTO_PROFILER_LABEL_CATEGORY_PAIR_RELEVANT_FOR_JS(LAYOUT_StyleComputation);
+  MOZ_ASSERT(GetPresContext(), "Styling a document without a shell?");
+
+  PreTraverse(aFlags);
+  if (!mDocument->GetServoRestyleRoot()) {
+    return false;
+  }
+
+  const SnapshotTable& snapshots = Snapshots();
+
+  // Restyle the document from the root element and each of the document level
+  // NAC subtree roots.
+  bool postTraversalRequired = false;
+
+  if (ShouldTraverseInParallel()) {
+    aFlags |= ServoTraversalFlags::ParallelTraversal;
+  }
+
+  // Do the first traversal.
+  DocumentStyleRootIterator iter(mDocument->GetServoRestyleRoot());
+  while (Element* root = iter.GetNextStyleRoot()) {
+    MOZ_ASSERT(MayTraverseFrom(root));
+
+    Element* parent = root->GetFlattenedTreeParentElementForStyle();
+    MOZ_ASSERT_IF(parent,
+                  !parent->HasAnyOfFlags(Element::kAllServoDescendantBits));
+
+    if (MOZ_UNLIKELY(!root->HasServoData()) && !parent) {
+      StyleNewSubtree(root);
+      postTraversalRequired = true;
+      continue;
+    }
+
+    AutoPrepareTraversal guard(this);
+
+    postTraversalRequired |=
+        Servo_TraverseSubtree(root, mRawData.get(), &snapshots, aFlags) ||
+        root->HasAnyOfFlags(Element::kAllServoDescendantBits |
+                            NODE_NEEDS_FRAME);
+
+    uint32_t existingBits = mDocument->GetServoRestyleRootDirtyBits();
+    Element* newRoot = nullptr;
+    while (parent && parent->HasDirtyDescendantsForServo()) {
+      MOZ_ASSERT(root == mDocument->GetServoRestyleRoot(),
+                 "Restyle root shouldn't have magically changed");
+      // If any style invalidation was triggered in our siblings, then we may
+      // need to post-traverse them, even if the root wasn't restyled after
+      // all.
+      // We need to propagate the existing bits to the ancestor.
+      parent->SetFlags(existingBits);
+      newRoot = parent;
+      parent = parent->GetFlattenedTreeParentElementForStyle();
+    }
+
+    if (newRoot) {
+      mDocument->SetServoRestyleRoot(
+          newRoot, existingBits | ELEMENT_HAS_DIRTY_DESCENDANTS_FOR_SERVO);
+      postTraversalRequired = true;
+    }
+  }
+
+  // Process animation restyles generated by the preceding traversal until no
+  // eligible CSS animation or transition restyles remain.
+  //
+  // Note that we need to check the style root again, because doing another
+  // PreTraverse on the EffectCompositor might alter the style root. But we
+  // don't need to worry about NAC, since document-level NAC shouldn't have
+  // animations.
+  //
+  // We don't need to do this for SMIL since SMIL only updates its animation
+  // values once at the begin of a tick. As a result, even if the previous
+  // traversal caused, for example, the font-size to change, the SMIL style
+  // won't be updated until the next tick anyway.
+  while (GetPresContext()->EffectCompositor()->PreTraverse(aFlags)) {
+    DocumentStyleRootIterator iter(mDocument->GetServoRestyleRoot());
+    while (Element* root = iter.GetNextStyleRoot()) {
+      AutoPrepareTraversal guard(this);
+      postTraversalRequired |=
+          Servo_TraverseSubtree(root, mRawData.get(), &snapshots, aFlags) ||
+          root->HasAnyOfFlags(Element::kAllServoDescendantBits |
+                              NODE_NEEDS_FRAME);
+    }
+  }
+
+  return postTraversalRequired;
+}
+
+
+
+servo/components/style/matching.rs
+791:     /// Computes and applies non-redundant damage.
+792:     fn accumulate_damage_for(
+793:         &self,
+794:         shared_context: &SharedStyleContext,
+795:         damage: &mut RestyleDamage,
+796:         old_values: &ComputedValues,
+797:         new_values: &ComputedValues,
+798:         pseudo: Option<&PseudoElement>,
+799:     ) -> RestyleHint {
+800:         debug!("accumulate_damage_for: {:?}", self);
+801:         debug_assert!(
+802:             !shared_context
+803:                 .traversal_flags
+804:                 .contains(TraversalFlags::FinalAnimationTraversal)
+805:         );
+806: 
+807:         let difference = self.compute_style_difference(old_values, new_values, pseudo);
+808: 
+809:         *damage |= difference.damage;
+810: 
+811:         debug!(" > style difference: {:?}", difference);
+812: 
+813:         let mut children_hint = RestyleHint::empty();
+814:         if old_values.flags.maybe_inherited() != new_values.flags.maybe_inherited() {
+815:             // Even if the styles are otherwise equal, we need to cascade the children in order to
+816:             // ensure the correct propagation of inherited computed value flags.
+817:             debug!(
+818:                 " > flags changed: {:?} != {:?}",
+819:                 old_values.flags, new_values.flags
+820:             );
+821:             children_hint |= RestyleHint::RECASCADE_SELF;
+822:         } else if old_values.effective_zoom != new_values.effective_zoom {
+823:             // Similarly, even if styles are equal, we need to propagate zoom changes.
+824:             debug!(
+825:                 " > zoom changed: {:?} != {:?}",
+826:                 old_values.effective_zoom, new_values.effective_zoom
+827:             );
+828:             children_hint |= RestyleHint::RECASCADE_SELF;
+829:         }
+830: 
+831:         let StyleChange::Changed {
+832:             reset_only,
+833:             custom_properties_changed,
+834:         } = difference.change
+835:         else {
+836:             return children_hint;
+837:         };
+838: 
+839:         let new_container_name = new_values.get_container_name();
+840:         if new_container_name != old_values.get_container_name() {
+841:             // If we're becoming or stopped to become a named container, we need to potentially
+842:             // restyle children.
+843:             children_hint |= RestyleHint::RESTYLE_IF_AFFECTED_BY_NAMED_STYLE_CONTAINER;
+844:         } else if custom_properties_changed {
+845:             // Custom property changes affect style queries. How specifically depends on whether
+846:             // we're a named container (more expensive, need to check the subtree) or not.
+847:             children_hint |= if !new_container_name.is_none() {
+848:                 RestyleHint::RESTYLE_IF_AFFECTED_BY_NAMED_STYLE_CONTAINER
+849:             } else {
+850:                 RestyleHint::RESTYLE_IF_AFFECTED_BY_STYLE_QUERIES
+851:             };
+852:         }
+853: 
+854:         if reset_only {
+855:             // If only reset properties changed, we _might_ need to unconditionally restyle, but
+856:             // most likely we can get away with stopping the cascade at the next level, if our
+857:             // children don't inherit reset properties.
+858:             children_hint |=
+859:                 if need_to_unconditionally_recascade_for_reset_change(old_values, new_values) {
+860:                     RestyleHint::RECASCADE_SELF
+861:                 } else {
+862:                     RestyleHint::RECASCADE_SELF_IF_INHERIT_RESET_STYLE
+863:                 };
+864:         } else {
+865:             // If inherited properties changed, we need to cascade our children.
+866:             children_hint |= RestyleHint::RECASCADE_SELF;
+867:         }
+868: 
+869:         children_hint
+
+servo/components/style/traversal.rs
+169:     fn element_needs_traversal(
+170:         el: E,
+171:         traversal_flags: TraversalFlags,
+172:         data: Option<&ElementData>,
+173:     ) -> bool {
+174:         debug!(
+175:             "element_needs_traversal({:?}, {:?}, {:?})",
+176:             el, traversal_flags, data
+177:         );
+178: 
+179:         // Unwrap the data.
+180:         let data = match data {
+181:             Some(d) if d.has_styles() => d,
+182:             _ => return true,
+183:         };
+184: 
+185:         if traversal_flags.for_animation_only() {
+186:             // In case of animation-only traversal we need to traverse the element if the element
+187:             // has animation only dirty descendants bit, or animation-only restyle hint.
+188:             return el.has_animation_only_dirty_descendants()
+189:                 || data.hint.has_animation_hint_or_recascade();
+190:         }
+191: 
+192:         // If the dirty descendants bit is set, we need to traverse no matter
+193:         // what. Skip examining the ElementData.
+194:         if el.has_dirty_descendants() {
+195:             return true;
+196:         }
+197: 
+198:         // If we have a restyle hint or need to recascade, we need to visit the
+199:         // element.
+200:         //
+411:     // Now that matching and cascading is done, clear the bits corresponding to
+412:     // those operations and compute the propagated restyle hint (unless we're
+413:     // not processing invalidations, in which case don't need to propagate it
+414:     // and must avoid clearing it).
+415:     debug_assert!(
+416:         flags.for_animation_only() || !data.hint.has_animation_hint(),
+417:         "animation restyle hint should be handled during \
+418:          animation-only restyles"
+419:     );
+420:     let mut propagated_hint = data.hint.propagate(&flags);
+421:     trace!(
+422:         "propagated_hint={:?}, restyle_requirement={:?}, \
+423:          is_display_none={:?}, implementing_pseudo={:?}",
+424:         propagated_hint,
+425:         child_restyle_hint,
+426:         data.styles.is_display_none(),
+427:         element.implemented_pseudo_element()
+428:     );
+429: 
+430:     // Integrate the child cascade requirement into the propagated hint.
+431:     propagated_hint |= child_restyle_hint;
+432: 
+433:     let has_dirty_descendants_for_this_restyle = if flags.for_animation_only() {
+434:         element.has_animation_only_dirty_descendants()
+435:     } else {
+436:         element.has_dirty_descendants()
+437:     };
+438: 
+439:     // Before examining each child individually, try to prove that our children
+440:     // don't need style processing. They need processing if any of the following
+441:     // conditions hold:
+442:     //
+443:     //  * We have the dirty descendants bit.
+444:     //  * We're propagating a restyle hint.
+445:     //  * This is a servo non-incremental traversal.
+446:     //
+447:     // We only do this if we're not a display: none root, since in that case
+448:     // it's useless to style children.
+449:     let mut traverse_children =
+450:         has_dirty_descendants_for_this_restyle || !propagated_hint.is_empty();
+451: 
+452:     traverse_children = traverse_children && !data.styles.is_display_none();
+453: 
+454:     // Examine our children, and enqueue the appropriate ones for traversal.
+455:     if traverse_children {
+456:         note_children::<E, D, F>(
+457:             context,
+458:             element,
+459:             propagated_hint,
+460:             is_initial_style,
+461:             note_child,
+462:         );
+463:     }
+464: 
+465:     // FIXME(bholley): Make these assertions pass for servo.
+671: fn note_children<E, D, F>(
+672:     context: &mut StyleContext<E>,
+673:     element: E,
+674:     propagated_hint: RestyleHint,
+675:     is_initial_style: bool,
+676:     mut note_child: F,
+677: ) where
+678:     E: TElement,
+679:     D: DomTraversal<E>,
+680:     F: FnMut(E::ConcreteNode),
+681: {
+682:     trace!("note_children: {:?}", element);
+683:     let flags = context.shared.traversal_flags;
+684: 
+685:     // Loop over all the traversal children.
+686:     for child_node in element.traversal_children() {
+687:         let Some(child) = child_node.as_element() else {
+688:             continue;
+689:         };
+690: 
+691:         let mut child_data = child.mutate_data();
+692:         let mut child_data = child_data.as_deref_mut();
+693:         trace!(
+694:             " > {:?} -> {:?} + {:?}, pseudo: {:?}",
+695:             child,
+696:             child_data.as_ref().map(|d| d.hint),
+697:             propagated_hint,
+698:             child.implemented_pseudo_element()
+699:         );
+700: 
+701:         if let Some(ref mut child_data) = child_data {
+702:             child_data.hint.insert(propagated_hint);
+703: 
+704:             // Handle element snapshots and invalidation of descendants and siblings
+705:             // as needed.
+706:             //
+707:             // NB: This will be a no-op if there's no snapshot.
+708:             child_data.invalidate_style_if_needed(
+709:                 child,
+710:                 context.shared,
+711:                 Some(&context.thread_local.stack_limit_checker),
+712:                 &mut context.thread_local.selector_caches,
+713:             );
+714:         }
+715: 
+716:         if D::element_needs_traversal(child, flags, child_data.map(|d| &*d)) {
+717:             note_child(child_node);
+718: 
+719:             // Set the dirty descendants bit on the parent as needed, so that we
+720:             // can find elements during the post-traversal.
+721:             //
+722:             // Note that these bits may be cleared again at the bottom of
+723:             // recalc_style_at if requested by the caller.
+724:             if !is_initial_style {
+725:                 if flags.for_animation_only() {
+726:                     unsafe {
+727:                         element.set_animation_only_dirty_descendants();
+728:                     }
+729:                 } else {
+730:                     unsafe {
+731:                         element.set_dirty_descendants();
+732:                     }
+733:                 }
+734:             }
+735:         }
+736:     }
+737: }
