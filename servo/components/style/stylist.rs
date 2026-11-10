@@ -262,7 +262,7 @@ where
         &mut self,
         device: &Device,
         quirks_mode: QuirksMode,
-        collection: SheetCollectionFlusher<S>,
+        mut collection: SheetCollectionFlusher<S>,
         guard: &SharedRwLockReadGuard,
         old_entry: &Entry,
         difference: &mut CascadeDataDifference,
@@ -279,29 +279,36 @@ where
 
         let mut key = CascadeDataCacheKey::default();
         let mut custom_media_map = CustomMediaMap::default();
-        for sheet in collection.sheets() {
-            CascadeData::collect_applicable_media_query_results_into(
+        for (sheet, media_matches) in collection.sheets_with_media_matches() {
+            *media_matches = Some(CascadeData::collect_applicable_media_query_results_into(
                 device,
                 sheet,
                 guard,
                 &mut key.media_query_results,
                 &mut key.contents,
                 &mut custom_media_map,
-            )
+            ));
         }
 
         let new_entry;
         match self.entries.entry(key) {
             HashMapEntry::Vacant(e) => {
                 debug!("> Picking the slow path (not in the cache)");
-                new_entry = Entry::rebuild(
+                let result = Entry::rebuild(
                     device,
                     quirks_mode,
-                    collection,
+                    collection.reborrow(),
                     guard,
                     old_entry,
                     difference,
-                )?;
+                );
+                new_entry = match result {
+                    Ok(entry) => entry,
+                    Err(error) => {
+                        collection.invalidate_media_matches();
+                        return Err(error);
+                    },
+                };
                 e.insert(new_entry.clone());
             },
             HashMapEntry::Occupied(mut e) => {
@@ -317,19 +324,26 @@ where
                     }
                     // The line below ensures the "committed" bit is updated
                     // properly.
-                    collection.each(|_, _, _| true);
+                    collection.each(|_, _, _, _| true);
                     return Ok(Some(e.get().clone()));
                 }
 
                 debug!("> Picking the slow path due to same entry as old");
-                new_entry = Entry::rebuild(
+                let result = Entry::rebuild(
                     device,
                     quirks_mode,
-                    collection,
+                    collection.reborrow(),
                     guard,
                     old_entry,
                     difference,
-                )?;
+                );
+                new_entry = match result {
+                    Ok(entry) => entry,
+                    Err(error) => {
+                        collection.invalidate_media_matches();
+                        return Err(error);
+                    },
+                };
                 e.insert(new_entry.clone());
             },
         }
@@ -392,7 +406,7 @@ impl CascadeDataCacheEntry for UserAgentCascadeData {
     fn rebuild<S>(
         device: &Device,
         quirks_mode: QuirksMode,
-        collection: SheetCollectionFlusher<S>,
+        mut collection: SheetCollectionFlusher<S>,
         guard: &SharedRwLockReadGuard,
         old: &Self,
         difference: &mut CascadeDataDifference,
@@ -408,12 +422,13 @@ impl CascadeDataCacheEntry for UserAgentCascadeData {
         });
 
         let mut prev_sheet = None;
-        for (index, sheet) in collection.sheets().enumerate() {
+        for (index, (sheet, media_matches)) in collection.sheets_with_media_matches().enumerate() {
             let new_data = &mut *new_data;
             new_data.cascade_data.add_stylesheet(
                 device,
                 quirks_mode,
                 sheet,
+                media_matches,
                 index,
                 guard,
                 SheetRebuildKind::Full,
@@ -1702,9 +1717,9 @@ impl Stylist {
         debug!("Stylist::media_features_change_changed_style {:?}", device);
 
         let mut origins = OriginSet::empty();
-        let stylesheets = self.stylesheets.iter();
+        let stylesheets = self.stylesheets.iter_with_media_matches();
 
-        for (stylesheet, origin) in stylesheets {
+        for (stylesheet, media_matches, origin) in stylesheets {
             if origins.contains(origin.into()) {
                 continue;
             }
@@ -1714,6 +1729,7 @@ impl Stylist {
 
             let affected_changed = !origin_cascade_data.media_feature_affected_matches(
                 stylesheet,
+                media_matches,
                 guard,
                 device,
                 self.quirks_mode,
@@ -3573,7 +3589,7 @@ impl CascadeData {
         &mut self,
         device: &Device,
         quirks_mode: QuirksMode,
-        collection: SheetCollectionFlusher<S>,
+        mut collection: SheetCollectionFlusher<S>,
         guard: &SharedRwLockReadGuard,
         difference: &mut CascadeDataDifference,
     ) -> Result<(), AllocErr>
@@ -3600,25 +3616,31 @@ impl CascadeData {
         let mut result = Ok(());
 
         let mut prev_sheet = None;
-        collection.each(|index, stylesheet, rebuild_kind| {
-            result = self.add_stylesheet(
-                device,
-                quirks_mode,
-                stylesheet,
-                index,
-                guard,
-                rebuild_kind,
-                /* precomputed_pseudo_element_decls = */ None,
-                if validity == DataValidity::Valid {
-                    Some(difference)
-                } else {
-                    None
-                },
-                &mut prev_sheet,
-            );
-            result.is_ok()
-        });
+        collection
+            .reborrow()
+            .each(|index, stylesheet, rebuild_kind, media_matches| {
+                result = self.add_stylesheet(
+                    device,
+                    quirks_mode,
+                    stylesheet,
+                    media_matches,
+                    index,
+                    guard,
+                    rebuild_kind,
+                    /* precomputed_pseudo_element_decls = */ None,
+                    if validity == DataValidity::Valid {
+                        Some(difference)
+                    } else {
+                        None
+                    },
+                    &mut prev_sheet,
+                );
+                result.is_ok()
+            });
 
+        if result.is_err() {
+            collection.invalidate_media_matches();
+        }
         self.did_finish_rebuild();
 
         // For DataValidity::Valid, we pass the difference down to `add_stylesheet` so that we
@@ -3900,14 +3922,15 @@ impl CascadeData {
         results: &mut Vec<MediaListKey>,
         contents_list: &mut StyleSheetContentList,
         custom_media_map: &mut CustomMediaMap,
-    ) where
+    ) -> bool
+    where
         S: StylesheetInDocument + 'static,
     {
         if !stylesheet.enabled() {
-            return;
+            return false;
         }
         if !stylesheet.is_effective_for_device(device, custom_media_map, guard) {
-            return;
+            return false;
         }
 
         debug!(" + {:?}", stylesheet);
@@ -3940,6 +3963,7 @@ impl CascadeData {
                 _ => {},
             }
         }
+        true
     }
 
     fn add_styles(
@@ -4605,6 +4629,7 @@ impl CascadeData {
         device: &Device,
         quirks_mode: QuirksMode,
         stylesheet: &S,
+        media_matches: &mut Option<bool>,
         sheet_index: usize,
         guard: &SharedRwLockReadGuard,
         rebuild_kind: SheetRebuildKind,
@@ -4615,18 +4640,14 @@ impl CascadeData {
     where
         S: StylesheetInDocument + 'static,
     {
-        if !stylesheet.enabled() {
-            return Ok(());
-        }
-
-        if !stylesheet.is_effective_for_device(device, &self.custom_media, guard) {
+        let effective = stylesheet.enabled()
+            && stylesheet.is_effective_for_device(device, &self.custom_media, guard);
+        *media_matches = Some(effective);
+        if !effective {
             return Ok(());
         }
 
         let contents = stylesheet.contents(guard);
-        if rebuild_kind.should_rebuild_invalidation() {
-            self.effective_media_query_results.saw_effective(contents);
-        }
 
         // Identical sheets share their parsed contents, so one that repeats its
         // predecessor adds the same rules to the selector maps a second time.
@@ -4660,6 +4681,7 @@ impl CascadeData {
     pub fn media_feature_affected_matches<S>(
         &self,
         stylesheet: &S,
+        effective_then: Option<bool>,
         guard: &SharedRwLockReadGuard,
         device: &Device,
         quirks_mode: QuirksMode,
@@ -4669,10 +4691,13 @@ impl CascadeData {
     {
         use crate::invalidation::media_queries::PotentiallyEffectiveMediaRules;
 
-        let effective_now = stylesheet.is_effective_for_device(device, &self.custom_media, guard);
+        let Some(effective_then) = effective_then else {
+            return false;
+        };
+        let effective_now = stylesheet.enabled()
+            && stylesheet.is_effective_for_device(device, &self.custom_media, guard);
 
         let contents = stylesheet.contents(guard);
-        let effective_then = self.effective_media_query_results.was_effective(contents);
 
         if effective_now != effective_then {
             debug!(

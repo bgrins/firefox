@@ -24,6 +24,9 @@ where
 
     /// Whether this sheet has been part of at least one flush.
     committed: bool,
+
+    /// Whether this particular sheet matched at its last rebuild.
+    media_matches: Option<bool>,
 }
 
 impl<S> StylesheetSetEntry<S>
@@ -34,6 +37,7 @@ where
         Self {
             sheet,
             committed: false,
+            media_matches: None,
         }
     }
 }
@@ -128,6 +132,29 @@ where
     pub fn sheets(&self) -> impl Iterator<Item = &S> {
         self.entries.iter().map(|entry| &entry.sheet)
     }
+
+    /// Reborrows a flusher so failures can invalidate its media snapshots.
+    pub fn reborrow(&mut self) -> SheetCollectionFlusher<'_, S> {
+        SheetCollectionFlusher {
+            entries: self.entries,
+            validity: self.validity,
+            dirty: self.dirty,
+        }
+    }
+
+    /// Invalidates snapshots when no complete replacement data was selected.
+    pub fn invalidate_media_matches(&mut self) {
+        for entry in self.entries.iter_mut() {
+            entry.media_matches = None;
+        }
+    }
+
+    /// Iterates sheets with their collection-local media result.
+    pub fn sheets_with_media_matches(&mut self) -> impl Iterator<Item = (&S, &mut Option<bool>)> {
+        self.entries
+            .iter_mut()
+            .map(|entry| (&entry.sheet, &mut entry.media_matches))
+    }
 }
 
 impl<'a, S> SheetCollectionFlusher<'a, S>
@@ -141,7 +168,10 @@ where
     ///
     /// Since we don't have a good use-case for partial iteration, this does the
     /// trick for now.
-    pub fn each(self, mut callback: impl FnMut(usize, &S, SheetRebuildKind) -> bool) {
+    pub fn each(
+        self,
+        mut callback: impl FnMut(usize, &S, SheetRebuildKind, &mut Option<bool>) -> bool,
+    ) {
         for (index, potential_sheet) in self.entries.iter_mut().enumerate() {
             let committed = mem::replace(&mut potential_sheet.committed, true);
             let rebuild_kind = if !committed {
@@ -156,7 +186,12 @@ where
                 }
             };
 
-            if !callback(index, &potential_sheet.sheet, rebuild_kind) {
+            if !callback(
+                index,
+                &potential_sheet.sheet,
+                rebuild_kind,
+                &mut potential_sheet.media_matches,
+            ) {
                 return;
             }
         }
@@ -289,6 +324,10 @@ where
     /// Returns an iterator over the current list of stylesheets.
     fn iter(&self) -> impl Iterator<Item = &S> {
         self.entries.iter().map(|e| &e.sheet)
+    }
+
+    fn iter_with_media_matches(&self) -> impl Iterator<Item = (&S, Option<bool>)> {
+        self.entries.iter().map(|e| (&e.sheet, e.media_matches))
     }
 
     /// Returns a mutable iterator over the current list of stylesheets.
@@ -574,6 +613,13 @@ where
             .flat_map(|(c, o)| c.iter().map(move |s| (s, o)))
     }
 
+    /// Iterates sheets with their collection-local media result and origin.
+    pub fn iter_with_media_matches(&self) -> impl Iterator<Item = (&S, Option<bool>, Origin)> {
+        self.collections
+            .iter_origins()
+            .flat_map(|(c, o)| c.iter_with_media_matches().map(move |(s, m)| (s, m, o)))
+    }
+
     /// Return an iterator over the flattened view of all the stylesheets, mutably.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&mut S, Origin)> {
         self.collections
@@ -666,6 +712,11 @@ where
     /// Iterate over the list of stylesheets.
     pub fn iter(&self) -> impl Iterator<Item = &S> {
         self.collection.iter()
+    }
+
+    /// Iterates sheets with their collection-local media result.
+    pub fn iter_with_media_matches(&self) -> impl Iterator<Item = (&S, Option<bool>)> {
+        self.collection.iter_with_media_matches()
     }
 
     /// Returns a mutable iterator over the current list of stylesheets.

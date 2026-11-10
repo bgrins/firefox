@@ -1,0 +1,82 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Media changes apply independently to links sharing stylesheet contents</title>
+<link rel="help" href="https://html.spec.whatwg.org/multipage/semantics.html#processing-the-media-attribute">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#cascade-sort">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+async function observe(t, scope, kind) {
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "width:200px;height:100px;border:0";
+  frame.srcdoc = "<!doctype html><body>";
+  const loaded = new Promise(resolve => { frame.onload = resolve; });
+  document.body.appendChild(frame);
+  t.add_cleanup(() => frame.remove());
+  await loaded;
+  const win = frame.contentWindow;
+  const doc = win.document;
+  const container = scope === "shadow" ? doc.body.attachShadow({mode: "open"}) : doc.body;
+  const target = doc.createElement("div");
+  target.id = "target";
+  target.textContent = "target";
+  container.appendChild(target);
+  const href = new URL(`resources/shared-sheet-media.css?scope=${scope}&kind=${kind}`, location.href).href;
+  const links = [];
+  const addLink = (url, media) => new Promise((resolve, reject) => {
+    const link = doc.createElement("link");
+    link.rel = "stylesheet";
+    link.href = url;
+    link.media = media;
+    link.onload = resolve;
+    link.onerror = () => reject(new Error("Stylesheet load failed"));
+    links.push(link);
+    container.appendChild(link);
+  });
+  if (kind !== "single") {
+    await addLink(href, "all");
+  }
+  const separator = doc.createElement("style");
+  separator.textContent = "#target { color: rgb(255, 0, 0); width: 23px; }";
+  container.appendChild(separator);
+  await addLink(kind === "unique" ? `${href}&second=1` : href, "(min-width: 250px)");
+  assert_equals(links.length, kind === "single" ? 1 : 2, "Setup: expected link count");
+  assert_equals(separator.nextElementSibling, links[links.length - 1], "Setup: conditional link follows separator");
+  if (kind !== "single") {
+    assert_equals(separator.previousElementSibling, links[0], "Setup: first link precedes separator");
+    assert_equals(links[0].href === links[1].href, kind === "shared", "Setup: stylesheet URL identity");
+  }
+  const rows = [];
+  for (const width of [200, 300, 200, 300]) {
+    frame.style.width = `${width}px`;
+    frame.getBoundingClientRect();
+    await new Promise(resolve => win.requestAnimationFrame(() => win.requestAnimationFrame(resolve)));
+    const computed = win.getComputedStyle(target);
+    rows.push({viewport: win.innerWidth, matches: win.matchMedia("(min-width: 250px)").matches,
+      color: computed.color, width: computed.width});
+  }
+  return rows;
+}
+
+for (const scope of ["document", "shadow"]) {
+  for (const kind of ["shared", "unique", "single"]) {
+    promise_test(async t => {
+      const rows = await observe(t, scope, kind);
+      for (const [index, width] of [200, 300, 200, 300].entries()) {
+        assert_equals(rows[index].viewport, width, `Setup: viewport at step ${index}`);
+        assert_equals(rows[index].matches, width === 300, `Setup: media match at step ${index}`);
+      }
+      assert_equals(rows[0].color, "rgb(255, 0, 0)", "Setup: separator color before activation");
+      assert_equals(rows[0].width, "23px", "Setup: separator width before activation");
+      for (let index = 1; index < rows.length; index++) {
+        const active = index !== 2;
+        assert_equals(rows[index].color, active ? "rgb(0, 0, 255)" : "rgb(255, 0, 0)",
+          `Stylesheet applicability color at step ${index}`);
+        assert_equals(rows[index].width, active ? "42px" : "23px",
+          `Stylesheet applicability width at step ${index}`);
+      }
+    }, `${scope}: ${kind} stylesheet URL media activation, deactivation and reactivation`);
+  }
+}
+</script>

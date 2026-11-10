@@ -1,0 +1,151 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Shared stylesheet media snapshots follow collection histories</title>
+<link rel="help" href="https://html.spec.whatwg.org/multipage/semantics.html#processing-the-media-attribute">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#cascade-sort">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+window.sharedSheetHistoryObservations = [];
+
+async function fixture(t, width) {
+  const frame = document.createElement("iframe");
+  frame.style.cssText = `width:${width}px;height:100px;border:0`;
+  frame.srcdoc = "<!doctype html><body>";
+  const loaded = new Promise(resolve => { frame.onload = resolve; });
+  t.add_cleanup(() => frame.remove());
+  document.body.appendChild(frame);
+  await loaded;
+  return {frame, doc: frame.contentDocument, win: frame.contentWindow};
+}
+
+async function settle(env, width) {
+  if (width !== undefined) env.frame.style.width = `${width}px`;
+  env.frame.getBoundingClientRect();
+  await new Promise(resolve => env.win.requestAnimationFrame(() => env.win.requestAnimationFrame(resolve)));
+}
+
+function reinsertLoaded(link, mutate) {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      link.removeEventListener("load", loaded);
+      link.removeEventListener("error", failed);
+    };
+    const loaded = () => { cleanup(); resolve(); };
+    const failed = () => { cleanup(); reject(new Error("Setup: reinserted stylesheet failed to load")); };
+    link.addEventListener("load", loaded);
+    link.addEventListener("error", failed);
+    mutate();
+  });
+}
+
+function sample(env, target) {
+  const style = env.win.getComputedStyle(target);
+  return {color: style.color, width: style.width, viewport: env.win.innerWidth,
+    matches: env.win.matchMedia("(min-width: 250px)").matches};
+}
+
+function assertStyle(value, blue, label) {
+  assert_equals(value.color, blue ? "rgb(0, 0, 255)" : "rgb(255, 0, 0)", `${label}: color`);
+  assert_equals(value.width, blue ? "42px" : "23px", `${label}: width`);
+}
+
+async function collection(env, container, suffix) {
+  const target = env.doc.createElement("div");
+  target.id = "target";
+  target.textContent = "target";
+  container.appendChild(target);
+  const blue = new URL(`resources/shared-sheet-history-blue.css?${suffix}`, location.href).href;
+  const red = new URL(`resources/shared-sheet-history-red.css?${suffix}`, location.href).href;
+  const add = (href, media) => new Promise((resolve, reject) => {
+    const link = env.doc.createElement("link");
+    link.rel = "stylesheet";
+    link.href = href;
+    link.media = media;
+    link.onload = () => resolve(link);
+    link.onerror = () => reject(new Error("Setup: stylesheet resource failed to load"));
+    container.appendChild(link);
+  });
+  const first = await add(blue, "all");
+  assertStyle(sample(env, target), true, "Setup: blue resource");
+  const separator = await add(red, "all");
+  assertStyle(sample(env, target), false, "Setup: red resource and source order");
+  const conditional = await add(blue, "(min-width: 250px)");
+  assert_equals(first.href, conditional.href, "Setup: duplicate resource URL");
+  assert_equals(first.nextElementSibling, separator, "Setup: separator follows first link");
+  assert_equals(separator.nextElementSibling, conditional, "Setup: conditional follows separator");
+  return {target, first, separator, conditional, add, blue};
+}
+
+promise_test(async t => {
+  const env = await fixture(t, 300);
+  const sheets = await collection(env, env.doc.body, "mutation");
+  const rows = [];
+  async function record(step, expected, width) {
+    await settle(env, width);
+    rows.push({step, expected, ...sample(env, sheets.target)});
+  }
+  await record("initial wide", true);
+  await reinsertLoaded(sheets.conditional, () => env.doc.body.insertBefore(sheets.conditional, sheets.separator));
+  await record("move before separator", false);
+  await reinsertLoaded(sheets.conditional, () => env.doc.body.appendChild(sheets.conditional));
+  await record("move after separator", true);
+  sheets.conditional.remove();
+  await record("remove conditional", false);
+  await reinsertLoaded(sheets.conditional, () => env.doc.body.appendChild(sheets.conditional));
+  await record("reinsert same conditional", true);
+  await record("narrow after reinsertion", false, 200);
+  await record("wide after reinsertion", true, 300);
+  window.sharedSheetHistoryObservations.push({kind: "wrapper mutation", rows});
+  assert_equals(sheets.conditional.href, sheets.first.href, "Setup: reinsertion preserves resource identity");
+  for (const [index, row] of rows.entries()) {
+    assert_equals(row.viewport, index === 5 ? 200 : 300, `${row.step}: viewport calibration`);
+    assert_equals(row.matches, index !== 5, `${row.step}: media calibration`);
+  }
+  for (const row of rows) assertStyle(row, row.expected, row.step);
+}, "Shared wrapper move, remove, reinsert and later media transition");
+
+promise_test(async t => {
+  const env = await fixture(t, 200);
+  const roots = [];
+  for (let i = 0; i < 2; i++) {
+    const host = env.doc.createElement("div");
+    env.doc.body.appendChild(host);
+    roots.push(host.attachShadow({mode: "open"}));
+  }
+  const first = await collection(env, roots[0], "simultaneous");
+  await settle(env);
+  const second = await collection(env, roots[1], "simultaneous");
+  assert_equals(first.first.href, second.first.href, "Setup: roots share blue resource URL");
+  assert_equals(first.separator.href, second.separator.href, "Setup: roots share red resource URL");
+  assert_not_equals(first.conditional, second.conditional, "Setup: wrappers remain distinct");
+  const rows = [];
+  async function record(step, expected, width) {
+    await settle(env, width);
+    rows.push({step, expected, values: [sample(env, first.target), sample(env, second.target)]});
+  }
+  await record("both initially narrow", [false, false]);
+  await record("both wide", [true, true], 300);
+  const appended = await second.add(second.blue, "not all");
+  assert_equals(appended.previousElementSibling, second.conditional, "Setup: inactive link appended last");
+  assert_equals(appended.media, "not all", "Setup: appended link is inactive");
+  await record("inactive append to second root", [true, true]);
+  await record("both narrow after append", [false, false], 200);
+  await record("both wide after append", [true, true], 300);
+  second.conditional.media = "not all";
+  await record("second wrapper inactive", [true, false]);
+  second.conditional.media = "(min-width: 250px)";
+  await record("second wrapper restored", [true, true]);
+  window.sharedSheetHistoryObservations.push({kind: "simultaneous shadows", rows});
+  for (const [index, row] of rows.entries()) {
+    for (const value of row.values) {
+      assert_equals(value.viewport, index === 0 || index === 3 ? 200 : 300, `${row.step}: viewport calibration`);
+      assert_equals(value.matches, index !== 0 && index !== 3, `${row.step}: media calibration`);
+    }
+  }
+  for (const row of rows) {
+    row.values.forEach((value, i) => assertStyle(value, row.expected[i], `${row.step}: root ${i}`));
+  }
+}, "Simultaneous shared shadow collections retain media behavior after inactive append");
+</script>

@@ -1964,14 +1964,19 @@ pub unsafe extern "C" fn Servo_StyleSet_MediumFeaturesChanged(
 
     let mut affects_non_document_rules = false;
     for author_styles in &mut **non_document_styles {
-        let affected_style = author_styles.stylesheets.iter().any(|sheet| {
-            !author_styles.data.media_feature_affected_matches(
-                sheet,
-                &guards.author,
-                document_data.stylist.device(),
-                document_data.stylist.quirks_mode(),
-            )
-        });
+        let affected_style =
+            author_styles
+                .stylesheets
+                .iter_with_media_matches()
+                .any(|(sheet, media_matches)| {
+                    !author_styles.data.media_feature_affected_matches(
+                        sheet,
+                        media_matches,
+                        &guards.author,
+                        document_data.stylist.device(),
+                        document_data.stylist.quirks_mode(),
+                    )
+                });
         if affected_style {
             affects_non_document_rules = true;
             author_styles.stylesheets.force_dirty();
