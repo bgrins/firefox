@@ -1,0 +1,43 @@
+Laws.lean:26:58: error: unsolved goals
+case fallback
+environment : Environment
+destination : Destination
+expression✝ : Expression
+result✝ : Result
+name : Nat
+expression : Expression
+result : Result
+unavailable : ¬Allowed destination (environment name) ∨ (environment name).value = none
+nested : Derives environment destination expression result
+ih : evaluate environment destination expression = result
+⊢ none = result.value
+Laws.lean:43:8: error: Type mismatch: After simplification, term
+  Derives.fallback name expression (evaluate environment destination expression) unavailable
+    (evaluate_derives environment destination expression)
+ has type
+  Derives environment destination (Expression.reference name (some expression))
+    { value := (evaluate environment destination expression).value,
+      reads := name :: (evaluate environment destination expression).reads }
+but is expected to have type
+  Derives environment destination (Expression.reference name (some expression))
+    { value := none, reads := name :: (evaluate environment destination expression).reads }
+Laws.lean:47:0: warning: unused `termination_by`, function is not recursive
+Laws.lean:81:46: error: unsolved goals
+environment : Environment
+name : Nat
+expression : Expression
+tainted : (environment name).animationTainted = true
+⊢ none = (evaluate environment Destination.nonanimatable expression).value
+Laws.lean:106:5: warning: Variable name `failure` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _failure
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+Laws.lean:108:56: warning: This simp argument is unused:
+  failure
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [evaluate, (available_none _ _).mpr unavailable]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

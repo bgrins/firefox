@@ -1,0 +1,226 @@
+[
+  {
+    "id": "publication-level",
+    "source": "servo/components/style/gecko/wrapper.rs",
+    "symbol": "get_animation_rule",
+    "start": 988,
+    "end": 1009,
+    "text": "fn get_animation_rule(\n    element: &GeckoElement,\n    cascade_level: CascadeLevel,\n) -> Option<Arc<Locked<PropertyDeclarationBlock>>> {\n    // There's a very rough correlation between the number of effects\n    // (animations) on an element and the number of properties it is likely to\n    // animate, so we use that as an initial guess for the size of the\n    // AnimationValueMap in order to reduce the number of re-allocations needed.\n    let effect_count = unsafe { Gecko_GetAnimationEffectCount(element.0) };\n    // Also, we should try to reuse the PDB, to avoid creating extra rule nodes.\n    let mut animation_values = AnimationValueMap::with_capacity_and_hasher(\n        effect_count.min(crate::properties::property_counts::ANIMATABLE),\n        Default::default(),\n    );\n    if unsafe { Gecko_GetAnimationRule(element.0, cascade_level, &mut animation_values) } {\n        let shared_lock = &GLOBAL_STYLE_DATA.shared_lock;\n        Some(Arc::new(shared_lock.wrap(\n            PropertyDeclarationBlock::from_animation_value_map(&animation_values),\n        )))\n    } else {\n        None\n    }\n"
+  },
+  {
+    "id": "publication-uncompute",
+    "source": "servo/components/style/properties/declaration_block.rs",
+    "symbol": "PropertyDeclarationBlock::from_animation_value_map",
+    "start": 1045,
+    "end": 1062,
+    "text": "    /// Convert AnimationValueMap to PropertyDeclarationBlock.\n    pub fn from_animation_value_map(animation_value_map: &AnimationValueMap) -> Self {\n        let len = animation_value_map.len();\n        let mut declarations = ThinVec::with_capacity(len);\n        let mut property_ids = PropertyDeclarationIdSet::default();\n\n        for (property, animation_value) in animation_value_map.iter() {\n            property_ids.insert(property.as_borrowed());\n            declarations.push(animation_value.uncompute());\n        }\n\n        PropertyDeclarationBlock {\n            declarations,\n            property_ids,\n            declarations_importance: SmallBitVec::from_elem(len, false),\n            immutable: AtomicBool::new(false),\n        }\n    }\n"
+  },
+  {
+    "id": "custom-uncompute",
+    "source": "servo/components/style/properties/helpers/animated_properties.mako.rs",
+    "symbol": "AnimationValue::uncompute",
+    "start": 250,
+    "end": 257,
+    "text": "            % endfor\n            ${\" |\\n\".join(\"{}(void)\".format(prop.camel_case) for prop in unanimated)} => {\n                void::unreachable(void)\n            },\n            Custom(ref animated_value) => animated_value.to_declaration(),\n        }\n    }\n\n"
+  },
+  {
+    "id": "generic-uncompute-api",
+    "source": "servo/ports/geckolib/glue.rs",
+    "symbol": "Servo_AnimationValue_Uncompute",
+    "start": 1019,
+    "end": 1033,
+    "text": "#[unsafe(no_mangle)]\npub extern \"C\" fn Servo_AnimationValue_Uncompute(\n    value: &AnimationValue,\n) -> Strong<LockedDeclarationBlock> {\n    let global_style_data = &*GLOBAL_STYLE_DATA;\n    Arc::new(\n        global_style_data\n            .shared_lock\n            .wrap(PropertyDeclarationBlock::with_one(\n                value.uncompute(),\n                Importance::Normal,\n            )),\n    )\n    .into()\n}\n"
+  },
+  {
+    "id": "typed-keyframe-builder",
+    "source": "servo/ports/geckolib/glue.rs",
+    "symbol": "Servo_GetComputedKeyframeValues",
+    "start": 7583,
+    "end": 7613,
+    "text": "        let mut seen = PropertyDeclarationIdSet::default();\n        let mut iter = PrioritizedPropertyIter::new(&keyframe.mPropertyValues);\n\n        // FIXME (bug 1883255): This is pretty much a hack. Instead, the AnimatedValue should be\n        // better integrated in the cascade.\n        {\n            let mut builder = KeyframeCustomPropertiesBuilder::new(\n                &data.stylist,\n                &mut context,\n                style.custom_properties().clone(),\n            );\n            let priority = CascadePriority::same_tree_author_normal_at_root_layer();\n            for property in &mut iter {\n                let is_custom = match PropertyId::from_gecko_css_property_id(&property.mProperty) {\n                    Some(PropertyId::Custom(..)) => true,\n                    _ => false,\n                };\n                if !is_custom {\n                    break; // Custom props are guaranteed to sort earlier.\n                }\n                if property.mServoDeclarationBlock.mRawPtr.is_null() {\n                    continue;\n                }\n                let declarations = unsafe { &*property.mServoDeclarationBlock.mRawPtr };\n                let guard = declarations.read_with(&guard);\n                for decl in guard.normal_declaration_iter() {\n                    if let PropertyDeclaration::Custom(ref declaration) = *decl {\n                        builder.cascade(&mut context, declaration, priority);\n                    }\n                }\n            }\n"
+  },
+  {
+    "id": "typed-keyframe-bypass",
+    "source": "servo/ports/geckolib/glue.rs",
+    "symbol": "Servo_GetComputedKeyframeValues",
+    "start": 7684,
+    "end": 7703,
+    "text": "            let declarations = unsafe { &*property.mServoDeclarationBlock.mRawPtr };\n            let guard = declarations.read_with(&guard);\n            for declaration in guard.normal_declaration_iter() {\n                if let PropertyDeclaration::Custom(custom) = declaration\n                    && matches!(custom.value, CustomDeclarationValue::Unparsed(_))\n                {\n                    let registration = data.stylist.get_custom_property_registration(&custom.name);\n                    if !registration.is_universal() {\n                        let value = context\n                            .builder\n                            .custom_properties()\n                            .get(registration, &custom.name);\n                        let value = AnimationValue::Custom(CustomAnimatedValue::from_computed(\n                            &custom.name,\n                            value,\n                        ));\n                        maybe_append_animation_value(value.id(), Some(value.clone()));\n                        continue;\n                    }\n                }\n"
+  },
+  {
+    "id": "keyframe-resolution",
+    "source": "servo/components/style/properties/cascade.rs",
+    "symbol": "KeyframeCustomPropertiesBuilder::build",
+    "start": 851,
+    "end": 863,
+    "text": "    /// Resolves the cascaded custom properties into `context.builder.substitution_functions`.\n    pub fn build(\n        mut self,\n        context: &mut computed::Context,\n        attribute_tracker: &mut AttributeTracker,\n    ) {\n        self.cascade.apply_custom_and_prioritary_properties(\n            context,\n            &self.decls,\n            &mut self.shorthand_cache,\n            attribute_tracker,\n        );\n    }\n"
+  },
+  {
+    "id": "custom-animation-constructors",
+    "source": "servo/components/style/properties_and_values/value.rs",
+    "symbol": "CustomAnimatedValue::from_computed / from_declaration",
+    "start": 736,
+    "end": 782,
+    "text": "impl CustomAnimatedValue {\n    /// Construct an animation value with the computed value of this custom property.\n    pub fn from_computed(\n        name: &crate::custom_properties::Name,\n        value: Option<&ComputedValue>,\n    ) -> Self {\n        Self {\n            name: name.clone(),\n            value: value.cloned(),\n        }\n    }\n\n    pub(crate) fn from_declaration(\n        declaration: &properties::CustomDeclaration,\n        context: &mut computed::Context,\n    ) -> Option<Self> {\n        let computed_value = match declaration.value {\n            properties::CustomDeclarationValue::GuaranteedInvalid => None,\n            properties::CustomDeclarationValue::Unparsed(ref value) => Some({\n                debug_assert!(\n                    context.builder.stylist.is_some(),\n                    \"Need a Stylist to get property registration!\"\n                );\n                let registration = context\n                    .builder\n                    .stylist\n                    .unwrap()\n                    .get_custom_property_registration(&declaration.name);\n                if registration.is_universal() {\n                    // FIXME: Do we need to perform substitution here somehow?\n                    ComputedValue::universal(Arc::clone(value))\n                } else {\n                    let mut input = CSSParser::new(&value.css);\n                    SpecifiedValue::compute(\n                        &mut input,\n                        registration,\n                        None,\n                        &value.url_data,\n                        context,\n                        AllowComputationallyDependent::Yes,\n                        /* attr_taint */ Default::default(),\n                        Some(PropertyIdRef::from(&declaration.name)),\n                    )\n                    .unwrap_or_else(|_| ComputedValue::universal(Arc::clone(value)))\n                }\n            }),\n            properties::CustomDeclarationValue::Parsed(ref v) => Some(v.to_computed_value(context)),\n"
+  },
+  {
+    "id": "custom-declaration-roundtrip",
+    "source": "servo/components/style/properties_and_values/value.rs",
+    "symbol": "CustomAnimatedValue::to_declaration",
+    "start": 828,
+    "end": 841,
+    "text": "    /// Whether the computed endpoint is attribute-tainted.\n    pub fn is_attr_tainted(&self) -> bool {\n        self.value.as_ref().is_some_and(|value| value.attr_tainted)\n    }\n\n    pub(crate) fn to_declaration(&self) -> properties::PropertyDeclaration {\n        properties::PropertyDeclaration::Custom(properties::CustomDeclaration {\n            name: self.name.clone(),\n            value: match &self.value {\n                Some(value) => value.to_declared_value(),\n                None => CustomDeclarationValue::GuaranteedInvalid,\n            },\n        })\n    }\n"
+  },
+  {
+    "id": "computed-taint-roundtrip",
+    "source": "servo/components/style/properties_and_values/value.rs",
+    "symbol": "ComputedValue::to_declared_value",
+    "start": 445,
+    "end": 466,
+    "text": "impl ComputedValue {\n    /// Uncomputes the value so that it can go back into the cascade.\n    pub fn to_declared_value(&self) -> properties::CustomDeclarationValue {\n        if let ValueInner::Universal(ref var) = self.v {\n            // The attr()-taint of the wrapper must survive the round-trip through the declared\n            // value, otherwise re-cascading the reference-free inner value\n            // would launder the taint and allow attribute-derived URLs to be fetched.\n            // This is necessary because we currently reimplement the cascade for animations in\n            // Servo_GetComputedKeyframeValues. We should instead just use the 'normal' path for\n            // animated values. For more information see Bug 1883255.\n            // https://drafts.csswg.org/css-values-5/#attr-security\n            if self.attr_tainted && !var.is_attr_tainted() {\n                let mut tainted = (**var).clone();\n                tainted.explicitly_attr_tainted = true;\n                return properties::CustomDeclarationValue::Unparsed(Arc::new(tainted));\n            }\n            return properties::CustomDeclarationValue::Unparsed(Arc::clone(var));\n        }\n        properties::CustomDeclarationValue::Parsed(Arc::new(ToComputedValue::from_computed_value(\n            self,\n        )))\n    }\n"
+  },
+  {
+    "id": "interpolation-equality",
+    "source": "servo/components/style/properties_and_values/value.rs",
+    "symbol": "Value::eq / animate",
+    "start": 218,
+    "end": 233,
+    "text": "impl<Component: PartialEq> PartialEq for Value<Component> {\n    // Ignore the url_data and tainting fields when comparing values for equality.\n    fn eq(&self, other: &Self) -> bool {\n        self.v == other.v\n    }\n}\n\nimpl<Component: Animate> Animate for Value<Component> {\n    fn animate(&self, other: &Self, procedure: Procedure) -> Result<Self, ()> {\n        let v = self.v.animate(&other.v, procedure)?;\n        Ok(Value {\n            v,\n            url_data: self.url_data.clone(),\n            attr_tainted: self.attr_tainted || other.attr_tainted,\n        })\n    }\n"
+  },
+  {
+    "id": "map-semantic-equality",
+    "source": "servo/components/style/custom_properties_map.rs",
+    "symbol": "can_deduplicate_values",
+    "start": 86,
+    "end": 101,
+    "text": "#[inline]\nfn can_deduplicate_values(\n    a: Option<&ComputedRegisteredValue>,\n    b: Option<&ComputedRegisteredValue>,\n) -> bool {\n    match (a, b) {\n        (Some(a), Some(b)) => {\n            // TODO(emilio): Seems we should compare `url_data` as well? It doesn't seem to matter\n            // much in practice since url values would be already-computed against the right base\n            // URI here, I think...\n            a == b && a.attr_tainted == b.attr_tainted\n        },\n        (None, None) => true,\n        _ => false,\n    }\n}\n"
+  },
+  {
+    "id": "variable-text-equality",
+    "source": "servo/components/style/custom_properties.rs",
+    "symbol": "VariableValue::eq",
+    "start": 324,
+    "end": 331,
+    "text": "// For all purposes, we want values to be considered equal if their css text is equal.\nimpl PartialEq for VariableValue {\n    fn eq(&self, other: &Self) -> bool {\n        self.css == other.css\n    }\n}\n\nimpl Eq for VariableValue {}\n"
+  },
+  {
+    "id": "cascade-selection",
+    "source": "servo/components/style/properties/cascade.rs",
+    "symbol": "Cascade::cascade_custom_property",
+    "start": 1964,
+    "end": 1995,
+    "text": "    fn cascade_custom_property(\n        &mut self,\n        context: &mut computed::Context,\n        declaration: &'a CustomDeclaration,\n        priority: CascadePriority,\n    ) {\n        let CustomDeclaration {\n            ref name,\n            ref value,\n        } = *declaration;\n\n        if let Some(reverted) = self.reverted.custom.get(name)\n            && !reverted.allows(&priority)\n        {\n            return;\n        }\n\n        if !(priority.flags() - context.included_cascade_flags).is_empty() {\n            return;\n        }\n\n        let entry = match self.seen.custom.var.entry(name) {\n            Entry::Occupied(..) => return,\n            Entry::Vacant(v) => v,\n        };\n\n        let registration = self.stylist.get_custom_property_registration(name);\n        let initial_values = self.stylist.get_custom_property_initial_values();\n        if !Self::value_may_affect_style(context, name, registration, initial_values, value) {\n            entry.insert(false);\n            return;\n        }\n"
+  },
+  {
+    "id": "cascade-direct-paths",
+    "source": "servo/components/style/properties/cascade.rs",
+    "symbol": "Cascade::cascade_custom_property",
+    "start": 2025,
+    "end": 2060,
+    "text": "        match value {\n            CustomDeclarationValue::GuaranteedInvalid => {\n                context\n                    .builder\n                    .substitution_functions\n                    .remove_var(registration, name);\n            },\n            CustomDeclarationValue::Unparsed(unparsed_value) => {\n                if !has_references {\n                    // If the variable value has no references to other properties, perform\n                    // substitution here instead of forcing a full traversal in `substitute_all`\n                    // afterwards.\n                    substitute_references_if_needed_and_apply(\n                        name,\n                        None,\n                        unparsed_value,\n                        self.stylist,\n                        context,\n                        // We just checked there are no attr dependencies.\n                        &mut AttributeTracker::new_dummy(),\n                    );\n                    return;\n                }\n                let value = ComputedRegisteredValue::universal(Arc::clone(unparsed_value));\n                context\n                    .builder\n                    .substitution_functions\n                    .insert_var(registration, name, value);\n            },\n            CustomDeclarationValue::Parsed(parsed_value) => {\n                let value = parsed_value.to_computed_value(context);\n                context\n                    .builder\n                    .substitution_functions\n                    .insert_var(registration, name, value);\n            },\n"
+  },
+  {
+    "id": "reference-free-fast-path",
+    "source": "servo/components/style/custom_properties.rs",
+    "symbol": "substitute_references_if_needed_and_apply",
+    "start": 1657,
+    "end": 1687,
+    "text": "/// Replace `var()`, `env()`, and `attr()` functions in a pre-existing variable value.\npub fn substitute_references_if_needed_and_apply(\n    name: &Name,\n    namespace: Option<&Namespace>,\n    value: &Arc<VariableValue>,\n    stylist: &Stylist,\n    context: &mut computed::Context,\n    attribute_tracker: &mut AttributeTracker,\n) {\n    let is_var = namespace.is_none();\n    let registration = stylist.get_custom_property_registration(name);\n    if is_var && !value.has_references() && registration.is_universal() {\n        // Trivial path: no references and no need to compute the value, just apply it directly.\n        let computed_value = ComputedRegisteredValue::universal(Arc::clone(value));\n        context\n            .builder\n            .substitution_functions\n            .insert_var(registration, name, computed_value);\n        return;\n    }\n\n    let url_data = &value.url_data;\n    apply_substituted_value(\n        name,\n        namespace,\n        url_data,\n        SubstitutionInput::Unresolved(value, attribute_tracker),\n        stylist,\n        context,\n    );\n}\n"
+  },
+  {
+    "id": "destination-identity",
+    "source": "servo/components/style/properties/mod.rs",
+    "symbol": "UnparsedValue::substitution_property_id",
+    "start": 1593,
+    "end": 1600,
+    "text": "impl UnparsedValue {\n    pub(crate) fn substitution_property_id(&self, longhand_id: LonghandId) -> PropertyIdRef<'static> {\n        PropertyIdRef::from(match self.from_shorthand {\n            Some(shorthand_id) => NonCustomPropertyId::from(shorthand_id),\n            None => NonCustomPropertyId::from(longhand_id),\n        })\n    }\n}\n"
+  },
+  {
+    "id": "destination-substitution",
+    "source": "servo/components/style/properties/mod.rs",
+    "symbol": "VariableDeclaration::substitute_variables",
+    "start": 1675,
+    "end": 1687,
+    "text": "        let property_id = unparsed.substitution_property_id(longhand_id);\n\n        let SubstitutionResult { css, attr_taint } = match custom_properties::substitute(\n            &unparsed.variable_value,\n            Some(property_id),\n            substitution_functions,\n            stylist,\n            computed_context,\n            attribute_tracker,\n        ) {\n            Ok(css) => css,\n            Err(..) => return invalid_at_computed_value_time(),\n        };\n"
+  },
+  {
+    "id": "var-resolution",
+    "source": "servo/components/style/custom_properties.rs",
+    "symbol": "substitute_one_reference",
+    "start": 2220,
+    "end": 2265,
+    "text": "    let substitution: Option<_> = match reference.substitution_kind {\n        SubstitutionFunctionKind::Var => {\n            let registration = stylist.get_custom_property_registration(&reference.name);\n            match substitution_functions.get_var(registration, &reference.name) {\n                None => None,\n                // If the referenced value is itself still unresolved (i.e. it has references), we\n                // are substituting against a partially-resolved map -- this happens while applying\n                // a prioritary property in the middle of custom-property resolution. Resolve it\n                // recursively, guarding against cycles (which the resolver will also remove, but it\n                // may not have gotten to this variable yet).\n                Some(v) => match v.as_universal() {\n                    Some(u) if u.has_references() => {\n                        if seen.contains(&&reference.name) {\n                            // Cycle: the primary is guaranteed-invalid, so fall through to the\n                            // fallback (if any), like any other invalid primary.\n                            None\n                        } else {\n                            seen.push(&reference.name);\n                            let result = substitute_internal(\n                                u,\n                                property_id,\n                                substitution_functions,\n                                stylist,\n                                computed_context,\n                                attribute_tracker,\n                                seen,\n                                /* attr_taint */ None,\n                            );\n                            seen.pop();\n                            match result {\n                                Ok(mut substitution) => {\n                                    substitution.attr_tainted |= v.attr_tainted;\n                                    Some(substitution)\n                                },\n                                // The primary couldn't be resolved (invalid); use the fallback.\n                                Err(()) => None,\n                            }\n                        }\n                    },\n                    _ => Some(Substitution::from_value(\n                        v.to_variable_value(),\n                        v.attr_tainted,\n                    )),\n                },\n            }\n        },\n"
+  },
+  {
+    "id": "fallback-selection",
+    "source": "servo/components/style/custom_properties.rs",
+    "symbol": "substitute_one_reference",
+    "start": 2353,
+    "end": 2380,
+    "text": "    };\n\n    if let Some(s) = substitution {\n        return Ok(s);\n    }\n\n    let Some(ref fallback) = reference.fallback else {\n        return Err(());\n    };\n\n    let mut substitution = do_substitute_chunk(\n        css,\n        fallback.start.get(),\n        reference.end - 1, // Skip the closing parenthesis of the reference value.\n        fallback.first_token_type,\n        fallback.last_token_type,\n        url_data,\n        property_id,\n        substitution_functions,\n        stylist,\n        computed_context,\n        &fallback.references.refs,\n        attribute_tracker,\n        seen,\n        /* attr_taint */ None,\n    )?;\n    substitution.attr_tainted |= reference.substitution_kind == SubstitutionFunctionKind::Attr;\n    Ok(substitution)\n"
+  },
+  {
+    "id": "substitution-concatenation",
+    "source": "servo/components/style/custom_properties.rs",
+    "symbol": "do_substitute_chunk",
+    "start": 2163,
+    "end": 2193,
+    "text": "        // Optimize the property: var(--...) case to avoid allocating at all.\n        if reference.start == start && reference.end == end {\n            if let Some(taint) = attr_taint.filter(|_| substitution.attr_tainted) {\n                taint.push(start, substitution.css.len());\n            }\n            return Ok(substitution);\n        }\n\n        substituted.push(\n            &substitution.css,\n            substitution.first_token_type,\n            substitution.last_token_type,\n            attr_taint\n                .as_deref_mut()\n                .filter(|_| substitution.attr_tainted),\n        )?;\n        attr_tainted |= substitution.attr_tainted;\n        next_token_type = reference.next_token_type;\n        cur_pos = reference.end;\n    }\n    // Push the rest of the value if needed.\n    if cur_pos != end {\n        substituted.push(\n            &css[cur_pos..end],\n            next_token_type,\n            last_token_type,\n            /* attr_taint */ None,\n        )?;\n    }\n    Ok(Substitution::from_value(substituted, attr_tainted))\n}\n"
+  },
+  {
+    "id": "substitution-explicit-taint",
+    "source": "servo/components/style/custom_properties.rs",
+    "symbol": "substitute_internal",
+    "start": 2383,
+    "end": 2412,
+    "text": "/// Replace `var()`, `env()`, and `attr()` functions. Return `Err(..)` for invalid at computed time.\nfn substitute_internal<'a>(\n    variable_value: &'a VariableValue,\n    property_id: Option<PropertyIdRef>,\n    substitution_functions: &'a ComputedSubstitutionFunctions,\n    stylist: &Stylist,\n    computed_context: &computed::Context,\n    attribute_tracker: &mut AttributeTracker,\n    seen: &mut SmallVec<[&'a Name; 8]>,\n    attr_taint: Option<&mut AttrTaint>,\n) -> Result<Substitution<'a>, ()> {\n    let mut substitution = do_substitute_chunk(\n        &variable_value.css,\n        /* start = */ 0,\n        /* end = */ variable_value.css.len(),\n        variable_value.first_token_type,\n        variable_value.last_token_type,\n        &variable_value.url_data,\n        property_id,\n        substitution_functions,\n        stylist,\n        computed_context,\n        &variable_value.references.refs,\n        attribute_tracker,\n        seen,\n        attr_taint,\n    )?;\n    substitution.attr_tainted |= variable_value.explicitly_attr_tainted;\n    Ok(substitution)\n}\n"
+  },
+  {
+    "id": "composition-origin",
+    "source": "dom/animation/EffectCompositor.cpp",
+    "symbol": "ComposeSortedEffects",
+    "start": 338,
+    "end": 386,
+    "text": "static void ComposeSortedEffects(\n    const nsTArray<KeyframeEffect*>& aSortedEffects,\n    const EffectSet* aEffectSet, EffectCompositor::CascadeLevel aCascadeLevel,\n    StyleAnimationValueMap* aAnimationValues,\n    dom::EndpointBehavior aEndpointBehavior =\n        dom::EndpointBehavior::Exclusive) {\n  const bool isTransition =\n      aCascadeLevel == EffectCompositor::CascadeLevel::Transitions;\n  // Transitions should be overridden by running animations of the same\n  // property per https://drafts.csswg.org/css-transitions/#application:\n  //\n  // > Implementations must add this value to the cascade if and only if that\n  // > property is not currently undergoing a CSS Animation on the same element.\n  //\n  InvertibleAnimatedPropertyIDSet propertiesToSkip;\n  AnimatedPropertyIDSet animatedProperties;\n\n  // FIXME(emilio, bug 1606176): This should assert that\n  // aEffectSet->PropertiesForAnimationsLevel() is up-to-date, and it may not\n  // follow the spec in those cases. There are various places where we get style\n  // without flushing that would trigger the below assertion.\n  //\n  // MOZ_ASSERT_IF(aEffectSet, !aEffectSet->CascadeNeedsUpdate());\n  if (aEffectSet) {\n    animatedProperties.AddProperties(\n        aEffectSet->PropertiesForAnimationsLevel());\n    // When CommitStyles is called and its endpoint-inclusive behavior is\n    // enabled, the animation that CommitStyles targets is already finished and\n    // so aEffectSet doesn't include it. But its properties still has to be\n    // included in propertiesToSkip. So its properties have to be added manually\n    // here.\n    if (aEndpointBehavior == dom::EndpointBehavior::Inclusive &&\n        aCascadeLevel == EffectCompositor::CascadeLevel::Animations) {\n      animatedProperties.AddProperties(\n          aSortedEffects.LastElement()->GetPropertySet());\n    }\n    // Note that we do invert the set on CascadeLevel::Animations because we\n    // don't want to skip those properties when composing the animation rule on\n    // CascadeLevel::Animations.\n    propertiesToSkip.Setup(&animatedProperties, !isTransition);\n  }\n\n  for (KeyframeEffect* effect : aSortedEffects) {\n    auto* animation = effect->GetAnimation();\n    MOZ_ASSERT(!isTransition || animation->CascadeLevel() == aCascadeLevel);\n    animation->ComposeStyle(*aAnimationValues, propertiesToSkip,\n                            aEndpointBehavior);\n  }\n}\n"
+  },
+  {
+    "id": "transition-underlying",
+    "source": "dom/animation/EffectCompositor.cpp",
+    "symbol": "EffectCompositor::GetServoAnimationRule",
+    "start": 402,
+    "end": 426,
+    "text": "  const bool isTransition = aCascadeLevel == CascadeLevel::Transitions;\n\n  // Get a list of effects sorted by composite order.\n  nsTArray<KeyframeEffect*> sortedEffectList(effectSet->Count());\n  for (KeyframeEffect* effect : *effectSet) {\n    if (isTransition &&\n        effect->GetAnimation()->CascadeLevel() != aCascadeLevel) {\n      // We may need to use transition rules for the animations level for the\n      // case of missing keyframes in animations, but we don't ever need to look\n      // at non-transition levels to build a transition rule. When the effect\n      // set information is out of date (see above), this avoids creating bogus\n      // transition rules, see bug 1605610.\n      continue;\n    }\n    sortedEffectList.AppendElement(effect);\n  }\n\n  if (sortedEffectList.IsEmpty()) {\n    return false;\n  }\n\n  sortedEffectList.Sort(EffectCompositeOrderComparator());\n\n  ComposeSortedEffects(sortedEffectList, effectSet, aCascadeLevel,\n                       aAnimationValues);\n"
+  },
+  {
+    "id": "base-css-type-query",
+    "source": "dom/animation/Animation.h",
+    "symbol": "Animation::AsCSSAnimation",
+    "start": 112,
+    "end": 120,
+    "text": "\n  virtual JSObject* WrapObject(JSContext* aCx,\n                               JS::Handle<JSObject*> aGivenProto) override;\n\n  virtual CSSAnimation* AsCSSAnimation() { return nullptr; }\n  virtual const CSSAnimation* AsCSSAnimation() const { return nullptr; }\n  virtual CSSTransition* AsCSSTransition() { return nullptr; }\n  virtual const CSSTransition* AsCSSTransition() const { return nullptr; }\n\n"
+  },
+  {
+    "id": "css-type-query",
+    "source": "dom/animation/CSSAnimation.h",
+    "symbol": "CSSAnimation::AsCSSAnimation",
+    "start": 29,
+    "end": 39,
+    "text": "    MOZ_ASSERT(mAnimationName != nsGkAtoms::_empty,\n               \"animation-name should not be 'none'\");\n  }\n\n  JSObject* WrapObject(JSContext* aCx,\n                       JS::Handle<JSObject*> aGivenProto) override;\n\n  CSSAnimation* AsCSSAnimation() override { return this; }\n  const CSSAnimation* AsCSSAnimation() const override { return this; }\n\n  // CSSAnimation interface\n"
+  },
+  {
+    "id": "cpp-composition-bridge",
+    "source": "dom/animation/KeyframeEffect.cpp",
+    "symbol": "KeyframeEffect::ComposeStyleRule",
+    "start": 653,
+    "end": 662,
+    "text": "void KeyframeEffect::ComposeStyleRule(StyleAnimationValueMap& aAnimationValues,\n                                      const AnimationProperty& aProperty,\n                                      const AnimationPropertySegment& aSegment,\n                                      const ComputedTiming& aComputedTiming) {\n  auto* opaqueTable =\n      reinterpret_cast<RawServoAnimationValueTable*>(&mBaseValues);\n  Servo_AnimationCompose(&aAnimationValues, opaqueTable, &aProperty.mProperty,\n                         &aSegment, &aProperty.mSegments.LastElement(),\n                         &aComputedTiming, mEffectOptions.mIterationComposite);\n}\n"
+  },
+  {
+    "id": "rust-composition-insertion",
+    "source": "servo/ports/geckolib/glue.rs",
+    "symbol": "Servo_AnimationCompose",
+    "start": 665,
+    "end": 731,
+    "text": "#[unsafe(no_mangle)]\npub extern \"C\" fn Servo_AnimationCompose(\n    value_map: &mut AnimationValueMap,\n    base_values: &structs::RawServoAnimationValueTable,\n    css_property: &structs::CSSPropertyId,\n    segment: &structs::AnimationPropertySegment,\n    last_segment: &structs::AnimationPropertySegment,\n    computed_timing: &structs::ComputedTiming,\n    iteration_composite: IterationCompositeOperation,\n) {\n    let property = match OwnedPropertyDeclarationId::from_gecko_css_property_id(css_property) {\n        Some(property) if property.as_borrowed().is_animatable() => property,\n        _ => return,\n    };\n\n    // We will need an underlying value if either of the endpoints is null...\n    let need_underlying_value = segment.mFromValue.mServo.mRawPtr.is_null() ||\n                                segment.mToValue.mServo.mRawPtr.is_null() ||\n                                // ... or if they have a non-replace composite mode ...\n                                segment.mFromComposite != CompositeOperation::Replace ||\n                                segment.mToComposite != CompositeOperation::Replace ||\n                                // ... or if we accumulate onto the last value and it is null.\n                                (iteration_composite == IterationCompositeOperation::Accumulate &&\n                                 computed_timing.mCurrentIterationForAccumulation > 0 &&\n                                 last_segment.mToValue.mServo.mRawPtr.is_null());\n\n    // If either of the segment endpoints are null, get the underlying value to\n    // use from the current value in the values map (set by a lower-priority\n    // effect), or, if there is no current value, look up the cached base value\n    // for this property.\n    let underlying_value = if need_underlying_value {\n        let previous_composed_value = value_map.get(&property).map(|v| &*v);\n        previous_composed_value.or_else(|| unsafe {\n            bindings::Gecko_AnimationGetBaseStyle(base_values, css_property).as_ref()\n        })\n    } else {\n        None\n    };\n\n    if need_underlying_value && underlying_value.is_none() {\n        warn!(\"Underlying value should be valid when we expect to use it\");\n        return;\n    }\n\n    let last_value = unsafe { last_segment.mToValue.mServo.mRawPtr.as_ref() };\n    let progress = unsafe { bindings::Gecko_GetProgressFromComputedTiming(computed_timing) };\n    let position = if segment.mToKey == segment.mFromKey {\n        // Note: compose_animation_segment doesn't use this value\n        // if segment.mFromKey == segment.mToKey, so assigning |progress| directly is fine.\n        progress\n    } else {\n        unsafe {\n            bindings::Gecko_GetPositionInSegment(segment, progress, computed_timing.mBeforeFlag)\n        }\n    };\n\n    let result = compose_animation_segment(\n        segment,\n        underlying_value,\n        last_value,\n        iteration_composite,\n        computed_timing.mCurrentIterationForAccumulation,\n        progress,\n        position,\n    );\n    value_map.insert(property, result);\n}\n"
+  }
+]
