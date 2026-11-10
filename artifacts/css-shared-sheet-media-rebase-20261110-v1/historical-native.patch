@@ -1,0 +1,415 @@
+--- a/servo/components/style/stylesheet_set.rs
++++ b/servo/components/style/stylesheet_set.rs
+@@ -24,6 +24,9 @@
+ 
+     /// Whether this sheet has been part of at least one flush.
+     committed: bool,
++
++    /// Whether this particular sheet matched at its last rebuild.
++    media_matches: Option<bool>,
+ }
+ 
+ impl<S> StylesheetSetEntry<S>
+@@ -34,6 +37,7 @@
+         Self {
+             sheet,
+             committed: false,
++            media_matches: None,
+         }
+     }
+ }
+@@ -128,6 +132,29 @@
+     pub fn sheets(&self) -> impl Iterator<Item = &S> {
+         self.entries.iter().map(|entry| &entry.sheet)
+     }
++
++    /// Reborrows a flusher so failures can invalidate its media snapshots.
++    pub fn reborrow(&mut self) -> SheetCollectionFlusher<'_, S> {
++        SheetCollectionFlusher {
++            entries: self.entries,
++            validity: self.validity,
++            dirty: self.dirty,
++        }
++    }
++
++    /// Invalidates snapshots when no complete replacement data was selected.
++    pub fn invalidate_media_matches(&mut self) {
++        for entry in self.entries.iter_mut() {
++            entry.media_matches = None;
++        }
++    }
++
++    /// Iterates sheets with their collection-local media result.
++    pub fn sheets_with_media_matches(&mut self) -> impl Iterator<Item = (&S, &mut Option<bool>)> {
++        self.entries
++            .iter_mut()
++            .map(|entry| (&entry.sheet, &mut entry.media_matches))
++    }
+ }
+ 
+ impl<'a, S> SheetCollectionFlusher<'a, S>
+@@ -141,7 +168,10 @@
+     ///
+     /// Since we don't have a good use-case for partial iteration, this does the
+     /// trick for now.
+-    pub fn each(self, mut callback: impl FnMut(usize, &S, SheetRebuildKind) -> bool) {
++    pub fn each(
++        self,
++        mut callback: impl FnMut(usize, &S, SheetRebuildKind, &mut Option<bool>) -> bool,
++    ) {
+         for (index, potential_sheet) in self.entries.iter_mut().enumerate() {
+             let committed = mem::replace(&mut potential_sheet.committed, true);
+             let rebuild_kind = if !committed {
+@@ -156,7 +186,12 @@
+                 }
+             };
+ 
+-            if !callback(index, &potential_sheet.sheet, rebuild_kind) {
++            if !callback(
++                index,
++                &potential_sheet.sheet,
++                rebuild_kind,
++                &mut potential_sheet.media_matches,
++            ) {
+                 return;
+             }
+         }
+@@ -289,6 +324,10 @@
+     /// Returns an iterator over the current list of stylesheets.
+     fn iter(&self) -> impl Iterator<Item = &S> {
+         self.entries.iter().map(|e| &e.sheet)
++    }
++
++    fn iter_with_media_matches(&self) -> impl Iterator<Item = (&S, Option<bool>)> {
++        self.entries.iter().map(|e| (&e.sheet, e.media_matches))
+     }
+ 
+     /// Returns a mutable iterator over the current list of stylesheets.
+@@ -574,6 +613,13 @@
+             .flat_map(|(c, o)| c.iter().map(move |s| (s, o)))
+     }
+ 
++    /// Iterates sheets with their collection-local media result and origin.
++    pub fn iter_with_media_matches(&self) -> impl Iterator<Item = (&S, Option<bool>, Origin)> {
++        self.collections
++            .iter_origins()
++            .flat_map(|(c, o)| c.iter_with_media_matches().map(move |(s, m)| (s, m, o)))
++    }
++
+     /// Return an iterator over the flattened view of all the stylesheets, mutably.
+     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&mut S, Origin)> {
+         self.collections
+@@ -666,6 +712,11 @@
+     /// Iterate over the list of stylesheets.
+     pub fn iter(&self) -> impl Iterator<Item = &S> {
+         self.collection.iter()
++    }
++
++    /// Iterates sheets with their collection-local media result.
++    pub fn iter_with_media_matches(&self) -> impl Iterator<Item = (&S, Option<bool>)> {
++        self.collection.iter_with_media_matches()
+     }
+ 
+     /// Returns a mutable iterator over the current list of stylesheets.
+--- a/servo/components/style/stylist.rs
++++ b/servo/components/style/stylist.rs
+@@ -262,7 +262,7 @@
+         &mut self,
+         device: &Device,
+         quirks_mode: QuirksMode,
+-        collection: SheetCollectionFlusher<S>,
++        mut collection: SheetCollectionFlusher<S>,
+         guard: &SharedRwLockReadGuard,
+         old_entry: &Entry,
+         difference: &mut CascadeDataDifference,
+@@ -279,29 +279,36 @@
+ 
+         let mut key = CascadeDataCacheKey::default();
+         let mut custom_media_map = CustomMediaMap::default();
+-        for sheet in collection.sheets() {
+-            CascadeData::collect_applicable_media_query_results_into(
++        for (sheet, media_matches) in collection.sheets_with_media_matches() {
++            *media_matches = Some(CascadeData::collect_applicable_media_query_results_into(
+                 device,
+                 sheet,
+                 guard,
+                 &mut key.media_query_results,
+                 &mut key.contents,
+                 &mut custom_media_map,
+-            )
++            ));
+         }
+ 
+         let new_entry;
+         match self.entries.entry(key) {
+             HashMapEntry::Vacant(e) => {
+                 debug!("> Picking the slow path (not in the cache)");
+-                new_entry = Entry::rebuild(
++                let result = Entry::rebuild(
+                     device,
+                     quirks_mode,
+-                    collection,
++                    collection.reborrow(),
+                     guard,
+                     old_entry,
+                     difference,
+-                )?;
++                );
++                new_entry = match result {
++                    Ok(entry) => entry,
++                    Err(error) => {
++                        collection.invalidate_media_matches();
++                        return Err(error);
++                    },
++                };
+                 e.insert(new_entry.clone());
+             },
+             HashMapEntry::Occupied(mut e) => {
+@@ -317,19 +324,26 @@
+                     }
+                     // The line below ensures the "committed" bit is updated
+                     // properly.
+-                    collection.each(|_, _, _| true);
++                    collection.each(|_, _, _, _| true);
+                     return Ok(Some(e.get().clone()));
+                 }
+ 
+                 debug!("> Picking the slow path due to same entry as old");
+-                new_entry = Entry::rebuild(
++                let result = Entry::rebuild(
+                     device,
+                     quirks_mode,
+-                    collection,
++                    collection.reborrow(),
+                     guard,
+                     old_entry,
+                     difference,
+-                )?;
++                );
++                new_entry = match result {
++                    Ok(entry) => entry,
++                    Err(error) => {
++                        collection.invalidate_media_matches();
++                        return Err(error);
++                    },
++                };
+                 e.insert(new_entry.clone());
+             },
+         }
+@@ -392,7 +406,7 @@
+     fn rebuild<S>(
+         device: &Device,
+         quirks_mode: QuirksMode,
+-        collection: SheetCollectionFlusher<S>,
++        mut collection: SheetCollectionFlusher<S>,
+         guard: &SharedRwLockReadGuard,
+         old: &Self,
+         difference: &mut CascadeDataDifference,
+@@ -408,12 +422,13 @@
+         });
+ 
+         let mut prev_sheet = None;
+-        for (index, sheet) in collection.sheets().enumerate() {
++        for (index, (sheet, media_matches)) in collection.sheets_with_media_matches().enumerate() {
+             let new_data = &mut *new_data;
+             new_data.cascade_data.add_stylesheet(
+                 device,
+                 quirks_mode,
+                 sheet,
++                media_matches,
+                 index,
+                 guard,
+                 SheetRebuildKind::Full,
+@@ -1702,9 +1717,9 @@
+         debug!("Stylist::media_features_change_changed_style {:?}", device);
+ 
+         let mut origins = OriginSet::empty();
+-        let stylesheets = self.stylesheets.iter();
+-
+-        for (stylesheet, origin) in stylesheets {
++        let stylesheets = self.stylesheets.iter_with_media_matches();
++
++        for (stylesheet, media_matches, origin) in stylesheets {
+             if origins.contains(origin.into()) {
+                 continue;
+             }
+@@ -1714,6 +1729,7 @@
+ 
+             let affected_changed = !origin_cascade_data.media_feature_affected_matches(
+                 stylesheet,
++                media_matches,
+                 guard,
+                 device,
+                 self.quirks_mode,
+@@ -3572,7 +3588,7 @@
+         &mut self,
+         device: &Device,
+         quirks_mode: QuirksMode,
+-        collection: SheetCollectionFlusher<S>,
++        mut collection: SheetCollectionFlusher<S>,
+         guard: &SharedRwLockReadGuard,
+         difference: &mut CascadeDataDifference,
+     ) -> Result<(), AllocErr>
+@@ -3599,25 +3615,31 @@
+         let mut result = Ok(());
+ 
+         let mut prev_sheet = None;
+-        collection.each(|index, stylesheet, rebuild_kind| {
+-            result = self.add_stylesheet(
+-                device,
+-                quirks_mode,
+-                stylesheet,
+-                index,
+-                guard,
+-                rebuild_kind,
+-                /* precomputed_pseudo_element_decls = */ None,
+-                if validity == DataValidity::Valid {
+-                    Some(difference)
+-                } else {
+-                    None
+-                },
+-                &mut prev_sheet,
+-            );
+-            result.is_ok()
+-        });
+-
++        collection
++            .reborrow()
++            .each(|index, stylesheet, rebuild_kind, media_matches| {
++                result = self.add_stylesheet(
++                    device,
++                    quirks_mode,
++                    stylesheet,
++                    media_matches,
++                    index,
++                    guard,
++                    rebuild_kind,
++                    /* precomputed_pseudo_element_decls = */ None,
++                    if validity == DataValidity::Valid {
++                        Some(difference)
++                    } else {
++                        None
++                    },
++                    &mut prev_sheet,
++                );
++                result.is_ok()
++            });
++
++        if result.is_err() {
++            collection.invalidate_media_matches();
++        }
+         self.did_finish_rebuild();
+ 
+         // For DataValidity::Valid, we pass the difference down to `add_stylesheet` so that we
+@@ -3899,14 +3921,15 @@
+         results: &mut Vec<MediaListKey>,
+         contents_list: &mut StyleSheetContentList,
+         custom_media_map: &mut CustomMediaMap,
+-    ) where
++    ) -> bool
++    where
+         S: StylesheetInDocument + 'static,
+     {
+         if !stylesheet.enabled() {
+-            return;
++            return false;
+         }
+         if !stylesheet.is_effective_for_device(device, custom_media_map, guard) {
+-            return;
++            return false;
+         }
+ 
+         debug!(" + {:?}", stylesheet);
+@@ -3939,6 +3962,7 @@
+                 _ => {},
+             }
+         }
++        true
+     }
+ 
+     fn add_styles(
+@@ -4604,6 +4628,7 @@
+         device: &Device,
+         quirks_mode: QuirksMode,
+         stylesheet: &S,
++        media_matches: &mut Option<bool>,
+         sheet_index: usize,
+         guard: &SharedRwLockReadGuard,
+         rebuild_kind: SheetRebuildKind,
+@@ -4614,18 +4639,14 @@
+     where
+         S: StylesheetInDocument + 'static,
+     {
+-        if !stylesheet.enabled() {
++        let effective = stylesheet.enabled()
++            && stylesheet.is_effective_for_device(device, &self.custom_media, guard);
++        *media_matches = Some(effective);
++        if !effective {
+             return Ok(());
+         }
+ 
+-        if !stylesheet.is_effective_for_device(device, &self.custom_media, guard) {
+-            return Ok(());
+-        }
+-
+         let contents = stylesheet.contents(guard);
+-        if rebuild_kind.should_rebuild_invalidation() {
+-            self.effective_media_query_results.saw_effective(contents);
+-        }
+ 
+         // Identical sheets share their parsed contents, so one that repeats its
+         // predecessor adds the same rules to the selector maps a second time.
+@@ -4659,6 +4680,7 @@
+     pub fn media_feature_affected_matches<S>(
+         &self,
+         stylesheet: &S,
++        effective_then: Option<bool>,
+         guard: &SharedRwLockReadGuard,
+         device: &Device,
+         quirks_mode: QuirksMode,
+@@ -4668,10 +4690,13 @@
+     {
+         use crate::invalidation::media_queries::PotentiallyEffectiveMediaRules;
+ 
+-        let effective_now = stylesheet.is_effective_for_device(device, &self.custom_media, guard);
++        let Some(effective_then) = effective_then else {
++            return false;
++        };
++        let effective_now = stylesheet.enabled()
++            && stylesheet.is_effective_for_device(device, &self.custom_media, guard);
+ 
+         let contents = stylesheet.contents(guard);
+-        let effective_then = self.effective_media_query_results.was_effective(contents);
+ 
+         if effective_now != effective_then {
+             debug!(
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -1964,14 +1964,19 @@
+ 
+     let mut affects_non_document_rules = false;
+     for author_styles in &mut **non_document_styles {
+-        let affected_style = author_styles.stylesheets.iter().any(|sheet| {
+-            !author_styles.data.media_feature_affected_matches(
+-                sheet,
+-                &guards.author,
+-                document_data.stylist.device(),
+-                document_data.stylist.quirks_mode(),
+-            )
+-        });
++        let affected_style =
++            author_styles
++                .stylesheets
++                .iter_with_media_matches()
++                .any(|(sheet, media_matches)| {
++                    !author_styles.data.media_feature_affected_matches(
++                        sheet,
++                        media_matches,
++                        &guards.author,
++                        document_data.stylist.device(),
++                        document_data.stylist.quirks_mode(),
++                    )
++                });
+         if affected_style {
+             affects_non_document_rules = true;
+             author_styles.stylesheets.force_dirty();
