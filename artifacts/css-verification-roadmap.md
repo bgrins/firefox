@@ -4,12 +4,17 @@ Continue finding observable CSS/Stylo bugs, verifying relevant models and code, 
 
 ## Current position — November 10, 2026
 
-The catalogue contains 164 committed browser repair entries, including held #160 and excluding #120. This is not a count of newly discovered upstream issues. The generic ArcSlice library repair is recorded separately. See css-all-work-readout-20261110-v14/README.md for all commits, priorities and qualifications.
+The catalogue contains 166 committed browser repair entries, including held #160 and excluding #120. This is not a count of newly discovered upstream issues. The generic ArcSlice library repair is recorded separately. See css-all-work-readout-20261110-v15/README.md for all commits, priorities and qualifications.
 
 Signing resumed successfully. New signed commits are:
 
 | Commit | Content |
 | --- | --- |
+| aadc64afe8b7 | Frozen-rule derivation benchmark: two checked predicates, held-out consumption refused, independent source-only replay |
+| ed8bce6fa5d7 | Preserve stylesheet CSSOM state during moves: five native files and seven WPT resources (#167) |
+| b86cd38915d8 | Exact filtered stylesheet-move validation and shared-media interaction controls |
+| 0aec45242b12 | Per-entry media applicability repair: three Rust files and five WPT resources (#166) |
+| 1635894bbdde | Fresh shared-media comparisons, source review and upstream applicability |
 | fac90af04d60 | Source-only shared-media rebase preserving current root-identity and rollback repairs |
 | 664b08bcb7ce | Root-animation identity repair: one Rust file and four WPT resources (#165) |
 | acece22fa877 | Fresh root-identity build, installed Nightly baseline and 47 passing candidate assertions |
@@ -37,10 +42,10 @@ The original Bloom milestones 1–6 remain conditional results at their recorded
 ## Next work, in order
 
 1. Review held #160 as a combined producer-local handoff and dependency-drain repair. The producer-only comparison is already complete: A and B both retained 137 PASS / 27 FAIL; combined C passed 164. The completed causal trace explains the historical broad-handoff timeout; do not repeat either experiment. Full native scheduling refinement and global convergence remain unproved. Root-self identity is now committed separately as #165.
-2. Rebase and validate CSSOM stylesheet-move and shared-media/scope-cache repairs on the current stack, then publish separate fix-and-WPT commits. The shared-media source-only rebase is prepared in css-shared-sheet-media-rebase-20261110-v1, without replacing newer root-identity or rollback changes. Root-self #165 passed a fresh 47-assertion candidate run; nine target failures also reproduce in installed Nightly. Keep canvas substitution pending its compatibility decision.
+2. Review standalone readiness of the newly committed stylesheet repairs. #166 passes 47 assertions plus a rendering reference test; #167 passes its exact 31-assertion delivery/control selection and preserves eight shared-media checks. Both defect signatures also reproduce in installed Nightly. The move patch needs the recorded context-only upstream adaptation; neither has an isolated upstream native build. Keep canvas substitution pending its compatibility decision.
 3. Follow up the committed same-rule fix's dense-case allocation cost and isolated upstream readiness. #164 explicitly requires #163; the five-file source patch is not independently cherry-pickable onto the pre-project ancestor. Dense Rule256 remains 25.27–25.80 microseconds/update versus 10.43–10.94 baseline. Single-trigger256 is 8.61–9.00 versus 8.44–8.85. These are bounded synthetic comparisons, not release-page estimates. Profile many-longhand cases before claiming a general allocation or performance improvement.
 4. Continue broader Arc/DST verification: allocation, provenance, cross-language transfer and shared-UA serialization remain separate from the committed empty-allocation fix.
-5. Extend the separate spec-derivation experiment to three small Syntax algorithms, keeping one held out during grammar design. The first source-linked predicate, independent bridge proofs and four failure controls replay successfully; prose interpretation and extraction remain unproved. See css-spec-derivation-investigation-20261110-v1/REPORT.md. Expand the CSS model where it resolves implementation questions. Preserve spec provenance, assumptions, counterexamples, matched browser comparisons and unresolved specification issues. A theorem about a model does not establish whole-native correctness.
+5. Build a separately versioned stateful derivation IR with explicit remaining input, bounded hexadecimal consumption, scalar replacement and EOF/error behavior. The frozen-rule benchmark proved both training predicates but rejected held-out escape consumption without generating code. Consumption is now development material; choose a fresh held-out algorithm before freezing the extended grammar. See css-spec-derivation-benchmark-20261110-v1/REPORT.md. Preserve independent reference relations, spec provenance, unsupported clauses and negative controls; prose interpretation and compiler correctness remain unproved.
 
 ## Completed rollback evidence
 
@@ -63,3 +68,5 @@ The fresh baseline build in css-rollback-performance-baseline-build-v1 includes 
 All completed native/browser experiments are closed. Signing failures, the early sandbox recovery and formatter incident remain retained historical evidence. Use explicit file selections for commits and scoped formatter paths. Do not run bare mach format on this long research branch. Remove owned build targets, temporary profiles and backups only after their processes close and required evidence is retained. The old D64 probe is preserved in css-rollback-probe-preservation-v1; the committed D48 file is the tested #163 delivery.
 
 The November 10 native build now leaves the #165 root-identity repair installed in the local Nightly.app. The build source and binary hashes, 47 passing assertions, two matched baseline pages and installed Nightly comparison are recorded in css-root-self-resume-20261110-v1. Its build metadata predates the final native commit; exact delivery bytes were verified. The independent spec-derivation replay and shared-media rebase used temporary directories that have been removed.
+
+The later November 10 builds now leave #166 and #167 installed alongside #165. The two native repairs are separate signed commits, each preceded by current validation research. All selected WPT resources are committed. The exact filtered move candidate execution gap is closed; #160 remains held. Temporary upstream/source-only replay directories are removed after successful checks; the active objdir is retained for manual testing.
