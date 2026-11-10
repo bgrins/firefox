@@ -1,0 +1,87 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Animation-tainted variables in timeline names</title>
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#replace-a-var-function">
+<link rel="help" href="https://drafts.csswg.org/scroll-animations-1/#scroll-timeline-name">
+<link rel="help" href="https://drafts.csswg.org/scroll-animations-1/#timeline-scope">
+<meta name="assert" content="Animation-tainted variables use their fallback in non-animatable timeline properties.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  @keyframes set-name {
+    from, to { --name: --live; }
+  }
+  @keyframes fallback-animation {
+    from, to { opacity: 1; }
+  }
+  .animated {
+    --name: --base;
+    animation: set-name 1s linear -0.5s paused both;
+  }
+  .scroll { scroll-timeline-name: var(--name, --fallback); }
+  .scope { timeline-scope: var(--name, --fallback); }
+  .plain {
+    --plain-name: --live;
+    scroll-timeline-name: var(--plain-name, --fallback);
+    timeline-scope: var(--plain-name, --fallback);
+  }
+  .inherited {
+    animation-name: var(--name, fallback-animation);
+  }
+</style>
+<body>
+<script>
+function createElement(t, className, parent = document.body) {
+  const element = document.createElement("div");
+  element.className = className;
+  parent.append(element);
+  t.add_cleanup(() => element.remove());
+  return element;
+}
+
+function checkAnimatedValue(element) {
+  assert_equals(getComputedStyle(element).getPropertyValue("--name").trim(),
+                "--live", "The custom property has the animated value");
+  const animations = element.getAnimations();
+  assert_equals(animations.length, 1, "Exactly one source animation exists");
+  assert_equals(animations[0].animationName, "set-name");
+  assert_equals(animations[0].playState, "paused");
+  assert_equals(animations[0].effect.getComputedTiming().progress, 0.5,
+                "The paused source animation is in effect");
+}
+
+for (const [className, property] of [
+  ["scroll", "scroll-timeline-name"],
+  ["scope", "timeline-scope"],
+]) {
+  test(t => {
+    assert_true(CSS.supports(property, "--live"), `${property} is supported`);
+    const element = createElement(t, `animated ${className}`);
+    checkAnimatedValue(element);
+    assert_equals(getComputedStyle(element).getPropertyValue(property),
+                  "--fallback", "Animation taint selects the var() fallback");
+  }, `Animation taint: ${property}`);
+}
+
+test(t => {
+  const element = createElement(t, "plain");
+  const style = getComputedStyle(element);
+  assert_equals(style.getPropertyValue("--plain-name").trim(), "--live");
+  assert_equals(style.getPropertyValue("scroll-timeline-name"), "--live");
+  assert_equals(style.getPropertyValue("timeline-scope"), "--live");
+  assert_equals(element.getAnimations().length, 0);
+}, "Animation taint: ordinary variable control");
+
+test(t => {
+  const parent = createElement(t, "animated");
+  const child = createElement(t, "scroll scope inherited", parent);
+  checkAnimatedValue(parent);
+  const style = getComputedStyle(child);
+  assert_equals(style.getPropertyValue("--name").trim(), "--live",
+                "The child inherits the animated custom property");
+  assert_equals(style.animationName, "fallback-animation",
+                "Inherited animation taint selects the animation-name fallback");
+  assert_equals(style.getPropertyValue("scroll-timeline-name"), "--fallback");
+  assert_equals(style.getPropertyValue("timeline-scope"), "--fallback");
+}, "Animation taint: inherited variable and animation-name control");
+</script>

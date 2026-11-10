@@ -1,0 +1,121 @@
+servo/components/style/custom_properties.rs:24:     AttrTaint, ReferenceFlags, References, SubstitutionArgument, SubstitutionFunction,
+servo/components/style/custom_properties.rs:76:     /// Was this variable value attr tainted before. Used to keep attr tainting
+servo/components/style/custom_properties.rs:79:     pub explicitly_attr_tainted: bool,
+servo/components/style/custom_properties.rs:99:         AttrTaint::default(),
+servo/components/style/custom_properties.rs:459:             explicitly_attr_tainted: false,
+servo/components/style/custom_properties.rs:477:             explicitly_attr_tainted: false,
+servo/components/style/custom_properties.rs:487:         attr_taint: Option<&mut AttrTaint>,
+servo/components/style/custom_properties.rs:522:         if let Some(taint) = attr_taint {
+servo/components/style/custom_properties.rs:523:             taint.push(start, end);
+servo/components/style/custom_properties.rs:563:             explicitly_attr_tainted: false,
+servo/components/style/custom_properties.rs:567:     /// Returns whether this value is tainted by `attr()`.
+servo/components/style/custom_properties.rs:568:     pub fn is_attr_tainted(&self) -> bool {
+servo/components/style/custom_properties.rs:569:         self.references.flags.intersects(ReferenceFlags::ATTR) | self.explicitly_attr_tainted
+servo/components/style/custom_properties.rs:646:             explicitly_attr_tainted: false,
+servo/components/style/custom_properties.rs:719:                 AttrTaint::default(),
+servo/components/style/custom_properties.rs:859:             value.attr_tainted |= substitution.attr_tainted;
+servo/components/style/custom_properties.rs:877:     attr_taint: AttrTaint,
+servo/components/style/custom_properties.rs:889:         attr_taint,
+servo/components/style/custom_properties_map.rs:96:             a == b && a.attr_tainted == b.attr_tainted
+servo/components/style/custom_properties_map.rs:120:         // Note also that for this comparison we do care about e.g. attribute-tainting being
+servo/components/style/parser.rs:11: use crate::substitution::{AttrTaint, AttrTaintedRange};
+servo/components/style/parser.rs:124:     /// The relevant regions in the input that have been tainted by attr() if relevant.
+servo/components/style/parser.rs:125:     pub attr_tainted_regions: Cow<'a, AttrTaint>,
+servo/components/style/parser.rs:142:         attr_tainted_regions: AttrTaint,
+servo/components/style/parser.rs:153:             attr_tainted_regions: Cow::Owned(attr_tainted_regions),
+servo/components/style/parser.rs:169:         attr_tainted_regions: AttrTaint,
+servo/components/style/parser.rs:181:             attr_tainted_regions: Cow::Owned(attr_tainted_regions),
+servo/components/style/parser.rs:205:             attr_tainted_regions: Cow::Borrowed(&*self.attr_tainted_regions),
+servo/components/style/parser.rs:314:     /// Whether any `<url>` over this `range` is disallowed due to attr()-tainting.
+servo/components/style/parser.rs:315:     pub fn disallow_urls_in_range(&self, range: &AttrTaintedRange) -> bool {
+servo/components/style/parser.rs:316:         self.attr_tainted_regions
+servo/components/style/properties/cascade.rs:2020:                             return existing_value.attr_tainted || existing_value != initial_value;
+servo/components/style/properties/declaration_block.rs:1443:         /* attr_taint */ Default::default(),
+servo/components/style/properties/declaration_block.rs:1474:         /* attr_taint */ Default::default(),
+servo/components/style/properties/mod.rs:1674:         let SubstitutionResult { css, attr_taint } = match substitution::substitute(
+servo/components/style/properties/mod.rs:1705:             attr_taint,
+servo/components/style/properties_and_values/rule.rs:177:             /* attr_taint */ Default::default(),
+servo/components/style/properties_and_values/rule.rs:227:             /* attr_taint */ Default::default(),
+servo/components/style/properties_and_values/value.rs:19: use crate::substitution::AttrTaint;
+servo/components/style/properties_and_values/value.rs:215:     /// Flag indicating whether this value is tainted by an attr().
+servo/components/style/properties_and_values/value.rs:217:     pub attr_tainted: bool,
+servo/components/style/properties_and_values/value.rs:221:     // Ignore the url_data and tainting fields when comparing values for equality.
+servo/components/style/properties_and_values/value.rs:233:             attr_tainted: self.attr_tainted,
+servo/components/style/properties_and_values/value.rs:244:             attr_tainted: Default::default(),
+servo/components/style/properties_and_values/value.rs:250:         let attr_tainted = var.is_attr_tainted();
+servo/components/style/properties_and_values/value.rs:256:             attr_tainted,
+servo/components/style/properties_and_values/value.rs:322:         attr_taint: AttrTaint,
+servo/components/style/properties_and_values/value.rs:334:             attr_taint,
+servo/components/style/properties_and_values/value.rs:350:         attr_taint: AttrTaint,
+servo/components/style/properties_and_values/value.rs:366:             attr_taint,
+servo/components/style/properties_and_values/value.rs:400:             // The attr()-taint of the wrapper must survive the round-trip through the declared
+servo/components/style/properties_and_values/value.rs:402:             // would launder the taint and allow attribute-derived URLs to be fetched.
+servo/components/style/properties_and_values/value.rs:407:             if self.attr_tainted && !var.is_attr_tainted() {
+servo/components/style/properties_and_values/value.rs:408:                 let mut tainted = (**var).clone();
+servo/components/style/properties_and_values/value.rs:409:                 tainted.explicitly_attr_tainted = true;
+servo/components/style/properties_and_values/value.rs:410:                 return properties::CustomDeclarationValue::Unparsed(Arc::new(tainted));
+servo/components/style/properties_and_values/value.rs:694:                         /* attr_taint */ Default::default(),
+servo/components/style/queries/condition.rs:26: use crate::substitution::AttrTaint;
+servo/components/style/queries/condition.rs:436:         let substitution::SubstitutionResult { css, attr_taint } = match substitution::substitute(
+servo/components/style/queries/condition.rs:460:             attr_taint,
+servo/components/style/queries/condition.rs:883:             AttrTaint::default(),
+servo/components/style/queries/condition.rs:905:         let substitution::SubstitutionResult { css, attr_taint } = match substitution::substitute(
+servo/components/style/queries/condition.rs:916:         parser_context.attr_tainted_regions = Cow::Owned(attr_taint);
+servo/components/style/queries/feature_expression.rs:1103:             /* attr_taint */ Default::default(),
+servo/components/style/stylesheets/keyframes_rule.rs:271:             /* attr_taint */ Default::default(),
+servo/components/style/stylesheets/mod.rs:776:             /* attr_taint */ Default::default(),
+servo/components/style/stylesheets/rule_parser.rs:427:                 let url = CssUrl::new_from_untainted_string(
+servo/components/style/stylesheets/stylesheet.rs:443:             /* attr_taint */ Default::default(),
+servo/components/style/stylist.rs:76: use crate::substitution::AttrTaint;
+servo/components/style/stylist.rs:2170:                     AttrTaint::default(),
+servo/components/style/substitution/attr.rs:9:     ArbitraryDeclarationValue, AttrTaint, ParsedArgument, Substitution, SubstitutionArgument,
+servo/components/style/substitution/attr.rs:280:                                 value, /* attr_tainted */ true,
+servo/components/style/substitution/attr.rs:289:                                 AttrTaint::default(),
+servo/components/style/substitution/attr.rs:295:                                 value, /* attr_tainted */ true,
+servo/components/style/substitution/attr.rs:308:         substitution.attr_tainted |= arg.attr_tainted;
+servo/components/style/substitution/attr.rs:342:         /* attr_tainted */ true,
+servo/components/style/substitution/env.rs:71:                     .map(|v| Substitution::from_value(v, /* attr_tainted */ false))
+servo/components/style/substitution/env.rs:77:         substitution.attr_tainted |= name.attr_tainted;
+servo/components/style/substitution/ident.rs:78:         let attr_tainted = args.attr_tainted;
+servo/components/style/substitution/ident.rs:107:             attr_tainted,
+servo/components/style/substitution/mod.rs:425:                     attr_tainted: false,
+servo/components/style/substitution/mod.rs:431:                     attr_tainted: false,
+servo/components/style/substitution/mod.rs:438:                 attr_tainted: false,
+servo/components/style/substitution/mod.rs:447:             attr_tainted: substitution.attr_tainted,
+servo/components/style/substitution/mod.rs:456:     /// Whether any attr()-tainted values were involved in the substitution.
+servo/components/style/substitution/mod.rs:457:     pub attr_tainted: bool,
+servo/components/style/substitution/mod.rs:634: /// For a CSS string, the range, counted in bytes, that is attr()-tainted.
+servo/components/style/substitution/mod.rs:636: pub struct AttrTaintedRange {
+servo/components/style/substitution/mod.rs:643: impl AttrTaintedRange {
+servo/components/style/substitution/mod.rs:644:     /// Creates a range within a CSS string that is tainted by attr().
+servo/components/style/substitution/mod.rs:652: /// In CSS Values and Units, values produced by `attr()` are considered attr()-tainted, as are
+servo/components/style/substitution/mod.rs:653: /// functions that contain an attr()-tainted value. Using an attr()-tainted value as or in a <url>
+servo/components/style/substitution/mod.rs:657: pub struct AttrTaint(SmallVec<[AttrTaintedRange; 1]>);
+servo/components/style/substitution/mod.rs:659: impl AttrTaint {
+servo/components/style/substitution/mod.rs:661:     /// is disallowed due to attr()-tainting.
+servo/components/style/substitution/mod.rs:663:     pub fn should_disallow_urls_in_range(&self, range: &AttrTaintedRange) -> bool {
+servo/components/style/substitution/mod.rs:669:     /// Returns true if the attr()-tainted range contains no elements.
+servo/components/style/substitution/mod.rs:676:     fn new_fully_tainted(end: usize) -> Self {
+servo/components/style/substitution/mod.rs:677:         let mut taint = Self::default();
+servo/components/style/substitution/mod.rs:678:         taint.push(0, end);
+servo/components/style/substitution/mod.rs:679:         taint
+servo/components/style/substitution/mod.rs:682:     /// Marks the range [start, end) as tainted.
+servo/components/style/substitution/mod.rs:685:         self.0.push(AttrTaintedRange::new(start, end));
+servo/components/style/substitution/mod.rs:698:     /// Whether any attr()-tainted values were involved in the substitution.
+servo/components/style/substitution/mod.rs:699:     pub attr_tainted: bool,
+servo/components/style/substitution/mod.rs:704:     pub fn from_value(v: VariableValue, attr_tainted: bool) -> Self {
+servo/components/style/substitution/mod.rs:709:             attr_tainted,
+servo/components/style/substitution/mod.rs:728:             value.attr_tainted |= self.attr_tainted;
+servo/components/style/substitution/mod.rs:731:         let taint = if self.attr_tainted {
+servo/components/style/substitution/mod.rs:733:             // attr()-tainted as a whole if any attr()-tainted values were involved
+servo/components/style/substitution/mod.rs:736:             AttrTaint::new_fully_tainted(self.css.len())
+servo/components/style/substitution/mod.rs:738:             AttrTaint::default()
+servo/components/style/substitution/mod.rs:745:             taint,
+servo/components/style/substitution/mod.rs:748:         v.attr_tainted |= self.attr_tainted;
+servo/components/style/substitution/mod.rs:757:         attr_tainted: bool,
+servo/components/style/substitution/mod.rs:763:             attr_tainted,
+servo/components/style/substitution/mod.rs:808:         attr_taint: Option<&mut AttrTaint>,
+servo/components/style/substitution/mod.rs:817:             attr_taint,
+servo/components/style/substitution/mod.rs:834:             /* attr_taint */ None,
+servo/components/style/substitution/mod.rs:846:         mut attr_taint: Option<&mut AttrTaint>,
+Total matches: 120

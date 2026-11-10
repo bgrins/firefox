@@ -1,0 +1,958 @@
+<!doctype html><html lang="en">
+ <head>
+  <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+  <title>CSS Custom Properties for Cascading Variables Module Level 1</title>
+  <meta content="width=device-width, initial-scale=1" name="viewport">
+  <meta content="testing" name="csswg-work-status">
+  <meta content="CR" name="w3c-status">
+  <link href="default.css" rel="stylesheet" type="text/css">
+  <link href="https://www.w3.org/StyleSheets/TR/W3C-CR" rel="stylesheet" type="text/css">
+  <meta content="Bikeshed 1.0.0" name="generator">
+<!--
+<script defer="" src="//test.csswg.org/harness/annotate.js#css-variables-1_dev/css-variables-1" type="text/javascript"></script>
+-->
+<style>.highlight .hll { background-color: #ffffcc }
+.highlight  { background: #ffffff; }
+.highlight .c { color: #708090 } /* Comment */
+.highlight .k { color: #990055 } /* Keyword */
+.highlight .l { color: #669900 } /* Literal */
+.highlight .n { color: #0077aa } /* Name */
+.highlight .o { color: #999999 } /* Operator */
+.highlight .p { color: #999999 } /* Punctuation */
+.highlight .cm { color: #708090 } /* Comment.Multiline */
+.highlight .cp { color: #708090 } /* Comment.Preproc */
+.highlight .c1 { color: #708090 } /* Comment.Single */
+.highlight .cs { color: #708090 } /* Comment.Special */
+.highlight .kc { color: #990055 } /* Keyword.Constant */
+.highlight .kd { color: #990055 } /* Keyword.Declaration */
+.highlight .kn { color: #990055 } /* Keyword.Namespace */
+.highlight .kp { color: #990055 } /* Keyword.Pseudo */
+.highlight .kr { color: #990055 } /* Keyword.Reserved */
+.highlight .kt { color: #990055 } /* Keyword.Type */
+.highlight .ld { color: #669900 } /* Literal.Date */
+.highlight .m { color: #990055 } /* Literal.Number */
+.highlight .s { color: #669900 } /* Literal.String */
+.highlight .na { color: #0077aa } /* Name.Attribute */
+.highlight .nc { color: #0077aa } /* Name.Class */
+.highlight .no { color: #0077aa } /* Name.Constant */
+.highlight .nd { color: #0077aa } /* Name.Decorator */
+.highlight .ni { color: #0077aa } /* Name.Entity */
+.highlight .ne { color: #0077aa } /* Name.Exception */
+.highlight .nf { color: #0077aa } /* Name.Function */
+.highlight .nl { color: #0077aa } /* Name.Label */
+.highlight .nn { color: #0077aa } /* Name.Namespace */
+.highlight .py { color: #0077aa } /* Name.Property */
+.highlight .nt { color: #0077aa } /* Name.Tag */
+.highlight .nv { color: #0077aa } /* Name.Variable */
+.highlight .ow { color: #999999 } /* Operator.Word */
+.highlight .mb { color: #990055 } /* Literal.Number.Bin */
+.highlight .mf { color: #990055 } /* Literal.Number.Float */
+.highlight .mh { color: #990055 } /* Literal.Number.Hex */
+.highlight .mi { color: #990055 } /* Literal.Number.Integer */
+.highlight .mo { color: #990055 } /* Literal.Number.Oct */
+.highlight .sb { color: #669900 } /* Literal.String.Backtick */
+.highlight .sc { color: #669900 } /* Literal.String.Char */
+.highlight .sd { color: #669900 } /* Literal.String.Doc */
+.highlight .s2 { color: #669900 } /* Literal.String.Double */
+.highlight .se { color: #669900 } /* Literal.String.Escape */
+.highlight .sh { color: #669900 } /* Literal.String.Heredoc */
+.highlight .si { color: #669900 } /* Literal.String.Interpol */
+.highlight .sx { color: #669900 } /* Literal.String.Other */
+.highlight .sr { color: #669900 } /* Literal.String.Regex */
+.highlight .s1 { color: #669900 } /* Literal.String.Single */
+.highlight .ss { color: #669900 } /* Literal.String.Symbol */
+.highlight .vc { color: #0077aa } /* Name.Variable.Class */
+.highlight .vg { color: #0077aa } /* Name.Variable.Global */
+.highlight .vi { color: #0077aa } /* Name.Variable.Instance */
+.highlight .il { color: #990055 } /* Literal.Number.Integer.Long */
+        .highlight { background: hsl(24, 20%, 95%); }
+        code.highlight { padding: .1em; border-radius: .3em; }
+        pre.highlight, pre > code.highlight { display: block; padding: 1em; margin: .5em 0; overflow: auto; border-radius: 0; }
+        </style>
+ </head>
+ <body class="h-entry">
+  <div class="head">
+   <p data-fill-with="logo"><a class="logo" href="https://www.w3.org/"> <img alt="W3C" height="48" src="https://www.w3.org/Icons/w3c_home" width="72"> </a> </p>
+   <h1 class="p-name no-ref" id="title">CSS Custom Properties for Cascading Variables Module Level 1</h1>
+   <h2 class="no-num no-toc no-ref heading settled" id="subtitle"><span class="content">W3C Candidate Recommendation, <time class="dt-updated" datetime="2015-12-03">03 December 2015</time></span></h2>
+   <div data-fill-with="spec-metadata">
+    <dl>
+     <dt>This version:
+     <dd><a class="u-url" href="https://www.w3.org/TR/2015/CR-css-variables-1-20151203/">http://www.w3.org/TR/2015/CR-css-variables-1-20151203/</a>
+     <dt>Latest version:
+     <dd><a href="https://www.w3.org/TR/css-variables-1/">http://www.w3.org/TR/css-variables-1/</a>
+     <dt>Editor's Draft:
+     <dd><a href="http://dev.w3.org/csswg/css-variables/">http://dev.w3.org/csswg/css-variables/</a>
+     <dt>Previous Versions:
+     <dd><a href="https://www.w3.org/TR/2014/WD-css-variables-1-20140506/" rel="previous">http://www.w3.org/TR/2014/WD-css-variables-1-20140506/</a>
+     <dd><a href="https://www.w3.org/TR/2013/WD-css-variables-1-20130620/" rel="previous">http://www.w3.org/TR/2013/WD-css-variables-1-20130620/</a>
+     <dd><a href="https://www.w3.org/TR/2013/WD-css-variables-20130312/" rel="previous">http://www.w3.org/TR/2013/WD-css-variables-20130312/</a>
+     <dd><a href="https://www.w3.org/TR/2012/WD-css-variables-20120410/" rel="previous">http://www.w3.org/TR/2012/WD-css-variables-20120410/</a>
+     <dt>Feedback:
+     <dd><span><a href="mailto:www-style@w3.org?subject=%5Bcss-variables%5D%20YOUR%20TOPIC%20HERE">www-style@w3.org</a> with subject line “<kbd>[css-variables] <i data-lt="">… message topic …</i></kbd>” (<a href="http://lists.w3.org/Archives/Public/www-style/" rel="discussion">archives</a>)</span>
+     <dt>Test Suite:
+     <dd><a href="http://test.csswg.org/suites/css-variables-1_dev/nightly-unstable/">http://test.csswg.org/suites/css-variables-1_dev/nightly-unstable/</a>
+     <dt class="editor">Editor:
+     <dd class="editor p-author h-card vcard"><a class="p-name fn u-url url" href="http://xanthir.com/contact">Tab Atkins Jr.</a> (<span class="p-org org">Google</span>)
+    </dl>
+   </div>
+   <div data-fill-with="warning"></div>
+   <p class="copyright" data-fill-with="copyright"><a href="https://www.w3.org/Consortium/Legal/ipr-notice#Copyright">Copyright</a> © 2015 <a href="https://www.w3.org/"><abbr title="World Wide Web Consortium">W3C</abbr></a><sup>®</sup> (<a href="http://www.csail.mit.edu/"><abbr title="Massachusetts Institute of Technology">MIT</abbr></a>, <a href="http://www.ercim.eu/"><abbr title="European Research Consortium for Informatics and Mathematics">ERCIM</abbr></a>, <a href="http://www.keio.ac.jp/">Keio</a>, <a href="http://ev.buaa.edu.cn/">Beihang</a>). W3C <a href="https://www.w3.org/Consortium/Legal/ipr-notice#Legal_Disclaimer">liability</a>, <a href="https://www.w3.org/Consortium/Legal/ipr-notice#W3C_Trademarks">trademark</a> and <a href="https://www.w3.org/Consortium/Legal/copyright-documents">document use</a> rules apply. </p>
+   <hr title="Separator for header">
+  </div>
+  <h2 class="no-num no-toc no-ref heading settled" id="abstract"><span class="content">Abstract</span></h2>
+  <div class="p-summary" data-fill-with="abstract">
+   <p>This module introduces cascading variables as a new primitive value type that is accepted by all CSS properties, and custom properties for defining them.</p>
+    <a href="https://www.w3.org/TR/CSS/">CSS</a> is a language for describing the rendering of structured documents 
+(such as HTML and XML) 
+on screen, on paper, in speech, etc.
+  </div>
+  <h2 class="no-num no-toc no-ref heading settled" id="status"><span class="content">Status of this document</span></h2>
+  <div data-fill-with="status">
+   <p> <em>This section describes the status of this document at the time of its publication.
+		Other documents may supersede this document.
+		A list of current W3C publications and the latest revision of this technical report
+		can be found in the <a href="https://www.w3.org/TR/">W3C technical reports index at http://www.w3.org/TR/.</a></em> </p>
+   <p> This document was produced by the <a href="https://www.w3.org/Style/CSS/members">CSS Working Group</a> (part of the <a href="https://www.w3.org/Style/">Style Activity</a>)
+	as a Candidate Recommendation. This document is intended to become a W3C Recommendation.
+	This document will remain a Candidate Recommendation at least until <time class="status-deadline" datetime="2016-06-01">1 June 2016</time> in order
+	to ensure the opportunity for wide review. </p>
+	<p>A preliminary <a href="https://test.csswg.org/harness/review/css-variables-1_dev/">implementation report</a> is available.</p>
+   <p> The (<a href="http://lists.w3.org/Archives/Public/www-style/">archived</a>)
+	public mailing list <a href="mailto:www-style@w3.org?Subject=%5Bcss-variables%5D%20PUT%20SUBJECT%20HERE">www-style@w3.org</a> (see <a href="https://www.w3.org/Mail/Request">instructions</a>)
+	is preferred for discussion of this specification.
+	When sending e-mail,
+	please put the text “css-variables” in the subject,
+	preferably like this:
+	“[css-variables] <em>…summary of comment…</em>” </p>
+   <p> Publication as a Candidate Recommendation does not imply endorsement by the W3C
+	Membership. This is a draft document and may be updated, replaced or
+	obsoleted by other documents at any time. It is inappropriate to cite this
+	document as other than work in progress. </p>
+   <p> This document was produced by a group operating under
+	the <a href="https://www.w3.org/Consortium/Patent-Policy-20040205/">5 February 2004 W3C Patent Policy</a>.
+	W3C maintains a <a href="https://www.w3.org/2004/01/pp-impl/32061/status" rel="disclosure">public list of any patent disclosures</a> made in connection with the deliverables of the group;
+	that page also includes instructions for disclosing a patent.
+	An individual who has actual knowledge of a patent which the individual believes contains <a href="https://www.w3.org/Consortium/Patent-Policy-20040205/#def-essential">Essential Claim(s)</a> must disclose the information in accordance with <a href="https://www.w3.org/Consortium/Patent-Policy-20040205/#sec-Disclosure">section 6 of the W3C Patent Policy</a>. </p>
+   <p> This document is governed by the <a href="https://www.w3.org/2015/Process-20150901/" id="w3c_process_revision">1 September 2015 W3C Process Document</a>. </p>
+   <p> For changes since the last draft,
+	see the <a href="#changes">Changes</a> section. </p>
+   <p></p>
+  </div>
+  <div data-fill-with="at-risk"></div>
+  <h2 class="no-num no-toc no-ref heading settled" id="contents"><span class="content">Table of Contents</span></h2>
+  <div data-fill-with="table-of-contents" role="navigation">
+   <ul class="toc" role="directory">
+    <li><a href="#intro"><span class="secno">1</span> <span class="content"> Introduction</span></a>
+    <li>
+     <a href="#defining-variables"><span class="secno">2</span> <span class="content"> Defining Custom Properties: the <span class="property">--*</span> family of properties</span></a>
+     <ul class="toc">
+      <li><a href="#syntax"><span class="secno">2.1</span> <span class="content"> Custom Property Value Syntax</span></a>
+      <li><a href="#cycles"><span class="secno">2.2</span> <span class="content"> Resolving Dependency Cycles</span></a>
+     </ul>
+    <li>
+     <a href="#using-variables"><span class="secno">3</span> <span class="content"> Using Cascading Variables: the <span class="css">var()</span> notation</span></a>
+     <ul class="toc">
+      <li><a href="#invalid-variables"><span class="secno">3.1</span> <span class="content"> Invalid Variables</span></a>
+      <li><a href="#variables-in-shorthands"><span class="secno">3.2</span> <span class="content"> Variables in Shorthand Properties</span></a>
+     </ul>
+    <li>
+     <a href="#apis"><span class="secno">4</span> <span class="content"> APIs</span></a>
+     <ul class="toc">
+      <li><a href="#serializing-custom-props"><span class="secno">4.1</span> <span class="content"> Serializing Custom Properties</span></a>
+     </ul>
+    <li><a href="#changes"><span class="secno">5</span> <span class="content"> Changes since the May 6 2014 Last Call Working Draft</span></a>
+    <li><a href="#acks"><span class="secno">6</span> <span class="content"> Acknowledgments</span></a>
+    <li>
+     <a href="#conformance"><span class="secno"></span> <span class="content"> Conformance</span></a>
+     <ul class="toc">
+      <li><a href="#document-conventions"><span class="secno"></span> <span class="content"> Document conventions</span></a>
+      <li><a href="#conform-classes"><span class="secno"></span> <span class="content"> Conformance classes</span></a>
+      <li>
+       <a href="#conform-responsible"><span class="secno"></span> <span class="content"> Requirements for Responsible Implementation of CSS</span></a>
+       <ul class="toc">
+        <li><a href="#conform-partial"><span class="secno"></span> <span class="content"> Partial Implementations</span></a>
+        <li><a href="#conform-future-proofing"><span class="secno"></span> <span class="content"> Implementations of Unstable and Proprietary Features</span></a>
+        <li><a href="#conform-testing"><span class="secno"></span> <span class="content"> Implementations of CR-level Features</span></a>
+       </ul>
+      <li><a href="#cr-exit-criteria"><span class="secno"></span> <span class="content"> CR exit criteria</span></a>
+     </ul>
+    <li>
+     <a href="#index"><span class="secno"></span> <span class="content">Index</span></a>
+     <ul class="toc">
+      <li><a href="#index-defined-here"><span class="secno"></span> <span class="content">Terms defined by this specification</span></a>
+      <li><a href="#index-defined-elsewhere"><span class="secno"></span> <span class="content">Terms defined by reference</span></a>
+     </ul>
+    <li>
+     <a href="#references"><span class="secno"></span> <span class="content">References</span></a>
+     <ul class="toc">
+      <li><a href="#normative"><span class="secno"></span> <span class="content">Normative References</span></a>
+      <li><a href="#informative"><span class="secno"></span> <span class="content">Informative References</span></a>
+     </ul>
+    <li><a href="#property-index"><span class="secno"></span> <span class="content">Property Index</span></a>
+   </ul>
+  </div>
+  <main>
+   <h2 class="heading settled" data-level="1" id="intro"><span class="secno">1. </span><span class="content"> Introduction</span><a class="self-link" href="#intro"></a></h2>
+   <p><em>This section is not normative.</em></p>
+   <p>Large documents or applications
+	(and even small ones)
+	can contain quite a bit of CSS.
+	Many of the values in the CSS file will be duplicate data;
+	for example,
+	a site may establish a color scheme
+	and reuse three or four colors throughout the site.
+	Altering this data can be difficult and error-prone,
+	since it’s scattered throughout the CSS file
+	(and possibly across multiple files),
+	and may not be amenable to Find-and-Replace.</p>
+   <p>This module introduces a family of custom author-defined properties known collectively as <a data-link-type="dfn" href="#custom-property">custom properties</a>,
+	which allow an author to assign arbitrary values to a property with an author-chosen name,
+	and the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function,
+	which allow an author to then use those values in other properties elsewhere in the document.
+	This makes it easier to read large files,
+	as seemingly-arbitrary values now have informative names,
+	and makes editing such files much easier and less error-prone,
+	as one only has to change the value once,
+	in the <a data-link-type="dfn" href="#custom-property">custom property</a>,
+	and the change will propagate to all uses of that variable automatically.</p>
+   <h2 class="heading settled" data-level="2" id="defining-variables"><span class="secno">2. </span><span class="content"> Defining Custom Properties: the <a class="property" data-link-type="propdesc">--*</a> family of properties</span><a class="self-link" href="#defining-variables"></a></h2>
+   <p>This specification defines an open-ended set of properties called <a data-link-type="dfn" href="#custom-property">custom properties</a>,
+	which, among other things, are used to define the <a data-link-type="dfn" href="#substitute-a-var">substitution value</a> of <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> functions.</p>
+   <table class="definition propdef" data-link-for-hint="--*">
+    <tbody>
+     <tr>
+      <th>Name:
+      <td><dfn class="css" data-dfn-type="property" data-export="" id="propdef-">--*<a class="self-link" href="#propdef-"></a></dfn>
+     <tr class="value">
+      <th>Value:
+      <td class="prod"><a class="production css" data-link-type="type" href="https://www.w3.org/TR/css-syntax-3/#typedef-declaration-list">&lt;declaration-value></a>
+     <tr>
+      <th>Initial:
+      <td>(nothing, see prose)
+     <tr>
+      <th>Applies to:
+      <td>all elements
+     <tr>
+      <th>Inherited:
+      <td>yes
+     <tr>
+      <th>Percentages:
+      <td>n/a
+     <tr>
+      <th>Media:
+      <td>all
+     <tr>
+      <th>Computed value:
+      <td>specified value with variables substituted (but see prose for "invalid variables")
+     <tr>
+      <th>Animatable:
+      <td>no
+   </table>
+   <p>A <dfn data-dfn-type="dfn" data-export="" id="custom-property">custom property<a class="self-link" href="#custom-property"></a></dfn> is any property
+	whose name starts with two dashes (U+002D HYPHEN-MINUS),
+	like <a class="property" data-link-type="propdesc">--foo</a>.
+	The <dfn class="css" data-dfn-type="type" data-export="" id="typedef-custom-property-name">&lt;custom-property-name><a class="self-link" href="#typedef-custom-property-name"></a></dfn> production corresponds to this:
+	it’s defined as any valid <a data-link-type="dfn" href="https://www.w3.org/TR/css-syntax-3/#identifier">identifier</a> that starts with two dashes. <a data-link-type="dfn" href="#custom-property">Custom properties</a> are solely for use by authors and users;
+	CSS will never give them a meaning beyond what is presented here.</p>
+   <div class="example" id="example-d1c7ba56">
+    <a class="self-link" href="#example-d1c7ba56"></a> Custom properties define variables,
+		referenced with the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> notation,
+		which can be used for many purposes.
+		For example, a page that consistently uses a small set of colors in its design
+		can store the colors in custom properties
+		and use them with variables: 
+<pre>:root {
+  --main-color: #06c;
+  --accent-color: #006;
+}
+/* The rest of the CSS file */
+#foo h1 {
+  color: var(--main-color);
+}
+</pre>
+    <p>The naming provides a mnemonic for the colors,
+		prevents difficult-to-spot typos in the color codes,
+		and if the theme colors are ever changed,
+		focuses the change on one simple spot
+		(the custom property value)
+		rather than requiring many edits across all stylesheets in the webpage.</p>
+   </div>
+   <p>Unlike other CSS properties,
+	custom property names are <a data-link-type="dfn" href="https://dom.spec.whatwg.org/#case-sensitive">case-sensitive</a>.</p>
+   <div class="example" id="example-6e1ad79f"><a class="self-link" href="#example-6e1ad79f"></a> While both <a class="property" data-link-type="propdesc">--foo</a> and --FOO are valid,
+		they are distinct properties -
+		using <span class="css">var(--foo)</span> will refer to the first one,
+		while using <span class="css">var(--FOO)</span> will refer to the second. </div>
+   <p>Custom properties are <strong>not</strong> reset by the <a class="property" data-link-type="propdesc" href="https://www.w3.org/TR/css-cascade-4/#propdef-all">all</a> property. <span class="note" role="note">We may define a property in the future that resets all variables.</span></p>
+   <p>The <a data-link-type="dfn" href="https://www.w3.org/TR/css3-values/#css_wide-keywords">CSS-wide keywords</a> can be used in custom properties,
+	with the same meaning as in any another property.</p>
+   <p class="note" role="note">Note: That is, they’re interpreted at cascaded-value time as normal,
+	and are not preserved as the custom property’s value,
+	and thus are not substituted in by the corresponding variable.</p>
+   <p class="note" role="note">Note: While this module focuses on the use of <a data-link-type="dfn" href="#custom-property">custom properties</a> with the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function to create “variables”,
+	they can also be used as actual custom properties,
+	parsed by and acted on by script.
+	It’s expected that the CSS Extensions spec <a data-link-type="biblio" href="#biblio-css-extensions">[CSS-EXTENSIONS]</a> will expand on these use-cases and make them easier to do.</p>
+   <h3 class="heading settled" data-level="2.1" id="syntax"><span class="secno">2.1. </span><span class="content"> Custom Property Value Syntax</span><a class="self-link" href="#syntax"></a></h3>
+   <p>The allowed syntax for <a data-link-type="dfn" href="#custom-property">custom properties</a> is extremely permissive.
+	The <a class="production css" data-link-type="type" href="https://www.w3.org/TR/css-syntax-3/#typedef-declaration-list">&lt;declaration-value></a> production matches <em>any</em> sequence of one or more tokens,
+	so long as the sequence does not contain <a class="production css" data-link-type="type" href="https://www.w3.org/TR/css-syntax-3/#typedef-bad-string-token">&lt;bad-string-token></a>, <a class="production css" data-link-type="type" href="https://www.w3.org/TR/css-syntax-3/#typedef-bad-url-token">&lt;bad-url-token></a>,
+	unmatched <a class="production css" data-link-type="type" href="https://www.w3.org/TR/css-syntax-3/#tokendef-close-paren">&lt;)-token></a>, <a class="production css" data-link-type="type" href="https://www.w3.org/TR/css-syntax-3/#tokendef-close-square">&lt;]-token></a>, or <a class="production css" data-link-type="type" href="https://www.w3.org/TR/css-syntax-3/#tokendef-close-curly">&lt;}-token></a>,
+	or top-level <a class="production css" data-link-type="type" href="https://www.w3.org/TR/css-syntax-3/#typedef-semicolon-token">&lt;semicolon-token></a> tokens or <a class="production css" data-link-type="type" href="https://www.w3.org/TR/css-syntax-3/#typedef-delim-token">&lt;delim-token></a> tokens with a value of "!".</p>
+   <p>In addition, if the value of a <a data-link-type="dfn" href="#custom-property">custom property</a> contains a <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> reference,
+	the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> reference must be valid according to the specified <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> grammar.
+	If not, the <a data-link-type="dfn" href="#custom-property">custom property</a> is invalid and must be ignored.</p>
+   <p class="note" role="note">Note: This definition,
+	along with the general CSS syntax rules,
+	implies that a custom property value never includes an unmatched quote or bracket,
+	and so cannot have any effect on larger syntax constructs,
+	like the enclosing style rule,
+	when reserialized.</p>
+   <p class="note" role="note">Note: Custom properties can contain a trailing <span class="css">!important</span>,
+	but this is automatically removed from the property’s value by the CSS parser,
+	and makes the custom property "important" in the CSS cascade.
+	In other words, the prohibition on top-level "!" characters
+	does not prevent <span class="css">!important</span> from being used,
+	as the <span class="css">!important</span> is removed before syntax checking happens.</p>
+   <p class="note" role="note">Note: While <a class="production css" data-link-type="type" href="https://www.w3.org/TR/css-syntax-3/#typedef-declaration-list">&lt;declaration-value></a> must represent at least one token,
+	that one token may be whitespace.
+	This implies that <a class="css" data-link-type="propdesc">--foo: ;</a> is valid,
+	and the corresponding <span class="css">var(--foo)</span> call would have a single space as its substitution value,
+	but <span class="css">--foo:;</span> is invalid.</p>
+   <div class="example" id="example-52aad45a">
+    <a class="self-link" href="#example-52aad45a"></a> For example, the following is a valid custom property: 
+<pre>--foo: if(x > 5) this.width = 10;
+</pre>
+    <p>While this value is obviously useless as a <em>variable</em>,
+		as it would be invalid in any normal property,
+		it might be read and acted on by JavaScript.</p>
+   </div>
+   <p>The values of custom properties,
+	and the values of <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> functions substituted into custom properties,
+	are <em>case-sensitive</em>,
+	and must be preserved in their original author-given casing.
+	(Many CSS values are <a data-link-type="dfn" href="https://dom.spec.whatwg.org/#ascii-case-insensitive">ASCII case-insensitive</a>,
+	which user agents can take advantage of by "canonicalizing" them into a single casing,
+	but that isn’t allowed for custom properties.)</p>
+   <p>The initial value of a <a data-link-type="dfn" href="#custom-property">custom property</a> is an empty value;
+	that is, nothing at all.
+	This initial value has a special interaction with the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> notation,
+	which is explained in the section defining <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a>.</p>
+   <p>Custom properties are ordinary properties,
+	so they can be declared on any element,
+	are resolved with the normal inheritance and cascade rules,
+	can be made conditional with <a class="css" data-link-type="maybe" href="https://www.w3.org/TR/css3-conditional/#at-media">@media</a> and other conditional rules,
+	can be used in HTML’s <code>style</code> attribute,
+	can be read or set using the CSSOM, etc.</p>
+   <p>Notably, they can even be transitioned or animated,
+	but since the UA has no way to interpret their contents,
+	they always use the "flips at 50%" behavior
+	that is used for any other pair of values that can’t be intelligently interpolated.
+	However, any <a data-link-type="dfn" href="#custom-property">custom property</a> used in a <a class="css" data-link-type="maybe" href="https://www.w3.org/TR/css3-animations/#keyframes">@keyframes</a> rule
+	becomes <dfn data-dfn-type="dfn" data-noexport="" id="animation-tainted">animation-tainted<a class="self-link" href="#animation-tainted"></a></dfn>,
+	which affects how it is treated when referred to via the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function in an animation property.</p>
+   <div class="example" id="example-310ea5b9">
+    <a class="self-link" href="#example-310ea5b9"></a> This style rule: 
+<pre>:root {
+  --header-color: #06c;
+}
+</pre>
+    <p>declares a <a data-link-type="dfn" href="#custom-property">custom property</a> named <a class="property" data-link-type="propdesc">--header-color</a> on the root element,
+		and assigns to it the value "#06c".
+		This property is then inherited to the elements in the rest of the document.
+		Its value can be referenced with the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function:</p>
+<pre>h1 { background-color: var(--header-color); }
+</pre>
+    <p>The preceding rule is equivalent to writing <a class="css" data-link-type="propdesc" href="https://www.w3.org/TR/css3-background/#background-color">background-color: #06c;</a>,
+		except that the variable name makes the origin of the color clearer,
+		and if <span class="css">var(--header-color)</span> is used on other elements in the document,
+		all of the uses can be updated at once
+		by changing the <a class="property" data-link-type="propdesc">--header-color</a> property on the root element.</p>
+   </div>
+   <div class="example" id="example-f8770692">
+    <a class="self-link" href="#example-f8770692"></a> If a <a data-link-type="dfn" href="#custom-property">custom property</a> is declared multiple times,
+		the standard cascade rules help resolve it.
+		Variables always draw from the computed value of the associated custom property on the same element: 
+<pre>:root { --color: blue; }
+div { --color: green; }
+#alert { --color: red; }
+* { color: var(--color); }
+
+&lt;p>I inherited blue from the root element!&lt;/p>
+&lt;div>I got green set directly on me!&lt;/div>
+&lt;div id='alert'>
+  While I got red set directly on me!
+  &lt;p>I’m red too, because of inheritance!&lt;/p>
+&lt;/div>
+</pre>
+   </div>
+   <div class="example" id="example-97d3694f">
+    <a class="self-link" href="#example-97d3694f"></a> A real-world example of <a data-link-type="dfn" href="#custom-property">custom property</a> usage
+		is easily separating out strings from where they’re used,
+		to aid in maintenance of internationalization: 
+<pre class="lang-css highlight"><span class="nd">:root</span><span class="o">,</span>
+<span class="nd">:root:lang</span><span class="o">(</span><span class="nt">en</span><span class="o">)</span> <span class="p">{</span><span class="o">--</span><span class="n">external</span><span class="o">-</span><span class="n">link</span><span class="o">:</span> <span class="s2">"external link"</span><span class="p">;}</span>
+<span class="nd">:root:lang</span><span class="o">(</span><span class="nt">de</span><span class="o">)</span> <span class="p">{</span><span class="o">--</span><span class="n">external</span><span class="o">-</span><span class="n">link</span><span class="o">:</span> <span class="s2">"externer Link"</span><span class="p">;}</span>
+
+<span class="nt">a</span><span class="o">[</span><span class="nt">href</span><span class="o">^=</span><span class="s2">"http"</span><span class="o">]:</span><span class="nd">:after</span> <span class="p">{</span><span class="k">content</span><span class="o">:</span> <span class="s2">" ("</span> <span class="n">var</span><span class="p">(</span><span class="o">--</span><span class="n">external</span><span class="o">-</span><span class="n">link</span><span class="p">)</span> <span class="s2">")"</span><span class="p">}</span></pre>
+    <p>The variable declarations can even be kept in a separate file,
+		to make maintaining the translations simpler.</p>
+   </div>
+   <h3 class="heading settled" data-level="2.2" id="cycles"><span class="secno">2.2. </span><span class="content"> Resolving Dependency Cycles</span><a class="self-link" href="#cycles"></a></h3>
+   <p><a data-link-type="dfn" href="#custom-property">Custom properties</a> are left almost entirely unevaluated,
+	except that they allow and evaluate the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function in their value.
+	This can create cyclic dependencies
+	where a custom property uses a <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> referring to itself,
+	or two or more <a data-link-type="dfn" href="#custom-property">custom properties</a> each attempt to refer to each other.</p>
+   <p>For each element,
+	create a directed dependency graph,
+	containing nodes for each <a data-link-type="dfn" href="#custom-property">custom property</a>.
+	If the value of a <a data-link-type="dfn" href="#custom-property">custom property</a> <var>prop</var> contains a <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function referring to the property <var>var</var> (including in the fallback argument of <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a>),
+	add an edge between <var>prop</var> and the <var>var</var>. <span class="note" role="note">Edges are possible from a custom property to itself.</span> If there is a cycle in the dependency graph,
+	all the <a data-link-type="dfn" href="#custom-property">custom properties</a> in the cycle
+	must compute to their initial value
+	(which is a guaranteed-invalid value).</p>
+   <div class="example" id="example-87c69525">
+    <a class="self-link" href="#example-87c69525"></a> This example shows a custom property safely using a variable: 
+<pre>:root {
+  --main-color: #c06;
+  --accent-background: linear-gradient(to top, var(--main-color), white);
+}
+</pre>
+    <p>The <a class="property" data-link-type="propdesc">--accent-background</a> property
+		(along with any other properties that use <span class="css">var(--main-color)</span>)
+		will automatically update when the <a class="property" data-link-type="propdesc">--main-color</a> property is changed.</p>
+   </div>
+   <div class="example invalid-example" id="example-942ce4d7">
+    <a class="self-link" href="#example-942ce4d7"></a> On the other hand,
+		this example shows an invalid instance of variables depending on each other: 
+<pre>:root {
+  --one: calc(var(--two) + 20px);
+  --two: calc(var(--one) - 20px);
+}
+</pre>
+    <p>Both <a class="property" data-link-type="propdesc">--one</a> and <a class="property" data-link-type="propdesc">--two</a> now compute to their initial value,
+		rather than lengths.</p>
+   </div>
+   <p>It is important to note that <a data-link-type="dfn" href="#custom-property">custom properties</a> resolve any <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> functions in their values at computed-value time,
+	which occurs <em>before</em> the value is inherited.
+	In general,
+	cyclic dependencies occur only when multiple custom properties on the same element refer to each other;
+	custom properties defined on elements higher in the element tree can never cause a cyclic reference with properties defined on elements lower in the element tree.</p>
+   <div class="example" id="example-cf4602dd">
+    <a class="self-link" href="#example-cf4602dd"></a> For example,
+		given the following structure,
+		these custom properties are <strong>not</strong> cyclic,
+		and all define valid variables: 
+<pre>&lt;one>&lt;two>&lt;three />&lt;/two>&lt;/one>
+one   { --foo: 10px; }
+two   { --bar: calc(var(--foo) + 10px); }
+three { --foo: calc(var(--bar) + 10px); }
+</pre>
+    <p>The &lt;one> element defines a value for <a class="property" data-link-type="propdesc">--foo</a>.
+		The &lt;two> element inherits this value,
+		and additionally assigns a value to <a class="property" data-link-type="propdesc">--bar</a> using the <span class="css">foo</span> variable.
+		Finally,
+		the &lt;three> element inherits the <a class="property" data-link-type="propdesc">--bar</a> value <em>after</em> variable substitution
+		(in other words, it sees the value <span class="css">calc(10px + 10px)</span>),
+		and then redefines <a class="property" data-link-type="propdesc">--foo</a> in terms of that value.
+		Since the value it inherited for <a class="property" data-link-type="propdesc">--bar</a> no longer contains a reference to the <a class="property" data-link-type="propdesc">--foo</a> property defined on &lt;one>,
+		defining <a class="property" data-link-type="propdesc">--foo</a> using the <span class="css">var(--bar)</span> variable is not cyclic,
+		and actually defines a value that will eventually
+		(when referenced as a variable in a normal property)
+		resolve to <span class="css">30px</span>.</p>
+   </div>
+   <h2 class="heading settled" data-level="3" id="using-variables"><span class="secno">3. </span><span class="content"> Using Cascading Variables: the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> notation</span><a class="self-link" href="#using-variables"></a></h2>
+   <p>The value of a <a data-link-type="dfn" href="#custom-property">custom property</a> can be substituted into the value of another property
+	with the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function.
+	The syntax of <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> is:</p>
+<pre class="prod"><dfn data-dfn-type="function" data-export="" id="funcdef-var">var()<a class="self-link" href="#funcdef-var"></a></dfn> = var( <a class="production" data-link-type="type" href="#typedef-custom-property-name">&lt;custom-property-name></a> [<a data-link-type="grammar" href="https://www.w3.org/TR/css3-values/#comb-comma">,</a> <a class="production" data-link-type="type" href="https://www.w3.org/TR/css-syntax-3/#typedef-declaration-list">&lt;declaration-value></a> ]<a data-link-type="grammar" href="https://www.w3.org/TR/css3-values/#mult-opt">?</a> )
+</pre>
+   <p>The <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function can be used in place of any part of a value in any property on an element.
+	The <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function can not be used as
+	property names,
+	selectors,
+	or anything else besides property values.
+	(Doing so usually produces invalid syntax,
+	or else a value whose meaning has no connection to the variable.)</p>
+   <p>The first argument to the function is the name of the <a data-link-type="dfn" href="#custom-property">custom property</a> to be substituted.
+	The second argument to the function, if provided,
+	is a fallback value,
+	which is used as the substitution value when the referenced <a data-link-type="dfn" href="#custom-property">custom property</a> is invalid.</p>
+   <p class="note" role="note">Note: The syntax of the fallback, like that of <a data-link-type="dfn" href="#custom-property">custom properties</a>, allows commas.
+	For example, <span class="css">var(--foo, red, blue)</span> defines a fallback of <span class="css">red, blue</span>;
+	that is, anything between the first comma and the end of the function is considered a fallback value.</p>
+   <p>If a property contains one or more <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> functions,
+	and those functions are syntactically valid,
+	the entire property’s grammar must be assumed to be valid at parse time.
+	It is only syntax-checked at computed-value time,
+	after <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> functions have been <a data-link-type="dfn" href="#substitute-a-var">substituted</a>.</p>
+   <p>To <dfn data-dfn-type="dfn" data-export="" id="substitute-a-var">substitute a var()<a class="self-link" href="#substitute-a-var"></a></dfn> in a property’s value:</p>
+   <ol>
+    <li> If the <a data-link-type="dfn" href="#custom-property">custom property</a> named by the first argument to the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function is <a data-link-type="dfn" href="#animation-tainted">animation-tainted</a>,
+			and the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function is being used in the <a class="property" data-link-type="propdesc" href="https://www.w3.org/TR/css3-animations/#animation">animation</a> property or one of its longhands,
+			treat the <a data-link-type="dfn" href="#custom-property">custom property</a> as having its initial value for the rest of this algorithm. 
+    <li> If the value of the <a data-link-type="dfn" href="#custom-property">custom property</a> named by the first argument to the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function
+			is anything but the initial value,
+			replace the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function by the value of the corresponding <a data-link-type="dfn" href="#custom-property">custom property</a>. 
+    <li> Otherwise, if the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function has a fallback value as its second argument,
+			replace the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function by the fallback value.
+			If there are any <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> references in the fallback, <a data-link-type="dfn" href="#substitute-a-var">substitute</a> them as well. 
+    <li>
+      Otherwise,
+			the property containing the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function is <a data-link-type="dfn" href="#invalid-at-computed-value-time">invalid at computed-value time</a>. 
+     <p class="note" role="note">Note: Other things can also make a property <a data-link-type="dfn" href="#invalid-at-computed-value-time">invalid at computed-value time</a>.</p>
+   </ol>
+   <div class="example" id="example-8bfb9889">
+    <a class="self-link" href="#example-8bfb9889"></a> The fallback value allows for some types of defensive coding.
+		For example,
+		an author may create a component
+		intended to be included in a larger application,
+		and use variables to style it
+		so that it’s easy for the author of the larger application
+		to theme the component to match the rest of the app. 
+    <p>Without fallback,
+		the app author must supply a value for every variable that your component uses.
+		With fallback, the component author can supply defaults,
+		so the app author only needs to supply values for the variables they wish to override.</p>
+<pre>/* In the component’s style: */
+.component .header {
+  color: var(--header-color, blue);
+}
+.component .text {
+  color: var(--text-color, black);
+}
+
+/* In the larger application’s style: */
+.component {
+  --text-color: #080;
+  /* header-color isn’t set,
+     and so remains blue,
+     the fallback value */
+}
+</pre>
+   </div>
+   <div class="example" id="example-3ab19e31">
+    <a class="self-link" href="#example-3ab19e31"></a> For example, the following code incorrectly attempts to use a variable as a property name: 
+<pre>.foo {
+  --side: margin-top;
+  var(--side): 20px;
+}
+</pre>
+    <p>This is <em>not</em> equivalent to setting <a class="css" data-link-type="propdesc" href="https://www.w3.org/TR/CSS21/box.html#propdef-margin-top">margin-top: 20px;</a>.
+		Instead, the second declaration is simply thrown away as a syntax error
+		for having an invalid property name.</p>
+    <p>Similarly, you can’t build up a single token where part of it is provided by a variable:</p>
+<pre>.foo {
+  --gap: 20;
+  margin-top: var(--gap)px;
+}
+</pre>
+    <p>Again, this is <em>not</em> equivalent to setting <a class="css" data-link-type="propdesc" href="https://www.w3.org/TR/CSS21/box.html#propdef-margin-top">margin-top: 20px;</a> (a length).
+		Instead, it’s equivalent to <a class="css" data-link-type="propdesc" href="https://www.w3.org/TR/CSS21/box.html#propdef-margin-top">margin-top: 20 px;</a> (a number followed by an ident),
+		which is simply an invalid value for the <a class="property" data-link-type="propdesc" href="https://www.w3.org/TR/CSS21/box.html#propdef-margin-top">margin-top</a> property.
+		Note, though, that <a class="css" data-link-type="maybe" href="https://www.w3.org/TR/css3-values/#funcdef-calc">calc()</a> can be used to validly achieve the same thing, like so:</p>
+<pre>.foo {
+  --gap: 20;
+  margin-top: calc(var(--gap) * 1px);
+}
+</pre>
+   </div>
+   <p><a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> functions are <a data-link-type="dfn" href="#substitute-a-var">substituted</a> at computed-value time.
+	If a declaration,
+	once all <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> functions are substituted in,
+	is invalid,
+	the declaration is <a data-link-type="dfn" href="#invalid-at-computed-value-time">invalid at computed-value time</a>.</p>
+   <div class="example" id="example-f2f9ca03">
+    <a class="self-link" href="#example-f2f9ca03"></a> For example,
+		the following usage is fine from a syntax standpoint,
+		but results in nonsense when the variable is substituted in: 
+<pre>:root { --looks-valid: 20px; }
+p { background-color: var(--looks-valid); }
+</pre>
+    <p>Since <span class="css">20px</span> is an invalid value for <a class="property" data-link-type="propdesc" href="https://www.w3.org/TR/css3-background/#background-color">background-color</a>,
+		this instance of the property computes to <a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-color-4/#valdef-color-transparent">transparent</a> (the initial value for <a class="property" data-link-type="propdesc" href="https://www.w3.org/TR/css3-background/#background-color">background-color</a>)
+		instead.</p>
+    <p>If the property was one that’s inherited by default,
+		such as <a class="property css" data-link-type="property" href="https://drafts.csswg.org/css-color-4/#propdef-color">color</a>,
+		it would compute to the inherited value
+		rather than the initial value.</p>
+   </div>
+   <h3 class="heading settled" data-level="3.1" id="invalid-variables"><span class="secno">3.1. </span><span class="content"> Invalid Variables</span><a class="self-link" href="#invalid-variables"></a></h3>
+   <p>When a <a data-link-type="dfn" href="#custom-property">custom property</a> has its initial value, <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> functions cannot use it for substitution.
+	Attempting to do so
+	makes the declaration <a data-link-type="dfn" href="#invalid-at-computed-value-time">invalid at computed-value time</a>,
+	unless a valid fallback is specified.</p>
+   <p>A declaration can be <dfn data-dfn-type="dfn" data-noexport="" id="invalid-at-computed-value-time">invalid at computed-value time<a class="self-link" href="#invalid-at-computed-value-time"></a></dfn> if it contains a <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> that references a <a data-link-type="dfn" href="#custom-property">custom property</a> with its initial value,
+	as explained above,
+	or if it uses a valid <a data-link-type="dfn" href="#custom-property">custom property</a>,
+	but the property value,
+	after substituting its <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> functions,
+	is invalid.
+	When this happens,
+	the computed value of the property is either
+	the property’s inherited value
+	or its initial value
+	depending on whether the property is inherited or not, respectively,
+	as if the property’s value had been specified as the <a class="css" data-link-type="maybe" href="https://www.w3.org/TR/css-cascade-4/#valdef-all-unset">unset</a> keyword.</p>
+   <div class="example" id="example-6f7427c9">
+    <a class="self-link" href="#example-6f7427c9"></a> For example, in the following code: 
+<pre>:root { --not-a-color: 20px; }
+p { background-color: red; }
+p { background-color: var(--not-a-color); }
+</pre>
+    <p>the &lt;p> elements will have transparent backgrounds
+		(the initial value for <a class="property" data-link-type="propdesc" href="https://www.w3.org/TR/css3-background/#background-color">background-color</a>),
+		rather than red backgrounds.
+		The same would happen if the <a data-link-type="dfn" href="#custom-property">custom property</a> itself was unset,
+		or contained an invalid <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function.</p>
+    <p>Note the difference between this
+		and what happens if the author had just written <a class="css" data-link-type="propdesc" href="https://www.w3.org/TR/css3-background/#background-color">background-color: 20px</a> directly in their stylesheet -
+		that would be a normal syntax error,
+		which would cause the rule to be discarded,
+		so the <a class="css" data-link-type="propdesc" href="https://www.w3.org/TR/css3-background/#background-color">background-color: red</a> rule would be used instead.</p>
+   </div>
+   <p class="note" role="note">Note: The <a data-link-type="dfn" href="#invalid-at-computed-value-time">invalid at computed-value time</a> concept exists
+	because variables can’t "fail early" like other syntax errors can,
+	so by the time the user agent realizes a property value is invalid,
+	it’s already thrown away the other cascaded values.</p>
+   <h3 class="heading settled" data-level="3.2" id="variables-in-shorthands"><span class="secno">3.2. </span><span class="content"> Variables in Shorthand Properties</span><a class="self-link" href="#variables-in-shorthands"></a></h3>
+   <p>The use of <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> functions in <a data-link-type="dfn" href="https://www.w3.org/TR/css-cascade-4/#shorthand-property">shorthand properties</a> presents some unique difficulties.</p>
+   <p>Ordinarily, the value of a shorthand property is separated out into its component <a data-link-type="dfn" href="https://www.w3.org/TR/css-cascade-4/#longhand">longhand properties</a> at parse time,
+	and then the longhands themselves participate in the <a data-link-type="dfn" href="https://www.w3.org/TR/css-cascade-4/#cascade">cascade</a>,
+	with the shorthand more-or-less discarded.
+	If a <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> functions is used in a shorthand, however,
+	one can’t tell what values are meant to go where;
+	it may in fact be impossible to separate it out at parse time,
+	as a single <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> function may substitute in the value of several longhands at once.</p>
+   <p>To get around this,
+	implementations must fill in longhands with a special, unobservable-to-authors <dfn data-dfn-type="dfn" data-export="" id="pending-substitution-value">pending-substitution value<a class="self-link" href="#pending-substitution-value"></a></dfn> that indicates the shorthand contains a variable,
+	and thus the longhand’s value is pending variable substitution.
+	This value must then be cascaded as normal,
+	and at computed-value time,
+	after <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> functions are finally substituted in,
+	the shorthand must be parsed and the longhands must be given their appropriate values at that point.</p>
+   <p><a data-link-type="dfn" href="#pending-substitution-value">Pending-substitution values</a> must be serialized as the empty string,
+	if an API allows them to be observed.</p>
+   <p>Similarly,
+	while <a data-link-type="biblio" href="#biblio-cssom">[CSSOM]</a> defines that shorthand properties are serialized
+	by appropriately concatenating the values of their corresponding longhands,
+	shorthands that are specified with explicit <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> functions
+	must serialize to the original, <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a>-containing value.
+	For other shorthands,
+	if any of the longhand subproperties for that shorthand have <a data-link-type="dfn" href="#pending-substitution-value">pending-substitution values</a> then the serialized value of the shorthand must be the empty string.</p>
+   <h2 class="heading settled" data-level="4" id="apis"><span class="secno">4. </span><span class="content"> APIs</span><a class="self-link" href="#apis"></a></h2>
+   <p>All <a data-link-type="dfn" href="#custom-property">custom property</a> <a data-link-type="dfn" href="https://www.w3.org/TR/css-syntax-3/#declaration">declarations</a> have the <var>case-insensitive</var> flag set.</p>
+   <p class="note" role="note">Note: Custom properties do not appear on a CSSStyleDeclaration object in camel-cased form,
+	because their names may have both upper and lower case letters
+	which indicate distinct custom properties.
+	The sort of text transformation that automatic camel-casing performs is incompatible with this.
+	They can still be accessed by their proper name via <a class="idl-code" data-link-type="method" href="https://www.w3.org/TR/cssom/#dom-cssstyledeclaration-getpropertyvalue">getPropertyValue()</a>/etc.</p>
+   <h3 class="heading settled" data-level="4.1" id="serializing-custom-props"><span class="secno">4.1. </span><span class="content"> Serializing Custom Properties</span><a class="self-link" href="#serializing-custom-props"></a></h3>
+   <p>Custom property names must be serialized with the casing as provided by the author.</p>
+   <p class="note" role="note"> Ordinarily, property names are restricted to the ASCII range and are <a data-link-type="dfn" href="https://dom.spec.whatwg.org/#ascii-case-insensitive">ASCII case-insensitive</a>,
+		so implementations typically serialize the name lowercased. </p>
+   <h2 class="heading settled" data-level="5" id="changes"><span class="secno">5. </span><span class="content"> Changes since the May 6 2014 Last Call Working Draft</span><a class="self-link" href="#changes"></a></h2>
+   <ul>
+    <li data-md="">
+     <p>Serialization of longhands when shorthand uses a variable was defined.</p>
+    <li data-md="">
+     <p>Link to DOM’s definition of "case-sensitive".</p>
+    <li data-md="">
+     <p>Added example of using variables with <a class="css" data-link-type="maybe" href="https://www.w3.org/TR/selectors4/#lang-pseudo">:lang()</a> to do simple i18n.</p>
+    <li data-md="">
+     <p>Clarified that usage of <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> in a custom property must be valid per the <a class="css" data-link-type="maybe" href="#funcdef-var">var()</a> grammar.</p>
+   </ul>
+   <h2 class="heading settled" data-level="6" id="acks"><span class="secno">6. </span><span class="content"> Acknowledgments</span><a class="self-link" href="#acks"></a></h2>
+   <p> Many thanks to several people in the CSS Working Group for keeping the dream of variables alive over the years,
+		particularly Daniel Glazman and David Hyatt.
+		Thanks to multiple people on the mailing list for helping contribute to the development of this incarnation of variables,
+		particularly
+		Brian Kardell,
+		David Baron,
+		François Remy,
+		Roland Steiner,
+		and Shane Stephens. </p>
+  </main>
+  <h2 class="no-ref no-num heading settled" id="conformance"><span class="content"> Conformance</span><a class="self-link" href="#conformance"></a></h2>
+  <h3 class="heading settled" id="document-conventions"><span class="content"> Document conventions</span><a class="self-link" href="#document-conventions"></a></h3>
+  <p>Conformance requirements are expressed with a combination of
+    descriptive assertions and RFC 2119 terminology. The key words "MUST",
+    "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT",
+    "RECOMMENDED", "MAY", and "OPTIONAL" in the normative parts of this
+    document are to be interpreted as described in RFC 2119.
+    However, for readability, these words do not appear in all uppercase
+    letters in this specification. </p>
+  <p>All of the text of this specification is normative except sections
+    explicitly marked as non-normative, examples, and notes. <a data-link-type="biblio" href="#biblio-rfc2119">[RFC2119]</a> </p>
+  <p>Examples in this specification are introduced with the words "for example"
+    or are set apart from the normative text with <code>class="example"</code>,
+    like this: </p>
+  <div class="example" id="example-a13d9f9a">
+   <a class="self-link" href="#example-a13d9f9a"></a> 
+   <p>This is an example of an informative example. </p>
+  </div>
+  <p>Informative notes begin with the word "Note" and are set apart from the
+    normative text with <code>class="note"</code>, like this: </p>
+  <p class="note" role="note">Note, this is an informative note. </p>
+  <p>Advisements are normative sections styled to evoke special attention and are
+    set apart from other normative text with <code>&lt;strong class="advisement"></code>, like
+    this: <strong class="advisement"> UAs MUST provide an accessible alternative. </strong> </p>
+  <h3 class="heading settled" id="conform-classes"><span class="content"> Conformance classes</span><a class="self-link" href="#conform-classes"></a></h3>
+  <p>Conformance to this specification
+    is defined for three conformance classes: </p>
+  <dl>
+   <dt>style sheet 
+   <dd>A <a href="https://www.w3.org/TR/CSS2/conform.html#style-sheet">CSS
+            style sheet</a>. 
+   <dt>renderer 
+   <dd>A <a href="https://www.w3.org/TR/CSS2/conform.html#user-agent">UA</a> that interprets the semantics of a style sheet and renders
+            documents that use them. 
+   <dt>authoring tool 
+   <dd>A <a href="https://www.w3.org/TR/CSS2/conform.html#user-agent">UA</a> that writes a style sheet. 
+  </dl>
+  <p>A style sheet is conformant to this specification
+    if all of its statements that use syntax defined in this module are valid
+    according to the generic CSS grammar and the individual grammars of each
+    feature defined in this module. </p>
+  <p>A renderer is conformant to this specification
+    if, in addition to interpreting the style sheet as defined by the
+    appropriate specifications, it supports all the features defined
+    by this specification by parsing them correctly
+    and rendering the document accordingly. However, the inability of a
+    UA to correctly render a document due to limitations of the device
+    does not make the UA non-conformant. (For example, a UA is not
+    required to render color on a monochrome monitor.) </p>
+  <p>An authoring tool is conformant to this specification
+    if it writes style sheets that are syntactically correct according to the
+    generic CSS grammar and the individual grammars of each feature in
+    this module, and meet all other conformance requirements of style sheets
+    as described in this module. </p>
+  <h3 class="heading settled" id="conform-responsible"><span class="content"> Requirements for Responsible Implementation of CSS</span><a class="self-link" href="#conform-responsible"></a></h3>
+  <p>The following sections define several conformance requirements
+        for implementing CSS responsibly,
+        in a way that promotes interoperability in the present and future. </p>
+  <h4 class="heading settled" id="conform-partial"><span class="content"> Partial Implementations</span><a class="self-link" href="#conform-partial"></a></h4>
+  <p>So that authors can exploit the forward-compatible parsing rules to assign fallback values, <strong>CSS renderers <em>must</em> treat as invalid
+        (and <a href="https://www.w3.org/TR/CSS2/conform.html#ignore">ignore as appropriate</a>)
+        any at-rules, properties, property values, keywords, and other syntactic constructs
+        for which they have no usable level of support</strong>.
+        In particular, user agents <em>must not</em> selectively ignore
+        unsupported property values and honor supported values in a single multi-value property declaration:
+        if any value is considered invalid (as unsupported values must be),
+        CSS requires that the entire declaration be ignored. </p>
+  <h4 class="heading settled" id="conform-future-proofing"><span class="content"> Implementations of Unstable and Proprietary Features</span><a class="self-link" href="#conform-future-proofing"></a></h4>
+  <p>To avoid clashes with future stable CSS features,
+        the CSSWG recommends <a href="https://www.w3.org/TR/CSS/#future-proofing">following best practices</a> for the implementation of <a href="https://www.w3.org/TR/CSS/#unstable">unstable</a> features and <a href="https://www.w3.org/TR/CSS/#proprietary-extension">proprietary extensions</a> to CSS. </p>
+  <h4 class="heading settled" id="conform-testing"><span class="content"> Implementations of CR-level Features</span><a class="self-link" href="#conform-testing"></a></h4>
+  <p>Once a specification reaches the Candidate Recommendation stage,
+        implementers should release an <a data-link-type="dfn" href="https://www.w3.org/TR/CSS/#vendor-prefix">unprefixed</a> implementation
+        of any CR-level feature they can demonstrate
+        to be correctly implemented according to spec,
+        and should avoid exposing a prefixed variant of that feature. </p>
+  <p>To establish and maintain the interoperability of CSS across
+        implementations, the CSS Working Group requests that non-experimental
+        CSS renderers submit an implementation report (and, if necessary, the
+        testcases used for that implementation report) to the W3C before
+        releasing an unprefixed implementation of any CSS features. Testcases
+        submitted to W3C are subject to review and correction by the CSS
+        Working Group. </p>
+  <p>Further information on submitting testcases and implementation reports
+        can be found from on the CSS Working Group’s website at <a href="https://www.w3.org/Style/CSS/Test/">http://www.w3.org/Style/CSS/Test/</a>.
+        Questions should be directed to the <a href="http://lists.w3.org/Archives/Public/public-css-testsuite">public-css-testsuite@w3.org</a> mailing list. </p>
+  <h3 class="no-ref heading settled" id="cr-exit-criteria"><span class="content"> CR exit criteria</span><a class="self-link" href="#cr-exit-criteria"></a></h3>
+  <p> For this specification to be advanced to Proposed Recommendation,
+    there must be at least two independent, interoperable implementations
+    of each feature. Each feature may be implemented by a different set of
+    products, there is no requirement that all features be implemented by
+    a single product. For the purposes of this criterion, we define the
+    following terms: </p>
+  <dl>
+   <dt>independent 
+   <dd>each implementation must be developed by a
+        different party and cannot share, reuse, or derive from code
+        used by another qualifying implementation. Sections of code that
+        have no bearing on the implementation of this specification are
+        exempt from this requirement. 
+   <dt>interoperable 
+   <dd>passing the respective test case(s) in the
+        official CSS test suite, or, if the implementation is not a Web
+        browser, an equivalent test. Every relevant test in the test
+        suite should have an equivalent test created if such a user
+        agent (UA) is to be used to claim interoperability. In addition
+        if such a UA is to be used to claim interoperability, then there
+        must one or more additional UAs which can also pass those
+        equivalent tests in the same way for the purpose of
+        interoperability. The equivalent tests must be made publicly
+        available for the purposes of peer review. 
+   <dt>implementation 
+   <dd>
+    a user agent which: 
+    <ol class="inline">
+     <li>implements the specification. 
+     <li>is available to the general public. The implementation may
+            be a shipping product or other publicly available version
+            (i.e., beta version, preview release, or "nightly build").
+            Non-shipping product releases must have implemented the
+            feature(s) for a period of at least one month in order to
+            demonstrate stability. 
+     <li>is not experimental (i.e., a version specifically designed
+            to pass the test suite and is not intended for normal usage
+            going forward). 
+    </ol>
+  </dl>
+  <p>The specification will remain Candidate Recommendation for at least
+    six months. </p>
+  <h2 class="no-num heading settled" id="index"><span class="content">Index</span><a class="self-link" href="#index"></a></h2>
+  <h3 class="no-num heading settled" id="index-defined-here"><span class="content">Terms defined by this specification</span><a class="self-link" href="#index-defined-here"></a></h3>
+  <ul class="indexlist">
+   <li><a href="#propdef-">--*</a><span>, in §2</span>
+   <li><a href="#animation-tainted">animation-tainted</a><span>, in §2.1</span>
+   <li><a href="#custom-property">custom property</a><span>, in §2</span>
+   <li><a href="#typedef-custom-property-name">&lt;custom-property-name></a><span>, in §2</span>
+   <li><a href="#invalid-at-computed-value-time">invalid at computed-value time</a><span>, in §3.1</span>
+   <li><a href="#pending-substitution-value">pending-substitution value</a><span>, in §3.2</span>
+   <li><a href="#substitute-a-var">substitute a var()</a><span>, in §3</span>
+   <li><a href="#funcdef-var">var()</a><span>, in §3</span>
+  </ul>
+  <h3 class="no-num heading settled" id="index-defined-elsewhere"><span class="content">Terms defined by reference</span><a class="self-link" href="#index-defined-elsewhere"></a></h3>
+  <ul class="indexlist">
+   <li>
+    <a data-link-type="biblio" href="#biblio-css-animations-1">[css-animations-1]</a> defines the following terms:
+    <ul>
+     <li><a href="https://www.w3.org/TR/css3-animations/#keyframes">@keyframes</a>
+     <li><a href="https://www.w3.org/TR/css3-animations/#animation">animation</a>
+    </ul>
+   <li>
+    <a data-link-type="biblio" href="#biblio-css-backgrounds-3">[css-backgrounds-3]</a> defines the following terms:
+    <ul>
+     <li><a href="https://www.w3.org/TR/css3-background/#background-color">background-color</a>
+    </ul>
+   <li>
+    <a data-link-type="biblio" href="#biblio-css-cascade-4">[css-cascade-4]</a> defines the following terms:
+    <ul>
+     <li><a href="https://www.w3.org/TR/css-cascade-4/#propdef-all">all</a>
+     <li><a href="https://www.w3.org/TR/css-cascade-4/#cascade">cascade</a>
+     <li><a href="https://www.w3.org/TR/css-cascade-4/#longhand">longhand property</a>
+     <li><a href="https://www.w3.org/TR/css-cascade-4/#shorthand-property">shorthand property</a>
+     <li><a href="https://www.w3.org/TR/css-cascade-4/#valdef-all-unset">unset</a>
+    </ul>
+   <li>
+    <a data-link-type="biblio" href="#biblio-css-color-3">[css-color-3]</a> defines the following terms:
+    <ul>
+     <li><a href="https://www.w3.org/TR/css3-color/#foreground">color</a>
+     <li><a href="https://www.w3.org/TR/css3-color/#transparent-def">transparent</a>
+    </ul>
+   <li>
+    <a data-link-type="biblio" href="#biblio-css-conditional-3">[css-conditional-3]</a> defines the following terms:
+    <ul>
+     <li><a href="https://www.w3.org/TR/css3-conditional/#at-media">@media</a>
+    </ul>
+   <li>
+    <a data-link-type="biblio" href="#biblio-css-syntax-3">[css-syntax-3]</a> defines the following terms:
+    <ul>
+     <li><a href="https://www.w3.org/TR/css-syntax-3/#tokendef-close-paren">&lt;)-token></a>
+     <li><a href="https://www.w3.org/TR/css-syntax-3/#tokendef-close-square">&lt;]-token></a>
+     <li><a href="https://www.w3.org/TR/css-syntax-3/#typedef-bad-string-token">&lt;bad-string-token></a>
+     <li><a href="https://www.w3.org/TR/css-syntax-3/#typedef-bad-url-token">&lt;bad-url-token></a>
+     <li><a href="https://www.w3.org/TR/css-syntax-3/#typedef-declaration-list">&lt;declaration-value></a>
+     <li><a href="https://www.w3.org/TR/css-syntax-3/#typedef-delim-token">&lt;delim-token></a>
+     <li><a href="https://www.w3.org/TR/css-syntax-3/#typedef-semicolon-token">&lt;semicolon-token></a>
+     <li><a href="https://www.w3.org/TR/css-syntax-3/#tokendef-close-curly">&lt;}-token></a>
+     <li><a href="https://www.w3.org/TR/css-syntax-3/#declaration">declaration</a>
+     <li><a href="https://www.w3.org/TR/css-syntax-3/#identifier">identifier</a>
+    </ul>
+   <li>
+    <a data-link-type="biblio" href="#biblio-css-values-3">[css-values]</a> defines the following terms:
+    <ul>
+     <li><a href="https://www.w3.org/TR/css3-values/#comb-comma">,</a>
+     <li><a href="https://www.w3.org/TR/css3-values/#mult-opt">?</a>
+     <li><a href="https://www.w3.org/TR/css3-values/#funcdef-calc">calc()</a>
+     <li><a href="https://www.w3.org/TR/css3-values/#css_wide-keywords">css-wide keywords</a>
+    </ul>
+   <li>
+    <a data-link-type="biblio" href="#biblio-css21">[CSS21]</a> defines the following terms:
+    <ul>
+     <li><a href="https://www.w3.org/TR/CSS21/box.html#propdef-margin-top">margin-top</a>
+    </ul>
+   <li>
+    <a data-link-type="biblio" href="#biblio-cssom">[cssom]</a> defines the following terms:
+    <ul>
+     <li><a href="https://www.w3.org/TR/cssom/#dom-cssstyledeclaration-getpropertyvalue">getPropertyValue(property)</a>
+    </ul>
+   <li>
+    <a data-link-type="biblio" href="#biblio-dom">[DOM]</a> defines the following terms:
+    <ul>
+     <li><a href="https://www.w3.org/TR/dom#ascii-case-insensitive">ascii case-insensitive</a>
+     <li><a href="https://www.w3.org/TR/dom#case-sensitive">case-sensitive</a>
+    </ul>
+   <li>
+    <a data-link-type="biblio" href="#biblio-selectors-4">[selectors-4]</a> defines the following terms:
+    <ul>
+     <li><a href="https://www.w3.org/TR/selectors4/#lang-pseudo">:lang()</a>
+    </ul>
+  </ul>
+  <h2 class="no-num heading settled" id="references"><span class="content">References</span><a class="self-link" href="#references"></a></h2>
+  <h3 class="no-num heading settled" id="normative"><span class="content">Normative References</span><a class="self-link" href="#normative"></a></h3>
+  <dl>
+   <dt id="biblio-css21"><a class="self-link" href="#biblio-css21"></a>[CSS21]
+   <dd>Bert Bos; et al. <a href="https://www.w3.org/TR/CSS2/">Cascading Style Sheets Level 2 Revision 1 (CSS 2.1) Specification</a>. 7 June 2011. REC. URL: <a href="https://www.w3.org/TR/CSS2/">http://www.w3.org/TR/CSS2/</a>
+   <dt id="biblio-css-animations-1"><a class="self-link" href="#biblio-css-animations-1"></a>[CSS-ANIMATIONS-1]
+   <dd>CSS Animations Module Level 1 URL: <a href="https://www.w3.org/TR/css3-animations/">http://www.w3.org/TR/css3-animations/</a>
+   <dt id="biblio-css-cascade-4"><a class="self-link" href="#biblio-css-cascade-4"></a>[CSS-CASCADE-4]
+   <dd>Elika Etemad; Tab Atkins Jr.. <a href="https://www.w3.org/TR/css-cascade-4/">CSS Cascading and Inheritance Level 4</a>. 8 September 2015. WD. URL: <a href="https://www.w3.org/TR/css-cascade-4/">http://www.w3.org/TR/css-cascade-4/</a>
+   
+   <dt id="biblio-css-conditional-3"><a class="self-link" href="#biblio-css-conditional-3"></a>[CSS-CONDITIONAL-3]
+   <dd>CSS Conditional Rules Module Level 3 URL: <a href="https://www.w3.org/TR/css3-conditional/">http://www.w3.org/TR/css3-conditional/</a>
+   <dt id="biblio-css-syntax-3"><a class="self-link" href="#biblio-css-syntax-3"></a>[CSS-SYNTAX-3]
+   <dd>Tab Atkins Jr.; Simon Sapin. <a href="https://www.w3.org/TR/css-syntax-3/">CSS Syntax Module Level 3</a>. 20 February 2014. CR. URL: <a href="https://www.w3.org/TR/css-syntax-3/">http://www.w3.org/TR/css-syntax-3/</a>
+   <dt id="biblio-css-values-3"><a class="self-link" href="#biblio-css-values-3"></a>[CSS-VALUES]
+   <dd>Tab Atkins Jr.; Elika Etemad. <a href="https://www.w3.org/TR/css-values/">CSS Values and Units Module Level 3</a>. 11 June 2015. CR. URL: <a href="https://www.w3.org/TR/css-values/">http://www.w3.org/TR/css-values/</a>
+   <dt id="biblio-cssom"><a class="self-link" href="#biblio-cssom"></a>[CSSOM]
+   <dd>Simon Pieters; Glenn Adams. <a href="https://www.w3.org/TR/cssom/">CSS Object Model (CSSOM)</a>. 5 December 2013. WD. URL: <a href="https://www.w3.org/TR/cssom/">http://www.w3.org/TR/cssom/</a>
+   <dt id="biblio-dom"><a class="self-link" href="#biblio-dom"></a>[DOM]
+   <dd>Document Object Model URL: <a href="https://www.w3.org/TR/dom/">http://www.w3.org/TR/dom/</a>
+   <dt id="biblio-rfc2119"><a class="self-link" href="#biblio-rfc2119"></a>[RFC2119]
+   <dd>S. Bradner. <a href="https://tools.ietf.org/html/rfc2119">Key words for use in RFCs to Indicate Requirement Levels</a>. March 1997. Best Current Practice. URL: <a href="https://tools.ietf.org/html/rfc2119">https://tools.ietf.org/html/rfc2119</a>
+   <dt id="biblio-selectors-4"><a class="self-link" href="#biblio-selectors-4"></a>[SELECTORS-4]
+   <dd>Selectors Level 4 URL: <a href="https://www.w3.org/TR/selectors4/">http://www.w3.org/TR/selectors4/</a>
+  </dl>
+  <h3 class="no-num heading settled" id="informative"><span class="content">Informative References</span><a class="self-link" href="#informative"></a></h3>
+  <dl>
+  <dt id="biblio-css-backgrounds-3"><a class="self-link" href="#biblio-css-backgrounds-3"></a>[CSS-BACKGROUNDS-3]
+   <dd>CSS Backgrounds and Borders Module Level 3 URL: <a href="https://www.w3.org/TR/css3-background/">http://www.w3.org/TR/css3-background/</a>
+  <dt id="biblio-css-color-3"><a class="self-link" href="#biblio-css-color-3"></a>[CSS-COLOR-3]
+   <dd>CSS Color Module Level 3 URL: <a href="https://www.w3.org/TR/css3-color/">http://www.w3.org/TR/css3-color/</a>
+   <dt id="biblio-css-extensions"><a class="self-link" href="#biblio-css-extensions"></a>[CSS-EXTENSIONS]
+   <dd>Tab Atkins Jr.. <a href="http://dev.w3.org/csswg/css-extensions/">CSS Extensions</a>. ED. URL: <a href="http://dev.w3.org/csswg/css-extensions/">http://dev.w3.org/csswg/css-extensions/</a>
+  </dl>
+  <h2 class="no-num heading settled" id="property-index"><span class="content">Property Index</span><a class="self-link" href="#property-index"></a></h2>
+  <div class="big-element-wrapper">
+   <table class="proptable data">
+    <thead>
+     <tr>
+      <th scope="col">Name
+      <th scope="col">Value
+      <th scope="col">Initial
+      <th scope="col">Applies to
+      <th scope="col">Inh.
+      <th scope="col">%ages
+      <th scope="col">Media
+      <th scope="col">Ani­mat­able
+      <th scope="col">Com­puted value
+    <tbody>
+     <tr>
+      <th scope="row"><a class="css" data-link-type="property">--*</a>
+      <td>&lt;declaration-value>
+      <td>(nothing, see prose)
+      <td>all elements
+      <td>yes
+      <td>n/a
+      <td>all
+      <td>no
+      <td>specified value with variables substituted (but see prose for "invalid variables")
+   </table>
+  </div>
+ <script src="https://www.w3.org/scripts/TR/fixup.js"></script></body>
+</html>
