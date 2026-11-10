@@ -1,0 +1,84 @@
+NumberBridge.lean:37:125: error: unsolved goals
+state : State
+⊢ (FirstOrder.scanData digitPredicate FirstOrder.Env.nil 2 state.input).fst = (takeDigits state.input).fst ∧
+    (FirstOrder.scanData digitPredicate FirstOrder.Env.nil 2 state.input).snd = (takeDigits state.input).snd
+NumberBridge.lean:38:34: warning: This simp argument is unused:
+  scan_digits
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [digitsTree, ParserIR.run]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+NumberBridge.lean:45:18: error: unsolved goals
+case mk.nil
+state : State
+rest : List Char
+taken : takeDigits state.input = ([], rest)
+⊢ (match
+      some
+        ((FirstOrder.scanData digitPredicate FirstOrder.Env.nil 2 state.input).fst,
+          { input := (FirstOrder.scanData digitPredicate FirstOrder.Env.nil 2 state.input).snd,
+            error := state.error }) with
+    | some ([], snd) => none
+    | result => result) =
+    none
+
+case mk.cons
+state : State
+rest : List Char
+head✝ : Char
+tail✝ : List Char
+taken : takeDigits state.input = (head✝ :: tail✝, rest)
+⊢ (match
+      some
+        ((FirstOrder.scanData digitPredicate FirstOrder.Env.nil 2 state.input).fst,
+          { input := (FirstOrder.scanData digitPredicate FirstOrder.Env.nil 2 state.input).snd,
+            error := state.error }) with
+    | some ([], snd) => none
+    | result => result) =
+    some (head✝ :: tail✝, { input := rest, error := state.error })
+NumberBridge.lean:43:59: warning: This simp argument is unused:
+  scan_digits
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [nonemptyDigitsTree, ParserIR.run, digitsTree, nonemptyDigits]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+NumberBridge.lean:58:29: error: unsolved goals
+case pos.mk.nil
+state : State
+rest : List Char
+input : state.input = '.' :: rest
+remaining : List Char
+taken : takeDigits rest = ([], remaining)
+⊢ (match
+      some
+        ((FirstOrder.scanData digitPredicate FirstOrder.Env.nil 2 rest).fst,
+          { input := (FirstOrder.scanData digitPredicate FirstOrder.Env.nil 2 rest).snd, error := state.error }) with
+    | some ([], snd) => none
+    | result => result) =
+    none
+
+case pos.mk.cons
+state : State
+rest : List Char
+input : state.input = '.' :: rest
+remaining : List Char
+head✝ : Char
+tail✝ : List Char
+taken : takeDigits rest = (head✝ :: tail✝, remaining)
+⊢ (match
+      some
+        ((FirstOrder.scanData digitPredicate FirstOrder.Env.nil 2 rest).fst,
+          { input := (FirstOrder.scanData digitPredicate FirstOrder.Env.nil 2 rest).snd, error := state.error }) with
+    | some ([], snd) => none
+    | result => result) =
+    some (head✝ :: tail✝, { input := remaining, error := state.error })
+NumberBridge.lean:56:71: warning: This simp argument is unused:
+  scan_digits
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [fractionTree, ParserIR.run, input, accepts, dotPredicate, FirstOrder.eval, FirstOrder.lookup, fraction,
+    nonemptyDigitsTree, digitsTree, nonemptyDigits]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
