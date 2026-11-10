@@ -1,0 +1,102 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Animated style queries update named timeline registration</title>
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#style-container">
+<link rel="help" href="https://drafts.csswg.org/scroll-animations-1/#timeline-scoping">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+for (const mode of ["animated-name", "ordinary-name", "animated-scope", "ordinary-scope"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    const animated = mode.startsWith("animated-");
+    const scope = mode.endsWith("-scope");
+    frame.srcdoc = `<!doctype html><style>
+      #query { container-name: gate; --gate: off;
+        ${animated ? "animation: gate 1s linear both paused;" : ""} }
+      #query.on { --gate: on; }
+      #outside { timeline-scope: --t; }
+      .scroller { width: 160px; height: 100px; overflow: auto; }
+      .filler { height: 300px; }
+      #fallback { scroll-timeline: --t; }
+      #provider { ${scope ? "scroll-timeline: --t;" : ""} }
+      #boundary { ${scope ? "timeline-scope: --t;" : ""} }
+      #target { opacity: 0.1; animation: fade 1s linear both;
+        animation-timeline: --t; }
+      @container gate style(--gate: on) {
+        ${scope ? "#boundary { timeline-scope: none; }" : "#provider { scroll-timeline: --t; }"}
+        #provider { color: rgb(0, 128, 0); }
+      }
+      @keyframes gate { from { --gate: off; } to { --gate: on; } }
+      @keyframes fade { from { opacity: 0.2; } to { opacity: 0.8; } }
+    </style><div id="outside">
+      <div id="fallback" class="scroller"><div class="filler"></div></div>
+      <div id="target"></div>
+      <div id="query"><div id="boundary">
+        <div id="provider" class="scroller"><div class="filler"></div></div>
+      </div></div>
+    </div>`;
+    document.body.append(frame);
+    await loaded;
+    const win = frame.contentWindow;
+    const doc = frame.contentDocument;
+    const query = doc.getElementById("query");
+    const provider = doc.getElementById("provider");
+    const boundary = doc.getElementById("boundary");
+    const target = doc.getElementById("target");
+    const fallback = doc.getElementById("fallback");
+    assert_true(win.CSS.supports("timeline-scope", "--t"));
+    assert_true([...doc.styleSheets[0].cssRules].some(rule =>
+      rule instanceof win.CSSContainerRule), "Style query parsed");
+    fallback.scrollTop = 100;
+    provider.scrollTop = 150;
+    const effect = target.getAnimations()[0];
+    assert_true(effect instanceof win.CSSAnimation, "Named timeline consumer exists");
+    const driver = animated ? query.getAnimations()[0] : null;
+    if (animated) {
+      assert_true(driver instanceof win.CSSAnimation, "CSS keyframe driver exists");
+      driver.currentTime = 0;
+    }
+    const source = () => effect.timeline?.source?.id ?? null;
+    const observe = phase => {
+      const opacity = win.getComputedStyle(target).opacity;
+      const value = {mode, phase, opacity, source: source(),
+        gate: win.getComputedStyle(query).getPropertyValue("--gate").trim(),
+        providerName: win.getComputedStyle(provider).scrollTimelineName,
+        boundaryScope: win.getComputedStyle(boundary).timelineScope,
+        color: win.getComputedStyle(provider).color,
+        sourceAfterReads: source(), pending: effect.pending};
+      if (typeof dump === "function") {
+        dump(`SQ_TIMELINE ${JSON.stringify(value)}\n`);
+      }
+      return value;
+    };
+    for (let i = 0; i < 8 && effect.pending; ++i) {
+      await new Promise(resolve => win.requestAnimationFrame(resolve));
+      win.getComputedStyle(target).opacity;
+    }
+    assert_equals(observe("before").source, "fallback", "Baseline timeline source");
+    for (const on of [true, false, true]) {
+      if (animated) {
+        driver.currentTime = on ? 750 : 0;
+      } else {
+        query.classList.toggle("on", on);
+      }
+      const first = observe(on ? "on" : "off");
+      assert_equals(first.gate, on ? "on" : "off", "Driver value changed");
+      if (on) {
+        assert_equals(first.color, "rgb(0, 128, 0)", "Literal query rule matched");
+      }
+      assert_equals(first.source, on ? "provider" : "fallback",
+                    "First consumer flush updates the timeline source");
+      assert_equals(first.sourceAfterReads, first.source,
+                    "Provider reads do not repair the timeline source");
+    }
+  }, `Style-query timeline renewal: ${mode}`);
+}
+</script>
