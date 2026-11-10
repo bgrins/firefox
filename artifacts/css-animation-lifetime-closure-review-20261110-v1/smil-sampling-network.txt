@@ -1,0 +1,37 @@
+>>>  590: void SMILAnimationController::PreTraverseInSubtree(Element* aRoot) {
+     591:   MOZ_ASSERT(NS_IsMainThread());
+     592: 
+     593:   if (!mMightHavePendingStyleUpdates) {
+     594:     return;
+     595:   }
+     596: 
+     597:   nsPresContext* context = mDocument->GetPresContext();
+     598:   if (!context) {
+     599:     return;
+     600:   }
+     601: 
+     602:   for (SVGAnimationElement* animElement : mAnimationElementTable.Keys()) {
+     603:     const auto key = GetTargetIdentifierForAnimation(animElement);
+     604:     if (!key) {
+     605:       // Something's wrong/missing about animation's target; skip this animation
+     606:       continue;
+     607:     }
+     608: 
+     609:     // Ignore restyles that aren't in the flattened tree subtree rooted at
+     610:     // aRoot.
+     611:     if (aRoot && !nsContentUtils::ContentIsFlattenedTreeDescendantOf(
+     612:                      key->mElement, aRoot)) {
+     613:       continue;
+     614:     }
+     615: 
+     616:     context->RestyleManager()->PostRestyleEventForAnimations(
+     617:         key->mElement, PseudoStyleRequest::NotPseudo(),
+     618:         RestyleHint::RESTYLE_SMIL);
+     619:   }
+     620: 
+     621:   // Only clear the mMightHavePendingStyleUpdates flag if we definitely posted
+     622:   // all restyles.
+     623:   if (!aRoot) {
+     624:     mMightHavePendingStyleUpdates = false;
+     625:   }
+     626: }

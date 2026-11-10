@@ -1,0 +1,17 @@
+>>>  519: void nsAnimationManager::UpdateNamedTimelineAnimations(
+     520:     const nsTHashSet<RefPtr<const nsAtom>>& aChanged) {
+     521:   auto* document = mPresContext->Document();
+     522:   for (const nsAtom* name : aChanged) {
+     523:     auto entries = mAnimationsWithNamedTimeline.Lookup(name);
+     524:     if (!entries) {
+     525:       continue;
+     526:     }
+     527:     for (auto& animation : *entries) {
+     528:       UpdateNamedTimelineAnimation(document, animation.get(), name,
+     529:                                    SomeRef(mAnimationsWithDeferredUpdate));
+     530:     }
+     531:   }
+     532: #ifdef DEBUG
+     533:   CheckNamedTimelineMap(mAnimationsWithNamedTimeline);
+     534: #endif
+     535: }

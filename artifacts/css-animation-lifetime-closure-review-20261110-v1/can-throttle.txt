@@ -1,0 +1,76 @@
+>>> 1504: bool KeyframeEffect::CanThrottle() const {
+    1505:   // Unthrottle if we are not in effect or current. This will be the case when
+    1506:   // our owning animation has finished, is idle, or when we are in the delay
+    1507:   // phase (but without a backwards fill). In each case the computed progress
+    1508:   // value produced on each tick will be the same so we will skip requesting
+    1509:   // unnecessary restyles in NotifyAnimationTimingUpdated. Any calls we *do* get
+    1510:   // here will be because of a change in state (e.g. we are newly finished or
+    1511:   // newly no longer in effect) in which case we shouldn't throttle the sample.
+    1512:   if (!IsInEffect() || !IsCurrent()) {
+    1513:     return false;
+    1514:   }
+    1515: 
+    1516:   nsIFrame* const frame = GetStyleFrame();
+    1517:   if (!frame) {
+    1518:     // There are two possible cases here.
+    1519:     // a) No target element
+    1520:     // b) The target element has no frame, e.g. because it is in a display:none
+    1521:     //    subtree.
+    1522:     // Both normally throttle: a frameless element has nothing to restyle. The
+    1523:     // exception is a `display` animation, whose sample may return `display` to
+    1524:     // a visible value. Throttling it skips the restyle that rebuilds the frame.
+    1525:     return !mCumulativeChanges.mDisplay;
+    1526:   }
+    1527: 
+    1528:   // Do not throttle any animations during print preview.
+    1529:   if (frame->PresContext()->IsPrintingOrPrintPreview()) {
+    1530:     return false;
+    1531:   }
+    1532: 
+    1533:   if (CanThrottleIfNotVisible(*frame)) {
+    1534:     return true;
+    1535:   }
+    1536: 
+    1537:   EffectSet* effectSet = nullptr;
+    1538:   for (const AnimationProperty& property : mProperties) {
+    1539:     if (!property.mIsRunningOnCompositor) {
+    1540:       return false;
+    1541:     }
+    1542: 
+    1543:     MOZ_ASSERT(nsCSSPropertyIDSet::CompositorAnimatables().HasProperty(
+    1544:                    property.mProperty),
+    1545:                "The property should be able to run on the compositor");
+    1546:     if (!effectSet) {
+    1547:       effectSet = EffectSet::Get(mTarget);
+    1548:       MOZ_ASSERT(effectSet,
+    1549:                  "CanThrottle should be called on an effect "
+    1550:                  "associated with a target element");
+    1551:     }
+    1552: 
+    1553:     DisplayItemType displayItemType =
+    1554:         LayerAnimationInfo::GetDisplayItemTypeForProperty(
+    1555:             property.mProperty.mId);
+    1556: 
+    1557:     // Note that AnimationInfo::GetGenarationFromFrame() is supposed to work
+    1558:     // with the primary frame instead of the style frame.
+    1559:     Maybe<uint64_t> generation = layers::AnimationInfo::GetGenerationFromFrame(
+    1560:         GetPrimaryFrame(), displayItemType);
+    1561:     // Unthrottle if the animation needs to be brought up to date
+    1562:     if (!generation || effectSet->GetAnimationGeneration() != *generation) {
+    1563:       return false;
+    1564:     }
+    1565: 
+    1566:     MOZ_ASSERT(HasEffectiveAnimationOfProperty(property.mProperty, *effectSet),
+    1567:                "There should be an effective animation of the property while "
+    1568:                "it is marked as being run on the compositor");
+    1569: 
+    1570:     // If this is a transform animation that affects the overflow region,
+    1571:     // we should unthrottle the animation periodically.
+    1572:     if (HasPropertiesThatMightAffectOverflow() &&
+    1573:         !CanThrottleOverflowChangesInScrollable(*frame)) {
+    1574:       return false;
+    1575:     }
+    1576:   }
+    1577: 
+    1578:   return true;
+    1579: }

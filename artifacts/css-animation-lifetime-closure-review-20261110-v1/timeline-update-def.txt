@@ -1,0 +1,35 @@
+>>>  128: nsTArray<RefPtr<const nsAtom>> TimelineManager::UpdateTimelines(
+     129:     Element* aElement, const PseudoStyleRequest& aPseudoRequest,
+     130:     const ComputedStyle* aComputedStyle, ProgressTimelineType aType) {
+     131:   MOZ_ASSERT(
+     132:       aElement->IsInComposedDoc(),
+     133:       "No need to update timelines that are not attached to the document tree");
+     134: 
+     135:   // If we are in a display:none subtree we will have no computed values.
+     136:   // However, if we are on the root of display:none subtree, the computed values
+     137:   // might not have been cleared yet. In either case, since CSS animations
+     138:   // should not run in display:none subtrees, so we don't need timeline, either.
+     139:   const bool shouldDestroyTimelines =
+     140:       !aComputedStyle ||
+     141:       aComputedStyle->StyleDisplay()->mDisplay == StyleDisplay::None;
+     142: 
+     143:   switch (aType) {
+     144:     case ProgressTimelineType::Scroll:
+     145:       if (shouldDestroyTimelines) {
+     146:         return TryDestroyTimeline<ScrollTimeline>(aElement, aPseudoRequest);
+     147:       }
+     148:       return DoUpdateTimelines<ScrollTimeline>(
+     149:           mPresContext, aElement, aPseudoRequest,
+     150:           aComputedStyle->StyleUIReset(), mScrollTimelineNameMap);
+     151: 
+     152:     case ProgressTimelineType::View:
+     153:       if (shouldDestroyTimelines) {
+     154:         return TryDestroyTimeline<ViewTimeline>(aElement, aPseudoRequest);
+     155:       }
+     156:       return DoUpdateTimelines<ViewTimeline>(
+     157:           mPresContext, aElement, aPseudoRequest,
+     158:           aComputedStyle->StyleUIReset(), mViewTimelineNameMap);
+     159:   }
+     160:   MOZ_ASSERT_UNREACHABLE("Unhandled timelinetype?");
+     161:   return {};
+     162: }

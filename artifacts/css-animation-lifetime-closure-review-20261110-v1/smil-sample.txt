@@ -1,0 +1,156 @@
+>>>  215: void SMILAnimationController::DoSample() {
+     216:   DoSample(true);  // Skip unchanged time containers
+     217: }
+
+>>>  219: void SMILAnimationController::DoSample(bool aSkipUnchangedContainers) {
+     220:   if (!mDocument) {
+     221:     NS_ERROR("Shouldn't be sampling after document has disconnected");
+     222:     return;
+     223:   }
+     224:   if (mRunningSample) {
+     225:     NS_ERROR("Shouldn't be recursively sampling");
+     226:     return;
+     227:   }
+     228: 
+     229:   mResampleNeeded = false;
+     230: 
+     231:   // Set running sample flag -- do this before flushing styles so that when we
+     232:   // flush styles we don't end up requesting extra samples
+     233:   AutoRestore<bool> autoRestoreRunningSample(mRunningSample);
+     234:   mRunningSample = true;
+     235: 
+     236:   nsCOMPtr<dom::Document> kungFuDeathGrip(mDocument);
+     237:   (void)kungFuDeathGrip;
+     238: 
+     239:   // STEP 1: Bring model up to date
+     240:   // (i)  Rewind elements where necessary
+     241:   // (ii) Run milestone samples
+     242:   RewindElements();
+     243:   DoMilestoneSamples();
+     244: 
+     245:   // STEP 2: Sample the child time containers
+     246:   //
+     247:   // When we sample the child time containers they will simply record the sample
+     248:   // time in document time.
+     249:   TimeContainerHashtable activeContainers(mChildContainerTable.Count());
+     250:   for (SMILTimeContainer* container : mChildContainerTable.Keys()) {
+     251:     if (!container) {
+     252:       continue;
+     253:     }
+     254: 
+     255:     if (!container->IsPausedByType(PauseType::Begin) &&
+     256:         (container->NeedsSample() || !aSkipUnchangedContainers)) {
+     257:       container->ClearMilestones();
+     258:       container->Sample();
+     259:       container->MarkSeekFinished();
+     260:       activeContainers.PutEntry(container);
+     261:     }
+     262:   }
+     263: 
+     264:   // STEP 3: (i)  Sample the timed elements AND
+     265:   //         (ii) Create a table of compositors
+     266:   //
+     267:   // (i) Here we sample the timed elements (fetched from the
+     268:   // SVGAnimationElements) which determine from the active time if the
+     269:   // element is active and what its simple time etc. is. This information is
+     270:   // then passed to its time client (SMILAnimationFunction).
+     271:   //
+     272:   // (ii) During the same loop we also build up a table that contains one
+     273:   // compositor for each animated attribute and which maps animated elements to
+     274:   // the corresponding compositor for their target attribute.
+     275:   //
+     276:   // Note that this compositor table needs to be allocated on the heap so we can
+     277:   // store it until the next sample. This lets us find out which elements were
+     278:   // animated in sample 'n-1' but not in sample 'n' (and hence need to have
+     279:   // their animation effects removed in sample 'n').
+     280:   //
+     281:   // Parts (i) and (ii) are not functionally related but we combine them here to
+     282:   // save iterating over the animation elements twice.
+     283: 
+     284:   // Create the compositor table
+     285:   auto currentCompositorTable = std::make_unique<SMILCompositorTable>(0);
+     286: 
+     287:   // Compositors hold raw pointers to animation functions owned by their
+     288:   // animation elements, and composing can run script, so keep those elements
+     289:   // alive for as long as the table refers to them (bug 1347168). Elements that
+     290:   // didn't contribute an entry aren't referenced by the table, so there's no
+     291:   // need to hold those: a document full of animation elements with no target
+     292:   // produces no entries and so does no refcounting here at all.
+     293:   nsTArray<RefPtr<SVGAnimationElement>> animElems;
+     294: 
+     295:   for (SVGAnimationElement* animElem : mAnimationElementTable.Keys()) {
+     296:     const auto key = GetTargetIdentifierForAnimation(animElem);
+     297:     // An animation with nothing to animate only needs sampling when its timing
+     298:     // model can advance (to fire events, notify dependents and so on), and
+     299:     // that only happens at milestones or when finishing a seek. Skipping it
+     300:     // otherwise avoids walking up to its time container on every tick. If it
+     301:     // later gains a target, the attribute change requests a resample.
+     302:     if (!key && animElem->TimedElement().IsTimingSettled()) {
+     303:       continue;
+     304:     }
+     305:     SampleTimedElement(animElem, &activeContainers);
+     306:     if (key && AddAnimationToCompositorTable(animElem, *key,
+     307:                                              currentCompositorTable.get())) {
+     308:       animElems.AppendElement(animElem);
+     309:     }
+     310:   }
+     311:   activeContainers.Clear();
+     312: 
+     313:   // STEP 4: Compare previous sample's compositors against this sample's.
+     314:   // (Transfer cached base values across, & remove animation effects from
+     315:   // no-longer-animated targets.)
+     316:   if (mLastCompositorTable) {
+     317:     // * Transfer over cached base values, from last sample's compositors
+     318:     for (SMILCompositor& compositor : *currentCompositorTable) {
+     319:       SMILCompositor* lastCompositor =
+     320:           mLastCompositorTable->GetEntry(compositor.GetKey());
+     321: 
+     322:       if (lastCompositor) {
+     323:         compositor.StealCachedBaseValue(lastCompositor);
+     324:         if (!lastCompositor->HasSameNumberOfAnimationFunctionsAs(compositor)) {
+     325:           // If we have multiple animations on the same element, they share a
+     326:           // compositor. If an active animation ends, it will no longer be in
+     327:           // the compositor table. We need to force compositing to ensure we
+     328:           // render the element with any remaining frozen animations even though
+     329:           // they would not normally trigger compositing.
+     330:           compositor.ToggleForceCompositing();
+     331:         }
+     332:       }
+     333:     }
+     334: 
+     335:     // * For each compositor in current sample's hash table, remove entry from
+     336:     // prev sample's hash table -- we don't need to clear animation
+     337:     // effects of those compositors, since they're still being animated.
+     338:     for (const auto& key : currentCompositorTable->Keys()) {
+     339:       mLastCompositorTable->RemoveEntry(key);
+     340:     }
+     341: 
+     342:     // * For each entry that remains in prev sample's hash table (i.e. for
+     343:     // every target that's no longer animated), clear animation effects.
+     344:     for (SMILCompositor& compositor : *mLastCompositorTable) {
+     345:       compositor.ClearAnimationEffects();
+     346:     }
+     347:   }
+     348: 
+     349:   // return early if there are no active animations to avoid a style flush
+     350:   if (currentCompositorTable->IsEmpty()) {
+     351:     mLastCompositorTable = nullptr;
+     352:     return;
+     353:   }
+     354: 
+     355:   // STEP 5: Compose currently-animated attributes.
+     356:   // XXXdholbert: This step traverses our animation targets in an effectively
+     357:   // random order. For animation from/to 'inherit' values to work correctly
+     358:   // when the inherited value is *also* being animated, we really should be
+     359:   // traversing our animated nodes in an ancestors-first order (bug 501183)
+     360:   bool mightHavePendingStyleUpdates = false;
+     361:   for (auto& compositor : *currentCompositorTable) {
+     362:     compositor.ComposeAttribute(mightHavePendingStyleUpdates);
+     363:   }
+     364: 
+     365:   // Update last compositor table
+     366:   mLastCompositorTable = std::move(currentCompositorTable);
+     367:   mMightHavePendingStyleUpdates = mightHavePendingStyleUpdates;
+     368: 
+     369:   NS_ASSERTION(!mResampleNeeded, "Resample dirty flag set during sample!");
+     370: }

@@ -1,0 +1,11 @@
+>>> 2078: void Animation::UpdateTiming(SeekFlag aSeekFlag,
+    2079:                              SyncNotifyFlag aSyncNotifyFlag) {
+    2080:   // We call UpdateFinishedState before UpdateEffect because the former
+    2081:   // can change the current time, which is used by the latter.
+    2082:   UpdateFinishedState(aSeekFlag, aSyncNotifyFlag);
+    2083:   UpdateEffect(PostRestyleMode::IfNeeded);
+    2084: 
+    2085:   if (mTimeline) {
+    2086:     mTimeline->NotifyAnimationUpdated(*this);
+    2087:   }
+    2088: }

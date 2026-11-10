@@ -1,0 +1,13 @@
+>>>  537: void nsAnimationManager::UpdateAllNamedTimelineAnimations() {
+     538:   auto* document = mPresContext->Document();
+     539:   for (auto& entry : mAnimationsWithNamedTimeline) {
+     540:     const auto* name = entry.GetKey();
+     541:     for (auto& animation : entry.GetData()) {
+     542:       UpdateNamedTimelineAnimation(document, animation.get(), name,
+     543:                                    SomeRef(mAnimationsWithDeferredUpdate));
+     544:     }
+     545:   }
+     546: #ifdef DEBUG
+     547:   CheckNamedTimelineMap(mAnimationsWithNamedTimeline);
+     548: #endif
+     549: }

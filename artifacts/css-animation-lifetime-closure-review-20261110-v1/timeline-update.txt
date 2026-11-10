@@ -1,0 +1,165 @@
+>>>  303: bool Animation::SetTimelineNoUpdate(AnimationTimeline* aTimeline,
+     304:                                     const ScopedTimelineName& aTimelineName,
+     305:                                     FromJS aFromJS) {
+     306:   if (aFromJS == FromJS::No &&
+     307:       (PropertiesOverridenByJS() & CSSAnimationProperties::Timeline)) {
+     308:     return false;
+     309:   }
+     310:   // 1. Let old timeline be the current timeline of animation, if any.
+     311:   // 2. If new timeline is the same object as old timeline, abort this
+     312:   // procedure.
+     313:   if (mTimeline == aTimeline) {
+     314:     // nullptr -> nullptr but going from/to named timeline is significant.
+     315:     if (mTimelineName != aTimelineName) {
+     316:       mTimelineName = OwningScopedTimelineName{aTimelineName};
+     317:     }
+     318:     // Timeline still didn't update, so...
+     319:     return false;
+     320:   }
+     321: 
+     322:   // 3. Let previous play state be animation’s play state.
+     323:   const AnimationPlayState previousPlayState = PlayState();
+     324:   // 4. Let previous current time be the animation’s current time.
+     325:   const Nullable<TimeDuration> previousCurrentTime = GetCurrentTimeAsDuration();
+     326: 
+     327:   // 5. Set previous progress based in the first condition that applies:
+     328:   // If previous current time is unresolved:
+     329:   //   => Set previous progress to unresolved.
+     330:   // If end time is zero:
+     331:   //   => Set previous progress to zero.
+     332:   // Otherwise
+     333:   //   => Set previous progress = previous current time / end time
+     334:   Nullable<double> previousProgress;
+     335:   if (!previousCurrentTime.IsNull()) {
+     336:     const TimeDuration endTime = TimeDuration(EffectEnd());
+     337:     previousProgress.SetValue(endTime.IsZero()
+     338:                                   ? 0.0
+     339:                                   : previousCurrentTime.Value().ToSeconds() /
+     340:                                         endTime.ToSeconds());
+     341:   } else if (mTimeline && mTimeline->IsUnresolvedTimeline()) {
+     342:     // If we're switching out of an unresolved timeline into the document
+     343:     // timeline, we want to make sure that we trigger the animation.
+     344:     // This doesn't (& shouldn't) have any impact going into a finite timeline,
+     345:     // as the unresolved timeline does not have a resolved current time.
+     346:     previousProgress.SetValue(0.0);
+     347:   }
+     348: 
+     349:   // We compute the active time for the old timeline because we will use it to
+     350:   // queue the cancel event later.
+     351:   StickyTimeDuration activeTime =
+     352:       mEffect ? mEffect->GetComputedTiming().mActiveTime : StickyTimeDuration();
+     353: 
+     354:   // 6. Let from finite timeline be true if old timeline is not null and not
+     355:   // monotonically increasing.
+     356:   const bool fromFiniteTimeline =
+     357:       mTimeline && !mTimeline->IsMonotonicallyIncreasing();
+     358:   // 7. Let to finite timeline be true if timeline is not null and not
+     359:   // monotonically increasing.
+     360:   const bool toFiniteTimeline =
+     361:       aTimeline && !aTimeline->IsMonotonicallyIncreasing();
+     362: 
+     363:   // 8. Let the timeline of animation be new timeline.
+     364:   RefPtr<AnimationTimeline> oldTimeline = mTimeline;
+     365:   if (oldTimeline) {
+     366:     oldTimeline->RemoveAnimation(this);
+     367:   }
+     368:   mTimeline = aTimeline;
+     369:   mTimelineName = OwningScopedTimelineName{aTimelineName};
+     370:   // Update the normalized timing and keyframe timeline range ofset because we
+     371:   // are using the new timeline.
+     372:   if (mEffect) {
+     373:     mEffect->UpdateNormalizedTiming();
+     374:     MaybeUpdateKeyframeComputedOffsets();
+     375:   }
+     376: 
+     377:   // 9. Perform the steps corresponding to the first matching condition from the
+     378:   // following, if any:
+     379:   if (toFiniteTimeline) {
+     380:     // If to finite timeline,
+     381:     // Apply any pending playback rate on animation
+     382:     ApplyPendingPlaybackRate();
+     383:     // Set auto align start time to true.
+     384:     mAutoAlignStartTime = true;
+     385:     // Set start time to unresolved.
+     386:     mStartTime.SetNull();
+     387:     // Set hold time to unresolved.
+     388:     mHoldTime.SetNull();
+     389: 
+     390:     switch (previousPlayState) {
+     391:       case AnimationPlayState::Running:
+     392:       case AnimationPlayState::Finished:
+     393:         // If previous play state is "finished" or "running"
+     394:         // Schedule a pending play task.
+     395:         //
+     396:         // FIXME: It seems we may have to do more things than just play the
+     397:         // pending play task. In Chromium, it just calls Play(). However, in
+     398:         // WebKit, It re-creates the ready promise and play a pending play task.
+     399:         // We also call PlayNoUpdate() for now. However, this may be an
+     400:         // overshoot but we won't miss anything. If the spec issue gets
+     401:         // updated, we could refine this to just do the necessary things.
+     402:         // https://github.com/w3c/csswg-drafts/issues/11465
+     403:         PlayNoUpdate(IgnoredErrorResult(), LimitBehavior::AutoRewind);
+     404:         break;
+     405:       case AnimationPlayState::Paused:
+     406:         // If previous play state is "paused" and previous progress is resolved:
+     407:         if (!previousCurrentTime.IsNull()) {
+     408:           // Set hold time to previous progress * end time.
+     409:           mHoldTime.SetValue(
+     410:               TimeDuration(EffectEnd().MultDouble(previousProgress.Value())));
+     411:         }
+     412:         break;
+     413:       case AnimationPlayState::Idle:
+     414:         break;
+     415:     }
+     416:   } else if (fromFiniteTimeline) {
+     417:     const auto timeToSet = [&]() -> Maybe<TimeDuration> {
+     418:       const auto autoAlignStartTimePending = mAutoAlignStartTime;
+     419:       // mAutoAlignStartTime is only meaningful for finite timelines; clear it
+     420:       // here. Transitioning into a new finite timeline is handled by the
+     421:       // toFiniteTimeline branch above. This clearing is a deviation from spec
+     422:       // [1], which only acts when previousProgress is resolved; without it the
+     423:       // flag's invariant (true only while the timeline is finite) is violated
+     424:       // and AutoAlignStartTime would later fire on a monotonic timeline.
+     425:       // [1] https://drafts.csswg.org/web-animations-2/#setting-the-timeline
+     426:       if (mAutoAlignStartTime) {
+     427:         mAutoAlignStartTime = false;
+     428:       }
+     429:       if (autoAlignStartTimePending && mHoldTime.IsNull() &&
+     430:           mStartTime.IsNull()) {
+     431:         // If we don't have the start time aligned, and no valid (normalized)
+     432:         // time.
+     433:         return Some(TimeDuration::Zero());
+     434:       }
+     435: 
+     436:       if (previousProgress.IsNull()) {
+     437:         return Nothing{};
+     438:       }
+     439: 
+     440:       return Some(
+     441:           TimeDuration(EffectEnd().MultDouble(previousProgress.Value())));
+     442:     }();
+     443:     if (timeToSet) {
+     444:       // If from finite timeline and previous progress is resolved, run the
+     445:       // procedure to set the current time to previous progress * end time.
+     446:       SetCurrentTimeNoUpdate(TimeDuration(*timeToSet));
+     447:     }
+     448:   }
+     449:   // 10. If the start time of animation is resolved, make animation’s hold time
+     450:   // unresolved.
+     451:   if (!mStartTime.IsNull()) {
+     452:     mHoldTime.SetNull();
+     453:   }
+     454: 
+     455:   if (!aTimeline) {
+     456:     MaybeQueueCancelEvent(activeTime);
+     457:   }
+     458: 
+     459:   // 11. Run the procedure to update an animation’s finished state for animation
+     460:   // with the did seek flag set to false, and the synchronously notify flag set
+     461:   // to false.
+     462:   UpdateTiming(SeekFlag::NoSeek, SyncNotifyFlag::Async);
+     463: 
+     464:   // FIXME: Bug 1799071: Check if we need to add
+     465:   // MutationObservers::NotifyAnimationChanged(this) here.
+     466:   return true;
+     467: }

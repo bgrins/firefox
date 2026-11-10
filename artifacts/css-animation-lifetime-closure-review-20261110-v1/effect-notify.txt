@@ -1,0 +1,44 @@
+>>>  174: void KeyframeEffect::NotifyAnimationTimingUpdated(
+     175:     PostRestyleMode aPostRestyle) {
+     176:   UpdateTargetRegistration();
+     177: 
+     178:   // If the effect is not relevant it will be removed from the target
+     179:   // element's effect set. However, effects not in the effect set
+     180:   // will not be included in the set of candidate effects for running on
+     181:   // the compositor and hence they won't have their compositor status
+     182:   // updated. As a result, we need to make sure we clear their compositor
+     183:   // status here.
+     184:   bool isRelevant = mAnimation && mAnimation->IsRelevant();
+     185:   if (!isRelevant) {
+     186:     ResetIsRunningOnCompositor();
+     187:   }
+     188: 
+     189:   // Request restyle if necessary.
+     190:   if (aPostRestyle == PostRestyleMode::IfNeeded && mAnimation &&
+     191:       !mProperties.IsEmpty() && HasComputedTimingChanged()) {
+     192:     EffectCompositor::RestyleType restyleType =
+     193:         CanThrottle() ? EffectCompositor::RestyleType::Throttled
+     194:                       : EffectCompositor::RestyleType::Standard;
+     195:     RequestRestyle(restyleType);
+     196:   }
+     197: 
+     198:   // Detect changes to "in effect" status since we need to recalculate the
+     199:   // animation cascade for this element whenever that changes.
+     200:   // Note that updating mInEffectOnLastAnimationTimingUpdate has to be done
+     201:   // after above CanThrottle() call since the function uses the flag inside it.
+     202:   bool inEffect = IsInEffect();
+     203:   if (inEffect != mInEffectOnLastAnimationTimingUpdate) {
+     204:     MarkCascadeNeedsUpdate();
+     205:     mInEffectOnLastAnimationTimingUpdate = inEffect;
+     206:   }
+     207: 
+     208:   // If we're no longer "in effect", our ComposeStyle method will never be
+     209:   // called and we will never have a chance to update mProgressOnLastCompose
+     210:   // and mCurrentIterationOnLastCompose.
+     211:   // We clear them here to ensure that if we later become "in effect" we will
+     212:   // request a restyle (above).
+     213:   if (!inEffect) {
+     214:     mProgressOnLastCompose.SetNull();
+     215:     mCurrentIterationOnLastCompose = 0;
+     216:   }
+     217: }

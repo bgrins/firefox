@@ -1,0 +1,17 @@
+>>>  300: void EffectCompositor::UpdateEffectProperties(
+     301:     const ComputedStyle* aStyle, Element* aElement,
+     302:     const PseudoStyleRequest& aPseudoRequest) {
+     303:   EffectSet* effectSet = EffectSet::Get(aElement, aPseudoRequest);
+     304:   if (!effectSet) {
+     305:     return;
+     306:   }
+     307: 
+     308:   // Style context (Gecko) or computed values (Stylo) change might cause CSS
+     309:   // cascade level, e.g removing !important, so we should update the cascading
+     310:   // result.
+     311:   effectSet->MarkCascadeNeedsUpdate();
+     312: 
+     313:   for (KeyframeEffect* effect : *effectSet) {
+     314:     effect->UpdateProperties(aStyle);
+     315:   }
+     316: }
