@@ -1,0 +1,714 @@
+--- /dev/null
++++ b/CssSemantics/CssStreamingPair.lean
+@@ -0,0 +1,61 @@
++import Lean
++
++namespace CssSemantics.Streaming
++
++structure Machine (Input Output : Type) where
++  holds : Input → Bool
++  combine : Input → Input → Option Output
++  single : Input → Output
++  unheld : ∀ first, holds first = false → ∀ second, combine first second = none
++
++structure Emission (Input Output : Type) where
++  output : List Output
++  pending : Option Input
++  deriving Repr
++
++def buffered (pending : Option Input) : List Input := pending.toList
++
++def batch (machine : Machine Input Output) : List Input → List Output
++  | [] => []
++  | [first] => [machine.single first]
++  | first :: second :: rest =>
++    match machine.combine first second with
++    | some combined => combined :: batch machine rest
++    | none => machine.single first :: batch machine (second :: rest)
++
++def accept (machine : Machine Input Output) (pending : Option Input) (input : Input) :
++    Emission Input Output :=
++  let fresh : Emission Input Output :=
++    if machine.holds input then ⟨[], some input⟩ else ⟨[machine.single input], none⟩
++  match pending with
++  | none => fresh
++  | some previous =>
++    match machine.combine previous input with
++    | some combined => ⟨[combined], none⟩
++    | none => ⟨machine.single previous :: fresh.output, fresh.pending⟩
++
++def feed (machine : Machine Input Output) (pending : Option Input) : List Input → Emission Input Output
++  | [] => ⟨[], pending⟩
++  | input :: rest =>
++    let first := accept machine pending input
++    let later := feed machine first.pending rest
++    ⟨first.output ++ later.output, later.pending⟩
++
++def chunks (machine : Machine Input Output) (pending : Option Input) :
++    List (List Input) → Emission Input Output
++  | [] => ⟨[], pending⟩
++  | input :: rest =>
++    let first := feed machine pending input
++    let later := chunks machine first.pending rest
++    ⟨first.output ++ later.output, later.pending⟩
++
++def flush (machine : Machine Input Output) (pending : Option Input) : List Output :=
++  (buffered pending).map machine.single
++
++def finish (machine : Machine Input Output) (result : Emission Input Output) : List Output :=
++  result.output ++ flush machine result.pending
++
++def stream (machine : Machine Input Output) (input : List (List Input)) : List Output :=
++  finish machine (chunks machine none input)
++
++end CssSemantics.Streaming
+--- /dev/null
++++ b/CssSemantics/CssStreamingPairLaws.lean
+@@ -0,0 +1,98 @@
++import CssSemantics.CssStreamingPair
++
++namespace CssSemantics.Streaming
++
++theorem batch_single (machine : Machine Input Output) (first : Input) (rest)
++    (unpaired : ∀ second, machine.combine first second = none) :
++    batch machine (first :: rest) = machine.single first :: batch machine rest := by
++  cases rest <;> simp [batch, unpaired]
++
++theorem batch_buffered (machine : Machine Input Output) (pending) :
++    batch machine (buffered pending) = flush machine pending := by
++  cases pending <;> rfl
++
++theorem accept_continuation (machine : Machine Input Output) (pending input suffix) :
++    batch machine (buffered pending ++ input :: suffix) =
++      (accept machine pending input).output ++
++        batch machine (buffered (accept machine pending input).pending ++ suffix) := by
++  cases pending with
++  | none =>
++    by_cases hold : machine.holds input = true
++    · simp [accept, hold, buffered]
++    · have no : machine.holds input = false := by cases h : machine.holds input <;> simp_all
++      simp [accept, no, buffered, batch_single machine input suffix (machine.unheld input no)]
++  | some previous =>
++    cases pair : machine.combine previous input with
++    | some combined => simp [accept, pair, buffered, batch]
++    | none =>
++      by_cases hold : machine.holds input = true
++      · simp [accept, pair, hold, buffered, batch]
++      · have no : machine.holds input = false := by cases h : machine.holds input <;> simp_all
++        simp [accept, pair, no, buffered, batch,
++          batch_single machine input suffix (machine.unheld input no)]
++
++theorem feed_continuation (machine : Machine Input Output) (pending input suffix) :
++    batch machine (buffered pending ++ (input ++ suffix)) =
++      (feed machine pending input).output ++
++        batch machine (buffered (feed machine pending input).pending ++ suffix) := by
++  induction input generalizing pending with
++  | nil => simp [feed]
++  | cons first rest ih =>
++    simp only [List.cons_append]
++    rw [accept_continuation, ih]
++    simp [feed, List.append_assoc]
++
++theorem chunks_continuation (machine : Machine Input Output) (pending input suffix) :
++    batch machine (buffered pending ++ (input.flatten ++ suffix)) =
++      (chunks machine pending input).output ++
++        batch machine (buffered (chunks machine pending input).pending ++ suffix) := by
++  induction input generalizing pending with
++  | nil => simp [chunks]
++  | cons first rest ih =>
++    simp only [List.flatten_cons, List.append_assoc]
++    rw [feed_continuation, ih]
++    simp [chunks, List.append_assoc]
++
++theorem stream_batch (machine : Machine Input Output) (input) :
++    stream machine input = batch machine input.flatten := by
++  have result := chunks_continuation machine none input []
++  simp only [List.append_nil, batch_buffered] at result
++  simpa [buffered, stream, finish] using result.symm
++
++theorem feed_append (machine : Machine Input Output) (pending first second) :
++    feed machine pending (first ++ second) =
++      let left := feed machine pending first
++      let right := feed machine left.pending second
++      ⟨left.output ++ right.output, right.pending⟩ := by
++  induction first generalizing pending with
++  | nil => simp [feed]
++  | cons input rest ih => simp [feed, ih, List.append_assoc]
++
++theorem chunks_feed (machine : Machine Input Output) (pending input) :
++    chunks machine pending input = feed machine pending input.flatten := by
++  induction input generalizing pending with
++  | nil => rfl
++  | cons first rest ih => simp [chunks, feed_append, ih]
++
++theorem feed_finish (machine : Machine Input Output) (pending input) :
++    finish machine (feed machine pending input) = batch machine (buffered pending ++ input) := by
++  have result := feed_continuation machine pending input []
++  simpa [finish, batch_buffered] using result.symm
++
++theorem accept_pending_valid (machine : Machine Input Output) (pending input value)
++    (held : (accept machine pending input).pending = some value) : machine.holds value = true := by
++  cases pending <;> simp only [accept] at held
++  · split at held <;> simp_all
++  · split at held
++    · simp at held
++    · split at held <;> simp_all
++
++theorem feed_pending_valid (machine : Machine Input Output) (pending input)
++    (prior : ∀ value, pending = some value → machine.holds value = true) :
++    ∀ value, (feed machine pending input).pending = some value → machine.holds value = true := by
++  induction input generalizing pending with
++  | nil => exact prior
++  | cons first rest ih =>
++    exact ih _ (accept_pending_valid machine pending first)
++
++end CssSemantics.Streaming
+--- /dev/null
++++ b/CssSemantics/CssStreamingAdapters.lean
+@@ -0,0 +1,37 @@
++import CssSemantics.CssStreamingPair
++import CssSemantics.CssDomStringInputLaws
++
++namespace CssSemantics.Streaming
++
++open CssSemantics
++
++def utf16 : Machine DomString.CodeUnit CodePointInput.CodePoint where
++  holds := fun unit => decide (DomString.Leading unit)
++  combine := fun first second =>
++    if pair : DomString.Leading first ∧ DomString.Trailing second then
++      some (DomString.pairPoint first second pair.1 pair.2)
++    else none
++  single := DomString.unitPoint
++  unheld := by
++    intro first notHeld second
++    by_cases lead : DomString.Leading first
++    · simp [lead] at notHeld
++    · simp [lead]
++
++def css : Machine CodePointInput.CodePoint Char where
++  holds := fun point => point.val == 0x0d
++  combine := fun first second =>
++    if first.val = 0x0d ∧ second.val = 0x0a then some '\n' else none
++  single := CodePointInput.point
++  unheld := by
++    intro first notHeld second
++    simp only [beq_eq_false_iff_ne] at notHeld
++    simp [notHeld]
++
++def admittedChunks (input : List (List Nat)) : Option (List (List DomString.CodeUnit)) :=
++  input.mapM fun chunk => chunk.mapM DomString.unitOfNat?
++
++def decodeValues (input : List (List Nat)) : Option (List Nat) :=
++  (admittedChunks input).map fun chunks => (stream utf16 chunks).map Fin.val
++
++end CssSemantics.Streaming
+--- /dev/null
++++ b/CssSemantics/CssStreamingAdapterLaws.lean
+@@ -0,0 +1,62 @@
++import CssSemantics.CssStreamingAdapters
++import CssSemantics.CssStreamingPairLaws
++
++namespace CssSemantics.Streaming
++
++open CssSemantics
++
++theorem utf16_batch (input : List DomString.CodeUnit) : batch utf16 input = DomString.decode input := by
++  cases input with
++  | nil => rfl
++  | cons first rest =>
++    cases rest with
++    | nil => rfl
++    | cons second tail =>
++      by_cases pair : DomString.Leading first ∧ DomString.Trailing second
++      · simpa only [batch, utf16, DomString.decode, dite_eq_left pair] using
++          congrArg (List.cons (DomString.pairPoint first second pair.1 pair.2)) (utf16_batch tail)
++      · simpa only [batch, utf16, DomString.decode, dite_eq_right pair] using
++          congrArg (List.cons (DomString.unitPoint first)) (utf16_batch (second :: tail))
++termination_by input.length
++
++theorem css_batch (input : List CodePointInput.CodePoint) : batch css input = CodePointInput.preprocess input := by
++  cases input with
++  | nil => rfl
++  | cons first rest =>
++    cases rest with
++    | nil => rfl
++    | cons second tail =>
++      by_cases pair : first.val = 0x0d ∧ second.val = 0x0a
++      · simpa only [batch, css, CodePointInput.preprocess, ite_eq_left pair] using
++          congrArg (List.cons '\n') (css_batch tail)
++      · simpa only [batch, css, CodePointInput.preprocess, ite_eq_right pair] using
++          congrArg (List.cons (CodePointInput.point first)) (css_batch (second :: tail))
++termination_by input.length
++
++theorem utf16_chunks (input) : stream utf16 input = DomString.decode input.flatten := by
++  rw [stream_batch, utf16_batch]
++
++theorem css_chunks (input) : stream css input = CodePointInput.preprocess input.flatten := by
++  rw [stream_batch, css_batch]
++
++theorem utf16_decoded_iff (input output) :
++    stream utf16 input = output ↔ DomString.Decoded input.flatten output := by
++  rw [utf16_chunks, DomString.decode_iff]
++
++theorem css_preprocess_iff (input output) :
++    stream css input = output ↔ CodePointInput.Preprocess input.flatten output := by
++  rw [css_chunks, CodePointInput.preprocess_iff]
++
++theorem utf16_pending_high (input unit)
++    (pending : (chunks utf16 none input).pending = some unit) : DomString.Leading unit := by
++  rw [chunks_feed] at pending
++  have holds := feed_pending_valid utf16 none input.flatten (by simp) unit pending
++  simpa [utf16] using holds
++
++theorem css_pending_cr (input point)
++    (pending : (chunks css none input).pending = some point) : point.val = 0x0d := by
++  rw [chunks_feed] at pending
++  have holds := feed_pending_valid css none input.flatten (by simp) point pending
++  simpa [css] using holds
++
++end CssSemantics.Streaming
+--- /dev/null
++++ b/CssSemantics/CssStreamingPipeline.lean
+@@ -0,0 +1,31 @@
++import CssSemantics.CssStreamingPair
++
++namespace CssSemantics.Streaming
++
++structure PipeResult (Input Middle Output : Type) where
++  output : List Output
++  inputPending : Option Input
++  middlePending : Option Middle
++  deriving Repr
++
++def pipeChunks (first : Machine Input Middle) (second : Machine Middle Output)
++    (inputPending : Option Input) (middlePending : Option Middle) :
++    List (List Input) → PipeResult Input Middle Output
++  | [] => ⟨[], inputPending, middlePending⟩
++  | input :: rest =>
++    let decoded := feed first inputPending input
++    let prepared := feed second middlePending decoded.output
++    let later := pipeChunks first second decoded.pending prepared.pending rest
++    ⟨prepared.output ++ later.output, later.inputPending, later.middlePending⟩
++
++def pipeFinish (first : Machine Input Middle) (second : Machine Middle Output)
++    (result : PipeResult Input Middle Output) : List Output :=
++  let lastInput := flush first result.inputPending
++  let lastOutput := feed second result.middlePending lastInput
++  result.output ++ lastOutput.output ++ flush second lastOutput.pending
++
++def pipeline (first : Machine Input Middle) (second : Machine Middle Output)
++    (input : List (List Input)) : List Output :=
++  pipeFinish first second (pipeChunks first second none none input)
++
++end CssSemantics.Streaming
+--- /dev/null
++++ b/CssSemantics/CssStreamingPipelineLaws.lean
+@@ -0,0 +1,62 @@
++import CssSemantics.CssStreamingPipeline
++import CssSemantics.CssStreamingAdapterLaws
++
++namespace CssSemantics.Streaming
++
++open CssSemantics
++
++theorem pipe_chunks_factor (first : Machine Input Middle) (second : Machine Middle Output)
++    (inputPending middlePending input) :
++    pipeChunks first second inputPending middlePending input =
++      let decoded := chunks first inputPending input
++      let prepared := feed second middlePending decoded.output
++      ⟨prepared.output, decoded.pending, prepared.pending⟩ := by
++  induction input generalizing inputPending middlePending with
++  | nil => rfl
++  | cons chunk rest ih => simp [pipeChunks, chunks, ih, feed_append]
++
++theorem pipe_finish_factor (first : Machine Input Middle) (second : Machine Middle Output)
++    (middlePending) (decoded : Emission Input Middle) :
++    pipeFinish first second
++        ⟨(feed second middlePending decoded.output).output, decoded.pending,
++          (feed second middlePending decoded.output).pending⟩ =
++      finish second (feed second middlePending (finish first decoded)) := by
++  simp [pipeFinish, finish, feed_append, List.append_assoc]
++
++theorem pipeline_batch (first : Machine Input Middle) (second : Machine Middle Output) (input) :
++    pipeline first second input = batch second (batch first input.flatten) := by
++  rw [pipeline, pipe_chunks_factor, pipe_finish_factor, feed_finish]
++  change batch second (stream first input) = _
++  rw [stream_batch]
++
++theorem domstring_preprocessing_chunks (input) :
++    pipeline utf16 css input = DomString.preprocess input.flatten := by
++  rw [pipeline_batch, utf16_batch, css_batch]
++  rfl
++
++theorem domstring_prepared_iff (input output) :
++    pipeline utf16 css input = output ↔ DomString.Prepared input.flatten output := by
++  rw [domstring_preprocessing_chunks, DomString.preprocess_iff]
++
++theorem composed_output_normalized (input) :
++    CodePointInput.Normalized (pipeline utf16 css input) := by
++  rw [domstring_preprocessing_chunks]
++  exact DomString.preprocess_normalized _
++
++theorem composed_length_bound (input) :
++    (pipeline utf16 css input).length ≤ input.flatten.length := by
++  rw [domstring_preprocessing_chunks]
++  exact DomString.preprocess_length_le _
++
++theorem pipeline_pending_domain (input) :
++    (∀ unit, (pipeChunks utf16 css none none input).inputPending = some unit → DomString.Leading unit) ∧
++    (∀ point, (pipeChunks utf16 css none none input).middlePending = some point → point.val = 0x0d) := by
++  rw [pipe_chunks_factor]
++  constructor
++  · intro unit pending
++    exact utf16_pending_high input unit pending
++  · intro point pending
++    have held := feed_pending_valid css none (chunks utf16 none input).output (by simp) point pending
++    simpa [css] using held
++
++end CssSemantics.Streaming
+--- /dev/null
++++ b/CssSemantics/CssStreamingExamples.lean
+@@ -0,0 +1,48 @@
++import CssSemantics.CssStreamingPipeline
++import CssSemantics.CssStreamingAdapters
++
++namespace CssSemantics.StreamingExamples
++
++open Streaming
++
++def prepareValues (input : List (List Nat)) : Option (List Nat) :=
++  (admittedChunks input).map fun chunks => (pipeline utf16 css chunks).map Char.toNat
++
++def checks : List (String × Bool) := [
++  ("streaming no chunks", decide (decodeValues [] = some [])),
++  ("streaming empty chunks", decide (prepareValues [[], [], []] = some [])),
++  ("streaming split surrogate pair", decide (decodeValues [[0xd83d], [0xdca9]] = some [0x1f4a9])),
++  ("streaming pair across empty chunks", decide (decodeValues [[0xd83d], [], [], [0xdca9]] = some [0x1f4a9])),
++  ("streaming minimum pair", decide (decodeValues [[0xd800], [0xdc00]] = some [0x10000])),
++  ("streaming maximum pair", decide (decodeValues [[0xdbff], [0xdfff]] = some [0x10ffff])),
++  ("streaming isolated leading surrogate retained before CSS", decide (decodeValues [[0xd800]] = some [0xd800])),
++  ("streaming isolated leading surrogate replaced at CSS EOF", decide (prepareValues [[0xd800]] = some [0xfffd])),
++  ("streaming trailing surrogate is not carried", decide (decodeValues [[0xdc00]] = some [0xdc00])),
++  ("streaming reversed surrogates remain separate", decide (decodeValues [[0xdc00], [0xd800]] = some [0xdc00, 0xd800])),
++  ("streaming overlapping leading candidates", decide (decodeValues [[0xd800], [0xd801], [0xdc00]] = some [0xd800, 0x10400])),
++  ("streaming ordinary unit interrupts pairing", decide (decodeValues [[0xd83d], [0x61], [0xdca9]] = some [0xd83d, 0x61, 0xdca9])),
++  ("streaming split CRLF", decide (prepareValues [[13], [10]] = some [10])),
++  ("streaming CRLF across empty chunks", decide (prepareValues [[13], [], [10]] = some [10])),
++  ("streaming CR before ordinary unit", decide (prepareValues [[13], [0x61]] = some [10, 0x61])),
++  ("streaming trailing CR flushed", decide (prepareValues [[13]] = some [10])),
++  ("streaming CR CR LF", decide (prepareValues [[13], [13], [10]] = some [10, 10])),
++  ("streaming NUL and FF", decide (prepareValues [[0], [12]] = some [0xfffd, 10])),
++  ("streaming CR before split supplementary pair", decide (prepareValues [[13, 0xd83d], [], [0xdca9]] = some [10, 0x1f4a9])),
++  ("streaming pending CR then unpaired high at EOF", decide (prepareValues [[13], [0xd800]] = some [10, 0xfffd])),
++  ("streaming pair then trailing CR", decide (prepareValues [[0xd83d], [0xdca9, 13]] = some [0x1f4a9, 10])),
++  ("streaming LF interrupts surrogate pair", decide (prepareValues [[0xd83d], [10], [0xdca9]] = some [0xfffd, 10, 0xfffd])),
++  ("streaming out of range code unit rejected", decide (decodeValues [[0x10000]] = none)),
++  ("streaming supplementary point is not one unit", decide (prepareValues [[0x1f4a9]] = none)),
++  ("streaming upper code unit boundary", decide (decodeValues [[0xffff]] = some [0xffff])),
++  ("streaming ordinary unit emitted immediately", decide ((feed utf16 none [0x61]).output.map Fin.val = [0x61])),
++  ("streaming leading surrogate carried without emission", decide ((feed utf16 none [0xd800]).output = [])),
++  ("streaming empty feed preserves high carry", decide ((feed utf16 (some 0xd800) []).pending = some 0xd800)),
++  ("streaming paired carry cleared", decide ((feed utf16 (some 0xd800) [0xdc00]).pending = none)),
++  ("streaming CR carried without emission", decide ((feed css none [13]).output = [])),
++  ("streaming empty feed preserves CR carry", decide ((feed css (some 13) []).pending = some 13)),
++  ("streaming CRLF carry cleared", decide ((feed css (some 13) [10]).pending = none))
++]
++
++theorem checks_pass : checks.all Prod.snd = true := by decide +kernel
++
++end CssSemantics.StreamingExamples
+--- a/CssSemantics.lean
++++ b/CssSemantics.lean
+@@ -2019,3 +2019,11 @@
+ import CssSemantics.CssDomStringInputLaws
+ import CssSemantics.CssDomStringScalarChoice
+ import CssSemantics.CssDomStringInputExamples
++
++import CssSemantics.CssStreamingPair
++import CssSemantics.CssStreamingPairLaws
++import CssSemantics.CssStreamingAdapters
++import CssSemantics.CssStreamingAdapterLaws
++import CssSemantics.CssStreamingPipeline
++import CssSemantics.CssStreamingPipelineLaws
++import CssSemantics.CssStreamingExamples
+--- a/tests/Audit.lean
++++ b/tests/Audit.lean
+@@ -11916,3 +11916,32 @@
+ #print axioms CssSemantics.DomString.filter_scalarize
+ #print axioms CssSemantics.DomString.choice_filter_equivalent
+ #print axioms CssSemantics.DomStringExamples.checks_pass
++
++#print axioms CssSemantics.Streaming.batch_single
++#print axioms CssSemantics.Streaming.batch_buffered
++#print axioms CssSemantics.Streaming.accept_continuation
++#print axioms CssSemantics.Streaming.feed_continuation
++#print axioms CssSemantics.Streaming.chunks_continuation
++#print axioms CssSemantics.Streaming.stream_batch
++#print axioms CssSemantics.Streaming.feed_append
++#print axioms CssSemantics.Streaming.chunks_feed
++#print axioms CssSemantics.Streaming.feed_finish
++#print axioms CssSemantics.Streaming.accept_pending_valid
++#print axioms CssSemantics.Streaming.feed_pending_valid
++#print axioms CssSemantics.Streaming.utf16_batch
++#print axioms CssSemantics.Streaming.css_batch
++#print axioms CssSemantics.Streaming.utf16_chunks
++#print axioms CssSemantics.Streaming.css_chunks
++#print axioms CssSemantics.Streaming.utf16_decoded_iff
++#print axioms CssSemantics.Streaming.css_preprocess_iff
++#print axioms CssSemantics.Streaming.utf16_pending_high
++#print axioms CssSemantics.Streaming.css_pending_cr
++#print axioms CssSemantics.Streaming.pipe_chunks_factor
++#print axioms CssSemantics.Streaming.pipe_finish_factor
++#print axioms CssSemantics.Streaming.pipeline_batch
++#print axioms CssSemantics.Streaming.domstring_preprocessing_chunks
++#print axioms CssSemantics.Streaming.domstring_prepared_iff
++#print axioms CssSemantics.Streaming.composed_output_normalized
++#print axioms CssSemantics.Streaming.composed_length_bound
++#print axioms CssSemantics.Streaming.pipeline_pending_domain
++#print axioms CssSemantics.StreamingExamples.checks_pass
+--- a/tests/RunExamples.lean
++++ b/tests/RunExamples.lean
+@@ -878,3 +878,6 @@
+ 
+   for (name, accepted) in DomStringExamples.checks do
+     IO.println s!"PASS {name}: {accepted}"
++
++  for (name, accepted) in StreamingExamples.checks do
++    IO.println s!"PASS {name}: {accepted}"
+--- a/check.py
++++ b/check.py
+@@ -12519,6 +12519,38 @@
+     ("DOMString filter reversed surrogates", True),
+     ("DOMString filter truncated pair", True),
+     ("DOMString filter invalid unit", True),
++    ("streaming no chunks", True),
++    ("streaming empty chunks", True),
++    ("streaming split surrogate pair", True),
++    ("streaming pair across empty chunks", True),
++    ("streaming minimum pair", True),
++    ("streaming maximum pair", True),
++    ("streaming isolated leading surrogate retained before CSS", True),
++    ("streaming isolated leading surrogate replaced at CSS EOF", True),
++    ("streaming trailing surrogate is not carried", True),
++    ("streaming reversed surrogates remain separate", True),
++    ("streaming overlapping leading candidates", True),
++    ("streaming ordinary unit interrupts pairing", True),
++    ("streaming split CRLF", True),
++    ("streaming CRLF across empty chunks", True),
++    ("streaming CR before ordinary unit", True),
++    ("streaming trailing CR flushed", True),
++    ("streaming CR CR LF", True),
++    ("streaming NUL and FF", True),
++    ("streaming CR before split supplementary pair", True),
++    ("streaming pending CR then unpaired high at EOF", True),
++    ("streaming pair then trailing CR", True),
++    ("streaming LF interrupts surrogate pair", True),
++    ("streaming out of range code unit rejected", True),
++    ("streaming supplementary point is not one unit", True),
++    ("streaming upper code unit boundary", True),
++    ("streaming ordinary unit emitted immediately", True),
++    ("streaming leading surrogate carried without emission", True),
++    ("streaming empty feed preserves high carry", True),
++    ("streaming paired carry cleared", True),
++    ("streaming CR carried without emission", True),
++    ("streaming empty feed preserves CR carry", True),
++    ("streaming CRLF carry cleared", True),
+ ]
+ 
+ 
+--- a/coverage.json
++++ b/coverage.json
+@@ -15868,6 +15868,64 @@
+         "Manual interpretation of pinned primary sources. Byte decoding, endianness, BOM policy, ToString/coercion behavior, UTF-16 re-encoding, arbitrary-index wrapper, IsUnpairedSurrogate return field, streaming/chunk boundary state and full tokenization are excluded.",
+         "34 ordered kernel-checked/executable observations and three anonymous kernel examples. Existing scalar/codepoint APIs and native/browser evidence are unchanged."
+       ]
++    },
++    {
++      "id": "finite-domstring-streaming-refinement",
++      "status": "checked_fragment",
++      "modules": [
++        "CssStreamingPair.lean",
++        "CssStreamingPairLaws.lean",
++        "CssStreamingAdapters.lean",
++        "CssStreamingAdapterLaws.lean",
++        "CssStreamingPipeline.lean",
++        "CssStreamingPipelineLaws.lean",
++        "CssStreamingExamples.lean"
++      ],
++      "specifications": [
++        "webidl-domstring-retrieved20261110",
++        "ecma-domstring-retrieved20261110",
++        "cssom-domstring-retrieved20261110",
++        "syntax3-codepoint-ed-20261110",
++        "infra-codepoint-retrieved20261110"
++      ],
++      "theorems": [
++        "CssSemantics.Streaming.batch_single",
++        "CssSemantics.Streaming.batch_buffered",
++        "CssSemantics.Streaming.accept_continuation",
++        "CssSemantics.Streaming.feed_continuation",
++        "CssSemantics.Streaming.chunks_continuation",
++        "CssSemantics.Streaming.stream_batch",
++        "CssSemantics.Streaming.feed_append",
++        "CssSemantics.Streaming.chunks_feed",
++        "CssSemantics.Streaming.feed_finish",
++        "CssSemantics.Streaming.accept_pending_valid",
++        "CssSemantics.Streaming.feed_pending_valid",
++        "CssSemantics.Streaming.utf16_batch",
++        "CssSemantics.Streaming.css_batch",
++        "CssSemantics.Streaming.utf16_chunks",
++        "CssSemantics.Streaming.css_chunks",
++        "CssSemantics.Streaming.utf16_decoded_iff",
++        "CssSemantics.Streaming.css_preprocess_iff",
++        "CssSemantics.Streaming.utf16_pending_high",
++        "CssSemantics.Streaming.css_pending_cr",
++        "CssSemantics.Streaming.pipe_chunks_factor",
++        "CssSemantics.Streaming.pipe_finish_factor",
++        "CssSemantics.Streaming.pipeline_batch",
++        "CssSemantics.Streaming.domstring_preprocessing_chunks",
++        "CssSemantics.Streaming.domstring_prepared_iff",
++        "CssSemantics.Streaming.composed_output_normalized",
++        "CssSemantics.Streaming.composed_length_bound",
++        "CssSemantics.Streaming.pipeline_pending_domain",
++        "CssSemantics.StreamingExamples.checks_pass"
++      ],
++      "limits": [
++        "Implementation-chosen adjacent-pair carry transducer, proved equivalent to the reviewed whole-input DOMString and CSS preprocessing relations for arbitrary finite partitions, including empty chunks. This is a refinement of existing input coverage, not another CSS specification feature.",
++        "The generic Machine.unheld obligation excludes a future pair for immediately emitted input. UTF-16 holds only leading surrogates and CSS holds only CR; composed EOF feeds the first carry through the second stage before flushing the second carry.",
++        "Already-acquired Fin 0x10000 code units. Natural-number helpers validate all chunks before streaming; out-of-range units are rejected, direct Fin numerals can wrap, and ECMAScript's string-length bound is not enforced.",
++        "Manual mapping to the pinned whole-input contract, not mechanical prose derivation. CSSOMString choice and successful coercion remain caller premises; no CSSOM guards, exceptions, side effects, byte decoding, encodings, BOM policy, re-encoding, tokenizer or Firefox refinement is proved.",
++        "Finite-list incremental semantics only: no infinite-stream productivity, allocation, stack, performance or native memory-safety guarantee. Empty chunks preserve carries; complete adapters flush EOF once.",
++        "27 transferred laws and one kernel-checked aggregate theorem for 32 ordered observations. Scoped clean dependency closure and global static registration only; historical whole-library and browser gates are not refreshed."
++      ]
+     }
+   ],
+   "next_packages": [
+@@ -16297,6 +16355,12 @@
+         "reviewed_on": "2026-11-10",
+         "contract": "research/domstring-input.md",
+         "validation_scope": "28 new declarations/34 observations; clean scoped dependency closure plus existing scalar/codepoint observations and global static registrations; no full-library/browser gate refresh"
++      },
++      {
++        "id": "finite-domstring-streaming-refinement",
++        "reviewed_on": "2026-11-10",
++        "contract": "research/domstring-streaming.md",
++        "validation_scope": "28 new declarations/32 observations; clean affected dependency closure with existing input-layer controls and global static registrations; no full-library/browser gate refresh"
+       }
+     ]
+   }
+--- a/README.md
++++ b/README.md
+@@ -48,6 +48,14 @@
+ output under prior surrogate replacement. The [domain and caller contract](research/domstring-input.md)
+ qualifies CSSOMString type choice and excludes coercion, re-encoding and complete
+ API behavior. Existing input APIs remain unchanged.
++
++## Chunked DOMString input
++
++`Streaming.pipeline` preserves surrogate and CR carries across finite chunks,
++including empty chunks, and is proved equivalent to whole-input DOMString
++decoding and CSS preprocessing. The [streaming contract](research/domstring-streaming.md)
++separates this algorithmic refinement from prose translation, byte decoding,
++CSSOM behavior and native performance claims.
+ 
+ ## Resolved baseline groups
+ 
+--- a/research/coverage-map.md
++++ b/research/coverage-map.md
+@@ -27,6 +27,13 @@
+ browser gates. CSSOMString type choice and pre-parse guards qualify its caller
+ trace; scalar replacement commutes with filtering only at the stated boundary.
+ 
++## Finite streaming refinement (2026-11-10)
++
++The [chunked input refinement](domstring-streaming.md) preserves UTF-16 and CR
++carries and proves composition with the existing whole-input relations. It adds
++28 audited declarations and 32 ordered observations; it does not count another
++CSS feature or refresh historical whole-library/browser evidence.
++
+ ## What the evidence establishes
+ 
+ | Evidence | Established claim | Remaining boundary |
+@@ -43,6 +50,7 @@
+ | --- | --- | --- | --- |
+ | Ordinary imports with raw scopes | Actual root/resource parsing, per-sheet placement, rich registration views, exact selected-instance source and ownerless child provenance; all-assignment specificity/proximity, origin-specific registry identity and exact source/cascade histories. | [Import-scope evidence](import-scope-browser-evidence.json): 20/20, 240 metadata observations, 15 controls; saved native inputs are distinct from universal model laws. | Imported/ownerless omitted scopes, scoped-import modifiers, nested imports, general Fetch/lifecycle and dynamic invalidation. No-import compatibility is source parsing only, not whole-host equivalence. |
+ | Static inline owner-derived implicit scope | Actual HTML style inventory in document preorder; same-context text/parent acquisition; complete omitted-start source; all-assignment availability and source/candidate/rollback histories. Incompatible owner/outer configurations are explicitly unavailable, including empty blocks. | [Owner-scope evidence](owner-scope-browser-evidence.json): 20/20, 240 metadata readbacks, 15 controls; generic model laws are separate from these finite observations. | Ambiguous above-outer interpretation; imports, shadow/tree-root fallback, linked/adopted sheets, dynamic owner changes, full HTML/CSP lifecycle and general browser refinement. Explicit-rule compatibility requires its exact-image premise. |
++| Chunked DOMString input | Arbitrary finite partitions, both pending carries, explicit EOF and exact whole-input correspondence | No new native/browser evidence | CSSOM conversion, byte decoding, infinite streams, allocation and stack/performance bounds |
+ | DOMString code-unit input | Finite 16-bit unit lists; pair interpretation, exact one/two-unit suffixes, decoding/filtering correspondence and filtered-output scalar-choice equality | No new browser evidence; CSSOM caller trace is conditional | Coercion, re-encoding, arbitrary-index/metadata wrapper, streaming and complete API behavior |
+ | CSS code-point input | Finite U+0000..U+10FFFF lists, including surrogates; independent normalization relation, exact existing scalar API refinement, nonexpansion and idempotence | No new browser evidence | Byte decoding, UTF-16 conversion, live streams and chunk-boundary state |
+ | CSS scalar input and tokenization | Preprocessing, dated name classes, escapes, hash flags, ident/function/URL dispatch, string and bad-URL recovery, comments, numeric/percentage/dimension tokens, guarded Unicode ranges, complete priority dispatch, finite token stream and exact original scalar/token provenance | Later selector-source suites exercise selected paths indirectly; tokenizer-only checkpoints did not claim native comparison | Byte/encoding input; full token serialization; browser numeric precision/range equivalence |
+--- /dev/null
++++ b/research/domstring-streaming.md
+@@ -0,0 +1,71 @@
++# Chunked DOMString interpretation and CSS preprocessing
++
++`Streaming.pipeline Streaming.utf16 Streaming.css` consumes arbitrary finite
++lists of finite chunks of already-acquired `DomString.CodeUnit` values. It
++preserves the high-surrogate carry and CR carry across chunk boundaries,
++including empty chunks. At EOF it feeds the flushed UTF-16 carry through CSS
++preprocessing before flushing the CR carry. An empty chunk does not signal EOF;
++the complete adapter invokes EOF flushing once.
++
++The generic adjacent-pair machine requires `Machine.unheld`: an input emitted
++immediately cannot combine with a later input. Continuation laws lift this
++obligation over input items, feeds and arbitrary partitions. UTF-16 and CSS
++specializations connect to the independently stated `DomString.Decoded` and
++`CodePointInput.Preprocess` relations. Pipeline factorization establishes
++`domstring_prepared_iff`, normalized output, nonexpansion and reachable carry
++domains. These universal results do not follow from the example vectors.
++
++The seven `CssStreaming*` modules register 27 laws and the kernel-checked
++`StreamingExamples.checks_pass` theorem for 32 executable observations. Examples
++include split/minimum/maximum pairs, empty chunks, unmatched/reversed/overlapping
++surrogates, split CRLF, both carries, EOF and rejected numeric input. Checking
++the intermediate decoded points matters: early surrogate replacement is wrong
++there even when final CSS filtering conceals it.
++
++## Source contract
++
++The source contract and immutable revisions are the existing
++[DOMString input mapping](domstring-input.md) and `coverage.json` entries:
++WebIDL DOMString and Infra strings supply already-acquired code units;
++ECMAScript String Type, CodePointAt and StringToCodePoints define whole-input
++interpretation; CSS Syntax input preprocessing defines filtering. CSSOMString
++choice qualifies callers. This carry strategy is an implementation choice
++proved equivalent to those reviewed whole-input relations. It is not required
++by the specification and is not mechanically derived from prose. The integration
++adds an algorithmic refinement of existing coverage, not another CSS feature.
++
++The proof originated in Firefox artifact commit `d34a26d38d78`,
++`artifacts/css-domstring-streaming-20261110-v1`. Its root replay authenticated nine
++normative excerpts against pinned complete snapshots and four reference modules
++against library revision `0127c4f42c620cdaba4f9b92cca93ca95df2d913`. The standalone
++integration changes import paths and namespaces, prefixes example labels and
++adds the aggregate example theorem. The external artifact retains six rejected
++semantic mutants and three source/library drift controls; those historical
++receipts are not rerun by this library's standard checker.
++
++## Domain and exclusions
++
++Input is `List (List (Fin 0x10000))`. `Streaming.admittedChunks` checks every
++natural-number input before running the typed adapter. Values above 0xFFFF are
++rejected rather than wrapped; direct `Fin` numerals can wrap. A supplementary
++code-point number is not one code unit. Numeric admission does not enforce
++ECMAScript's string-length limit; the mathematical domain is a superset of
++finite JavaScript strings. These wrappers are whole-input admission helpers,
++not incremental validation APIs.
++
++Successful CSSOM coercion and DOMString type choice are caller premises. No
++CSSOM guards, exceptions, side effects, DOM acquisition, byte decoder,
++endianness, encoding/BOM policy, UTF-16 re-encoding, Unicode normalization,
++arbitrary-index CodePointAt wrapper or IsUnpairedSurrogate return field is
++proved. No tokenizer, Firefox adapter, native memory safety or general browser
++behavior is proved. Finite-list semantics establish no infinite-stream
++productivity, allocation, stack or performance bound.
++
++## Validation scope
++
++The standard checker registers these modules, axioms and ordered observations.
++Integration validation builds the clean affected dependency closure, audits
++its exact named theorem set, runs the new examples and existing input-layer
++controls, and runs global `check.py --coverage-only`. That coverage-only command
++checks static registration and does not run Lean. Neither check refreshes the
++historical full-library or browser gate.
