@@ -1,0 +1,56 @@
+{
+  "anchor": "scope-limits",
+  "content": "A [@scope](CSS-CASCADE-6#at-ruledef-scope) rule produces one or more [scopes](CSS-CASCADE-6#scope) as follows:\n\nFinding the [scoping root](SELECTORS-4#scoping-root)(s) \n\nFor each element matched by [\\<scope-start>](CSS-CASCADE-6#typedef-scope-start), create a [scope](CSS-CASCADE-6#scope) using that element as the [scoping root](SELECTORS-4#scoping-root). If no \\<scope-start> is specified, the scoping root is the [parent element](DOM#parent-element) of the [owner node](CSSOM-1#cssstyledeclaration-owner-node) of the stylesheet where the [@scope](CSS-CASCADE-6#at-ruledef-scope) rule is defined. (If no such element exists and the containing [node tree](DOM#concept-node-tree) is a [shadow tree](DOM#concept-shadow-tree), then the scoping root is the shadow host. Otherwise, the scoping root is the [root](DOM#concept-tree-root) of the containing node tree.) Any [:scope](SELECTORS-4#scope-pseudo) or [&](CSS-NESTING-1#selectordef-) selectors in \\<scope-start> are interpreted as defined for its outer context.\n\nFinding any [scoping limits](CSS-CASCADE-6#scoping-limit) \n\nFor each [scope](CSS-CASCADE-6#scope) created by a [scoping root](SELECTORS-4#scoping-root), its [scoping limits](CSS-CASCADE-6#scoping-limit) are set to all elements that are [descendants](DOM#concept-tree-descendant) of the scoping root and that match [\\<scope-end>](CSS-CASCADE-6#typedef-scope-end), interpreting [:scope](SELECTORS-4#scope-pseudo) and [&](CSS-NESTING-1#selectordef-) exactly as in [scoped style rules](CSS-CASCADE-6#scoped-style-rules).\n\n> **Example:** Authors can establish local scoping for [`style`](HTML#the-style-element) elements by leaving out the [\\<scope-start>](CSS-CASCADE-6#typedef-scope-start) selector. For example:\n>\n> ```\n> <div>\n>   <style>\n>     @scope {\n>       p { color: red; }\n>     }\n>   </style>\n>   <p>this is red</p>\n> </div>\n> <p>not red</p>\n> ```\n>\n> That would be equivalent to:\n>\n> ```\n> <div id=\"foo\">\n>   <style>\n>     @scope (#foo) {\n>       p { color: red; }\n>     }\n>   </style>\n>   <p>this is red</p>\n> </div>\n> <p>not red</p>\n> ```\n\n> **Example:** [Scoping limits](CSS-CASCADE-6#scoping-limit) can use the [:scope](SELECTORS-4#scope-pseudo) pseudo-class to require a specific relationship to the [scoping root](SELECTORS-4#scoping-root):\n>\n> ```\n> /* .content is only a limit when it is a direct child of the :scope */\n> @scope (.media-object) to (:scope > .content) { ... }\n> ```\n>\n> [Scoping limits](CSS-CASCADE-6#scoping-limit) can also reference elements outside their [scoping root](SELECTORS-4#scoping-root) by using [:scope](SELECTORS-4#scope-pseudo). For example:\n>\n> ```\n> /* .content is only a limit when the :scope is inside .sidebar */\n> @scope (.media-object) to (.sidebar :scope .content) { ... }\n> ```",
+  "effects": [],
+  "effects_status": {
+    "analysis_id": "an_e2c468566a3e3578",
+    "coverage": "partial",
+    "issues": [
+      "unsupported_structure"
+    ],
+    "omitted": 0,
+    "semantics": "may",
+    "state": "ready"
+  },
+  "incoming_refs": {
+    "items": [
+      {
+        "anchor": "at-import",
+        "spec": "CSS-CASCADE-6"
+      },
+      {
+        "anchor": "contents",
+        "spec": "CSS-CASCADE-6"
+      }
+    ],
+    "total": 2
+  },
+  "navigation": {
+    "children": [],
+    "next": {
+      "anchor": "scope-scope",
+      "number": "3.5.5",
+      "title": "Scope Nesting"
+    },
+    "parent": {
+      "anchor": "scoped-styles",
+      "number": "3.5",
+      "title": "Scoping Styles: the @scope rule"
+    },
+    "prev": {
+      "anchor": "scoped-rules",
+      "number": "3.5.3",
+      "title": "Scoped Style Rules"
+    }
+  },
+  "number": "3.5.4",
+  "outgoing_refs": {
+    "command": "webspec-index refs CSS-CASCADE-6#scope-limits -d outgoing -l 16",
+    "total": 16
+  },
+  "sha": "hash:b9386a73301942d453d9c427322ac85c55ed512ad52d766f3a45f4b69c76cef2",
+  "spec": "CSS-CASCADE-6",
+  "title": "Identifying Scoping Roots and Limits",
+  "type": "heading",
+  "url": "https://drafts.csswg.org/css-cascade-6/#scope-limits"
+}
