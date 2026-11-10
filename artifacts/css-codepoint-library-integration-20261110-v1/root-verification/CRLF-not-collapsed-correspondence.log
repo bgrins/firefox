@@ -1,0 +1,25 @@
+CssSemantics/CssCodePointInputLaws.lean:61:23: error: unsolved goals
+case crlf
+source : List CodePoint
+output : List Char
+p✝ q✝ : CodePoint
+rest✝ : List CodePoint
+output✝ : List Char
+cr : ↑p✝ = 13
+lf : ↑q✝ = 10
+tail : Preprocess rest✝ output✝
+ih : preprocess rest✝ = output✝
+⊢ preprocess (q✝ :: rest✝) = output✝
+CssSemantics/CssCodePointInputLaws.lean:61:52: warning: This simp argument is unused:
+  ih
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [preprocess, cr, lf]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+CssSemantics/CssCodePointInputLaws.lean:72:12: error: Type mismatch: After simplification, term
+  Preprocess.crlf pair.left pair.right (preprocess_sound tail)
+ has type
+  Preprocess (p :: q :: tail) ('\n' :: preprocess tail)
+but is expected to have type
+  Preprocess (p :: q :: tail) ('\n' :: preprocess (q :: tail))

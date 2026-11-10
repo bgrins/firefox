@@ -1,0 +1,726 @@
+diff --git a/CssSemantics.lean b/CssSemantics.lean
+index 0e38aa3..70cb82b 100644
+--- a/CssSemantics.lean
++++ b/CssSemantics.lean
+@@ -2009,3 +2009,8 @@ import CssSemantics.GuardedNamesExamples
+ 
+ import CssSemantics.StepsOrigin
+ import CssSemantics.StepsOriginExamples
++
++import CssSemantics.CssCodePointInput
++import CssSemantics.CssCodePointInputLaws
++import CssSemantics.CssCodePointInputRefinement
++import CssSemantics.CssCodePointInputExamples
+diff --git a/CssSemantics/CssCodePointInput.lean b/CssSemantics/CssCodePointInput.lean
+new file mode 100644
+index 0000000..dd39c2b
+--- /dev/null
++++ b/CssSemantics/CssCodePointInput.lean
+@@ -0,0 +1,52 @@
++import Lean
++
++namespace CssSemantics.CodePointInput
++
++abbrev CodePoint := Fin 0x110000
++
++abbrev Surrogate (p : CodePoint) : Prop := 0xd800 ≤ p.val ∧ p.val ≤ 0xdfff
++
++def ofNat? (n : Nat) : Option CodePoint := if h : n < 0x110000 then some ⟨n, h⟩ else none
++
++def point (p : CodePoint) : Char :=
++  if p.val = 0x0d ∨ p.val = 0x0c then '\n'
++  else if p.val = 0 ∨ Surrogate p then '�'
++  else Char.ofNat p.val
++
++inductive Point : CodePoint → Char → Prop where
++  | carriageReturn (p) : p.val = 0x0d → Point p '\n'
++  | formFeed (p) : p.val = 0x0c → Point p '\n'
++  | null (p) : p.val = 0 → Point p '�'
++  | surrogate (p) : Surrogate p → Point p '�'
++  | ordinary (p c) : c.toNat = p.val → p.val ≠ 0x0d → p.val ≠ 0x0c → p.val ≠ 0 → Point p c
++
++def NotPair (p : CodePoint) (rest : List CodePoint) : Prop :=
++  ∀ q tail, rest = q :: tail → ¬ (p.val = 0x0d ∧ q.val = 0x0a)
++
++inductive Preprocess : List CodePoint → List Char → Prop where
++  | empty : Preprocess [] []
++  | crlf {p q rest output} : p.val = 0x0d → q.val = 0x0a → Preprocess rest output →
++      Preprocess (p :: q :: rest) ('\n' :: output)
++  | single {p c rest output} : NotPair p rest → Point p c → Preprocess rest output →
++      Preprocess (p :: rest) (c :: output)
++
++def preprocess : List CodePoint → List Char
++  | [] => []
++  | [p] => [point p]
++  | p :: q :: rest =>
++      if p.val = 0x0d ∧ q.val = 0x0a then '\n' :: preprocess rest
++      else point p :: preprocess (q :: rest)
++
++def filterValues (source : List Nat) : Option (List Char) :=
++  (source.mapM ofNat?).map preprocess
++
++def embed (c : Char) : CodePoint :=
++  ⟨c.toNat, by
++    have valid := c.valid
++    change c.toNat < 0xd800 ∨ (0xdfff < c.toNat ∧ c.toNat < 0x110000) at valid
++    omega⟩
++
++def Normalized (source : List Char) : Prop :=
++  ∀ c ∈ source, c ≠ '\r' ∧ c ≠ '\x0c' ∧ c ≠ '\x00'
++
++end CssSemantics.CodePointInput
+diff --git a/CssSemantics/CssCodePointInputExamples.lean b/CssSemantics/CssCodePointInputExamples.lean
+new file mode 100644
+index 0000000..a12477c
+--- /dev/null
++++ b/CssSemantics/CssCodePointInputExamples.lean
+@@ -0,0 +1,33 @@
++import CssSemantics.CssCodePointInputRefinement
++
++namespace CssSemantics.CodePointInputExamples
++
++open CodePointInput
++
++def checks : List (String × Bool) := [
++  ("codepoint input empty", decide (filterValues [] = some [])),
++  ("codepoint input CRLF collapse", decide (filterValues [0x0d, 0x0a] = some ['\n'])),
++  ("codepoint input CR normalization", decide (filterValues [0x0d] = some ['\n'])),
++  ("codepoint input FF normalization", decide (filterValues [0x0c] = some ['\n'])),
++  ("codepoint input NUL replacement", decide (filterValues [0] = some ['�'])),
++  ("codepoint input surrogate range boundaries", decide (filterValues [0xd800, 0xdbff, 0xdc00, 0xdfff] = some ['�', '�', '�', '�'])),
++  ("codepoint input adjacent scalar boundaries", decide (filterValues [0xd7ff, 0xe000] = some [Char.ofNat 0xd7ff, Char.ofNat 0xe000])),
++  ("codepoint input noncharacters preserved", decide (filterValues [0xfdd0, 0xfffe, 0xffff, 0x10ffff] =
++    some [Char.ofNat 0xfdd0, Char.ofNat 0xfffe, Char.ofNat 0xffff, Char.ofNat 0x10ffff])),
++  ("codepoint input astral scalar preserved", decide (filterValues [0x1f600] = some [Char.ofNat 0x1f600])),
++  ("codepoint input surrogate code points remain separate", decide (filterValues [0xd83d, 0xde00] = some ['�', '�'])),
++  ("codepoint input CRCRLF", decide (filterValues [0x0d, 0x0d, 0x0a] = some ['\n', '\n'])),
++  ("codepoint input CRLFLF", decide (filterValues [0x0d, 0x0a, 0x0a] = some ['\n', '\n'])),
++  ("codepoint input FFLF", decide (filterValues [0x0c, 0x0a] = some ['\n', '\n'])),
++  ("codepoint input LFCR", decide (filterValues [0x0a, 0x0d] = some ['\n', '\n'])),
++  ("codepoint input CR surrogate LF", decide (filterValues [0x0d, 0xd800, 0x0a] = some ['\n', '�', '\n'])),
++  ("codepoint input mixed replacement and CRLF", decide (filterValues [0xdfff, 0x0d, 0x0a, 0] = some ['�', '\n', '�'])),
++  ("codepoint input leading surrogate before ASCII", decide (filterValues [0xdbff, 0x41] = some ['�', 'A'])),
++  ("codepoint input upper domain rejected", decide (filterValues [0x110000] = none)),
++  ("codepoint input invalid suffix rejected", decide (filterValues [0x41, 0x200000] = none)),
++  ("codepoint input supplied BOM preserved", decide (filterValues [0xfeff] = some [Char.ofNat 0xfeff])),
++  ("codepoint input Unicode separators preserved", decide (filterValues [0x2028, 0x2029] = some [Char.ofNat 0x2028, Char.ofNat 0x2029]))]
++
++theorem checks_pass : checks.all Prod.snd = true := by decide +kernel
++
++end CssSemantics.CodePointInputExamples
+diff --git a/CssSemantics/CssCodePointInputLaws.lean b/CssSemantics/CssCodePointInputLaws.lean
+new file mode 100644
+index 0000000..c9d08fe
+--- /dev/null
++++ b/CssSemantics/CssCodePointInputLaws.lean
+@@ -0,0 +1,128 @@
++import CssSemantics.CssCodePointInput
++
++namespace CssSemantics.CodePointInput
++
++theorem ofNat_value (n : Nat) (valid : n.isValidChar) : (Char.ofNat n).toNat = n := by
++  rw [Char.ofNat, dite_eq_left valid]
++  rfl
++
++theorem scalar_valid (p : CodePoint) (notSurrogate : ¬ Surrogate p) : p.val.isValidChar := by
++  change p.val < 0xd800 ∨ (0xdfff < p.val ∧ p.val < 0x110000)
++  have bound := p.isLt
++  unfold Surrogate at notSurrogate
++  omega
++
++theorem scalar_not_surrogate (p : CodePoint) (c : Char) (same : c.toNat = p.val) : ¬ Surrogate p := by
++  have valid := c.valid
++  change c.toNat < 0xd800 ∨ (0xdfff < c.toNat ∧ c.toNat < 0x110000) at valid
++  unfold Surrogate
++  omega
++
++theorem Point.result {p c} (converted : Point p c) : point p = c := by
++  cases converted with
++  | carriageReturn equal => simp [point, equal]
++  | formFeed equal => simp [point, equal]
++  | null equal => simp [point, equal]
++  | surrogate surrogate =>
++      have cr : p.val ≠ 0x0d := by unfold Surrogate at surrogate; omega
++      have ff : p.val ≠ 0x0c := by unfold Surrogate at surrogate; omega
++      rw [point, ite_eq_right (not_or_intro cr ff), ite_eq_left (Or.inr surrogate)]
++  | ordinary p same cr ff nul =>
++      have noSurrogate := scalar_not_surrogate p c same
++      rw [point, ite_eq_right (not_or_intro cr ff), ite_eq_right (not_or_intro nul noSurrogate), ← same, Char.ofNat_toNat]
++
++theorem point_sound (p : CodePoint) : Point p (point p) := by
++  by_cases cr : p.val = 0x0d
++  · simpa [point, cr] using Point.carriageReturn p cr
++  by_cases ff : p.val = 0x0c
++  · simpa [point, ff] using Point.formFeed p ff
++  by_cases nul : p.val = 0
++  · simpa [point, nul] using Point.null p nul
++  by_cases surrogate : Surrogate p
++  · rw [point, ite_eq_right (not_or_intro cr ff), ite_eq_left (Or.inr surrogate)]
++    exact Point.surrogate p surrogate
++  · have same := ofNat_value p.val (scalar_valid p surrogate)
++    simpa [point, cr, ff, nul, surrogate] using Point.ordinary p (Char.ofNat p.val) same cr ff nul
++
++theorem point_iff (p : CodePoint) (c : Char) : point p = c ↔ Point p c :=
++  ⟨fun equal => equal ▸ point_sound p, Point.result⟩
++
++theorem preprocess_cons {p rest} (notPair : NotPair p rest) :
++    preprocess (p :: rest) = point p :: preprocess rest := by
++  cases rest with
++  | nil => rfl
++  | cons q tail =>
++      have no := notPair q tail rfl
++      simp [preprocess, no]
++
++theorem Preprocess.result {source output} (parsed : Preprocess source output) : preprocess source = output := by
++  induction parsed with
++  | empty => rfl
++  | crlf cr lf tail ih => simp [preprocess, cr, lf, ih]
++  | single noPair converted tail ih => rw [preprocess_cons noPair, converted.result, ih]
++
++theorem preprocess_sound (source : List CodePoint) : Preprocess source (preprocess source) := by
++  cases source with
++  | nil => exact .empty
++  | cons p rest =>
++      cases rest with
++      | nil => exact .single (by simp [NotPair]) (point_sound p) .empty
++      | cons q tail =>
++          by_cases pair : p.val = 0x0d ∧ q.val = 0x0a
++          · simpa [preprocess, pair] using Preprocess.crlf pair.1 pair.2 (preprocess_sound tail)
++          · have noPair : NotPair p (q :: tail) := by
++              intro d remaining equal
++              rcases List.cons.inj equal with ⟨rfl, rfl⟩
++              exact pair
++            rw [preprocess_cons noPair]
++            exact .single noPair (point_sound p) (preprocess_sound (q :: tail))
++termination_by source.length
++
++theorem preprocess_iff (source : List CodePoint) (output : List Char) :
++    preprocess source = output ↔ Preprocess source output :=
++  ⟨fun equal => equal ▸ preprocess_sound source, Preprocess.result⟩
++
++theorem Preprocess.unique {source left right} (hl : Preprocess source left) (hr : Preprocess source right) :
++    left = right := hl.result.symm.trans hr.result
++
++theorem Point.normalized {p c} (converted : Point p c) : c ≠ '\r' ∧ c ≠ '\x0c' ∧ c ≠ '\x00' := by
++  cases converted with
++  | carriageReturn | formFeed | null | surrogate => decide
++  | ordinary p same cr ff nul =>
++      constructor
++      · intro equal; subst c; simp at same; omega
++      constructor
++      · intro equal; subst c; simp at same; omega
++      · intro equal; subst c; simp at same; omega
++
++theorem Preprocess.normalized {source output} (parsed : Preprocess source output) : Normalized output := by
++  induction parsed with
++  | empty => simp [Normalized]
++  | crlf cr lf tail ih => simpa [Normalized] using ih
++  | single noPair converted tail ih => simpa [Normalized] using And.intro converted.normalized ih
++
++theorem preprocess_normalized (source : List CodePoint) : Normalized (preprocess source) :=
++  (preprocess_sound source).normalized
++
++theorem Preprocess.length_le {source output} (parsed : Preprocess source output) : output.length ≤ source.length := by
++  induction parsed with
++  | empty => simp
++  | crlf cr lf tail ih => simp; omega
++  | single noPair converted tail ih => simpa using ih
++
++theorem preprocess_length_le (source : List CodePoint) : (preprocess source).length ≤ source.length :=
++  (preprocess_sound source).length_le
++
++theorem surrogate_cons (p : CodePoint) (rest : List CodePoint) (surrogate : Surrogate p) :
++    preprocess (p :: rest) = '�' :: preprocess rest := by
++  have cr : p.val ≠ 0x0d := by unfold Surrogate at surrogate; omega
++  have noPair : NotPair p rest := by
++    intro q tail equal pair
++    exact cr pair.1
++  rw [preprocess_cons noPair, (Point.surrogate p surrogate).result]
++
++theorem ofNat?_none_iff (n : Nat) : ofNat? n = none ↔ 0x110000 ≤ n := by
++  unfold ofNat?
++  split <;> simp_all
++
++end CssSemantics.CodePointInput
+diff --git a/CssSemantics/CssCodePointInputRefinement.lean b/CssSemantics/CssCodePointInputRefinement.lean
+new file mode 100644
+index 0000000..832ee44
+--- /dev/null
++++ b/CssSemantics/CssCodePointInputRefinement.lean
+@@ -0,0 +1,55 @@
++import CssSemantics.CssCodePointInputLaws
++import CssSemantics.CssInput
++
++namespace CssSemantics.CodePointInput
++
++theorem point_embed (c : Char) : point (embed c) = CssInput.point c := by
++  have noSurrogate := scalar_not_surrogate (embed c) c rfl
++  change ¬ (0xd800 ≤ c.toNat ∧ c.toNat ≤ 0xdfff) at noSurrogate
++  have cr : c.toNat = 0x0d ↔ c = '\r' := Char.toNat_inj (c := c) (d := '\r')
++  have ff : c.toNat = 0x0c ↔ c = '\x0c' := Char.toNat_inj (c := c) (d := '\x0c')
++  have nul : c.toNat = 0 ↔ c = '\x00' := Char.toNat_inj (c := c) (d := '\x00')
++  simp [point, embed, Surrogate, noSurrogate, cr, ff, nul, CssInput.point]
++
++theorem notPair_embed {c rest} (noPair : CssInput.NotPair c rest) : NotPair (embed c) (rest.map embed) := by
++  cases rest with
++  | nil => simp [NotPair]
++  | cons d tail =>
++      have no : ¬ (c = '\r' ∧ d = '\n') := by
++        rintro ⟨cr, lf⟩
++        exact noPair tail ⟨cr, by simp [lf]⟩
++      simpa [NotPair, embed, ← Char.toNat_inj] using no
++
++theorem lift_preprocess {source output} (parsed : CssInput.Preprocess source output) :
++    Preprocess (source.map embed) output := by
++  induction parsed with
++  | empty => exact .empty
++  | crlf parsed ih => exact .crlf rfl rfl ih
++  | single noPair converted parsed ih =>
++      apply Preprocess.single (notPair_embed noPair) _ ih
++      apply (point_iff _ _).mp
++      rw [point_embed]
++      exact (CssInput.point_iff _ _).mpr converted
++
++theorem scalar_refinement (source : List Char) :
++    preprocess (source.map embed) = CssInput.preprocess source :=
++  (lift_preprocess (CssInput.preprocess_sound source)).result
++
++theorem normalized_fixed {source : List Char} (normal : Normalized source) :
++    preprocess (source.map embed) = source := by
++  rw [scalar_refinement]
++  exact CssInput.normalized_fixed normal
++
++theorem normalized_iff_fixed (source : List Char) :
++    preprocess (source.map embed) = source ↔ Normalized source := by
++  rw [scalar_refinement]
++  exact CssInput.fixed_iff source
++
++theorem preprocess_idempotent (source : List CodePoint) :
++    preprocess ((preprocess source).map embed) = preprocess source :=
++  normalized_fixed (preprocess_normalized source)
++
++theorem preserve_ordinary (source : List Char) (normal : Normalized source) :
++    Preprocess (source.map embed) source := (preprocess_iff _ _).mp (normalized_fixed normal)
++
++end CssSemantics.CodePointInput
+diff --git a/README.md b/README.md
+index 81c4cfa..6bb11db 100644
+--- a/README.md
++++ b/README.md
+@@ -31,6 +31,15 @@ machine-readable form. `check.py` validates its links and includes it in the
+ source fingerprint. [The expansion review](research/extension-review.md)
+ records independent semantic and fresh-archive checks at each checkpoint.
+ 
++## Finite code-point preprocessing
++
++`CodePointInput` admits surrogate code points before producing scalar output.
++Its independent relation, normalization laws and refinement preserve the existing
++`CssInput` scalar API. See the [domain and source contract](research/codepoint-input.md).
++This adds no byte decoder or WebIDL/UTF-16 conversion. The full checker includes
++its proofs and 21 examples; `python3 check.py --coverage-only` checks static
++coverage/audit registrations without running Lean.
++
+ ## Resolved baseline groups
+ 
+ `BaselineAlignment.solve` accepts a finite same-context/flow/preference group with
+diff --git a/check.py b/check.py
+index 201df2a..b680a93 100644
+--- a/check.py
++++ b/check.py
+@@ -12464,6 +12464,27 @@ EXECUTABLE_CASES = [
+     ('steps origin reject literal origin clamping', False),
+     ('steps origin reject calculated NaN invalidation', False),
+     ('steps origin reject unresolved admission', False),
++    ("codepoint input empty", True),
++    ("codepoint input CRLF collapse", True),
++    ("codepoint input CR normalization", True),
++    ("codepoint input FF normalization", True),
++    ("codepoint input NUL replacement", True),
++    ("codepoint input surrogate range boundaries", True),
++    ("codepoint input adjacent scalar boundaries", True),
++    ("codepoint input noncharacters preserved", True),
++    ("codepoint input astral scalar preserved", True),
++    ("codepoint input surrogate code points remain separate", True),
++    ("codepoint input CRCRLF", True),
++    ("codepoint input CRLFLF", True),
++    ("codepoint input FFLF", True),
++    ("codepoint input LFCR", True),
++    ("codepoint input CR surrogate LF", True),
++    ("codepoint input mixed replacement and CRLF", True),
++    ("codepoint input leading surrogate before ASCII", True),
++    ("codepoint input upper domain rejected", True),
++    ("codepoint input invalid suffix rejected", True),
++    ("codepoint input supplied BOM preserved", True),
++    ("codepoint input Unicode separators preserved", True),
+ ]
+ 
+ 
+@@ -12504,48 +12525,7 @@ def parse_axiom_audit(output):
+     return audits
+ 
+ 
+-def main():
+-    parser = argparse.ArgumentParser()
+-    parser.add_argument("--lake", default="lake")
+-    args = parser.parse_args()
+-    evidence = ROOT / ".lake" / "verification"
+-    evidence.mkdir(parents=True, exist_ok=True)
+-    report_path = evidence / "report.json"
+-    report_path.unlink(missing_ok=True)
+-    source_paths = [ROOT / name for name in (
+-        "CssSemantics.lean", "coverage.json", "lakefile.lean", "lake-manifest.json", "lean-toolchain", "check.py", "README.md", "browser_check.py", "browser/runner.js", "browser/computed.js", "browser/index.html", "import_browser_check.py", "browser/import_server.py", "browser/imports.js", "browser/import-discrepancies.json", "browser/rollback-import-discrepancies.json", "author_sheets_browser_check.py", "browser/author_sheets_server.py", "browser/author_sheets.js", "browser/author-sheets-discrepancies.json", "attached_style_browser_check.py", "browser/attached_style_server.py", "browser/attached_style.js", "browser/attached-style-discrepancies.json", "named_container_browser_check.py", "browser/named_container_server.py", "browser/named_container.js", "browser/named-container-discrepancies.json", "origin_cascade_browser_check.py", "browser/origin_cascade_server.py", "browser/origin_cascade.js", "browser/origin-cascade-discrepancies.json", "ARTIFACT.md", "source_scope_browser_check.py", "browser/source_scope_server.py", "browser/source_scope.js", "browser/source-scope-discrepancies.json", "owner_scope_browser_check.py", "browser/owner_scope_server.py", "browser/owner_scope.js", "browser/owner-scope-discrepancies.json", "import_scope_browser_check.py", "browser/import_scope_server.py", "browser/import_scope.js", "browser/import-scope-discrepancies.json")]
+-    source_paths += sorted((ROOT / "CssSemantics").rglob("*.lean"))
+-    source_paths += sorted((ROOT / "tests").rglob("*.lean"))
+-
+-    def source_hashes():
+-        return {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+-                for path in source_paths}
+-
+-    before_hashes = source_hashes()
+-    commands = {}
+-
+-    def run(name, command, expected_success=True):
+-        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+-        output = result.stdout + result.stderr
+-        (evidence / f"{name}.log").write_text(output)
+-        commands[name] = {"argv": command, "returncode": result.returncode,
+-                          "log_sha256": hashlib.sha256(output.encode()).hexdigest()}
+-        if (result.returncode == 0) != expected_success:
+-            raise RuntimeError(f"Unexpected exit {result.returncode}: {name}\n{output}")
+-        return output
+-
+-    version = run("toolchain", [args.lake, "env", "lean", "--version"]).strip()
+-    expected_version = (ROOT / "lean-toolchain").read_text().strip().split(":v")[1]
+-    if f"version {expected_version}," not in version:
+-        raise RuntimeError(f"Wrong Lean version: {version}")
+-    run("build", [args.lake, "build"])
+-    examples = run("executable-examples", [args.lake, "env", "lean", "--run", "tests/RunExamples.lean"])
+-    if any(type(value) is not bool for _, value in EXECUTABLE_CASES):
+-        raise RuntimeError("Executable case expectations must be Boolean")
+-    expected_examples = [f"PASS {name}: {str(value).lower()}" for name, value in EXECUTABLE_CASES]
+-    if examples.splitlines() != expected_examples:
+-        raise RuntimeError("Executable case names, results, or coverage changed")
+-    audit = run("axioms", [args.lake, "env", "lean", "tests/Audit.lean"])
++def validate_coverage():
+     expected_names = re.findall(r"#print axioms (\S+)", (ROOT / "tests/Audit.lean").read_text())
+     declared_theorems = set()
+     for path in sorted((ROOT / "CssSemantics").rglob("*.lean")):
+@@ -12592,6 +12572,58 @@ def main():
+             raise RuntimeError(f"Unknown coverage module: {feature['id']}")
+     if len(expected_names) != len(set(expected_names)):
+         raise RuntimeError("Duplicate axiom audit declaration")
++    return expected_names, declared_theorems
++
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--lake", default="lake")
++    parser.add_argument("--coverage-only", action="store_true",
++                        help="validate declaration, audit and coverage registrations without building")
++    args = parser.parse_args()
++    if args.coverage_only:
++        expected_names, _ = validate_coverage()
++        print(f"PASS: coverage links and exact audit registration for {len(expected_names)} declarations; no Lean build run.")
++        return
++    evidence = ROOT / ".lake" / "verification"
++    evidence.mkdir(parents=True, exist_ok=True)
++    report_path = evidence / "report.json"
++    report_path.unlink(missing_ok=True)
++    source_paths = [ROOT / name for name in (
++        "CssSemantics.lean", "coverage.json", "lakefile.lean", "lake-manifest.json", "lean-toolchain", "check.py", "README.md", "browser_check.py", "browser/runner.js", "browser/computed.js", "browser/index.html", "import_browser_check.py", "browser/import_server.py", "browser/imports.js", "browser/import-discrepancies.json", "browser/rollback-import-discrepancies.json", "author_sheets_browser_check.py", "browser/author_sheets_server.py", "browser/author_sheets.js", "browser/author-sheets-discrepancies.json", "attached_style_browser_check.py", "browser/attached_style_server.py", "browser/attached_style.js", "browser/attached-style-discrepancies.json", "named_container_browser_check.py", "browser/named_container_server.py", "browser/named_container.js", "browser/named-container-discrepancies.json", "origin_cascade_browser_check.py", "browser/origin_cascade_server.py", "browser/origin_cascade.js", "browser/origin-cascade-discrepancies.json", "ARTIFACT.md", "source_scope_browser_check.py", "browser/source_scope_server.py", "browser/source_scope.js", "browser/source-scope-discrepancies.json", "owner_scope_browser_check.py", "browser/owner_scope_server.py", "browser/owner_scope.js", "browser/owner-scope-discrepancies.json", "import_scope_browser_check.py", "browser/import_scope_server.py", "browser/import_scope.js", "browser/import-scope-discrepancies.json")]
++    source_paths += sorted((ROOT / "CssSemantics").rglob("*.lean"))
++    source_paths += sorted((ROOT / "tests").rglob("*.lean"))
++
++    def source_hashes():
++        return {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
++                for path in source_paths}
++
++    before_hashes = source_hashes()
++    commands = {}
++
++    def run(name, command, expected_success=True):
++        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
++        output = result.stdout + result.stderr
++        (evidence / f"{name}.log").write_text(output)
++        commands[name] = {"argv": command, "returncode": result.returncode,
++                          "log_sha256": hashlib.sha256(output.encode()).hexdigest()}
++        if (result.returncode == 0) != expected_success:
++            raise RuntimeError(f"Unexpected exit {result.returncode}: {name}\n{output}")
++        return output
++
++    version = run("toolchain", [args.lake, "env", "lean", "--version"]).strip()
++    expected_version = (ROOT / "lean-toolchain").read_text().strip().split(":v")[1]
++    if f"version {expected_version}," not in version:
++        raise RuntimeError(f"Wrong Lean version: {version}")
++    run("build", [args.lake, "build"])
++    examples = run("executable-examples", [args.lake, "env", "lean", "--run", "tests/RunExamples.lean"])
++    if any(type(value) is not bool for _, value in EXECUTABLE_CASES):
++        raise RuntimeError("Executable case expectations must be Boolean")
++    expected_examples = [f"PASS {name}: {str(value).lower()}" for name, value in EXECUTABLE_CASES]
++    if examples.splitlines() != expected_examples:
++        raise RuntimeError("Executable case names, results, or coverage changed")
++    audit = run("axioms", [args.lake, "env", "lean", "tests/Audit.lean"])
++    expected_names, declared_theorems = validate_coverage()
+     audits = parse_axiom_audit(audit)
+     if set(audits) != set(expected_names):
+         raise RuntimeError("Axiom audit declaration set mismatch")
+diff --git a/coverage.json b/coverage.json
+index fdd7f74..dd2b104 100644
+--- a/coverage.json
++++ b/coverage.json
+@@ -356,6 +356,24 @@
+       "retrieved": "2026-10-27",
+       "sha256": "f00cecca006eeef6e529fcb565d2b00ae8cc36c65ee6f15d5265cad70df15a2b",
+       "role": "guarded state and fallback sequencing; full HTML hash supplied by root primary snapshot"
++    },
++    {
++      "id": "syntax3-codepoint-ed-20261110",
++      "url": "https://raw.githubusercontent.com/w3c/csswg-drafts/c410ee5e4d2afe6d8b2e8ce53723b8d1eb3b5b67/css-syntax-3/Overview.bs",
++      "status": "Editor Draft",
++      "retrieved": "2026-11-10",
++      "revision": "c410ee5e4d2afe6d8b2e8ce53723b8d1eb3b5b67",
++      "source_sha256": "4a4a5a3994bda10a56885e66776169d0e05d5a7515b0def4e8859c20e3fd4afc",
++      "role": "Manually interpreted finite code-point preprocessing"
++    },
++    {
++      "id": "infra-codepoint-retrieved20261110",
++      "url": "https://raw.githubusercontent.com/whatwg/infra/c67ae1fb1d161b23d0f8c9bf9917ea1993f7b19a/infra.bs",
++      "status": "Living Standard",
++      "retrieved": "2026-11-10",
++      "revision": "c67ae1fb1d161b23d0f8c9bf9917ea1993f7b19a",
++      "source_sha256": "687e65669b9d85c2147a139513fe319097cf84af1005f5c9d7cb3d2ade0c1aed",
++      "role": "Code-point domain and surrogate ranges"
+     }
+   ],
+   "features": [
+@@ -15718,6 +15736,56 @@
+         "Finite declarations, supplied completion and fully computed inherited base; full value/state embedding preserves the existing static-expression guarded solver. No cross-request cache, animation-provider or animated-SCC result.",
+         "Source proof transfer from independently replayed standalone research; no new theorem-discovery or numeric normative coverage credit. Registered status is proposed until canonical application and full checking succeed."
+       ]
++    },
++    {
++      "id": "finite-codepoint-input-preprocessing",
++      "status": "checked_fragment",
++      "modules": [
++        "CssCodePointInput.lean",
++        "CssCodePointInputLaws.lean",
++        "CssCodePointInputRefinement.lean",
++        "CssCodePointInputExamples.lean"
++      ],
++      "specifications": [
++        "syntax3-codepoint-ed-20261110",
++        "infra-codepoint-retrieved20261110"
++      ],
++      "theorems": [
++        "CssSemantics.CodePointInput.ofNat_value",
++        "CssSemantics.CodePointInput.scalar_valid",
++        "CssSemantics.CodePointInput.scalar_not_surrogate",
++        "CssSemantics.CodePointInput.Point.result",
++        "CssSemantics.CodePointInput.point_sound",
++        "CssSemantics.CodePointInput.point_iff",
++        "CssSemantics.CodePointInput.preprocess_cons",
++        "CssSemantics.CodePointInput.Preprocess.result",
++        "CssSemantics.CodePointInput.preprocess_sound",
++        "CssSemantics.CodePointInput.preprocess_iff",
++        "CssSemantics.CodePointInput.Preprocess.unique",
++        "CssSemantics.CodePointInput.Point.normalized",
++        "CssSemantics.CodePointInput.Preprocess.normalized",
++        "CssSemantics.CodePointInput.preprocess_normalized",
++        "CssSemantics.CodePointInput.Preprocess.length_le",
++        "CssSemantics.CodePointInput.preprocess_length_le",
++        "CssSemantics.CodePointInput.surrogate_cons",
++        "CssSemantics.CodePointInput.ofNat?_none_iff",
++        "CssSemantics.CodePointInput.point_embed",
++        "CssSemantics.CodePointInput.notPair_embed",
++        "CssSemantics.CodePointInput.lift_preprocess",
++        "CssSemantics.CodePointInput.scalar_refinement",
++        "CssSemantics.CodePointInput.normalized_fixed",
++        "CssSemantics.CodePointInput.normalized_iff_fixed",
++        "CssSemantics.CodePointInput.preprocess_idempotent",
++        "CssSemantics.CodePointInput.preserve_ordinary",
++        "CssSemantics.CodePointInputExamples.checks_pass"
++      ],
++      "limits": [
++        "Finite List (Fin 0x110000) input includes surrogate code points; List Char output is scalar-only. The independent relation and executable function are manually mapped from pinned CSS Syntax and Infra clauses, not mechanically derived prose.",
++        "CRLF/CR/FF, NUL and the complete surrogate range normalize; output is normalized, nonexpanding and idempotent under scalar re-embedding. Scalar refinement preserves the existing CssInput API exactly.",
++        "Numeric entry through ofNat?/filterValues rejects values outside the code-point domain. Fin numeric literals are not an external admission interface.",
++        "Byte decoding, encoding detection, BOM decoding policy, WebIDL/UTF-16 conversion, live streams and chunk-boundary processing are excluded. Two supplied surrogate code points replace separately; this does not model conversion of a UTF-16 surrogate pair.",
++        "21 finite kernel-checked and executable observations; no browser/Stylo refinement or new native evidence. Existing scalar tokenizer/source profiles are unchanged."
++      ]
+     }
+   ],
+   "next_packages": [
+@@ -16134,6 +16202,14 @@
+     "audit_counts_are_spec_coverage_percentages": false,
+     "historical_feature_profiles_remain_scoped": true,
+     "browser_evidence_is_finite_and_source_bound": true,
+-    "verification_evidence": "research/extension-review.md"
++    "verification_evidence": "research/extension-review.md",
++    "supplemental_profiles": [
++      {
++        "id": "finite-codepoint-input-preprocessing",
++        "reviewed_on": "2026-11-10",
++        "contract": "research/codepoint-input.md",
++        "validation_scope": "27 new declarations and 21 examples, clean dependency closure; global static coverage/audit registrations; no refreshed whole-library or browser gate"
++      }
++    ]
+   }
+ }
+diff --git a/research/codepoint-input.md b/research/codepoint-input.md
+new file mode 100644
+index 0000000..2ea6756
+--- /dev/null
++++ b/research/codepoint-input.md
+@@ -0,0 +1,66 @@
++# Finite code-point preprocessing
++
++`CodePointInput.preprocess` accepts a finite `List (Fin 0x110000)`, including
++surrogate code points, and returns `List Char`. The old `CssInput` scalar API is
++unchanged. `scalar_refinement` proves identical results when its scalar inputs
++are embedded in the larger domain.
++
++`CssCodePointInput` defines the executable algorithm and an independent inductive
++`Point`/`Preprocess` relation. `CssCodePointInputLaws` proves exact correspondence,
++uniqueness, normalized output, nonexpansion and the surrogate replacement rule.
++`CssCodePointInputRefinement` proves scalar compatibility and idempotence under
++scalar re-embedding. `CssCodePointInputExamples` supplies 21 ordered, kernel-checked
++observations, also registered in the standard executable runner. All 27 named
++theorems are registered in the standard axiom audit.
++
++## Source and interpretation
++
++The mapping from English prose to both Lean definitions is manually authored and
++reviewed. Kernel checking proves the model's internal correspondence and laws;
++it does not prove that the prose was interpreted correctly or that Firefox
++implements this model.
++
++The source is CSS Syntax 3 [input preprocessing](https://drafts.csswg.org/css-syntax-3/#input-preprocessing),
++pinned to [Overview.bs at c410ee5e4d2afe6d8b2e8ce53723b8d1eb3b5b67](https://github.com/w3c/csswg-drafts/blob/c410ee5e4d2afe6d8b2e8ce53723b8d1eb3b5b67/css-syntax-3/Overview.bs).
++Its SHA-256 is `4a4a5a3994bda10a56885e66776169d0e05d5a7515b0def4e8859c20e3fd4afc`.
++CRLF becomes one LF; CR and FF become LF; NUL and surrogates become U+FFFD.
++The separate CRLF relation constructor and single-point exclusion preserve that
++pair boundary. Ordinary relation outputs are `Char`, whose scalar validity
++excludes surrogate preservation.
++
++The code-point domain and surrogate ranges come from
++[Infra at c67ae1fb1d161b23d0f8c9bf9917ea1993f7b19a](https://github.com/whatwg/infra/blob/c67ae1fb1d161b23d0f8c9bf9917ea1993f7b19a/infra.bs),
++SHA-256 `687e65669b9d85c2147a139513fe319097cf84af1005f5c9d7cb3d2ade0c1aed`.
++Both source paths were acquired on 2026-11-10 and are recorded independently
++in `coverage.json`. Source hashes establish provenance, not semantic correctness.
++
++## Admission and boundaries
++
++Use `ofNat?` or `filterValues` to admit external natural numbers. They reject
++values above U+10FFFF. A numeric `Fin` literal can wrap; it is not a validation
++interface. Admission failure is outside the model's code-point domain, not a
++CSS parse error. Noncharacters, supplied U+FEFF and U+2028/U+2029 are preserved.
++
++This input is already a list of code points. Byte decoding, encoding detection,
++BOM decoding policy and WebIDL/DOMString/UTF-16 conversion are separate concerns
++and are not modeled. Supplied `[0xd83d, 0xde00]` means two surrogate code points,
++so both are replaced. It does not describe conversion of a valid UTF-16 pair.
++
++The domain is finite lists. There is no live-stream or chunked-processing proof:
++filtering `[CR, LF]` together yields one LF, while filtering each singleton and
++concatenating yields two. A streaming adapter needs pending-CR state and its own
++correspondence theorem. Existing scalar tokenizer entry points are unchanged;
++the new layer does not claim a new whole-source or browser integration.
++
++## Checks
++
++`python3 check.py` retains the full build, executable examples and axiom audit.
++`python3 check.py --coverage-only` performs the same static declaration/audit and
++coverage-link checks without a Lean build. This mode is a registration check, not
++proof verification, and does not replace a full verification receipt.
++
++This addition was checked from clean source for its dependency closure, including
++the unchanged scalar module and its 24 prior examples. No whole-library or
++browser result is refreshed by that scoped check. The earlier isolated model
++also rejected eight executable semantic mutations; those historical controls
++are separate from the canonical integration receipt.
+diff --git a/research/coverage-map.md b/research/coverage-map.md
+index 7e50c99..33b24fe 100644
+--- a/research/coverage-map.md
++++ b/research/coverage-map.md
+@@ -7,6 +7,16 @@ primary-source landscape. [coverage.json](../coverage.json) maps individual
+ checked fragments to modules, theorem names and exact limits. The sections below
+ summarize current capabilities rather than repeating historical exclusions.
+ 
++## Finite code-point input addition (2026-11-10)
++
++The [code-point preprocessing profile](codepoint-input.md) adds the surrogate range
++that `List Char` cannot express: finite code-point lists normalize to scalar lists,
++with relational correctness, scalar compatibility, normalization, nonexpansion and
++idempotence. Its 27 new audited declarations and 21 ordered examples have a scoped
++clean-source check; the historical whole-library/browser counts above are unchanged.
++Byte decoding, WebIDL/UTF-16 conversion and live or chunked streams remain outside
++this model. The specification mapping is manually reviewed.
++
+ ## What the evidence establishes
+ 
+ | Evidence | Established claim | Remaining boundary |
+@@ -23,6 +33,7 @@ summarize current capabilities rather than repeating historical exclusions.
+ | --- | --- | --- | --- |
+ | Ordinary imports with raw scopes | Actual root/resource parsing, per-sheet placement, rich registration views, exact selected-instance source and ownerless child provenance; all-assignment specificity/proximity, origin-specific registry identity and exact source/cascade histories. | [Import-scope evidence](import-scope-browser-evidence.json): 20/20, 240 metadata observations, 15 controls; saved native inputs are distinct from universal model laws. | Imported/ownerless omitted scopes, scoped-import modifiers, nested imports, general Fetch/lifecycle and dynamic invalidation. No-import compatibility is source parsing only, not whole-host equivalence. |
+ | Static inline owner-derived implicit scope | Actual HTML style inventory in document preorder; same-context text/parent acquisition; complete omitted-start source; all-assignment availability and source/candidate/rollback histories. Incompatible owner/outer configurations are explicitly unavailable, including empty blocks. | [Owner-scope evidence](owner-scope-browser-evidence.json): 20/20, 240 metadata readbacks, 15 controls; generic model laws are separate from these finite observations. | Ambiguous above-outer interpretation; imports, shadow/tree-root fallback, linked/adopted sheets, dynamic owner changes, full HTML/CSP lifecycle and general browser refinement. Explicit-rule compatibility requires its exact-image premise. |
++| CSS code-point input | Finite U+0000..U+10FFFF lists, including surrogates; independent normalization relation, exact existing scalar API refinement, nonexpansion and idempotence | No new browser evidence | Byte decoding, UTF-16 conversion, live streams and chunk-boundary state |
+ | CSS scalar input and tokenization | Preprocessing, dated name classes, escapes, hash flags, ident/function/URL dispatch, string and bad-URL recovery, comments, numeric/percentage/dimension tokens, guarded Unicode ranges, complete priority dispatch, finite token stream and exact original scalar/token provenance | Later selector-source suites exercise selected paths indirectly; tokenizer-only checkpoints did not claim native comparison | Byte/encoding input; full token serialization; browser numeric precision/range equivalence |
+ | Component syntax | Recursive block/function grouping, public component lists, single-component and comma-list entries; exact suffix/EOF/error policies, totality, canonical token construction, component-invocation source intervals and body-closure provenance | Source-selector suites exercise grouping; no independent general CSS parser refinement | Stylesheet objects/public single-rule seam, concrete property grammar dispatch and contextual rule instances |
+ | Declaration and recursive rule consumption | Prefix/recovery/priority and partial ordinary/list entries; independent recursive at-rule/qualified-rule/block relations, executable correspondence, proved input-derived fuel, NoEOF totality, mark/restore, exact emitted structure and explicit terminal-flush policies; generic stylesheet exhaustion and emitted-history contexts | No native claim; exact token/source cases and synthetic context-interface checks | Stylesheet objects/public single-rule seam; broader property/context/source instances beyond strict visibility; sibling-sensitive block context; declaration original-value intervals |
+@@ -94,7 +105,8 @@ in [the attribute bundle](component-attribute-browser-evidence.json). They are n
+ silently counted as passing required browser cases. Draft empty-element behavior
+ and unsupported forgiving constructs are separately labeled observations.
+ 
+-Scalar input excludes unpaired UTF-16 surrogate/code-unit behavior. Mathematical
++The scalar API cannot represent surrogates; the separate code-point API handles
++surrogate code points but still excludes UTF-16/code-unit conversion behavior. Mathematical
+ numbers retain exact values and sign/type identity without asserting native
+ floating-point/clamping equivalence. Complete finite-domain and sibling-coherence
+ assumptions remain part of the DOM model. Stylesheet fixtures use closed selector
+diff --git a/tests/Audit.lean b/tests/Audit.lean
+index 833a294..1f4ac3f 100644
+--- a/tests/Audit.lean
++++ b/tests/Audit.lean
+@@ -11859,3 +11859,31 @@ import CssSemantics
+ #print axioms CssSemantics.StepsOrigin.ordinary_calculation_unchanged
+ #print axioms CssSemantics.StepsOrigin.repaired_jump_none_at_one
+ #print axioms CssSemantics.StepsOrigin.repaired_nan
++
++#print axioms CssSemantics.CodePointInput.ofNat_value
++#print axioms CssSemantics.CodePointInput.scalar_valid
++#print axioms CssSemantics.CodePointInput.scalar_not_surrogate
++#print axioms CssSemantics.CodePointInput.Point.result
++#print axioms CssSemantics.CodePointInput.point_sound
++#print axioms CssSemantics.CodePointInput.point_iff
++#print axioms CssSemantics.CodePointInput.preprocess_cons
++#print axioms CssSemantics.CodePointInput.Preprocess.result
++#print axioms CssSemantics.CodePointInput.preprocess_sound
++#print axioms CssSemantics.CodePointInput.preprocess_iff
++#print axioms CssSemantics.CodePointInput.Preprocess.unique
++#print axioms CssSemantics.CodePointInput.Point.normalized
++#print axioms CssSemantics.CodePointInput.Preprocess.normalized
++#print axioms CssSemantics.CodePointInput.preprocess_normalized
++#print axioms CssSemantics.CodePointInput.Preprocess.length_le
++#print axioms CssSemantics.CodePointInput.preprocess_length_le
++#print axioms CssSemantics.CodePointInput.surrogate_cons
++#print axioms CssSemantics.CodePointInput.ofNat?_none_iff
++#print axioms CssSemantics.CodePointInput.point_embed
++#print axioms CssSemantics.CodePointInput.notPair_embed
++#print axioms CssSemantics.CodePointInput.lift_preprocess
++#print axioms CssSemantics.CodePointInput.scalar_refinement
++#print axioms CssSemantics.CodePointInput.normalized_fixed
++#print axioms CssSemantics.CodePointInput.normalized_iff_fixed
++#print axioms CssSemantics.CodePointInput.preprocess_idempotent
++#print axioms CssSemantics.CodePointInput.preserve_ordinary
++#print axioms CssSemantics.CodePointInputExamples.checks_pass
+diff --git a/tests/RunExamples.lean b/tests/RunExamples.lean
+index 8681031..ca93314 100644
+--- a/tests/RunExamples.lean
++++ b/tests/RunExamples.lean
+@@ -872,3 +872,6 @@ def main : IO Unit := do
+ 
+   for (name, accepted) in CssSemantics.StepsOrigin.Examples.checks do
+     IO.println s!"PASS {name}: {accepted}"
++
++  for (name, accepted) in CodePointInputExamples.checks do
++    IO.println s!"PASS {name}: {accepted}"

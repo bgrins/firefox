@@ -1,0 +1,37 @@
+CssSemantics/CssCodePointInputLaws.lean:29:52: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  if ?m.149 ∨ Surrogate p then ?m.152 else ?m.153
+in the target expression
+  (if ↑p = 0 then '�' else Char.ofNat ↑p) = '�'
+
+case surrogate
+p : CodePoint
+surrogate : Surrogate p
+cr : ↑p ≠ 13
+ff : ↑p ≠ 12
+⊢ (if ↑p = 0 then '�' else Char.ofNat ↑p) = '�'
+CssSemantics/CssCodePointInputLaws.lean:32:52: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  if ↑p = 0 ∨ Surrogate p then ?m.195 else ?m.196
+in the target expression
+  (if ↑p = 0 then '�' else Char.ofNat ↑p) = c
+
+case ordinary
+p : CodePoint
+c : Char
+cr : ↑p ≠ 13
+ff : ↑p ≠ 12
+nul : ↑p ≠ 0
+same : c.toNat = ↑p
+noSurrogate : ¬Surrogate p
+⊢ (if ↑p = 0 then '�' else Char.ofNat ↑p) = c
+CssSemantics/CssCodePointInputLaws.lean:42:50: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  if ?m.80 ∨ Surrogate p then ?m.83 else ?m.84
+in the target expression
+  Point p (if ↑p = 0 then '�' else Char.ofNat ↑p)
+
+case pos
+p : CodePoint
+cr : ¬↑p = 13
+ff : ¬↑p = 12
+nul : ¬↑p = 0
+surrogate : Surrogate p
+⊢ Point p (if ↑p = 0 then '�' else Char.ofNat ↑p)
