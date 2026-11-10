@@ -1,0 +1,84 @@
+# WEB-ANIMATIONS-2#pending-play-task
+
+**pending play task** (definition)
+
+**SHA**: hash:07b283f9ef260b80742e247ba6ed8cee8f0d3013c60bdaf43a7b2c536f52fc38
+
+## Content
+
+Schedule a task to run as soon as *animation* is [ready](https://drafts.csswg.org/web-animations-2#ready). The task shall perform the following steps:
+
+1.  Assert that at least one of *animation*’s [start time](https://www.w3.org/TR/web-animations-1/#animation-start-time) or [hold time](https://www.w3.org/TR/web-animations-1/#animation-hold-time) is [resolved](https://drafts.csswg.org/web-animations-1/#unresolved).
+
+2.  Let *ready time* be the [time value](https://drafts.csswg.org/web-animations-1/#time-value) of the [timeline](https://drafts.csswg.org/web-animations-1/#timeline) associated with *animation* at the moment when *animation* became [ready](https://drafts.csswg.org/web-animations-2#ready).
+
+3.  Perform the steps corresponding to the first matching condition below, if any:
+
+    If *animation*’s [hold time](https://www.w3.org/TR/web-animations-1/#animation-hold-time) is [resolved](https://drafts.csswg.org/web-animations-1/#unresolved),
+
+    1.  [Apply any pending playback rate](https://drafts.csswg.org/web-animations-1/#apply-any-pending-playback-rate) on *animation*.
+
+    2.  Let *new start time* be the result of evaluating `*ready time* - [hold time](https://www.w3.org/TR/web-animations-1/#animation-hold-time) / [playback rate](https://drafts.csswg.org/web-animations-2#animation-effect-playback-rate)` for *animation*. If the [playback rate](https://drafts.csswg.org/web-animations-2#animation-effect-playback-rate) is zero, let *new start time* be simply *ready time*.
+
+    3.  Set the [start time](https://www.w3.org/TR/web-animations-1/#animation-start-time) of *animation* to *new start time*.
+
+    4.  If *animation*’s [playback rate](https://drafts.csswg.org/web-animations-2#animation-effect-playback-rate) is not 0, make *animation*’s [hold time](https://www.w3.org/TR/web-animations-1/#animation-hold-time) [unresolved](https://drafts.csswg.org/web-animations-1/#unresolved).
+
+    If *animation*’s [start time](https://www.w3.org/TR/web-animations-1/#animation-start-time) is resolved and *animation* has a [pending playback rate](https://drafts.csswg.org/web-animations-1/#pending-playback-rate),
+
+    1.  Let *current time to match* be the result of evaluating `(*ready time* - [start time](https://www.w3.org/TR/web-animations-1/#animation-start-time)) ×
+        [playback rate](https://drafts.csswg.org/web-animations-2#animation-effect-playback-rate)` for *animation*.
+
+    2.  [Apply any pending playback rate](https://drafts.csswg.org/web-animations-1/#apply-any-pending-playback-rate) on *animation*.
+
+    3.  If *animation*’s [playback rate](https://drafts.csswg.org/web-animations-2#animation-effect-playback-rate) is zero, let *animation*’s [hold time](https://www.w3.org/TR/web-animations-1/#animation-hold-time) be *current time to match*.
+
+    4.  Let *new start time* be the result of evaluating `*ready time* - *current time to match* /
+        [playback rate](https://drafts.csswg.org/web-animations-2#animation-effect-playback-rate)` for *animation*. If the [playback rate](https://drafts.csswg.org/web-animations-2#animation-effect-playback-rate) is zero, let *new start time* be simply *ready time*.
+
+    5.  Set the [start time](https://www.w3.org/TR/web-animations-1/#animation-start-time) of *animation* to *new start time*.
+
+4.  [Resolve](https://webidl.spec.whatwg.org/#resolve) *animation*’s [current ready promise](https://drafts.csswg.org/web-animations-1/#current-ready-promise) with *animation*.
+
+5.  Run the procedure to [update an animation’s finished state](https://drafts.csswg.org/web-animations-1/#update-an-animations-finished-state) for *animation* with the *did seek* flag set to false, and the *synchronously notify* flag set to false.
+
+    > **Note:** Note that the order of the above two steps is important since it means that an animation with zero-length [associated effect](https://www.w3.org/TR/web-animations-1/#animation-associated-effect) will resolve its [current ready promise](https://drafts.csswg.org/web-animations-1/#current-ready-promise) before its [current finished promise](https://drafts.csswg.org/web-animations-1/#current-finished-promise).
+
+So long as the above task is scheduled but has yet to run, *animation* is described as having a **pending play task**. While the task is running, however, *animation* does *not* have a [pending play task](https://drafts.csswg.org/web-animations-2#pending-play-task).
+
+If a user agent determines that *animation* is immediately [ready](https://drafts.csswg.org/web-animations-2#ready), it may schedule the above task as a microtask such that it runs at the next [microtask checkpoint](https://html.spec.whatwg.org/multipage/webappapis.html#perform-a-microtask-checkpoint), but it must *not* perform the task synchronously.
+
+> **Note:** The above requirement to run the [pending play task](https://drafts.csswg.org/web-animations-2#pending-play-task) asynchronously ensures that code such as the following behaves consistently between implementations:
+>
+> > **Example:** ```
+> > animation.play();
+> > animation.ready.then(
+> >   () => { console.log('Playback commenced'); },
+> >   () => { console.log('Playback was canceled'); }
+> > );
+> > // Suppose some condition requires playback to be canceled...
+> > animation.cancel();
+> > // "Playback was canceled" will be printed to the console.
+> > ```
+>
+> In the above code, were the [pending play task](https://drafts.csswg.org/web-animations-2#pending-play-task) run synchronously, the [current ready promise](https://drafts.csswg.org/web-animations-1/#current-ready-promise) would not be rejected.
+
+## Navigation
+
+- Parent: `playing-an-animation-section` — Playing an animation
+- Prev: `animation-auto-aligned-start-time` — auto-aligned start
+time
+
+## Incoming refs (5)
+
+`webspec-index refs WEB-ANIMATIONS-2#pending-play-task -d incoming -l 5`
+
+### Possible effects
+
+WEB-ANIMATIONS-2#pending-play-task
+
+Partial analysis: additional effects may exist.
+
+No effects detected by this analysis.
+
+Traces and conditions (bounded): `webspec-index effects "WEB-ANIMATIONS-2#pending-play-task" --format markdown`

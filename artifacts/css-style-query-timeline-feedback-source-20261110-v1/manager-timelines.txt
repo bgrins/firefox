@@ -1,0 +1,81 @@
+layout/style/nsAnimationManager.cpp:9: #include "TimelineManager.h"
+layout/style/nsAnimationManager.cpp:16: #include "mozilla/TimelineCollection.h"
+layout/style/nsAnimationManager.cpp:20: #include "mozilla/dom/DocumentTimeline.h"
+layout/style/nsAnimationManager.cpp:24: #include "mozilla/dom/ScrollTimeline.h"
+layout/style/nsAnimationManager.cpp:25: #include "mozilla/dom/TimelineName.h"
+layout/style/nsAnimationManager.cpp:26: #include "mozilla/dom/ViewTimeline.h"
+layout/style/nsAnimationManager.cpp:46: using mozilla::dom::ScrollTimeline;
+layout/style/nsAnimationManager.cpp:47: using mozilla::dom::UnresolvedTimeline;
+layout/style/nsAnimationManager.cpp:48: using mozilla::dom::ViewTimeline;
+layout/style/nsAnimationManager.cpp:147:     nsAnimationManager::TimelineNamesToAnimationMap&
+layout/style/nsAnimationManager.cpp:148:         aTimelineNamesToAnimationMap) {
+layout/style/nsAnimationManager.cpp:149:   auto result = aTimelineNamesToAnimationMap.Lookup(aName);
+layout/style/nsAnimationManager.cpp:165:   // One animation refers to one timeline, so if there is a duplication,
+layout/style/nsAnimationManager.cpp:167:   for (auto mapItr = aTimelineNamesToAnimationMap.Iter(); !mapItr.Done();
+layout/style/nsAnimationManager.cpp:177: // https://drafts.csswg.org/scroll-animations-1/#timeline-scoping
+layout/style/nsAnimationManager.cpp:178: static already_AddRefed<dom::AnimationTimeline> GetNamedProgressTimeline(
+layout/style/nsAnimationManager.cpp:180:     const dom::ScopedTimelineName& aName) {
+layout/style/nsAnimationManager.cpp:184:   const auto* timelineManager =
+layout/style/nsAnimationManager.cpp:185:       presContext ? presContext->TimelineManager() : nullptr;
+layout/style/nsAnimationManager.cpp:190:     if (auto result = TimelineManager::GetNamedTimelineForThisElement(
+layout/style/nsAnimationManager.cpp:195:     if (timelineManager && (TimelineManager::TimelineNameScopedByElement(
+layout/style/nsAnimationManager.cpp:198:       return timelineManager->GetNamedTimelineInSubtree(
+layout/style/nsAnimationManager.cpp:206: static already_AddRefed<dom::AnimationTimeline> GetTimeline(
+layout/style/nsAnimationManager.cpp:207:     const StyleAnimationTimeline& aStyleTimeline, nsPresContext* aPresContext,
+layout/style/nsAnimationManager.cpp:209:     dom::AnimationTimeline* aOldTimeline) {
+layout/style/nsAnimationManager.cpp:210:   switch (aStyleTimeline.tag) {
+layout/style/nsAnimationManager.cpp:211:     case StyleAnimationTimeline::Tag::Timeline: {
+layout/style/nsAnimationManager.cpp:212:       // Check scroll-timeline-name property or view-timeline-property.
+layout/style/nsAnimationManager.cpp:214:           dom::ScopedTimelineName{aStyleTimeline.AsTimeline()};
+layout/style/nsAnimationManager.cpp:216:         // `animation-timeline: none`.
+layout/style/nsAnimationManager.cpp:219:       return GetNamedProgressTimeline(aPresContext->Document(), aTarget,
+layout/style/nsAnimationManager.cpp:222:     case StyleAnimationTimeline::Tag::Scroll: {
+layout/style/nsAnimationManager.cpp:223:       const auto& scroll = aStyleTimeline.AsScroll();
+layout/style/nsAnimationManager.cpp:224:       const bool reuseOldTimeline = [&]() {
+layout/style/nsAnimationManager.cpp:225:         const auto* scrollTimeline =
+layout/style/nsAnimationManager.cpp:226:             aOldTimeline ? aOldTimeline->AsScrollTimeline() : nullptr;
+layout/style/nsAnimationManager.cpp:227:         if (!scrollTimeline || scrollTimeline->IsViewTimeline()) {
+layout/style/nsAnimationManager.cpp:230:         return scrollTimeline->IsReusableAnonymousTimeline(scroll);
+layout/style/nsAnimationManager.cpp:232:       if (reuseOldTimeline) {
+layout/style/nsAnimationManager.cpp:235:         return do_AddRef(aOldTimeline);
+layout/style/nsAnimationManager.cpp:237:       return ScrollTimeline::MakeAnonymous(aPresContext->Document(), aTarget,
+layout/style/nsAnimationManager.cpp:240:     case StyleAnimationTimeline::Tag::View: {
+layout/style/nsAnimationManager.cpp:241:       const auto& view = aStyleTimeline.AsView();
+layout/style/nsAnimationManager.cpp:242:       const bool reuseOldTimeline = [&]() {
+layout/style/nsAnimationManager.cpp:243:         const auto* viewTimeline =
+layout/style/nsAnimationManager.cpp:244:             aOldTimeline ? aOldTimeline->AsViewTimeline() : nullptr;
+layout/style/nsAnimationManager.cpp:245:         if (!viewTimeline) {
+layout/style/nsAnimationManager.cpp:248:         return viewTimeline->IsReusableAnonymousTimeline(view);
+layout/style/nsAnimationManager.cpp:250:       if (reuseOldTimeline) {
+layout/style/nsAnimationManager.cpp:252:         return do_AddRef(aOldTimeline);
+layout/style/nsAnimationManager.cpp:254:       return ViewTimeline::MakeAnonymous(aPresContext->Document(), aTarget,
+layout/style/nsAnimationManager.cpp:257:     case StyleAnimationTimeline::Tag::Auto:
+layout/style/nsAnimationManager.cpp:258:       return do_AddRef(aTarget.mElement->OwnerDoc()->Timeline());
+layout/style/nsAnimationManager.cpp:260:   MOZ_ASSERT_UNREACHABLE("Unknown animation-timeline value?");
+layout/style/nsAnimationManager.cpp:264: static bool RefersToNamedTimeline(const CSSAnimation* aAnimation) {
+layout/style/nsAnimationManager.cpp:265:   return aAnimation->GetTimelineName().mName;
+layout/style/nsAnimationManager.cpp:276:     nsAnimationManager::TimelineNamesToAnimationMap&
+layout/style/nsAnimationManager.cpp:277:         aTimelineNamesToAnimationMap) {
+layout/style/nsAnimationManager.cpp:305:   const auto& styleTimeline = aStyle.GetTimeline(animIdx);
+layout/style/nsAnimationManager.cpp:306:   RefPtr<dom::AnimationTimeline> timeline =
+layout/style/nsAnimationManager.cpp:307:       GetTimeline(styleTimeline, aPresContext, aTarget,
+layout/style/nsAnimationManager.cpp:308:                   oldAnim ? oldAnim->GetTimeline() : nullptr);
+layout/style/nsAnimationManager.cpp:309:   const auto timelineName = [&]() -> dom::ScopedTimelineName {
+layout/style/nsAnimationManager.cpp:310:     if (!styleTimeline.IsTimeline()) {
+layout/style/nsAnimationManager.cpp:313:     const auto* atom = styleTimeline.AsTimeline().value.AsAtom();
+layout/style/nsAnimationManager.cpp:315:       // This is actually `animation-timeline: none`.
+layout/style/nsAnimationManager.cpp:318:     return dom::ScopedTimelineName{styleTimeline.AsTimeline()};
+layout/style/nsAnimationManager.cpp:325:   // the corresponding map of timeline names.
+layout/style/nsAnimationManager.cpp:327:     const nsAtom* oldTimelineName = oldAnim->GetTimelineName().mName;
+layout/style/nsAnimationManager.cpp:328:     const bool timelineReferenceChanged =
+layout/style/nsAnimationManager.cpp:329:         oldAnim->GetTimeline() != timeline.get() ||
+layout/style/nsAnimationManager.cpp:330:         oldTimelineName != timelineName.mName;
+layout/style/nsAnimationManager.cpp:332:     if (timelineReferenceChanged && oldTimelineName) {
+layout/style/nsAnimationManager.cpp:333:       RemoveCorrespondingAnimation(oldTimelineName, oldAnim,
+layout/style/nsAnimationManager.cpp:334:                                    aTimelineNamesToAnimationMap);
+layout/style/nsAnimationManager.cpp:341:         timingFunction, composition, timeline.get(), timelineName,
+layout/style/nsAnimationManager.cpp:344:     if (timelineReferenceChanged && timelineName.mName) {
+layout/style/nsAnimationManager.cpp:345:       auto& entries = aTimelineNamesToAnimationMap.LookupOrInsert(
+layout/style/nsAnimationManager.cpp:346:           timelineName.mName, nsTArray<RefPtr<CSSAnimation>>{});
+layout/style/nsAnimationManager.cpp:350:     // For now, only name-referenced timeline, or `none`, which is represented
+Total matches: 80

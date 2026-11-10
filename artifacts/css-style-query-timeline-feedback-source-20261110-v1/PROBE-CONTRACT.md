@@ -1,0 +1,11 @@
+# Bounded probe and controls
+
+Use an ancestor `#outside` with `timeline-scope: --t`, `container-name: gate`, underlying `--gate: idle`, and a running CSS animation that discretely changes `--gate` from `off` to `on`. Its `animation-timeline` is the literal `--t`. A fallback child declares `scroll-timeline: --t`; a later child has identical fixed scroll geometry but only gains that literal declaration under a named `@container gate style(--gate: on)` query and an explicit armed class. No timeline declaration uses `var()`.
+
+Both scrollers must exist before arming and maintain their geometry throughout. Set the fallback above the midpoint. Use an opposed provider offset below the midpoint and an aligned provider offset above it. Require a bounded preflight with the original CSSAnimation object resolved on fallback, gate on, and non-pending before arming. Fail unmet preconditions separately; do not await `.ready` without a bound. Do not seek, pause, or recreate the animation after preflight.
+
+Retain two controls: a constant query that does not depend on the animated gate, and a gate whose underlying value keeps the conditional provider enabled while pending. These distinguish a provider/sampling failure from the gate dropping to its underlying value. A paused-animation variant is optional branch calibration only.
+
+Capture one first style read, a fixed small number of repeated reads without yielding, and a bounded number of rendering callbacks. Record each getter separately, animation and timeline object identities, source identity, start/current time nullness, pending state, effect progress, computed gate/provider declaration, and scroll offset/range. Avoid asserting a settled color, timeline identity, or final endpoint for the feedback cases. Separate normal control assertions from exploratory observations.
+
+For native tracing, correlate each mutation/read marker with monotone native records. A grouped JS snapshot is not atomic. Repeated getters may create separate StyleDocument calls and cannot prove multiple rebindings inside one drain. The decisive diagnostic is native StyleDocument call/depth plus timeline tick/stale phase, not the number of identical JavaScript samples.
