@@ -1,0 +1,173 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>State-preserving stylesheet moves cover descendants and loading state</title>
+<link rel="help" href="https://dom.spec.whatwg.org/#move">
+<link rel="help" href="https://html.spec.whatwg.org/multipage/semantics.html#the-style-element">
+<link rel="help" href="https://www.w3.org/TR/SVG2/styling.html#StyleElement">
+<link rel="help" href="https://drafts.csswg.org/cssom/#dom-linkstyle-sheet">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+const SVG = "http://www.w3.org/2000/svg";
+const SOURCE = ".supplement-target { color: rgb(255, 0, 0); } " +
+               ".supplement-order { color: rgb(255, 0, 0); }";
+const GREEN = ".supplement-target { color: rgb(0, 128, 0) !important; }";
+const BLUE = ".supplement-target { color: rgb(0, 0, 255) !important; }";
+window.stylesheetMoveLifecycleObservations = [];
+const requestToken = crypto.getRandomValues(new Uint32Array(2)).join("-");
+let requestId = 0;
+
+async function environment(t, kind, route) {
+  const frame = document.createElement("iframe");
+  const ready = new Promise(resolve => frame.onload = resolve);
+  frame.srcdoc = "<!doctype html><meta charset=utf-8><body></body>";
+  t.add_cleanup(() => frame.remove());
+  document.body.append(frame);
+  await ready;
+  const doc = frame.contentDocument;
+  const left = doc.createElement("div");
+  const right = doc.createElement("div");
+  doc.body.append(left, right);
+  const shadow = route === "shadow-host" || route === "svg-shadow";
+  const host = shadow ? doc.createElement("div") : null;
+  if (host) left.append(host);
+  const root = host ? host.attachShadow({mode: "open"}) : left;
+  const fallback = doc.createElement("style");
+  fallback.textContent = ".supplement-target, .supplement-order { color: rgb(0, 0, 0); }";
+  root.append(fallback);
+  const wrapper = kind === "svg" ? doc.createElementNS(SVG, "svg") : doc.createElement("div");
+  const owner = kind === "svg" ? doc.createElementNS(SVG, "style") : doc.createElement(kind);
+  const competitor = kind === "svg" && route !== "ancestor" ?
+    doc.createElementNS(SVG, "style") : doc.createElement("style");
+  competitor.textContent = ".supplement-order { color: rgb(0, 0, 255); }";
+  let origin = wrapper;
+  let destination = root;
+  if (kind === "svg" && route !== "ancestor") {
+    origin = doc.createElementNS(SVG, "g");
+    destination = doc.createElementNS(SVG, "g");
+    wrapper.append(origin, competitor, destination);
+    root.append(wrapper);
+  } else {
+    root.append(wrapper, competitor);
+  }
+  const target = doc.createElement("span");
+  target.className = "supplement-target";
+  const order = doc.createElement("span");
+  order.className = "supplement-order";
+  root.append(target, order);
+  let loads = 0;
+  let errors = 0;
+  const loaded = kind === "link" ? new Promise((resolve, reject) => {
+    owner.addEventListener("load", () => { loads++; resolve(); });
+    owner.addEventListener("error", () => { errors++; reject(new Error("stylesheet resource failed")); });
+  }) : Promise.resolve();
+  if (kind === "link") {
+    owner.rel = "stylesheet";
+    owner.href = new URL("resources/cssom-supplement.css?case=" + requestToken + "-" + (++requestId), location.href).href;
+  } else {
+    owner.textContent = SOURCE;
+  }
+  const move = () => {
+    if (route === "shadow-host") right.moveBefore(host, null);
+    else if (kind === "svg" && route !== "ancestor") destination.moveBefore(owner, null);
+    else if (route === "pending-direct") root.moveBefore(owner, null);
+    else root.moveBefore(wrapper, null);
+  };
+  return {frame, doc, root, owner, origin, target, order, loaded, move,
+          counts: () => ({loads, errors}),
+          color: node => frame.contentWindow.getComputedStyle(node).color};
+}
+
+function snapshot(env, sheet) {
+  const current = env.owner.sheet;
+  const color = env.color(env.target);
+  return {
+    sameSheet: current === sheet,
+    sameAfterStyleRead: env.owner.sheet === sheet,
+    ownerRetained: sheet.ownerNode === env.owner,
+    currentRules: current ? Array.from(current.cssRules, rule => rule.cssText) : null,
+    retainedRules: Array.from(sheet.cssRules, rule => rule.cssText),
+    disabled: current ? current.disabled : null,
+    color,
+    orderColor: env.color(env.order),
+    connected: env.owner.isConnected,
+    sameRoot: env.owner.getRootNode() === (env.root instanceof env.frame.contentWindow.ShadowRoot ? env.root : env.doc),
+    ...env.counts()
+  };
+}
+
+for (const [kind, route, disabled] of [
+  ["svg", "direct", false],
+  ["svg", "ancestor", false],
+  ["svg", "svg-shadow", false],
+  ["style", "ancestor", false],
+  ["link", "ancestor", false],
+  ["style", "ancestor", true],
+  ["link", "ancestor", true]
+]) {
+  const name = `${kind} ${route}: ${disabled ? "disabled sheet toggles" : "loaded CSSOM state"} survive move`;
+  promise_test(async t => {
+    const env = await environment(t, kind, route);
+    env.origin.append(env.owner);
+    await env.loaded;
+    const sheet = env.owner.sheet;
+    assert_not_equals(sheet, null, "setup: associated sheet exists");
+    assert_equals(env.color(env.target), "rgb(255, 0, 0)", "setup: resource/source applies");
+    assert_equals(env.color(env.order), "rgb(0, 0, 255)", "setup: later competitor wins");
+    sheet.insertRule(GREEN, sheet.cssRules.length);
+    assert_equals(env.color(env.target), "rgb(0, 128, 0)", "setup: CSSOM edit applies");
+    const rules = Array.from(sheet.cssRules, rule => rule.cssText);
+    if (disabled) {
+      sheet.disabled = true;
+      assert_equals(env.color(env.target), "rgb(0, 0, 0)", "setup: disabling sheet removes its rules");
+    }
+    env.move();
+    const moved = snapshot(env, sheet);
+    sheet.disabled = false;
+    const reenabled = snapshot(env, sheet);
+    sheet.insertRule(BLUE, sheet.cssRules.length);
+    const edited = snapshot(env, sheet);
+    if (disabled) sheet.disabled = true;
+    const toggled = snapshot(env, sheet);
+    window.stylesheetMoveLifecycleObservations.push({name, rules, moved, reenabled, edited, toggled});
+    assert_true(moved.sameSheet && moved.sameAfterStyleRead, "move preserves associated sheet identity");
+    assert_true(moved.ownerRetained && moved.connected && moved.sameRoot, "move retains owner and stylesheet root");
+    assert_array_equals(moved.currentRules, rules, "move preserves CSSOM rules");
+    assert_equals(moved.disabled, disabled, "move preserves CSSOM disabled state");
+    assert_equals(moved.color, disabled ? "rgb(0, 0, 0)" : "rgb(0, 128, 0)", "moved sheet applicability");
+    assert_equals(reenabled.color, "rgb(0, 128, 0)", "retained sheet re-enables in its collection");
+    assert_equals(reenabled.orderColor, route === "shadow-host" ? "rgb(0, 0, 255)" : "rgb(255, 0, 0)", "cascade order follows the moved owner or unchanged shadow tree");
+    assert_equals(edited.color, "rgb(0, 0, 255)", "later CSSOM edit of retained sheet stays live");
+    if (disabled) assert_equals(toggled.color, "rgb(0, 0, 0)", "retained sheet can disable again");
+  }, name);
+}
+
+for (const route of ["pending-direct", "ancestor"]) {
+  promise_test(async t => {
+    const env = await environment(t, "link", route);
+    env.origin.append(env.owner);
+    const pending = env.owner.sheet;
+    const beforeEvents = env.counts();
+    env.move();
+    const afterMove = {sheetAbsent: env.owner.sheet === null, ...env.counts()};
+    await env.loaded;
+    const sheet = env.owner.sheet;
+    const completed = sheet ? snapshot(env, sheet) : null;
+    if (sheet) sheet.insertRule(GREEN, sheet.cssRules.length);
+    const edited = sheet ? snapshot(env, sheet) : null;
+    window.stylesheetMoveLifecycleObservations.push({name: `pending link ${route}`, pendingAbsent: pending === null,
+      beforeEvents, afterMove, completed, edited});
+    assert_equals(pending, null, "setup: unique resource has not completed before synchronous move");
+    assert_equals(beforeEvents.loads, 0, "setup: load not delivered before move");
+    assert_equals(afterMove.loads, 0, "move does not synchronously complete the load");
+    assert_not_equals(completed, null, "pending sheet finishes after move");
+    assert_true(completed.connected && completed.sameRoot && completed.ownerRetained, "completion uses current connected owner");
+    assert_equals(completed.errors, 0, "no stylesheet load error");
+    assert_equals(completed.color, "rgb(255, 0, 0)", "completed sheet applies at new location");
+    assert_equals(completed.orderColor, route === "shadow-host" ? "rgb(0, 0, 255)" : "rgb(255, 0, 0)", "completion inserts at current tree position");
+    assert_equals(edited.color, "rgb(0, 128, 0)", "completed sheet CSSOM edit is active");
+  }, `Pending link ${route}: completion follows moved owner`);
+}
+</script>

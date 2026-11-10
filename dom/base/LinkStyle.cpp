@@ -215,11 +215,36 @@ LinkStyle* LinkStyle::FromNode(Element& aElement) {
   return nullptr;
 }
 
-void LinkStyle::BindToTree() {
+void LinkStyle::BindToTree(bool aIsMove) {
+  if (aIsMove) {
+    if (mStyleSheet && mStyleSheet->IsComplete() &&
+        !AsContent().IsInSVGUseShadowTree() &&
+        AsContent().GetContainingDocumentOrShadowRoot()) {
+      AsContent().OwnerDoc()->EnsureCSSLoader().InsertSheetInTree(*mStyleSheet);
+    }
+    return;
+  }
   if (mUpdatesEnabled) {
     nsContentUtils::AddScriptRunner(NS_NewRunnableFunction(
         "LinkStyle::BindToTree",
         [this, pin = RefPtr{&AsContent()}] { UpdateStyleSheetInternal(); }));
+  }
+}
+
+void LinkStyle::UnbindFromTree(Document* aOldDocument,
+                               ShadowRoot* aOldShadowRoot, bool aIsMove) {
+  if (!aIsMove) {
+    (void)UpdateStyleSheetInternal(aOldDocument, aOldShadowRoot);
+    return;
+  }
+  // Preserve the sheet and its rules, but invalidate its old cascade position.
+  if (mStyleSheet && mStyleSheet->IsComplete() &&
+      !AsContent().IsInSVGUseShadowTree()) {
+    if (aOldShadowRoot) {
+      aOldShadowRoot->RemoveStyleSheet(*mStyleSheet);
+    } else if (aOldDocument) {
+      aOldDocument->RemoveStyleSheet(*mStyleSheet);
+    }
   }
 }
 

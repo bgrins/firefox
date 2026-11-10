@@ -23,6 +23,7 @@
 #include "mozilla/dom/ModuleLoader.h"
 #include "mozilla/dom/ReferrerInfo.h"
 #include "mozilla/dom/ScriptLoader.h"
+#include "mozilla/dom/UnbindContext.h"
 #include "nsAttrValueInlines.h"
 #include "nsAttrValueOrString.h"
 #include "nsContentUtils.h"
@@ -90,7 +91,7 @@ nsresult HTMLLinkElement::BindToTree(BindContext& aContext, nsINode& aParent) {
     TryDNSPrefetchOrPreconnectOrPrefetchOrPreloadOrPrerender();
   }
 
-  LinkStyle::BindToTree();
+  LinkStyle::BindToTree(aContext.IsMove());
 
   if (IsInUncomposedDoc()) {
     if (AttrValueIs(kNameSpaceID_None, nsGkAtoms::rel, nsGkAtoms::localization,
@@ -130,7 +131,7 @@ void HTMLLinkElement::UnbindFromTree(UnbindContext& aContext) {
 
   nsGenericHTMLElement::UnbindFromTree(aContext);
 
-  (void)UpdateStyleSheetInternal(oldDoc, oldShadowRoot);
+  LinkStyle::UnbindFromTree(oldDoc, oldShadowRoot, aContext.IsMove());
 }
 
 bool HTMLLinkElement::ParseAttribute(int32_t aNamespaceID, nsAtom* aAttribute,

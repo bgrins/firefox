@@ -303,7 +303,9 @@ class LinkStyle {
    */
   void MaybeFinishCopyStyleSheet(Document* aDocument);
 
-  void BindToTree();
+  void BindToTree(bool aIsMove);
+  void UnbindFromTree(Document* aOldDocument, ShadowRoot* aOldShadowRoot,
+                      bool aIsMove);
 
   RefPtr<mozilla::StyleSheet> mStyleSheet;
   nsCOMPtr<nsIPrincipal> mTriggeringPrincipal;

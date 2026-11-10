@@ -6,11 +6,13 @@
 
 #include "mozilla/RefPtr.h"
 #include "mozilla/StyleSheet.h"
+#include "mozilla/dom/BindContext.h"
 #include "mozilla/dom/Document.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/FetchPriority.h"
 #include "mozilla/dom/ReferrerInfo.h"
 #include "mozilla/dom/SVGStyleElementBinding.h"
+#include "mozilla/dom/UnbindContext.h"
 #include "nsCOMPtr.h"
 #include "nsContentUtils.h"
 
@@ -64,7 +66,7 @@ NS_IMPL_ELEMENT_CLONE(SVGStyleElement)
 nsresult SVGStyleElement::BindToTree(BindContext& aContext, nsINode& aParent) {
   nsresult rv = SVGStyleElementBase::BindToTree(aContext, aParent);
   NS_ENSURE_SUCCESS(rv, rv);
-  LinkStyle::BindToTree();
+  LinkStyle::BindToTree(aContext.IsMove());
   return rv;
 }
 
@@ -72,7 +74,7 @@ void SVGStyleElement::UnbindFromTree(UnbindContext& aContext) {
   nsCOMPtr<Document> oldDoc = GetUncomposedDoc();
   ShadowRoot* oldShadow = GetContainingShadow();
   SVGStyleElementBase::UnbindFromTree(aContext);
-  (void)UpdateStyleSheetInternal(oldDoc, oldShadow);
+  LinkStyle::UnbindFromTree(oldDoc, oldShadow, aContext.IsMove());
 }
 
 void SVGStyleElement::AfterSetAttr(int32_t aNameSpaceID, nsAtom* aName,

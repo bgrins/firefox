@@ -4,10 +4,12 @@
 #include "mozilla/dom/HTMLStyleElement.h"
 
 #include "mozilla/StyleSheet.h"
+#include "mozilla/dom/BindContext.h"
 #include "mozilla/dom/Document.h"
 #include "mozilla/dom/FetchPriority.h"
 #include "mozilla/dom/HTMLStyleElementBinding.h"
 #include "mozilla/dom/ReferrerInfo.h"
+#include "mozilla/dom/UnbindContext.h"
 #include "nsContentUtils.h"
 #include "nsDOMTokenList.h"
 #include "nsGkAtoms.h"
@@ -99,7 +101,7 @@ void HTMLStyleElement::ContentChanged(nsIContent* aContent) {
 nsresult HTMLStyleElement::BindToTree(BindContext& aContext, nsINode& aParent) {
   nsresult rv = nsGenericHTMLElement::BindToTree(aContext, aParent);
   NS_ENSURE_SUCCESS(rv, rv);
-  LinkStyle::BindToTree();
+  LinkStyle::BindToTree(aContext.IsMove());
   return rv;
 }
 
@@ -109,7 +111,7 @@ void HTMLStyleElement::UnbindFromTree(UnbindContext& aContext) {
 
   nsGenericHTMLElement::UnbindFromTree(aContext);
 
-  (void)UpdateStyleSheetInternal(oldDoc, oldShadow);
+  LinkStyle::UnbindFromTree(oldDoc, oldShadow, aContext.IsMove());
 }
 
 bool HTMLStyleElement::ParseAttribute(int32_t aNamespaceID, nsAtom* aAttribute,

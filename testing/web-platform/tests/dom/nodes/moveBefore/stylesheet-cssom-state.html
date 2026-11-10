@@ -1,0 +1,169 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>State-preserving stylesheet owner moves preserve CSSOM state</title>
+<link rel="help" href="https://dom.spec.whatwg.org/#move">
+<link rel="help" href="https://html.spec.whatwg.org/multipage/semantics.html#the-style-element">
+<link rel="help" href="https://drafts.csswg.org/cssom/#associated-css-style-sheet">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+window.stylesheetMoveCSSOMObservations = [];
+const source = ".move-cssom-target { background-color: rgb(255, 0, 0); color: rgb(255, 0, 0); }";
+for (const kind of ["style", "link"]) {
+  for (const tree of ["light", "shadow"]) {
+    for (const operation of ["stationary", "different-parent", "same-parent-reorder"]) {
+      promise_test(async t => {
+        assert_implements(typeof Element.prototype.moveBefore === "function", "moveBefore is supported");
+        const host = document.createElement("div");
+        const root = tree === "shadow" ? host.attachShadow({mode: "open"}) : host;
+        const first = document.createElement("div");
+        const second = document.createElement("div");
+        const target = document.createElement("div");
+        target.className = "move-cssom-target";
+        target.textContent = "CSSOM state";
+        root.append(first, second, target);
+        document.body.append(host);
+        t.add_cleanup(() => host.remove());
+        const competitor = document.createElement("style");
+        competitor.textContent = ".move-cssom-target { color: rgb(0, 0, 255); }";
+        first.append(competitor);
+        const owner = document.createElement(kind);
+        if (kind === "style") {
+          owner.textContent = source;
+          first.append(owner);
+        } else {
+          owner.rel = "stylesheet";
+          owner.href = "resources/cssom-state.css";
+          await new Promise((resolve, reject) => {
+            owner.onload = resolve;
+            owner.onerror = () => reject(new Error("Initial stylesheet load failed"));
+            first.append(owner);
+          });
+          owner.onload = owner.onerror = null;
+        }
+        const saved = owner.sheet;
+        assert_not_equals(saved, null, "Initial associated sheet exists");
+        assert_equals(getComputedStyle(target).backgroundColor, "rgb(255, 0, 0)", "Initial stylesheet is loaded and applies");
+        assert_equals(getComputedStyle(target).color, "rgb(255, 0, 0)", "Initial owner follows the competing sheet");
+        saved.insertRule(".move-cssom-target { background-color: rgb(0, 128, 0); }", saved.cssRules.length);
+        assert_equals(saved.cssRules.length, 2, "CSSOM rule insertion is calibrated");
+        assert_equals(getComputedStyle(target).backgroundColor, "rgb(0, 128, 0)", "Inserted CSSOM rule applies before the stimulus");
+        const expectedRoot = owner.getRootNode();
+        const row = {kind, tree, operation, samples: []};
+        window.stylesheetMoveCSSOMObservations.push(row);
+        const sample = (label, expectedColor) => {
+          const active = owner.sheet;
+          row.samples.push({label, sameSheet: active === saved,
+            sameOwner: saved.ownerNode === owner, sameRoot: owner.getRootNode() === expectedRoot,
+            connected: owner.isConnected, rules: active ? active.cssRules.length : null,
+            background: getComputedStyle(target).backgroundColor,
+            color: getComputedStyle(target).color, expectedColor});
+        };
+        sample("before", "rgb(255, 0, 0)");
+        if (operation === "different-parent") {
+          second.moveBefore(owner, null);
+          sample("other-parent", "rgb(255, 0, 0)");
+          root.moveBefore(owner, null);
+          sample("direct-root-child", "rgb(255, 0, 0)");
+          first.moveBefore(owner, null);
+          sample("original-parent", "rgb(255, 0, 0)");
+        } else if (operation === "same-parent-reorder") {
+          first.moveBefore(owner, competitor);
+          sample("before-competitor", "rgb(0, 0, 255)");
+          first.moveBefore(owner, null);
+          sample("after-competitor", "rgb(255, 0, 0)");
+        } else {
+          sample("unchanged", "rgb(255, 0, 0)");
+        }
+        saved.insertRule(".move-cssom-target { background-color: rgb(0, 0, 255); }", saved.cssRules.length);
+        sample("saved-handle-insert", "rgb(255, 0, 0)");
+        for (const observation of row.samples) {
+          const label = observation.label;
+          assert_true(observation.sameSheet, label + ": associated CSSStyleSheet identity is preserved");
+          assert_true(observation.sameOwner, label + ": saved sheet retains its owner");
+          assert_true(observation.sameRoot && observation.connected, label + ": owner stays connected in the same node tree");
+          assert_equals(observation.rules, label === "saved-handle-insert" ? 3 : 2, label + ": CSSOM rule list is preserved");
+          assert_equals(observation.background, label === "saved-handle-insert" ? "rgb(0, 0, 255)" : "rgb(0, 128, 0)", label + ": CSSOM rules remain active");
+          assert_equals(observation.color, observation.expectedColor, label + ": cascade order follows owner position");
+        }
+      }, `${kind} owner in ${tree} tree: ${operation} preserves CSSOM state`);
+    }
+  }
+}
+
+for (const tree of ["light", "shadow"]) {
+  promise_test(async t => {
+    const host = document.createElement("div");
+    const root = tree === "shadow" ? host.attachShadow({mode: "open"}) : host;
+    const owner = document.createElement("style");
+    owner.textContent = source;
+    const target = document.createElement("div");
+    target.className = "move-cssom-target";
+    root.append(owner, target);
+    document.body.append(host);
+    t.add_cleanup(() => host.remove());
+    const saved = owner.sheet;
+    saved.insertRule(".move-cssom-target { background-color: rgb(0, 128, 0); }", 1);
+    assert_equals(getComputedStyle(target).backgroundColor, "rgb(0, 128, 0)", "Inserted rule applies before ordinary removal");
+    owner.remove();
+    root.append(owner);
+    const observation = {kind: "style", tree, operation: "ordinary-remove-insert",
+      sameSheet: owner.sheet === saved, rules: owner.sheet.cssRules.length,
+      background: getComputedStyle(target).backgroundColor};
+    window.stylesheetMoveCSSOMObservations.push(observation);
+    assert_false(observation.sameSheet, "Ordinary removal and insertion create a new association");
+    assert_equals(observation.rules, 1, "Ordinary insertion reparses the unchanged text");
+    assert_equals(observation.background, "rgb(255, 0, 0)", "Ordinary insertion uses source text");
+  }, `Ordinary style removal and insertion in ${tree} tree still reparse source text`);
+}
+for (const kind of ["style", "link"]) {
+  for (const tree of ["light", "shadow"]) {
+    promise_test(async t => {
+      assert_implements(typeof Element.prototype.moveBefore === "function", "moveBefore is supported");
+      const host = document.createElement("div");
+      const root = tree === "shadow" ? host.attachShadow({mode: "open"}) : host;
+      const base = document.createElement("style");
+      base.textContent = ".move-scope-target { color: rgb(255, 0, 0); }";
+      const first = document.createElement("div");
+      const second = document.createElement("div");
+      const a = document.createElement("span");
+      const b = document.createElement("span");
+      a.className = b.className = "move-scope-target";
+      a.textContent = b.textContent = "scope control";
+      first.append(a);
+      second.append(b);
+      root.append(base, first, second);
+      document.body.append(host);
+      t.add_cleanup(() => host.remove());
+      const owner = document.createElement(kind);
+      if (kind === "style") {
+        owner.textContent = "@scope { .move-scope-target { color: rgb(0, 128, 0); } }";
+        first.append(owner);
+      } else {
+        owner.rel = "stylesheet";
+        owner.href = "resources/cssom-scope.css";
+        await new Promise((resolve, reject) => {
+          owner.onload = resolve;
+          owner.onerror = () => reject(new Error("Initial scoped stylesheet load failed"));
+          first.append(owner);
+        });
+        owner.onload = owner.onerror = null;
+      }
+      assert_implements(owner.sheet.cssRules.length === 1, "The omitted-start scope rule parses");
+      const colors = () => [getComputedStyle(a).color, getComputedStyle(b).color];
+      const samples = [{label: "initial", colors: colors()}];
+      second.moveBefore(owner, null);
+      samples.push({label: "other-parent", colors: colors()});
+      first.moveBefore(owner, null);
+      samples.push({label: "original-parent", colors: colors()});
+      window.stylesheetMoveCSSOMObservations.push({kind, tree, operation: "scope-context", samples});
+      const red = "rgb(255, 0, 0)";
+      const green = "rgb(0, 128, 0)";
+      for (const [index, expected] of [[0, [green, red]], [1, [red, green]], [2, [green, red]]]) {
+        assert_array_equals(samples[index].colors, expected, samples[index].label + ": scope follows the owner parent");
+      }
+    }, `${kind} owner in ${tree} tree: moves update implicit scope context`);
+  }
+}
+</script>

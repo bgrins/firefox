@@ -1,0 +1,99 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Stylesheet association follows direct moves between node roots</title>
+<link rel="help" href="https://dom.spec.whatwg.org/#move">
+<link rel="help" href="https://drafts.csswg.org/cssom/#dom-linkstyle-sheet">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+window.stylesheetCrossRootMoveObservations = [];
+
+for (const kind of ["style", "link"]) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    const ready = new Promise(resolve => frame.onload = resolve);
+    frame.srcdoc = "<!doctype html><meta charset=utf-8><body></body>";
+    t.add_cleanup(() => frame.remove());
+    document.body.append(frame);
+    await ready;
+    const doc = frame.contentDocument;
+    const hosts = [doc.createElement("div"), doc.createElement("div")];
+    doc.body.append(...hosts);
+    const roots = [doc, ...hosts.map(host => host.attachShadow({mode: "open"}))];
+    const parents = [doc.body, roots[1], roots[2]];
+    const fallbacks = ["rgb(10, 11, 12)", "rgb(20, 21, 22)", "rgb(30, 31, 32)"];
+    const targets = parents.map((parent, index) => {
+      const fallback = doc.createElement("style");
+      fallback.textContent = `.cross-root-target { color: ${fallbacks[index]}; }`;
+      const target = doc.createElement("span");
+      target.className = "cross-root-target";
+      parent.append(fallback, target);
+      return target;
+    });
+    const colors = () => targets.map(target => frame.contentWindow.getComputedStyle(target).color);
+    assert_array_equals(colors(), fallbacks, "setup: independent root fallback colors");
+    const owner = doc.createElement(kind);
+    let loaded = Promise.resolve();
+    if (kind === "link") {
+      owner.rel = "stylesheet";
+      const token = crypto.getRandomValues(new Uint32Array(2)).join("-");
+      owner.href = new URL("resources/cross-root-sheet.css?case=" + token, location.href).href;
+      loaded = new Promise((resolve, reject) => {
+        owner.addEventListener("load", resolve, {once: true});
+        owner.addEventListener("error", () => reject(new Error("stylesheet resource failed")), {once: true});
+      });
+    } else {
+      owner.textContent = ".cross-root-target { color: rgb(255, 0, 0); }";
+    }
+    doc.body.append(owner);
+    await loaded;
+    const sheet = owner.sheet;
+    assert_not_equals(sheet, null, "setup: associated sheet exists");
+    assert_array_equals(colors(), ["rgb(255, 0, 0)", ...fallbacks.slice(1)], "setup: source applies only in document");
+    sheet.insertRule(".cross-root-target { color: rgb(0, 128, 0) !important; }", sheet.cssRules.length);
+    assert_array_equals(colors(), ["rgb(0, 128, 0)", ...fallbacks.slice(1)], "setup: CSSOM edit applies only in document");
+    const rules = Array.from(sheet.cssRules, rule => rule.cssText);
+    const sample = (stage, index) => {
+      const current = owner.sheet;
+      const result = {
+        stage, index,
+        sameSheet: current === sheet,
+        ownerRetained: sheet.ownerNode === owner,
+        ownerDocumentRetained: owner.ownerDocument === doc,
+        correctRoot: owner.getRootNode() === roots[index],
+        composedRootRetained: owner.getRootNode({composed: true}) === doc,
+        connected: owner.isConnected,
+        currentRules: current ? Array.from(current.cssRules, rule => rule.cssText) : null,
+        retainedRules: Array.from(sheet.cssRules, rule => rule.cssText),
+        memberships: roots.map(root => Array.from(root.styleSheets).filter(item => item === sheet).length),
+        currentMemberships: roots.map(root => Array.from(root.styleSheets).filter(item => item === current).length)
+      };
+      result.colors = colors();
+      result.sameAfterStyleRead = owner.sheet === sheet;
+      return result;
+    };
+    const samples = [sample("initial document", 0)];
+    for (const index of [1, 2, 0]) {
+      parents[index].moveBefore(owner, null);
+      samples.push(sample(index === 0 ? "returned document" : "shadow " + index, index));
+    }
+    sheet.insertRule(".cross-root-target { color: rgb(0, 0, 255) !important; }", sheet.cssRules.length);
+    const edited = sample("edited retained handle after return", 0);
+    window.stylesheetCrossRootMoveObservations.push({kind, rules, fallbacks, samples, edited});
+    for (const state of samples) {
+      assert_true(state.sameSheet && state.sameAfterStyleRead, `${state.stage}: associated stylesheet identity survives`);
+      assert_true(state.ownerRetained && state.ownerDocumentRetained, `${state.stage}: owner association survives`);
+      assert_true(state.correctRoot && state.composedRootRetained && state.connected, `${state.stage}: expected node root with unchanged shadow-including root`);
+      assert_array_equals(state.currentRules, rules, `${state.stage}: CSSOM rule list survives`);
+      assert_array_equals(state.retainedRules, rules, `${state.stage}: retained handle keeps edited rules`);
+      assert_array_equals(state.memberships, roots.map((_, index) => Number(index === state.index)), `${state.stage}: same sheet belongs only to current collection`);
+      const expectedColors = fallbacks.map((color, index) => index === state.index ? "rgb(0, 128, 0)" : color);
+      assert_array_equals(state.colors, expectedColors, `${state.stage}: applicability leaves old root and reaches new root`);
+    }
+    assert_true(edited.sameSheet && edited.ownerRetained, "returned sheet stays associated after another CSSOM edit");
+    assert_array_equals(edited.colors, ["rgb(0, 0, 255)", ...fallbacks.slice(1)], "later edit through retained handle remains live only in document");
+  }, `${kind} stylesheet preserves association across document-shadowA-shadowB-document moves`);
+}
+</script>
