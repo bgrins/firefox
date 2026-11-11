@@ -1,0 +1,57 @@
+DefinitionLaws.lean:52:13: error: unsolved goals
+case cons.mp.none
+definitions : Json
+signature : Signature
+rest : List Signature
+ih :
+  ∀ (aliases : Aliases),
+    readDefinitionList rest definitions = some aliases ↔ DefinitionListSchema definitions rest aliases
+aliases : Aliases
+accepted :
+  ((readDefinition definitions signature.name signature.head Ty.scalar).bind fun alias =>
+      (readDefinitionList rest definitions).bind fun aliases => some (alias :: aliases)) =
+    some aliases
+one : readDefinition definitions signature.name signature.head signature.result = none
+⊢ DefinitionListSchema definitions (signature :: rest) aliases
+DefinitionLaws.lean:58:12: error: Type mismatch: After simplification, term
+  accepted
+ has type
+  ((readDefinition definitions signature.name signature.head Ty.scalar).bind fun alias => some (alias :: tail)) =
+    some aliases
+but is expected to have type
+  alias :: tail = aliases
+DefinitionLaws.lean:63:23: error: unsolved goals
+case cons.mpr.cons
+definitions : Json
+signature : Signature
+rest : List Signature
+ih :
+  ∀ (aliases : Aliases),
+    readDefinitionList rest definitions = some aliases ↔ DefinitionListSchema definitions rest aliases
+alias✝ : String × Ty × DataExpr
+aliases✝ : Aliases
+one : DefinitionSchema signature definitions alias✝
+later : DefinitionListSchema definitions rest aliases✝
+⊢ ((readDefinition definitions signature.name signature.head Ty.scalar).bind fun alias => some (alias :: aliases✝)) =
+    some (alias✝ :: aliases✝)
+DefinitionLaws.lean:52:42: warning: This simp argument is unused:
+  one
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [readDefinitionList] at accepted
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+DefinitionLaws.lean:55:44: warning: This simp argument is unused:
+  one
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [readDefinitionList, later] at accepted
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+DefinitionLaws.lean:64:34: warning: This simp argument is unused:
+  (definition_spec _ _ _).mpr one
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [readDefinitionList, (ih _).mpr later]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
