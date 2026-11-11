@@ -10,6 +10,7 @@ Signing resumed successfully. New signed commits are:
 
 | Commit | Content |
 | --- | --- |
+| d825b3e46700 | Signed standalone generic document integration, actual library builds and independent source replay |
 | a4ead1512165 | Current keyframe grouping contract, 15-theorem order proof and copied four-path repair candidate |
 | 9d8e6a62af76 | Owned animation input prerequisite: optimized build, exact 125-result preservation, independent full restoration |
 | f3949d2992ab | Generic document-schema admission, selected-alias semantics and independent boundary proofs |
@@ -88,7 +89,7 @@ Fix #171 is signed as 7382007a82b4, a five-file repair following research commit
 
 ## Keyframe grouping follow-up
 
-Current-spec triage distinguishes the three existing CSS getKeyframes failures. Known bug 1778402 conflicts with the current earliest-occurrence group-order rule; the two custom-property property-inventory expectations are stale and require a separate complete-value audit. A copied four-path candidate rotates reused percentage groups during reverse construction, strengthens the existing declaration-winner assertion and adds one logical-property/interleaved-offset case. It leaves named-range grouping and custom-property failure metadata unchanged. The independent abstract ordering model passes 15 kernel audits and three compiling semantic mutants; native equality, stable sorting, declaration payload and C++ lifetimes remain source/runtime obligations. No new repair is counted until the reversible browser comparison and delivery pass. See css-css-animation-keyframe-failure-triage-20261110-v1, css-css-animation-keyframe-order-candidate-20261110-v1 and css-keyframe-group-order-lean-20261110-v1.
+Current-spec triage distinguishes the three existing CSS getKeyframes failures. Known bug 1778402 conflicts with the current earliest-occurrence group-order rule; the two custom-property property-inventory expectations are stale and require a separate complete-value audit. A copied four-path candidate rotates reused percentage groups during reverse construction, strengthens the existing declaration-winner assertion and adds one logical-property/interleaved-offset case. It leaves named-range grouping and custom-property failure metadata unchanged. The independent abstract ordering model passes 15 kernel audits and three compiling semantic mutants; native equality, stable sorting, declaration payload and C++ lifetimes remain source/runtime obligations. The reversible optimized comparison now passes exactly 95 records: both intended ordering cases improve, the other 93 statuses/messages are preserved, and attribute/range controls stay passing. Independent full source/browser/index/process restoration passes; all temporary backups are removed. The accepted four-path patch is ready for its standalone repair commit; the catalogue is not incremented until delivery. See css-css-animation-keyframe-failure-triage-20261110-v1, css-css-animation-keyframe-order-candidate-20261110-v1 and css-keyframe-group-order-lean-20261110-v1.
 
 ## Next work, in order
 

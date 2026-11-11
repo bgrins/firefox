@@ -1,0 +1,121 @@
+diff --git a/layout/style/GeckoBindings.cpp b/layout/style/GeckoBindings.cpp
+--- a/layout/style/GeckoBindings.cpp
++++ b/layout/style/GeckoBindings.cpp
+@@ -5,6 +5,8 @@
+ /* FFI functions for Servo to call into Gecko */
+ 
+ #include "mozilla/GeckoBindings.h"
++
++#include <algorithm>
+ 
+ #include "AnchorPositioningUtils.h"
+ #include "ChildIterator.h"
+@@ -1119,9 +1121,14 @@
+                  aKeyframes->LastElement().mOffset->mPercentage >= aOffset,
+              "The percentage offset should be less than or equal to the last "
+              "keyframe's offset if there are exisiting keyframes");
+-  return GetOrCreateKeyframe(aKeyframes, StyleTimelineRangeName::None, aOffset,
+-                             aTimingFunction, aComposition)
+-      .first;
++  Keyframe* keyframe =
++      GetOrCreateKeyframe(aKeyframes, StyleTimelineRangeName::None, aOffset,
++                          aTimingFunction, aComposition)
++          .first;
++  // Reverse construction must place each group at its earliest source position.
++  std::rotate(keyframe, keyframe + 1,
++              aKeyframes->Elements() + aKeyframes->Length());
++  return &aKeyframes->LastElement();
+ }
+ 
+ Keyframe* Gecko_GetOrCreateKeyframeForTimelineRangeOffset(
+diff --git a/layout/style/GeckoBindings.h b/layout/style/GeckoBindings.h
+--- a/layout/style/GeckoBindings.h
++++ b/layout/style/GeckoBindings.h
+@@ -393,6 +393,7 @@
+ // Searches from the end of |keyframes| for a Keyframe object with the specified
+ // offset and timing function. If none is found, a new Keyframe object with the
+ // specified |offset| and |timingFunction| will be appended to |keyframes|.
++// An existing match is moved to the end for reverse-source-order construction.
+ //
+ // @param keyframes  An array of Keyframe objects, sorted by descending offset.
+ //                   The last Keyframe in the array, if any, MUST have an
+@@ -412,7 +413,7 @@
+     const mozilla::dom::CompositeOperationOrAuto composition);
+ 
+ // The variant of the above method but this is specialized for the keyframe
+-// offset with the timeline range name.
++// offset with the timeline range name. Existing matches are not moved.
+ // @param aRangeName The timeline range name to search for.
+ mozilla::Keyframe* Gecko_GetOrCreateKeyframeForTimelineRangeOffset(
+     nsTArray<mozilla::Keyframe>* aKeyframes,
+diff --git a/testing/web-platform/tests/css/css-animations/KeyframeEffect-getKeyframes.tentative.html b/testing/web-platform/tests/css/css-animations/KeyframeEffect-getKeyframes.tentative.html
+--- a/testing/web-platform/tests/css/css-animations/KeyframeEffect-getKeyframes.tentative.html
++++ b/testing/web-platform/tests/css/css-animations/KeyframeEffect-getKeyframes.tentative.html
+@@ -148,8 +148,16 @@
+   to   { margin-top: 16px; }
+   from { font-size: 16px; animation-composition: add; animation-timing-function: linear; }
+   to   { font-size: 32px; }
+-  from { padding-left: 2px; animation-composition: accumulate; }
++  from { padding-left: 2px; margin-top: 10px; animation-composition: accumulate; }
+   to   { padding-left: 4px; }
++}
++
++@keyframes anim-merge-interleaved-offsets {
++  to { margin-left: 40px; margin-right: 50px; }
++  50% { margin-left: 10px; animation-timing-function: linear; }
++  from { margin-left: 0px; margin-right: 0px; }
++  50% { margin-right: 20px; animation-timing-function: ease-in; }
++  50% { margin-inline-start: 30px; animation-timing-function: linear; }
+ }
+ 
+ @keyframes anim-overriding {
+@@ -617,7 +625,7 @@
+     { offset: 0, computedOffset: 0, easing: "ease", composite: "add",
+       color: "rgb(0, 0, 0)" },
+     { offset: 0, computedOffset: 0, easing: "ease", composite: "accumulate",
+-      marginTop: "8px", paddingLeft: "2px" },
++      marginTop: "10px", paddingLeft: "2px" },
+     { offset: 0, computedOffset: 0, easing: "linear", composite: "add",
+       fontSize: "16px" },
+     { offset: 1, computedOffset: 1, easing: "ease", composite: "auto",
+@@ -628,6 +636,26 @@
+ }, 'KeyframeEffect.getKeyframes() returns expected frames for an ' +
+    'animation with multiple keyframes for the same time and with ' +
+    'different easing functions and composite operations');
++
++test(t => {
++  const div = addDiv(t);
++  div.style.writingMode = 'horizontal-tb';
++  div.style.direction = 'ltr';
++  div.style.animation = 'anim-merge-interleaved-offsets 100s';
++
++  const expected = [
++    { offset: 0, computedOffset: 0, easing: "ease", composite: "auto",
++      marginLeft: "0px", marginRight: "0px" },
++    { offset: 0.5, computedOffset: 0.5, easing: "linear", composite: "auto",
++      marginLeft: "30px" },
++    { offset: 0.5, computedOffset: 0.5, easing: "ease-in", composite: "auto",
++      marginRight: "20px" },
++    { offset: 1, computedOffset: 1, easing: "ease", composite: "auto",
++      marginLeft: "40px", marginRight: "50px" },
++  ];
++  assert_frame_lists_equal(getKeyframes(div), expected);
++}, 'KeyframeEffect.getKeyframes() orders merged percentage groups by their ' +
++   'first occurrence while later logical declarations win');
+ 
+ test(t => {
+   const div = addDiv(t);
+diff --git a/testing/web-platform/meta/css/css-animations/KeyframeEffect-getKeyframes.tentative.html.ini b/testing/web-platform/meta/css/css-animations/KeyframeEffect-getKeyframes.tentative.html.ini
+--- a/testing/web-platform/meta/css/css-animations/KeyframeEffect-getKeyframes.tentative.html.ini
++++ b/testing/web-platform/meta/css/css-animations/KeyframeEffect-getKeyframes.tentative.html.ini
+@@ -1,10 +1,6 @@
+ [KeyframeEffect-getKeyframes.tentative.html]
+   expected:
+     if (os == "android") and fission: [OK, TIMEOUT]
+-  [KeyframeEffect.getKeyframes() returns expected frames for an animation with multiple keyframes for the same time and with different easing functions and composite operations]
+-    bugs: https://bugzilla.mozilla.org/show_bug.cgi?id=1778402
+-    expected: FAIL
+-
+   [KeyframeEffect.getKeyframes() returns expected values for animations with a CSS variable which is overriden by the value in keyframe]
+     expected: FAIL
+ 
