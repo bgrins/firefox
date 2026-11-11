@@ -1,0 +1,11 @@
+--- artifacts/css-pseudo-animation-owned-generation-runtime-20261110-v1/freeze.py
++++ artifacts/css-pseudo-animation-query-runtime-20261110-v1/freeze.py
+@@ -31,6 +31,8 @@
+     origins = check.load(HERE / 'ORIGINS.json')
+     retained = check.load(receipt)
+     check.validate_retained(retained, head, plan, origins, roles)
++    test_tree = ROOT / 'objdir-full.noindex/_tests/testing/mochitest'
++    assert test_tree.is_dir() and not test_tree.is_symlink()
+     assert check.sha(ROOT / 'mozconfig') == plan['mozconfig_sha256']
+     assert all(check.sha(ROOT / name) == role['base'] for name, role in roles.items())
+     assert all(check.sha(ROOT / name) == digest for name, digest in retained['binaries'].items())

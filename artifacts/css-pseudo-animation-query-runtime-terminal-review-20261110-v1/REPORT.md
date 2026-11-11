@@ -1,0 +1,9 @@
+# Query v1 terminal restoration review
+
+PASS for restoration and retained-baseline validation under execution manifest f19291071f02205829a96192267ba9cfbb33d65cacdf14742dabfedc87101297 at ec467c0219d3d5daf70f42fcc53677cf8a262173. This does not accept a native candidate: candidate1 stopped at the real manifest lint gate, before any build or candidate browser invocation.
+
+The baseline raw stream independently matches all 130 frozen records (99 PASS, 19 FAIL, 12 OK), including complete messages/classifications and balanced lifecycle. Baseline WPT lint passes and WPT exits one for retained failures. The direct diagnostic was explicitly not run on baseline. Candidate WPT lint and full installed-file ESLint pass; test-manifest-toml exits one because per-test prefs are unsupported in plain Mochitest. The exact failure is preserved, with no BUILD.json or candidate raw browser stream. This is a harness configuration rejection, not a browser defect.
+
+The independent live audit verifies all 9378 application entries, 42811 installed Mochitest entries, six extras/metadata files and eleven source/manifest roles against both BEFORE snapshots. No test metadata was originally absent in this run. Source/test/configuration/native-binary pins, HEAD/index and clean tracked files all match. The exact expanded 527 untracked paths match the retained current-build inventory. All owned lint/test groups, temporary fixtures/metadata, backups and lock are absent. REVIEW.json and review.py retain the checks; process-snapshot.txt records the process identities. The hold was released after this audit passed.
+
+No build or direct-driver semantics were exercised in candidate1. A revised fixture/manifest needs fresh frozen inputs and genuine installed manifest lint before native compilation. Subsequent root transactions may begin after hold release; this report describes the completed v1 snapshot only. No live source/app/Git mutation occurred during review.

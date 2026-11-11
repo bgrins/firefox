@@ -1,0 +1,239 @@
+diff --git a/dom/animation/Animation.cpp b/dom/animation/Animation.cpp
+--- a/dom/animation/Animation.cpp
++++ b/dom/animation/Animation.cpp
+@@ -1700,6 +1700,23 @@
+   if (keyframeEffect) {
+     keyframeEffect->WillComposeStyle();
+   }
++}
++
++Nullable<TimeDuration> Animation::GetHoldTimeForComposition(
++    const TimeStamp* aSampleTime) const {
++  auto holdTime = mHoldTime;
++  if (Pending() && mHoldTime.IsNull() && !mStartTime.IsNull()) {
++    Nullable<TimeDuration> timeToUse;
++    if (mTimeline && mTimeline->TracksWallclockTime()) {
++      timeToUse = mTimeline->ToTimelineTime(aSampleTime ? *aSampleTime
++                                                        : TimeStamp::Now());
++    }
++    if (!timeToUse.IsNull()) {
++      holdTime = CurrentTimeFromTimelineTime(
++          timeToUse.Value(), mStartTime.Value(), PlaybackRateInternal());
++    }
++  }
++  return holdTime;
+ }
+ 
+ void Animation::ComposeStyle(
+@@ -1749,16 +1766,7 @@
+   const bool pending = Pending();
+   {
+     AutoRestore<Nullable<TimeDuration>> restoreHoldTime(mHoldTime);
+-    if (pending && mHoldTime.IsNull() && !mStartTime.IsNull()) {
+-      Nullable<TimeDuration> timeToUse;
+-      if (mTimeline && mTimeline->TracksWallclockTime()) {
+-        timeToUse = mTimeline->ToTimelineTime(TimeStamp::Now());
+-      }
+-      if (!timeToUse.IsNull()) {
+-        mHoldTime = CurrentTimeFromTimelineTime(
+-            timeToUse.Value(), mStartTime.Value(), PlaybackRateInternal());
+-      }
+-    }
++    mHoldTime = GetHoldTimeForComposition();
+ 
+     KeyframeEffect* keyframeEffect = mEffect->AsKeyframeEffect();
+     if (keyframeEffect) {
+diff --git a/dom/animation/Animation.h b/dom/animation/Animation.h
+--- a/dom/animation/Animation.h
++++ b/dom/animation/Animation.h
+@@ -537,6 +537,7 @@
+   void MaybeResolveFinishedPromise();
+   void DoFinishNotification(SyncNotifyFlag aSyncNotifyFlag);
+   friend class AsyncFinishNotification;
++  friend class mozilla::EffectCompositor;
+   void DoFinishNotificationImmediately(MicroTaskRunnable* aAsync = nullptr);
+   void QueuePlaybackEvent(nsAtom* aOnEvent, TimeStamp&& aScheduledEventTime);
+   void MaybeResolvePromiseWithThis(Promise*);
+@@ -555,6 +556,8 @@
+   void ResetPendingTasks();
+   StickyTimeDuration EffectEnd() const;
+ 
++  Nullable<TimeDuration> GetHoldTimeForComposition(
++      const TimeStamp* aSampleTime = nullptr) const;
+   Nullable<TimeDuration> GetCurrentTimeForHoldTime(
+       const Nullable<TimeDuration>& aHoldTime) const;
+   Nullable<TimeDuration> GetUnconstrainedCurrentTime() const {
+diff --git a/dom/animation/EffectCompositor.cpp b/dom/animation/EffectCompositor.cpp
+--- a/dom/animation/EffectCompositor.cpp
++++ b/dom/animation/EffectCompositor.cpp
+@@ -497,6 +497,142 @@
+   return true;
+ }
+ 
++bool EffectCompositor::ComposeServoAnimationRulesForMissingPseudo(
++    const OwningAnimationTarget& aTarget, const ComputedStyle* aBaseStyle,
++    const ComputedStyle* aEndpointStyle,
++    UniquePtr<StyleAnimationValueMap>& aAnimationValues,
++    UniquePtr<StyleAnimationValueMap>& aTransitionValues) {
++  MOZ_ASSERT(NS_IsMainThread());
++  if (!mPresContext || !mPresContext->IsDynamic() || !aTarget || !aBaseStyle ||
++      !aEndpointStyle ||
++      nsContentUtils::GetContextForContent(aTarget.mElement) != mPresContext ||
++      aAnimationValues || aTransitionValues ||
++      &aAnimationValues == &aTransitionValues) {
++    return false;
++  }
++  const auto pseudo = aTarget.mPseudoRequest.mType;
++  if ((pseudo != PseudoStyleType::Before && pseudo != PseudoStyleType::After &&
++       pseudo != PseudoStyleType::Marker) ||
++      aBaseStyle->GetPseudoType() != pseudo ||
++      aEndpointStyle->GetPseudoType() != pseudo ||
++      aTarget.mElement->GetPseudoElement(aTarget.mPseudoRequest)) {
++    return false;
++  }
++
++  const OwningAnimationTarget target = aTarget;
++  RefPtr<const ComputedStyle> baseStyle = aBaseStyle;
++  RefPtr<const ComputedStyle> endpointStyle = aEndpointStyle;
++  nsTArray<RefPtr<KeyframeEffect>> sortedEffects;
++  {
++    EffectSet* effects = EffectSet::Get(target.mElement, target.mPseudoRequest);
++    if (!effects) {
++      return false;
++    }
++    for (KeyframeEffect* effect : *effects) {
++      if (!effect->GetAnimation()) {
++        return false;
++      }
++      sortedEffects.AppendElement(effect);
++    }
++  }
++  if (sortedEffects.IsEmpty()) {
++    return false;
++  }
++  sortedEffects.Sort(EffectCompositeOrderComparator());
++
++  struct PreparedEffect {
++    RefPtr<KeyframeEffect> mEffect;
++    RefPtr<Animation> mAnimation;
++    RefPtr<dom::AnimationTimeline> mTimeline;
++    dom::AnimationRange mRange;
++    KeyframeEffect::PropertyInputSnapshot mInputs;
++    ComputedTiming mTiming;
++    dom::IterationCompositeOperation mIterationComposite;
++    CascadeLevel mLevel;
++    nsTArray<AnimationProperty> mProperties;
++  };
++  nsTArray<PreparedEffect> prepared;
++  const TimeStamp sampleTime = TimeStamp::Now();
++  for (const RefPtr<KeyframeEffect>& effect : sortedEffects) {
++    RefPtr<Animation> animation = effect->GetAnimation();
++    const auto& effectTarget = effect->GetAnimationTarget();
++    if (!animation || animation->GetEffect() != effect.get() ||
++        effectTarget.mElement != target.mElement ||
++        effectTarget.mPseudoRequest != target.mPseudoRequest) {
++      return false;
++    }
++    RefPtr<dom::AnimationTimeline> timeline = animation->GetTimeline();
++    const dom::AnimationRange range = animation->GetTimelineRange();
++    auto inputs = effect->CapturePropertyInputs();
++    inputs.RefreshComputedOffsets(timeline, &range);
++    ComputedTiming timing;
++    if (!timeline || !timeline->IsUnresolvedTimeline()) {
++      TimingParams parameters = effect->SpecifiedTiming();
++      if (timeline && !timeline->IsMonotonicallyIncreasing()) {
++        const auto duration = timeline->TimelineDuration(range);
++        MOZ_ASSERT(!duration.IsNull());
++        parameters = parameters.Normalize(duration.Value());
++      }
++      timing = dom::AnimationEffect::GetComputedTimingAt(
++          animation->GetCurrentTimeForHoldTime(
++              animation->GetHoldTimeForComposition(&sampleTime)),
++          parameters, animation->PlaybackRateInternal(),
++          animation->AtTimelineBoundary(), dom::EndpointBehavior::Exclusive);
++    }
++    prepared.AppendElement(PreparedEffect{effect,
++                                          animation,
++                                          timeline,
++                                          range,
++                                          std::move(inputs),
++                                          timing,
++                                          effect->IterationComposite(),
++                                          animation->CascadeLevel(),
++                                          {}});
++  }
++
++  AnimatedPropertyIDSet allProperties;
++  AnimatedPropertyIDSet animationProperties;
++  for (PreparedEffect& effect : prepared) {
++    bool referencesAttributes = false;
++    effect.mProperties = KeyframeEffect::BuildPropertiesFromInputs(
++        effect.mInputs, endpointStyle, effect.mTimeline, referencesAttributes);
++    for (const AnimationProperty& property : effect.mProperties) {
++      allProperties.AddProperty(property.mProperty);
++      if (effect.mLevel == CascadeLevel::Animations) {
++        animationProperties.AddProperty(property.mProperty);
++      }
++    }
++  }
++  KeyframeEffect::BaseValuesHashmap baseValues;
++  for (const auto& property : allProperties) {
++    RefPtr<StyleAnimationValue> value =
++        Servo_ComputedValues_ExtractAnimationValue(baseStyle, &property)
++            .Consume();
++    baseValues.InsertOrUpdate(property, std::move(value));
++  }
++
++  aAnimationValues.reset(Servo_AnimationValueMap_Create());
++  aTransitionValues.reset(Servo_AnimationValueMap_Create());
++  InvertibleAnimatedPropertyIDSet animationSkip;
++  InvertibleAnimatedPropertyIDSet transitionSkip;
++  animationSkip.Setup(&animationProperties, true);
++  transitionSkip.Setup(&animationProperties, false);
++  for (const PreparedEffect& effect : prepared) {
++    if (effect.mTiming.mProgress.IsNull()) {
++      continue;
++    }
++    KeyframeEffect::ComposeProperties(
++        *aAnimationValues, effect.mProperties, baseValues, effect.mTiming,
++        effect.mIterationComposite, animationSkip);
++    if (effect.mLevel == CascadeLevel::Transitions) {
++      KeyframeEffect::ComposeProperties(
++          *aTransitionValues, effect.mProperties, baseValues, effect.mTiming,
++          effect.mIterationComposite, transitionSkip);
++    }
++  }
++  return true;
++}
++
+ bool EffectCompositor::HasPendingStyleUpdates() const {
+   for (auto& elementSet : mElementsToRestyle) {
+     if (elementSet.Count()) {
+diff --git a/dom/animation/EffectCompositor.h b/dom/animation/EffectCompositor.h
+--- a/dom/animation/EffectCompositor.h
++++ b/dom/animation/EffectCompositor.h
+@@ -15,6 +15,7 @@
+ #include "mozilla/PseudoElementHashEntry.h"
+ #include "mozilla/RefPtr.h"
+ #include "mozilla/ServoTypes.h"
++#include "mozilla/UniquePtr.h"
+ #include "mozilla/dom/EndpointBehavior.h"
+ #include "nsCycleCollectionParticipant.h"
+ #include "nsTArray.h"
+@@ -136,6 +137,16 @@
+       dom::EndpointBehavior aEndpointBehavior =
+           dom::EndpointBehavior::Exclusive);
+ 
++  // The styles must describe the same sample and target. Base style excludes
++  // target animation/transition rules; endpoint style includes its providers.
++  // Lazy-resolution borrows must be released, and preparation must not reenter
++  // mutation of the captured target, animation or provider context.
++  bool ComposeServoAnimationRulesForMissingPseudo(
++      const OwningAnimationTarget& aTarget, const ComputedStyle* aBaseStyle,
++      const ComputedStyle* aEndpointStyle,
++      UniquePtr<StyleAnimationValueMap>& aAnimationValues,
++      UniquePtr<StyleAnimationValueMap>& aTransitionValues);
++
+   bool HasPendingStyleUpdates() const;
+ 
+   static bool HasAnimationsForCompositor(const nsIFrame* aFrame,

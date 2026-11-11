@@ -1,0 +1,313 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Request-local animation maps for missing pseudos</title>
+<script src="/tests/SimpleTest/SimpleTest.js"></script>
+<link rel="stylesheet" href="/tests/SimpleTest/test.css">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#applying-the-composited-result">
+<style>
+  .subject { font-size: 10px; }
+  .subject::before, .subject::after { margin-left: 10px; }
+  .generated::before { content: "x"; }
+  .changed::before { margin-left: 20px; }
+  .larger { font-size: 20px; }
+  .css-owner { animation: endpoint 1000ms linear both; }
+  .unresolved-owner { animation: endpoint 1000ms linear both; animation-timeline: --absent; }
+  @keyframes endpoint { to { margin-left: 100px; } }
+  .transition-owner { margin-left: 0; opacity: 0; transition: margin-left 1000s linear, opacity 1000s linear; }
+  .transition-owner.to { margin-left: 100px; opacity: 1; }
+  .scroller { width: 100px; height: 100px; overflow: scroll; }
+  .contents { height: 300px; }
+  .view-subject { height: 100px; margin-top: 100px; margin-bottom: 100px; }
+</style>
+<script>
+"use strict";
+
+const utils = SpecialPowers.getDOMWindowUtils(window);
+const keys = ["admitted", "animationValue", "animations", "cssAnimations",
+  "guardedAlias", "guardedNonempty", "separateMaps", "stateUnchanged",
+  "transitionValue", "transitions", "unresolved", "wallclockPending"];
+
+function query(element, property, label, pseudo = "::before", flush = utils.FLUSH_STYLE) {
+  const result = JSON.parse(utils.getMissingPseudoAnimationValuesForTesting(
+    element, pseudo, property, flush));
+  is(Object.keys(result).sort().join(), keys.join(), `${label}: diagnostic schema`);
+  ok(result.guardedAlias, `${label}: aliased outputs rejected`);
+  ok(result.guardedNonempty, `${label}: occupied outputs rejected`);
+  ok(result.stateUnchanged, `${label}: captured native state unchanged`);
+  is(result.separateMaps, result.admitted, `${label}: owned output maps`);
+  return result;
+}
+
+async function fixture(body) {
+  const root = document.createElement("div");
+  document.body.append(root);
+  const animations = [];
+  const track = animation => { animations.push(animation); return animation; };
+  const subject = className => {
+    const element = document.createElement("div");
+    element.className = `subject ${className || ""}`;
+    root.append(element);
+    return element;
+  };
+  const held = (element, keyframes, extra = {}) => {
+    const animation = track(element.animate(keyframes, {
+      duration: 1000, fill: "both", pseudoElement: "::before", ...extra,
+    }));
+    animation.pause();
+    animation.currentTime = 500;
+    return animation;
+  };
+  try {
+    await body({ root, subject, held, track });
+  } finally {
+    animations.forEach(animation => animation.cancel());
+    root.remove();
+  }
+}
+
+const frames = async () => {
+  await new Promise(requestAnimationFrame);
+  await new Promise(requestAnimationFrame);
+};
+
+add_task(async function explicit_endpoints_and_retarget() {
+  await fixture(async ({ subject, held }) => {
+    const first = subject();
+    const second = subject();
+    const animation = held(first, { marginLeft: ["0px", "100px"] });
+    const initial = query(first, "margin-left", "explicit");
+    ok(initial.admitted, "Explicit query admitted");
+    is(initial.animationValue, "50px", "Explicit half sample");
+    is(initial.transitionValue, null, "No transition-origin value");
+    animation.effect.target = second;
+    is(query(first, "margin-left", "old target").admitted, false, "Old target loses effect");
+    is(query(second, "margin-left", "new target").animationValue, "50px", "New target gains effect");
+    animation.effect.pseudoElement = "::after";
+    is(query(second, "margin-left", "old pseudo").admitted, false, "Old pseudo loses effect");
+    is(query(second, "margin-left", "new pseudo", "::after").animationValue, "50px", "Exact new pseudo target");
+  });
+});
+
+add_task(async function implicit_and_changed_base() {
+  await fixture(async ({ subject, held }) => {
+    const element = subject();
+    is(getComputedStyle(element, "::before").marginLeft, "10px", "Known raw base");
+    held(element, { marginLeft: "100px" });
+    is(query(element, "margin-left", "implicit").animationValue, "55px", "Implicit starting value");
+    element.classList.add("changed");
+    is(query(element, "margin-left", "changed base").animationValue, "60px", "Fresh underlying value");
+  });
+});
+
+add_task(async function ordered_addition() {
+  await fixture(async ({ subject, held }) => {
+    const element = subject();
+    held(element, { marginLeft: ["0px", "100px"] });
+    held(element, { marginLeft: ["10px", "30px"] }, { composite: "add" });
+    is(query(element, "margin-left", "additive").animationValue, "70px", "Replace then add in composite order");
+  });
+});
+
+add_task(async function fresh_properties_and_cancellation() {
+  await fixture(async ({ subject, held }) => {
+    const element = subject();
+    const animation = held(element, { marginLeft: ["0px", "100px"] });
+    is(query(element, "margin-left", "first map").animationValue, "50px", "Initial property");
+    animation.effect.setKeyframes({ opacity: [0, 1] });
+    is(query(element, "margin-left", "removed property").animationValue, null, "Removed property is absent");
+    is(query(element, "opacity", "replacement property").animationValue, "0.5", "Replacement property");
+    is(query(element, "opacity", "repeat property").animationValue, "0.5", "Repeated query is stable");
+    animation.cancel();
+    is(query(element, "opacity", "cancelled").admitted, false, "Cancelled effect is absent");
+  });
+});
+
+add_task(async function current_relative_endpoints() {
+  await fixture(async ({ subject, held }) => {
+    const element = subject();
+    held(element, { marginLeft: ["1em", "3em"] });
+    is(query(element, "margin-left", "relative before").animationValue, "20px", "Initial inherited font");
+    element.classList.add("larger");
+    is(query(element, "margin-left", "relative after").animationValue, "40px", "Changed inherited font");
+  });
+});
+
+add_task(async function generated_and_invalid_admission() {
+  await fixture(async ({ subject, held }) => {
+    const element = subject("generated");
+    held(element, { marginLeft: ["0px", "100px"] });
+    is(query(element, "margin-left", "generated").admitted, false, "Generated pseudo is excluded");
+    is(query(element, "margin-left", "ordinary", "").admitted, false, "Ordinary target is excluded");
+    is(query(element, "margin-left", "unsupported", "::first-line").admitted, false, "Unsupported pseudo is excluded");
+    let threw = false;
+    try {
+      utils.getMissingPseudoAnimationValuesForTesting(element, "::before", "margin", utils.FLUSH_NONE);
+    } catch (_) { threw = true; }
+    ok(threw, "Shorthand diagnostic input is rejected");
+    element.remove();
+    threw = false;
+    try {
+      utils.getMissingPseudoAnimationValuesForTesting(element, "::before", "opacity", utils.FLUSH_NONE);
+    } catch (_) { threw = true; }
+    ok(threw, "Disconnected diagnostic input is rejected");
+  });
+});
+
+add_task(async function css_generated_implicit_endpoint() {
+  await fixture(async ({ subject, track }) => {
+    const owner = subject("css-owner");
+    const animation = track(owner.getAnimations()[0]);
+    ok(animation instanceof CSSAnimation, "Real CSSAnimation source");
+    animation.pause();
+    animation.currentTime = 500;
+    const target = subject();
+    animation.effect.target = target;
+    animation.effect.pseudoElement = "::before";
+    const result = query(target, "margin-left", "CSS implicit", "::before", utils.FLUSH_NONE);
+    is(result.cssAnimations, 1, "CSS generation path reached");
+    is(result.animationValue, "55px", "CSS implicit endpoint uses target base");
+  });
+});
+
+add_task(async function held_zero_rate_and_null_timeline() {
+  await fixture(async ({ subject, held }) => {
+    const target = subject();
+    const animation = held(target, { marginLeft: ["0px", "100px"] });
+    animation.playbackRate = 0;
+    is(query(target, "margin-left", "zero rate").animationValue, "50px", "Zero rate preserves held sample");
+    animation.timeline = null;
+    animation.currentTime = 250;
+    is(query(target, "margin-left", "null timeline").animationValue, "25px", "Null timeline retains explicit hold");
+  });
+});
+
+add_task(async function pending_pause_without_flush() {
+  await fixture(async ({ subject, track }) => {
+    const target = subject();
+    const animation = track(target.animate({ marginLeft: ["37px", "37px"] }, {
+      duration: 1000000, fill: "both",
+    }));
+    await animation.ready;
+    animation.effect.pseudoElement = "::before";
+    animation.pause();
+    ok(animation.pending, "Pause is pending before query");
+    const result = query(target, "margin-left", "pending pause", "::before", utils.FLUSH_NONE);
+    is(result.wallclockPending, 1, "Null-hold non-null-start wallclock branch reached");
+    is(result.animationValue, "37px", "Pending query samples active constant segment");
+    ok(animation.pending, "Query does not complete pending pause");
+    animation.currentTime = 500;
+    animation.play();
+    ok(animation.pending, "Play is pending before query");
+    const playing = query(target, "margin-left", "pending play", "::before", utils.FLUSH_NONE);
+    is(playing.animationValue, "37px", "Pending play retains held sample");
+    ok(animation.pending, "Query does not complete pending play");
+  });
+});
+
+add_task(async function unresolved_timeline_exclusion() {
+  await fixture(async ({ subject, track }) => {
+    const owner = subject("unresolved-owner");
+    const animation = track(owner.getAnimations()[0]);
+    ok(animation instanceof CSSAnimation, "Unresolved CSSAnimation exists");
+    animation.pause();
+    animation.currentTime = 500;
+    const target = subject();
+    animation.effect.target = target;
+    animation.effect.pseudoElement = "::before";
+    const result = query(target, "margin-left", "unresolved", "::before", utils.FLUSH_NONE);
+    is(result.unresolved, 1, "Native unresolved timeline reached");
+    ok(result.admitted, "Held unresolved effect remains registered");
+    is(result.animationValue, null, "Unresolved timeline contributes no sampled value");
+  });
+});
+
+add_task(async function finite_timeline_interior_and_boundary() {
+  await fixture(async ({ root, subject, track }) => {
+    const scroller = document.createElement("div");
+    scroller.className = "scroller";
+    const contents = document.createElement("div");
+    contents.className = "contents";
+    scroller.append(contents);
+    root.append(scroller);
+    const target = subject();
+    const timeline = new ScrollTimeline({ source: scroller, axis: "block" });
+    const effect = new KeyframeEffect(target, { marginLeft: ["0px", "100px"] }, {
+      duration: "auto", fill: "both",
+    });
+    const animation = track(new Animation(effect, timeline));
+    animation.play();
+    scroller.scrollTop = 100;
+    await frames();
+    is(scroller.scrollHeight - scroller.clientHeight, 200, "Finite timeline geometry");
+    is(scroller.scrollTop, 100, "Interior scroll position");
+    is(effect.getComputedTiming().progress, 0.5, "Resolved interior progress");
+    effect.pseudoElement = "::before";
+    is(query(target, "margin-left", "finite interior", "::before", utils.FLUSH_NONE).animationValue, "50px", "Finite interior sample");
+    scroller.scrollTop = 200;
+    await frames();
+    is(effect.getComputedTiming().progress, 1, "Resolved boundary progress");
+    is(query(target, "margin-left", "finite boundary", "::before", utils.FLUSH_NONE).animationValue, "100px", "Exclusive sampling with forwards fill");
+  });
+});
+
+add_task(async function native_transition_origin_and_animation_union() {
+  await fixture(async ({ subject, held, track }) => {
+    const owner = subject("transition-owner");
+    getComputedStyle(owner).marginLeft;
+    owner.classList.add("to");
+    const transitions = owner.getAnimations().filter(a => a instanceof CSSTransition);
+    is(transitions.length, 2, "Two genuine CSS transitions created");
+    const target = subject();
+    for (const animation of transitions) {
+      track(animation);
+      animation.pause();
+      animation.currentTime = 500000;
+      animation.effect.target = target;
+      animation.effect.pseudoElement = "::before";
+    }
+    const only = query(target, "opacity", "transition-only", "::before", utils.FLUSH_NONE);
+    is(only.transitions, 2, "Retargeted effects retain native transition level");
+    is(only.animations, 0, "No animation-level effect yet");
+    is(only.animationValue, null, "Transition-only property excluded from animation map");
+    is(only.transitionValue, "0.5", "Transition-only value in transition map");
+    held(target, { marginLeft: ["10px", "30px"] }, { composite: "add" });
+    const mixed = query(target, "margin-left", "mixed levels", "::before", utils.FLUSH_NONE);
+    is(mixed.transitions, 2, "Transition levels preserved after animation addition");
+    is(mixed.animations, 1, "Animation-level effect present");
+    is(mixed.animationValue, "70px", "Transition underlying plus additive animation");
+    is(mixed.transitionValue, null, "Overlapping property suppressed at transition output");
+  });
+});
+
+add_task(async function named_range_offsets_and_changed_attachment() {
+  await fixture(async ({ root, subject, track }) => {
+    const scroller = document.createElement("div");
+    scroller.className = "scroller";
+    const provider = document.createElement("div");
+    provider.className = "view-subject";
+    scroller.append(provider);
+    root.append(scroller);
+    const target = subject();
+    const timeline = new ViewTimeline({ subject: provider, axis: "block" });
+    const effect = new KeyframeEffect(target, [
+      { offset: { rangeName: "cover", offset: CSS.percent(25) }, marginLeft: "0px" },
+      { offset: { rangeName: "cover", offset: CSS.percent(75) }, marginLeft: "100px" },
+    ], { duration: "auto", fill: "both" });
+    const animation = track(new Animation(effect, timeline));
+    animation.rangeStart = "cover 25%";
+    animation.rangeEnd = "cover 75%";
+    animation.play();
+    scroller.scrollTop = 100;
+    await frames();
+    is(effect.getComputedTiming().progress, 0.5, "Narrow attachment interior progress");
+    effect.pseudoElement = "::before";
+    is(query(target, "margin-left", "named range initial", "::before", utils.FLUSH_NONE).animationValue, "50px", "Named offsets sampled in narrow attachment");
+    animation.rangeStart = "cover 0%";
+    animation.rangeEnd = "cover 100%";
+    scroller.scrollTop = 50;
+    await frames();
+    is(effect.getComputedTiming().progress, 0.25, "Expanded attachment quarter progress");
+    is(query(target, "margin-left", "named range changed", "::before", utils.FLUSH_NONE).animationValue, "0px", "Named offsets refreshed for changed attachment");
+  });
+});
+</script>

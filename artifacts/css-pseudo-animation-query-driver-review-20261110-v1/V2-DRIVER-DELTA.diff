@@ -1,0 +1,23 @@
+--- v1/driver.cpp
++++ v2/driver.cpp
+@@ -63,8 +63,9 @@
+         if (!animation) {
+           return NS_ERROR_FAILURE;
+         }
++        const auto target = effect->GetAnimationTarget();
+         states.AppendElement(State{
+-            animation, effect, effect->GetAnimationTarget(),
++            animation, effect, OwningAnimationTarget(target.mElement, target.mPseudoRequest),
+             animation->mTimeline, animation->mTimelineRange,
+             animation->mHoldTime, animation->mStartTime,
+             animation->mPendingState, animation->mPlaybackRate,
+@@ -138,7 +139,8 @@
+   for (const State& state : states) {
+     const Animation& animation = *state.mAnimation;
+     unchanged &= animation.mEffect == state.mEffect &&
+-                 state.mEffect->GetAnimationTarget() == state.mTarget &&
++                 state.mEffect->GetAnimationTarget().mElement == state.mTarget.mElement &&
++                 state.mEffect->GetAnimationTarget().mPseudoRequest == state.mTarget.mPseudoRequest &&
+                  state.mEffect->GetAnimation() == &animation &&
+                  animation.mTimeline == state.mTimeline &&
+                  animation.mTimelineRange == state.mRange &&

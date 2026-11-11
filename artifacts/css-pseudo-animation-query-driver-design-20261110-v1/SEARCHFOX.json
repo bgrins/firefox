@@ -1,0 +1,78 @@
+[
+  {
+    "command": [
+      "searchfox-cli",
+      "--define",
+      "nsDOMWindowUtils::GetUnanimatedComputedStyle",
+      "-l",
+      "130"
+    ],
+    "returncode": 0,
+    "stdout": ">>> 3164: nsDOMWindowUtils::GetUnanimatedComputedStyle(Element* aElement,\n    3165:                                              const nsAString& aPseudoElement,\n    3166:                                              const nsAString& aProperty,\n    3167:                                              int32_t aFlushType,\n    3168:                                              nsAString& aResult) {\n    3169:   if (!aElement) {\n    3170:     return NS_ERROR_INVALID_ARG;\n    3171:   }\n    3172: \n    3173:   NS_ConvertUTF16toUTF8 prop(aProperty);\n    3174: \n    3175:   NonCustomCSSPropertyId propertyId = nsCSSProps::LookupProperty(prop);\n    3176:   if (propertyId == eCSSProperty_UNKNOWN ||\n    3177:       nsCSSProps::IsShorthand(propertyId)) {\n    3178:     return NS_ERROR_INVALID_ARG;\n    3179:   }\n    3180: \n    3181:   auto property = CSSPropertyId::FromIdOrCustomProperty(propertyId, prop);\n    3182: \n    3183:   switch (aFlushType) {\n    3184:     case FLUSH_NONE:\n    3185:       break;\n    3186:     case FLUSH_STYLE: {\n    3187:       if (Document* doc = aElement->GetComposedDoc()) {\n    3188:         doc->FlushPendingNotifications(FlushType::Style);\n    3189:       }\n    3190:       break;\n    3191:     }\n    3192:     default:\n    3193:       return NS_ERROR_INVALID_ARG;\n    3194:   }\n    3195: \n    3196:   RefPtr<PresShell> presShell = GetPresShell();\n    3197:   if (!presShell) {\n    3198:     return NS_ERROR_FAILURE;\n    3199:   }\n    3200: \n    3201:   RefPtr<Document> doc = GetDocument();\n    3202:   if (!doc) {\n    3203:     return NS_ERROR_FAILURE;\n    3204:   }\n    3205: \n    3206:   Maybe<PseudoStyleRequest> pseudo =\n    3207:       PseudoStyleRequest::Parse(aPseudoElement, doc->DefaultStyleAttrURLData());\n    3208:   if (!pseudo) {\n    3209:     return NS_ERROR_FAILURE;\n    3210:   }\n    3211:   RefPtr<const ComputedStyle> computedStyle =\n    3212:       nsComputedDOMStyle::GetUnanimatedComputedStyleNoFlush(aElement, *pseudo);\n    3213:   if (!computedStyle) {\n    3214:     return NS_ERROR_FAILURE;\n    3215:   }\n    3216: \n    3217:   RefPtr<StyleAnimationValue> value =\n    3218:       Servo_ComputedValues_ExtractAnimationValue(computedStyle, &property)\n    3219:           .Consume();\n    3220:   if (!value) {\n    3221:     return NS_ERROR_FAILURE;\n    3222:   }\n    3223:   if (!aElement->GetComposedDoc()) {\n    3224:     return NS_ERROR_FAILURE;\n    3225:   }\n    3226:   nsAutoCString result;\n    3227:   Servo_AnimationValue_Serialize(value, &property,\n    3228:                                  presShell->StyleSet()->RawData(), &result);\n    3229:   CopyUTF8toUTF16(result, aResult);\n    3230:   return NS_OK;\n    3231: }\n",
+    "stderr": "Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)\n      Run: cargo binstall searchfox-cli\n"
+  },
+  {
+    "command": [
+      "searchfox-cli",
+      "--define",
+      "ServoStyleSet::ResolveStyleLazily",
+      "-l",
+      "130"
+    ],
+    "returncode": 0,
+    "stdout": ">>> 1298: already_AddRefed<ComputedStyle> ServoStyleSet::ResolveStyleLazily(\n    1299:     const Element& aElement, const PseudoStyleRequest& aPseudoRequest,\n    1300:     StyleRuleInclusion aRuleInclusion) {\n    1301:   PreTraverseSync();\n    1302:   MOZ_ASSERT(!StylistNeedsUpdate());\n    1303: \n    1304:   AutoSetInServoTraversal guard(this);\n    1305: \n    1306:   /**\n    1307:    * NB: This is needed because we process animations and transitions on the\n    1308:    * pseudo-elements themselves, not on the parent's EagerPseudoStyles.\n    1309:    *\n    1310:    * That means that that style doesn't account for animations, and we can't do\n    1311:    * that easily from the traversal without doing wasted work.\n    1312:    *\n    1313:    * As such, we just lie here a bit, which is the entrypoint of\n    1314:    * getComputedStyle, the only API where this can be observed, to look at the\n    1315:    * style of the pseudo-element if it exists instead.\n    1316:    */\n    1317:   const Element* elementForStyleResolution = &aElement;\n    1318:   PseudoStyleType pseudoTypeForStyleResolution = aPseudoRequest.mType;\n    1319:   if (auto* pseudo = aElement.GetPseudoElement(aPseudoRequest)) {\n    1320:     elementForStyleResolution = pseudo;\n    1321:     pseudoTypeForStyleResolution = PseudoStyleType::NotPseudo;\n    1322:   }\n    1323: \n    1324:   nsPresContext* pc = GetPresContext();\n    1325:   MOZ_ASSERT(pc, \"For now, no style resolution without a pres context\");\n    1326:   auto* restyleManager = pc->RestyleManager();\n    1327:   const bool canUseCache = aRuleInclusion == StyleRuleInclusion::All &&\n    1328:                            aElement.OwnerDoc() == mDocument &&\n    1329:                            pc->PresShell()->DidInitialize();\n    1330:   return Servo_ResolveStyleLazily(\n    1331:              elementForStyleResolution, pseudoTypeForStyleResolution,\n    1332:              aPseudoRequest.mIdentifier.get(), aRuleInclusion,\n    1333:              &restyleManager->Snapshots(),\n    1334:              restyleManager->GetUndisplayedRestyleGeneration(), canUseCache,\n    1335:              mRawData.get())\n    1336:       .Consume();\n    1337: }\n",
+    "stderr": "Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)\n      Run: cargo binstall searchfox-cli\n"
+  },
+  {
+    "command": [
+      "searchfox-cli",
+      "--define",
+      "KeyframeEffect::UpdateTarget",
+      "-l",
+      "170"
+    ],
+    "returncode": 0,
+    "stdout": ">>>  926: void KeyframeEffect::UpdateTarget(Element* aElement,\n     927:                                   const PseudoStyleRequest& aPseudoRequest) {\n     928:   OwningAnimationTarget newTarget(aElement, aPseudoRequest);\n     929: \n     930:   if (mTarget == newTarget) {\n     931:     // Assign the same target, skip it.\n     932:     return;\n     933:   }\n     934: \n     935:   if (mTarget) {\n     936:     // Call ResetIsRunningOnCompositor() prior to UnregisterTarget() since\n     937:     // ResetIsRunningOnCompositor() might try to get the EffectSet associated\n     938:     // with this keyframe effect to remove partial pre-render animation from\n     939:     // the layer manager.\n     940:     ResetIsRunningOnCompositor();\n     941:     UnregisterTarget();\n     942: \n     943:     RequestRestyle(EffectCompositor::RestyleType::Layer);\n     944: \n     945:     nsAutoAnimationMutationBatch mb(mTarget.mElement->OwnerDoc());\n     946:     if (mAnimation) {\n     947:       MutationObservers::NotifyAnimationRemoved(mAnimation);\n     948:     }\n     949:   }\n     950: \n     951:   mTarget = std::move(newTarget);\n     952: \n     953:   if (mTarget) {\n     954:     UpdateTargetRegistration();\n     955:     RefPtr<const ComputedStyle> computedStyle =\n     956:         GetTargetComputedStyle(Flush::None);\n     957:     if (computedStyle) {\n     958:       UpdateProperties(computedStyle);\n     959:     }\n     960: \n     961:     RequestRestyle(EffectCompositor::RestyleType::Layer);\n     962: \n     963:     nsAutoAnimationMutationBatch mb(mTarget.mElement->OwnerDoc());\n     964:     if (mAnimation) {\n     965:       MutationObservers::NotifyAnimationAdded(mAnimation);\n     966:     }\n     967:   }\n     968: \n     969:   if (mAnimation) {\n     970:     mAnimation->NotifyEffectTargetUpdated();\n     971:   }\n     972: }\n",
+    "stderr": "Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)\n      Run: cargo binstall searchfox-cli\n"
+  },
+  {
+    "command": [
+      "searchfox-cli",
+      "--define",
+      "Animation::NotifyEffectTargetUpdated",
+      "-l",
+      "65"
+    ],
+    "returncode": 0,
+    "stdout": ">>> 1778: void Animation::NotifyEffectTargetUpdated() {\n    1779:   MOZ_ASSERT(mEffect,\n    1780:              \"We should only update the effect target when we have a target \"\n    1781:              \"effect\");\n    1782: \n    1783:   MaybeScheduleReplacementCheck();\n    1784: }\n",
+    "stderr": "Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)\n      Run: cargo binstall searchfox-cli\n"
+  },
+  {
+    "command": [
+      "searchfox-cli",
+      "--path",
+      "dom/animation/CSSTransition.h",
+      "-q",
+      "CascadeLevel",
+      "-l",
+      "15"
+    ],
+    "returncode": 0,
+    "stdout": "dom/animation/CSSTransition.h:70:     // However, once we clear the owning element, CascadeLevel() will begin\ndom/animation/CSSTransition.h:71:     // returning CascadeLevel::Animations.\ndom/animation/CSSTransition.h:87:   EffectCompositor::CascadeLevel CascadeLevel() const override {\ndom/animation/CSSTransition.h:88:     return IsTiedToMarkup() ? EffectCompositor::CascadeLevel::Transitions\ndom/animation/CSSTransition.h:89:                             : EffectCompositor::CascadeLevel::Animations;\nTotal matches: 5\n",
+    "stderr": "Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)\n      Run: cargo binstall searchfox-cli\n"
+  },
+  {
+    "command": [
+      "searchfox-cli",
+      "--path",
+      "servo/components/style/style_resolver.rs",
+      "-q",
+      "fn match_pseudo",
+      "-l",
+      "20"
+    ],
+    "returncode": 0,
+    "stdout": "servo/components/style/style_resolver.rs:553:     fn match_pseudo(\nTotal matches: 1\n",
+    "stderr": "Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)\n      Run: cargo binstall searchfox-cli\n"
+  }
+]
