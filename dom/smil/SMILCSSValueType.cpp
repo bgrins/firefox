@@ -251,9 +251,11 @@ static bool AddOrAccumulate(SMILValue& aDest, const SMILValue& aValueToAdd,
 
     RefPtr<StyleAnimationValue> result;
     if (aCompositeOp == CompositeOperation::Add) {
-      result = Servo_AnimationValues_Add(*destValue, *valueToAdd).Consume();
+      result =
+          Servo_AnimationValues_AddForSMIL(*destValue, *valueToAdd).Consume();
     } else {
-      result = Servo_AnimationValues_Accumulate(*destValue, *valueToAdd, aCount)
+      result = Servo_AnimationValues_AccumulateForSMIL(*destValue, *valueToAdd,
+                                                       aCount)
                    .Consume();
     }
 

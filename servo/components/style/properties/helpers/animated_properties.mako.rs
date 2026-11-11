@@ -730,25 +730,11 @@ impl ToAnimatedZero for ContentVisibility {
 impl Animate for ClipRect {
     #[inline]
     fn animate(&self, other: &Self, procedure: Procedure) -> Result<Self, ()> {
-        use crate::values::computed::LengthOrAuto;
-        let animate_component = |this: &LengthOrAuto, other: &LengthOrAuto| {
-            let result = this.animate(other, procedure)?;
-            if let Procedure::Interpolate { .. } = procedure {
-                return Ok(result);
-            }
-            if result.is_auto() {
-                // FIXME(emilio): Why? A couple SMIL tests fail without this,
-                // but it seems extremely fishy.
-                return Err(());
-            }
-            Ok(result)
-        };
-
         Ok(ClipRect {
-            top: animate_component(&self.top, &other.top)?,
-            right: animate_component(&self.right, &other.right)?,
-            bottom: animate_component(&self.bottom, &other.bottom)?,
-            left: animate_component(&self.left, &other.left)?,
+            top: self.top.animate(&other.top, procedure)?,
+            right: self.right.animate(&other.right, procedure)?,
+            bottom: self.bottom.animate(&other.bottom, procedure)?,
+            left: self.left.animate(&other.left, procedure)?,
         })
     }
 }

@@ -499,29 +499,42 @@ pub extern "C" fn Servo_AnimationValues_IsInterpolable(
     from.interpolable_with(to)
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn Servo_AnimationValues_Add(
+fn animate_for_smil(
     a: &AnimationValue,
     b: &AnimationValue,
+    procedure: Procedure,
 ) -> Strong<AnimationValue> {
-    if let Ok(value) = a.animate(b, Procedure::Add) {
-        Arc::new(value).into()
-    } else {
-        Strong::null()
+    let Ok(value) = a.animate(b, procedure) else {
+        return Strong::null();
+    };
+    // Preserve SMIL's rejection of additive clip rectangles containing auto.
+    if let AnimationValue::Clip(computed::ClipRectOrAuto::Rect(rect)) = &value {
+        if rect.top.is_auto()
+            || rect.right.is_auto()
+            || rect.bottom.is_auto()
+            || rect.left.is_auto()
+        {
+            return Strong::null();
+        }
     }
+    Arc::new(value).into()
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn Servo_AnimationValues_Accumulate(
+pub extern "C" fn Servo_AnimationValues_AddForSMIL(
+    a: &AnimationValue,
+    b: &AnimationValue,
+) -> Strong<AnimationValue> {
+    animate_for_smil(a, b, Procedure::Add)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn Servo_AnimationValues_AccumulateForSMIL(
     a: &AnimationValue,
     b: &AnimationValue,
     count: u64,
 ) -> Strong<AnimationValue> {
-    if let Ok(value) = a.animate(b, Procedure::Accumulate { count }) {
-        Arc::new(value).into()
-    } else {
-        Strong::null()
-    }
+    animate_for_smil(a, b, Procedure::Accumulate { count })
 }
 
 #[unsafe(no_mangle)]
