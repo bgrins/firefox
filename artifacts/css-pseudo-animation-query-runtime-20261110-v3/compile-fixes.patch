@@ -1,0 +1,48 @@
+--- a/dom/base/nsDOMWindowUtils.cpp
++++ b/dom/base/nsDOMWindowUtils.cpp
+@@ -3183,14 +3183,14 @@
+   }
+ 
+   struct State {
+-    RefPtr<Animation> mAnimation;
++    RefPtr<mozilla::dom::Animation> mAnimation;
+     RefPtr<KeyframeEffect> mEffect;
+     OwningAnimationTarget mTarget;
+     RefPtr<AnimationTimeline> mTimeline;
+     AnimationRange mRange;
+     Nullable<TimeDuration> mHold;
+     Nullable<TimeDuration> mStart;
+-    Animation::PendingState mPending;
++    mozilla::dom::Animation::PendingState mPending;
+     double mRate;
+     Maybe<double> mPendingRate;
+     TimeStamp mReady;
+@@ -3207,7 +3207,7 @@
+     EffectSet* effects = EffectSet::Get(element, *pseudo);
+     if (effects) {
+       for (KeyframeEffect* effect : *effects) {
+-        RefPtr<Animation> animation = effect->GetAnimation();
++        RefPtr<mozilla::dom::Animation> animation = effect->GetAnimation();
+         if (!animation) {
+           return NS_ERROR_FAILURE;
+         }
+@@ -3288,7 +3288,7 @@
+       target, rawStyle, rawStyle, animationValues, transitionValues);
+   unchanged &= sameEffects();
+   for (const State& state : states) {
+-    const Animation& animation = *state.mAnimation;
++    const mozilla::dom::Animation& animation = *state.mAnimation;
+     unchanged &= animation.mEffect == state.mEffect &&
+                  state.mEffect->GetAnimationTarget().mElement ==
+                      state.mTarget.mElement &&
+--- a/dom/animation/Animation.cpp
++++ b/dom/animation/Animation.cpp
+@@ -1763,7 +1763,7 @@
+   // immediately before updating the style rule and then restore it immediately
+   // afterwards. This is purely to prevent visual flicker. Other behavior
+   // such as dispatching events continues to rely on the regular timeline time.
+-  const bool pending = Pending();
++  [[maybe_unused]] const bool pending = Pending();
+   {
+     AutoRestore<Nullable<TimeDuration>> restoreHoldTime(mHoldTime);
+     mHoldTime = GetHoldTimeForComposition();
