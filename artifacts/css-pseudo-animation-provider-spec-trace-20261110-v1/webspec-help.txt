@@ -1,0 +1,32 @@
+webspec-index: Query WHATWG/W3C/TC39 web specifications
+query <SPEC#anchor|URL> [--involving VAR|--feeding STEP[:VAR]|--steps PATH] [--depth N] [--links short(default)|full|none] [--no-notes] [--effects auto|cached|off] [--rules PATH] [--environment NAME] [--pr N] [--diff] [--format json|markdown]
+search <Q> [-s SPEC] [-l N(20)] [--pr N (requires -s)] [--format json|markdown]
+exists <SPEC#anchor|URL> [--pr N] exit:0=found,1=not
+anchors <GLOB> [-s SPEC] [-l N(50)] [--pr N (requires -s)]
+list <SPEC> [--pr N]
+refs <SPEC#anchor|TARGET> [-d incoming|outgoing|both(default)] [-l N(10)] [--pr N] [--kind step|note|idl|prose]
+trace <FROM> <TO> [--max-depth N(6)] [--kind step(default)|note|idl|prose|any] [-l N(20)] [-d verbose(default)|edges|compact] [--format json|markdown]
+effects [<SPEC#anchor|URL> | --all] [--step N.N|--step-id ID|--body-id ID] [--compact|--summary-only] [--kind KIND] [--category CATEGORY] [--rule ID] [--effect-id ID] [--occurrence-id ID] [--rules PATH] [--environment NAME]
+update [-s SPEC] [-f force] [--refetch] [--providers a,b] [--effects auto|off] [--rules PATH] [--environment NAME]
+reparse [-s SPEC] [--providers a,b] — re-parse from on-disk HTML cache, no network
+clear-db [-y skip confirm]
+clear-pr [--all | -s SPEC [--pr N]] — list or remove cached PR data
+export-web --out DIR [--providers a,b] [--specs HTML,DOM] [--chunk-size N] [--max-size N] — write chunked read-only DB for the web UI
+specs — list indexed/discovered spec names+URLs
+lsp [--rules PATH] [--environment NAME] — start LSP server on stdio
+graph <SPEC#anchor|URL> [-d incoming|outgoing|both(default outgoing)] [--max-depth N(2)] [--max-nodes N(150)] [--include PATTERN --exclude PATTERN --same-spec-only] [--graph-format json|markdown|mermaid|dot]
+flow <SPEC#anchor|URL> [--flow-format json|mermaid]
+idl <Q|SPEC#anchor|URL> [-s SPEC] [-l N(20)] [--pr N] [--format json|markdown]
+state <SELECTOR> | --coverage SPEC [--no-inits] [--unclassified] [--calls] [--callers] [--opaque] [-l N] [--rules PATH] [--format json|markdown]
+SPEC#anchor examples: HTML#navigate, DOM#concept-tree, CSS-GRID#grid-container
+Full URL also works: https://html.spec.whatwg.org/#navigate
+--pr N: query against a PR preview (WHATWG specs or TC39 proposals); --diff: show diff vs merge base (requires --pr; #anchor optional with --diff)
+Ex: query HTML#navigate|search "tree order" -s DOM|anchors "*-tree" -s DOM
+Ex: query HTML#navigate --involving historyHandling|query HTML#navigate --feeding 24.9.1|query HTML#navigate --depth 1
+Ex: refs HTML#navigate -d incoming|refs Window.navigation|graph HTML#navigate --graph-format mermaid
+Ex: trace HTML#dom-location-assign HTML#event-navigateerror --format markdown|trace A B -d compact
+Ex: idl Window.navigation|idl Window.open()|idl HTML#dom-window-navigation
+Ex: state HTML#is-initial-about:blank|state "Element.node document"|state Document|state HTML#navigate --calls
+Ex: query HTML#navigate --pr 1234|query HTML --pr 1234 --diff|query proposal-defer-import-eval --pr 85 --diff
+Note: A newer version of webspec-index is available (current: 0.14.0, latest: 0.15.0)
+      Run: cargo binstall webspec-index

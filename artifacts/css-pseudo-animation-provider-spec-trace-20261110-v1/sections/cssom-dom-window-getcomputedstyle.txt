@@ -1,0 +1,122 @@
+ 7.2. Extensions to the Window Interface 
+ partial interface Window {
+ [ NewObject ] CSSStyleProperties getComputedStyle ( Element elt , optional CSSOMString ? pseudoElt );
+};
+ 
+ The getComputedStyle( elt , pseudoElt ) method must run these
+steps: 
+ 
+ Let doc be elt ’s node document .
+ 
+ Let obj be elt .
+ 
+ 
+ If pseudoElt is provided, is not the empty string, and starts with a colon, then:
+ 
+ 
+ Parse pseudoElt as a <pseudo-element-selector> , and let type be the result.
+ 
+ If type is failure, or is a ::slotted() or ::part() pseudo-element, let obj be null.
+ 
+ Otherwise let obj be the given pseudo-element of elt .
+ 
+ 
+ Note: CSS2 pseudo-elements should match both the double and single-colon
+ versions. That is, both :before and ::before should
+ match above. 
+ Let decls be an empty list of CSS declarations .
+ 
+ 
+ If obj is not null, and elt is connected ,
+ part of the flat tree ,
+ and its shadow-including root has a browsing context which either
+ doesn’t have a browsing context container , or whose
+ browsing context container is being rendered ,
+ set decls to a list of all longhand properties that are
+ supported CSS properties , in lexicographical order,
+ with the value being the resolved value computed for obj 
+ using the style rules associated with doc . Additionally, append to
+ decls all the custom properties whose computed value 
+ for obj is not the guaranteed-invalid value .
+
+
+ There are UAs that handle shorthands, and all UAs handle shorthands
+ that used to be longhands like overflow , see
+ #2529 . 
+ Order of custom properties is currently undefined, see
+ #4947 . 
+ 
+ 
+ Return a live CSSStyleProperties object with the following properties:
+ 
+ 
+ computed flag 
+ 
+ Set.
+ 
+ readonly flag 
+ 
+ Set.
+ 
+ declarations 
+ 
+ decls .
+ 
+ parent CSS rule 
+ 
+ Null.
+ 
+ owner node 
+ 
+ obj .
+ 
+ 
+ 
+ 
+ The getComputedStyle() method exposes information from CSS style
+sheets with the origin-clean flag unset.
+
+
+ 
+ Tests 
+ 
+ getComputedStyle-animations-replaced-into-ib-split.html (live test) (source) 
+ getComputedStyle-detached-subtree.html (live test) (source) 
+ getComputedStyle-display-none-001.html (live test) (source) 
+ getComputedStyle-display-none-002.html (live test) (source) 
+ getComputedStyle-display-none-003.html (live test) (source) 
+ getComputedStyle-dynamic-subdoc.html (live test) (source) 
+ getComputedStyle-getter-v-properties.tentative.html (live test) (source) 
+ getComputedStyle-insets-absolute-crash.html (live test) (source) 
+ getComputedStyle-insets-absolute-logical-crash.html (live test) (source) 
+ getComputedStyle-insets-absolute-roundtrip.html (live test) (source) 
+ getComputedStyle-insets-absolute.html (live test) (source) 
+ getComputedStyle-insets-fixed.html (live test) (source) 
+ getComputedStyle-insets-grid.html (live test) (source) 
+ getComputedStyle-insets-multicol-absolute-crash.html (live test) (source) 
+ getComputedStyle-insets-nobox.html (live test) (source) 
+ getComputedStyle-insets-relative.html (live test) (source) 
+ getComputedStyle-insets-relpos-inline.html (live test) (source) 
+ getComputedStyle-insets-static.html (live test) (source) 
+ getComputedStyle-insets-sticky-container-for-abspos.html (live test) (source) 
+ getComputedStyle-insets-sticky.html (live test) (source) 
+ getComputedStyle-layout-dependent-removed-ib-sibling.html (live test) (source) 
+ getComputedStyle-layout-dependent-replaced-into-ib-split.html (live test) (source) 
+ getComputedStyle-line-height.html (live test) (source) 
+ getComputedStyle-logical-enumeration.html (live test) (source) 
+ getComputedStyle-margins-roundtrip.html (live test) (source) 
+ getComputedStyle-property-order.html (live test) (source) 
+ getComputedStyle-pseudo-checkmark.html (live test) (source) 
+ getComputedStyle-pseudo-picker-icon.html (live test) (source) 
+ getComputedStyle-pseudo-with-argument.html (live test) (source) 
+ getComputedStyle-pseudo.html (live test) (source) 
+ getComputedStyle-resolved-colors.html (live test) (source) 
+ getComputedStyle-resolved-min-max-clamping.html (live test) (source) 
+ getComputedStyle-resolved-min-size-auto.html (live test) (source) 
+ getComputedStyle-special-chars-crash.html (live test) (source) 
+ getComputedStyle-sticky-pos-percent.html (live test) (source) 
+ getComputedStyle-width-scroll.tentative.html (live test) (source) 
+ 
+ 
+ 
+ 

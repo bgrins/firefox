@@ -1,0 +1,105 @@
+  5.2.   Animating properties    
+    Unless otherwise specified, all CSS properties are
+   animatable .
+  How property values combine is defined by
+  the  Animation type  line
+  in each property’s property definition table: 
+    
+      not animatable 
+     
+      The property is not animatable.
+  It is not processed when listed in an animation keyframe,
+  and is not affected by transitions. 
+       Note:  Properties are typically excluded from animation
+  because animating them would create excessive complications.
+  For example, properties defining animation parameters
+  are  not animatable 
+  since doing so would create complex recursive behavior. 
+       Note:  An  animation effect  that targets
+  only properties that are  not animatable 
+  will still exhibit the usual behavior for an  animation effect 
+  such as firing events and delaying the fulfillment
+  of the  animation ’s  current finished promise . 
+      discrete 
+     
+      The property’s values cannot be meaningfully combined,
+  thus it is  not additive .
+   Interpolation  swaps
+  from  V a   to  V b  
+  at 50% ( p=0.5 ),
+  i.e. 
+      
+     
+        V  result   = 
+       
+         
+           
+             
+               
+                  V  start  
+               
+               
+                 if   p 
+                 <  0.5 
+               
+             
+             
+               
+                  V  end  
+               
+               
+                 if   p 
+                 ≥  0.5 
+               
+             
+           
+         
+       
+     
+   
+      by computed value 
+     
+      Corresponding individual components of the  computed values 
+  are combined (interpolated, added, or accumulated)
+  using the indicated procedure for that value type
+  (see   CSS Values 4  § 3 Combining Values: Interpolation, Addition, and Accumulation ).
+  If the number of components or the types of corresponding components
+  do not match,
+  or if any component value uses  discrete  animation
+  and the two corresponding values do not match,
+  then the property values combine as  discrete . 
+      repeatable list 
+
+     
+     
+  Same as  by computed value 
+  except that if the two lists have differing numbers of items,
+  they are first repeated to the least common multiple number of items.
+  Each item is then combined  by computed value .
+  If a pair of values cannot be combined
+  or if any component value uses  discrete  animation,
+  then the property values combine as  discrete .
+
+
+       Note:  The repeatable list concept ensures that
+  a list that is conceptually repeated to a certain length
+  (as  background-origin  is repeated to the length of
+  the  background-image  list)
+  or repeated infinitely
+  will smoothly transition between any values,
+  and so that the computed value
+  will properly represent the result
+  (and potentially be inherited correctly). 
+     (See prose)
+
+     
+  Some properties have specific interpolation behavior
+  not covered by the above cases;
+  in this case the animation behavior will be specified explicitly
+  for that property.
+
+    
+    The  animation type  of properties that do not yet include
+  an  Animation type  line in their property definition,
+  is defined in  Appendix A: Animation types of existing properties . 
+   

@@ -1,0 +1,105 @@
+<h3 class="heading settled" data-level="5.2" id="animating-properties"><span class="secno">5.2. </span><span class="content">Animating properties</span><a class="self-link" href="#animating-properties"></a></h3>
+   <p>Unless otherwise specified, all CSS properties are
+  <dfn class="dfn-paneled" data-dfn-type="dfn" data-noexport id="concept-animatable">animatable</dfn>.
+  How property values combine is defined by
+  the <dfn class="dfn-paneled" data-dfn-type="dfn" data-export id="animation-type">Animation type</dfn> line
+  in each property’s property definition table:</p>
+   <dl>
+    <dt data-md><dfn class="dfn-paneled" data-dfn-type="dfn" data-export id="not-animatable">not animatable</dfn>
+    <dd data-md>
+     <p>The property is not animatable.
+  It is not processed when listed in an animation keyframe,
+  and is not affected by transitions.</p>
+     <p class="note" role="note"><span class="marker">Note:</span> Properties are typically excluded from animation
+  because animating them would create excessive complications.
+  For example, properties defining animation parameters
+  are <a data-link-type="dfn" href="#not-animatable" id="ref-for-not-animatable">not animatable</a>
+  since doing so would create complex recursive behavior.</p>
+     <p class="note" role="note"><span class="marker">Note:</span> An <a data-link-type="dfn" href="#animation-effect" id="ref-for-animation-effect⑥⑨">animation effect</a> that targets
+  only properties that are <a data-link-type="dfn" href="#not-animatable" id="ref-for-not-animatable①">not animatable</a>
+  will still exhibit the usual behavior for an <span id="ref-for-animation-effect⑦⓪">animation effect</span>
+  such as firing events and delaying the fulfillment
+  of the <a data-link-type="dfn" href="#concept-animation" id="ref-for-concept-animation④⑧">animation</a>’s <a data-link-type="dfn" href="#current-finished-promise" id="ref-for-current-finished-promise①①">current finished promise</a>.</p>
+    <dt data-md><dfn class="dfn-paneled" data-dfn-type="dfn" data-export id="discrete">discrete</dfn>
+    <dd data-md>
+     <p>The property’s values cannot be meaningfully combined,
+  thus it is <a data-link-type="dfn" href="https://drafts.csswg.org/css-values-4/#not-additive" id="ref-for-not-additive">not additive</a>.
+  <a data-link-type="dfn" href="https://drafts.csswg.org/css-values-4/#interpolation" id="ref-for-interpolation">Interpolation</a> swaps
+  from <var>V<sub>a</sub></var> to <var>V<sub>b</sub></var>
+  at 50% (<var>p=0.5</var>),
+  i.e.</p>
+     <div class="formula" role="math">
+    <math xmlns="http://www.w3.org/1998/Math/MathML">
+      <msub><mi>V</mi><mn>result</mn></msub><mo>=</mo>
+      <mrow>
+        <mfenced close open="{">
+          <mtable>
+            <mtr>
+              <mtd columnalign="left">
+                <msub><mi>V</mi><mn>start</mn></msub>
+              </mtd>
+              <mtd columnalign="left">
+                <mtext>if </mtext><mi>p</mi>
+                <mo>&lt;</mo><mn>0.5</mn>
+              </mtd>
+            </mtr>
+            <mtr>
+              <mtd columnalign="left">
+                <msub><mi>V</mi><mn>end</mn></msub>
+              </mtd>
+              <mtd columnalign="left">
+                <mtext>if </mtext><mi>p</mi>
+                <mo>≥</mo><mn>0.5</mn>
+              </mtd>
+            </mtr>
+          </mtable>
+        </mfenced>
+      </mrow>
+    </math>
+  </div>
+    <dt data-md><dfn class="dfn-paneled" data-dfn-type="dfn" data-export id="by-computed-value">by computed value</dfn>
+    <dd data-md>
+     <p>Corresponding individual components of the <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#computed-value" id="ref-for-computed-value">computed values</a>
+  are combined (interpolated, added, or accumulated)
+  using the indicated procedure for that value type
+  (see <a href="https://drafts.csswg.org/css-values-4/#combining-values"><cite>CSS Values 4</cite> § 3 Combining Values: Interpolation, Addition, and Accumulation</a>).
+  If the number of components or the types of corresponding components
+  do not match,
+  or if any component value uses <a data-link-type="dfn" href="#discrete" id="ref-for-discrete">discrete</a> animation
+  and the two corresponding values do not match,
+  then the property values combine as <span id="ref-for-discrete①">discrete</span>.</p>
+    <dt><dfn class="dfn-paneled" data-dfn-type="dfn" data-export id="repeatable-list">repeatable list</dfn>
+
+    <dd>
+     
+  Same as <a data-link-type="dfn" href="#by-computed-value" id="ref-for-by-computed-value">by computed value</a>
+  except that if the two lists have differing numbers of items,
+  they are first repeated to the least common multiple number of items.
+  Each item is then combined <span id="ref-for-by-computed-value①">by computed value</span>.
+  If a pair of values cannot be combined
+  or if any component value uses <a data-link-type="dfn" href="#discrete" id="ref-for-discrete②">discrete</a> animation,
+  then the property values combine as <span id="ref-for-discrete③">discrete</span>.
+
+
+     <p class="note" role="note"><span class="marker">Note:</span> The repeatable list concept ensures that
+  a list that is conceptually repeated to a certain length
+  (as <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-backgrounds-3/#propdef-background-origin" id="ref-for-propdef-background-origin">background-origin</a> is repeated to the length of
+  the <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-backgrounds-3/#propdef-background-image" id="ref-for-propdef-background-image">background-image</a> list)
+  or repeated infinitely
+  will smoothly transition between any values,
+  and so that the computed value
+  will properly represent the result
+  (and potentially be inherited correctly).</p>
+    <dt>(See prose)
+
+    <dd>
+  Some properties have specific interpolation behavior
+  not covered by the above cases;
+  in this case the animation behavior will be specified explicitly
+  for that property.
+
+   </dl>
+   <p>The <a data-link-type="dfn" href="#animation-type" id="ref-for-animation-type①">animation type</a> of properties that do not yet include
+  an <span id="ref-for-animation-type②">Animation type</span> line in their property definition,
+  is defined in <a href="#animation-types">Appendix A: Animation types of existing properties</a>.</p>
+   

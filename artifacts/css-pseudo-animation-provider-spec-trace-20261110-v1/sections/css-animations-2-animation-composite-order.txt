@@ -1,0 +1,65 @@
+ 2.2. Animation composite order 
+ Animations generated from the markup defined in
+this specification have an animation class of ‘CSS
+Animation’. 
+ CSS Animations with an owning element have a later 
+composite order than CSS Transitions but an earlier composite order
+than animations without a specific animation class . 
+ Within the set of CSS Animations with an owning element , two
+animations A and B are sorted in composite order (first to
+last) as follows: 
+ 
+ 
+ If the owning element of A and B 
+differs, sort A and B by tree order 
+of their corresponding owning elements .
+With regard to pseudo-elements, the sort order is as follows: 
+ 
+ 
+ element 
+ 
+ ::marker 
+ 
+ ::before 
+ 
+ any other pseudo-elements not mentioned specifically in this list,
+sorted in ascending order by the Unicode codepoints that make up each selector 
+ 
+ ::after 
+ 
+ element children 
+ 
+ 
+ Otherwise, sort A and B based on their position in the
+computed value of the animation-name property of the (common) owning
+element . 
+ 
+ When determining the composite order in order
+to sort animation events 
+where either or both of the events is an animationcancel event,
+treat the CSS Animation(s) for which the animationcancel event was generated
+as having an owning element corresponding to
+the owning element in use at the moment when the CSS Animation was cancelled.
+Furthermore,
+use the position of the animation in the animation-name property
+in effect at the time when the CSS Animation was cancelled
+sorting such that positions of cancelled animations sort
+before positions of animations that have not been cancelled. 
+ The composite order of CSS Animations without an owning element 
+is based on their position in the global animation list . 
+ This differs from the behavior defined for transitions. We should
+probably sort transitions first, then animation, then use the global animation
+list. The reason being that when developer tools etc. hang on to orphaned
+animations and transitions in order to replay them, they should maintain
+roughly the same composite order. 
+ CSS Animations generated using the markup defined in this specification are
+ not added to the global animation list when they are created.
+Instead, these animations are appended to the global animation list at
+the first moment when they transition out of the idle play state
+after being disassociated from their owning element .
+CSS Animations that have been disassociated from their owning element 
+but are still idle do not have a defined composite order. 
+ Note, this behavior relies on the fact that disassociating an animation
+from its owning element always causes it to enter (or remain) in the
+ idle play state. 
+ 

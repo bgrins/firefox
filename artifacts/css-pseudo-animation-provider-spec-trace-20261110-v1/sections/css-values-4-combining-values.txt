@@ -1,0 +1,94 @@
+ 3. 
+Combining Values: Interpolation, Addition, and Accumulation 
+ Some procedures, for example
+ transitions 
+ and animations ,
+ combine two CSS property values.
+ The following combining operations—​on the two computed values V A and V B 
+ yielding the computed value V result —​are defined.
+ For operations that are not commutative
+ (for example, matrix multiplication,
+ or accumulation of mismatched transform lists)
+ V A represents
+ the first term of the operation and
+ V B represents
+ the second. 
+ 
+ interpolation 
+ 
+ 
+ 
+ Given two property values
+ V A and V B ,
+ produces an intermediate value
+ V result 
+ at a distance of p 
+ along the interval between
+ V A and V B 
+ such that p = 0 produces V A 
+ and p = 1 produces V B .
+
+
+ The range of p is (−∞, ∞)
+ due to the effect of timing functions .
+ As a result, this procedure must also define
+ extrapolation behavior for p outside [0, 1]. 
+ addition 
+ 
+ 
+ 
+ Given two property values
+ V A and V B ,
+ returns the sum of the two properties,
+ V result .
+
+
+ Note: While addition 
+ can often be expressed
+ in terms of the same weighted sum function
+ used to define interpolation ,
+ this is not always the case.
+ For example, interpolation of transform matrices involves
+ decomposing and interpolating the matrix components
+ whilst addition relies on matrix multiplication. 
+ If a value type does not define a specific procedure for addition 
+ or is defined as not additive ,
+ its addition operation is simply
+ V result = V B . 
+ accumulation 
+ 
+ 
+ 
+ Given two property values
+ V A and V B ,
+ returns the result, V result ,
+ of combining the two operands
+ such that V B 
+ is treated as a delta from V A .
+
+ 
+ 
+ 
+ Note: For many types of animation such as numbers or lengths,
+ accumulation is defined to be identical
+ to addition .
+
+
+ A common case where the definitions differ
+ is for list-based types
+ where addition may be defined as appending to a list
+ whilst accumulation may be defined
+ as component-based addition.
+ For example, the filter list values blur(2) and blur(3) ,
+ when added together would produce blur(2) blur(3) ,
+ but when accumulated would produce blur(5) . 
+ 
+ If a value type does not define a specific procedure for accumulation ,
+ its accumulation operation is identical to addition . 
+ 
+ These operations are only defined on computed values .
+ (As a result, it is not necessary to define, for example,
+ how to add a <length> value of 15pt with 5em 
+ since such values will be resolved to their canonical unit 
+ before being passed to any of the above procedures.) 
+ 

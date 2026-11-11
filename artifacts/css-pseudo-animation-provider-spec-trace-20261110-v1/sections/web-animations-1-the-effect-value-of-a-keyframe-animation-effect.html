@@ -1,0 +1,221 @@
+<h4 class="heading settled" data-level="5.3.4" id="the-effect-value-of-a-keyframe-animation-effect"><span class="secno">5.3.4. </span><span class="content">The effect value of a keyframe effect</span><a class="self-link" href="#the-effect-value-of-a-keyframe-animation-effect"></a></h4>
+   <p>The <a data-link-type="dfn" href="#effect-value" id="ref-for-effect-value③">effect value</a> of a single property referenced by a <a data-link-type="dfn" href="#keyframe-effect" id="ref-for-keyframe-effect①⓪">keyframe effect</a>
+  as one of its <a data-link-type="dfn" href="#target-property" id="ref-for-target-property④">target properties</a>,
+  for a given <var>iteration progress</var>,
+  <var>iteration index</var>
+  and <var>underlying value</var>
+  is calculated as follows.</p>
+   <ol>
+    <li data-md>
+     <p>If <var>iteration progress</var> is <a data-link-type="dfn" href="#unresolved" id="ref-for-unresolved①①①">unresolved</a>
+  abort this procedure.</p>
+    <li data-md>
+     <p>Let <var>target property</var> be the <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#longhand" id="ref-for-longhand①">longhand property</a>
+  for which the <a data-link-type="dfn" href="#effect-value" id="ref-for-effect-value④">effect value</a> is to be calculated.</p>
+    <li data-md>
+     <p>If <a data-link-type="dfn" href="#animation-type" id="ref-for-animation-type⑤">animation type</a> of the <var>target property</var> is <a data-link-type="dfn" href="#not-animatable" id="ref-for-not-animatable②">not animatable</a>
+  abort this procedure since the effect cannot be applied.</p>
+    <li data-md>
+     <p>If the  <a data-link-type="dfn" href="#keyframe-effect" id="ref-for-keyframe-effect①①">keyframe effect</a> does not have an <a data-link-type="dfn" href="#keyframe-effect-effect-target" id="ref-for-keyframe-effect-effect-target⑧">effect target</a>,
+  or if the <span id="ref-for-keyframe-effect-effect-target⑨">effect target</span> cannot have computed property values calculated,
+  abort this procedure.</p>
+    <li data-md>
+     <p>Let <var>property-specific keyframes</var> be
+  the result of getting the set of <a data-link-type="dfn" href="#computed-keyframes" id="ref-for-computed-keyframes①">computed keyframes</a>
+  for this <a data-link-type="dfn" href="#keyframe-effect" id="ref-for-keyframe-effect①②">keyframe effect</a>.</p>
+    <li data-md>
+     <p>Remove any <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe②③">keyframes</a> from <var>property-specific keyframes</var>
+  that do not have a property value for <var>target property</var>.</p>
+    <li data-md>
+     <p>If <var>property-specific keyframes</var> is empty,
+  return <var>underlying value</var>.</p>
+    <li data-md>
+     <p>If there is no <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe②④">keyframe</a> in <var>property-specific keyframes</var>
+  with a <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets①①">computed keyframe offset</a> of 0,
+  create a new <span id="ref-for-keyframe②⑤">keyframe</span>
+  with a <span id="ref-for-computed-keyframe-offsets①②">computed keyframe offset</span> of 0,
+  a property value set to <var>underlying value</var>,
+  a <a data-link-type="dfn" href="#keyframe-specific-composite-operation" id="ref-for-keyframe-specific-composite-operation①">keyframe-specific composite operation</a>
+  of <a data-link-type="dfn" href="#composite-operation-replace" id="ref-for-composite-operation-replace">replace</a>,
+  and a <a data-link-type="dfn" href="#keyframe-specific-easing-function" id="ref-for-keyframe-specific-easing-function①">keyframe-specific easing function</a>
+  of the <a data-link-type="dfn" href="https://drafts.csswg.org/css-easing-2/#linear-easing-function" id="ref-for-linear-easing-function①">linear easing function</a>,
+  and prepend it to the beginning of <var>property-specific keyframes</var>.</p>
+    <li data-md>
+     <p>Similarly, if there is no <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe②⑥">keyframe</a> in <var>property-specific keyframes</var>
+  with a <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets①③">computed keyframe offset</a> of 1,
+  create a new <span id="ref-for-keyframe②⑦">keyframe</span>
+  with a <span id="ref-for-computed-keyframe-offsets①④">computed keyframe offset</span> of 1,
+  a property value set to <var>underlying value</var>,
+  a <a data-link-type="dfn" href="#keyframe-specific-composite-operation" id="ref-for-keyframe-specific-composite-operation②">keyframe-specific composite operation</a>
+  of <a data-link-type="dfn" href="#composite-operation-replace" id="ref-for-composite-operation-replace①">replace</a>,
+  and a <a data-link-type="dfn" href="#keyframe-specific-easing-function" id="ref-for-keyframe-specific-easing-function②">keyframe-specific easing function</a>
+  of the <a data-link-type="dfn" href="https://drafts.csswg.org/css-easing-2/#linear-easing-function" id="ref-for-linear-easing-function②">linear easing function</a>,
+  and append it to the end of <var>property-specific keyframes</var>.</p>
+   </ol>
+   <div class="note" role="note">
+    <p>Other specifications may override
+    the implicit keyframe generation behavior
+    in the preceding two steps.
+    For example, the
+    <a href="https://drafts.csswg.org/scroll-animations-1/#named-range-keyframes">named timeline range keyframe selectors</a>
+    defined by Scroll Animations
+    can cause these implicit keyframes not to be generated.</p>
+    <p>A future level of this specification should
+    incorporate the overridden behavior directly into this algorithm.</p>
+   </div>
+   <ol>
+    <li data-md>
+     <p>Let <var>interval endpoints</var> be an empty sequence of keyframes.</p>
+    <li data-md>
+     <p>Populate <var>interval endpoints</var> by following the steps
+  from the first matching condition below:</p>
+     <dl class="switch">
+      <dt data-md>If <var>iteration progress</var> &lt; 0
+  and there is more than one <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe②⑧">keyframe</a>
+  in <var>property-specific keyframes</var>
+  with a <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets①⑤">computed keyframe offset</a> of 0,
+      <dd data-md>
+       <p>Add the first <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe②⑨">keyframe</a> in <var>property-specific keyframes</var>
+  to <var>interval endpoints</var>.</p>
+      <dt data-md>If <var>iteration progress</var> ≥ 1
+  and there is more than one <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe③⓪">keyframe</a>
+  in <var>property-specific keyframes</var>
+  with a <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets①⑥">computed keyframe offset</a> of 1,
+      <dd data-md>
+       <p>Add the last <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe③①">keyframe</a> in <var>property-specific keyframes</var>
+  to <var>interval endpoints</var>.</p>
+      <dt data-md>Otherwise,
+      <dd data-md>
+       <ol>
+        <li data-md>
+         <p>Append to <var>interval endpoints</var>
+  the last <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe③②">keyframe</a> in <var>property-specific keyframes</var>
+  whose <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets①⑦">computed keyframe offset</a> is
+  less than or equal to <var>iteration progress</var> and less than 1.
+  If there is no such <span id="ref-for-keyframe③③">keyframe</span>
+  (because, for example, the <a data-link-type="dfn" href="#iteration-progress" id="ref-for-iteration-progress①⑤">iteration progress</a> is negative),
+  add the last <span id="ref-for-keyframe③④">keyframe</span>
+  whose <span id="ref-for-computed-keyframe-offsets①⑧">computed keyframe offset</span> is 0.</p>
+        <li data-md>
+         <p>Append to <var>interval endpoints</var>
+  the next <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe③⑤">keyframe</a> in <var>property-specific keyframes</var>
+  after the one added in the previous step.</p>
+       </ol>
+     </dl>
+    <li data-md>
+     <p>For each <var>keyframe</var> in <var>interval endpoints</var>:</p>
+     <ol>
+      <li data-md>
+       <p>If <var>keyframe</var> has a <a data-link-type="dfn" href="#composite-operation" id="ref-for-composite-operation②">composite operation</a>
+  that is <em>not</em> <a data-link-type="dfn" href="#composite-operation-replace" id="ref-for-composite-operation-replace②">replace</a>,
+  or <var>keyframe</var> has no <span id="ref-for-composite-operation③">composite operation</span>
+  and the <span id="ref-for-composite-operation④">composite operation</span> of this <a data-link-type="dfn" href="#keyframe-effect" id="ref-for-keyframe-effect①③">keyframe effect</a>
+  is <em>not</em> <span id="ref-for-composite-operation-replace③">replace</span>,
+  then perform the following steps:</p>
+       <ol>
+        <li data-md>
+         <p>Let <var>composite operation to use</var> be
+  the <a data-link-type="dfn" href="#composite-operation" id="ref-for-composite-operation⑤">composite operation</a> of <var>keyframe</var>,
+  or if it has none,
+  the <span id="ref-for-composite-operation⑥">composite operation</span> of this <a data-link-type="dfn" href="#keyframe-effect" id="ref-for-keyframe-effect①④">keyframe effect</a>.</p>
+        <li data-md>
+         <p>Let <var>value to combine</var> be
+  the property value of <var>target property</var> specified on <var>keyframe</var>.</p>
+        <li data-md>
+         <p>Replace the property value of <var>target property</var> on <var>keyframe</var>
+  with the result of combining
+  <var>underlying value</var> (<var>V</var><sub>a</sub>) and
+  <var>value to combine</var> (<var>V</var><sub>b</sub>)
+  using the procedure for the <var>composite operation to use</var>
+  corresponding to the <var>target property</var>’s <a data-link-type="dfn" href="#animation-type" id="ref-for-animation-type⑥">animation type</a>.</p>
+       </ol>
+     </ol>
+    <li data-md>
+     <p>If there is only one keyframe in <var>interval endpoints</var>
+  return the property value of <var>target property</var> on that keyframe.</p>
+    <li data-md>
+     <p>Let <var>start offset</var> be the <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets①⑨">computed keyframe offset</a>
+  of the first keyframe in <var>interval endpoints</var>.</p>
+    <li data-md>
+     <p>Let <var>end offset</var> be the <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets②⓪">computed keyframe offset</a>
+  of last keyframe in <var>interval endpoints</var>.</p>
+    <li data-md>
+     <p>Let <var>interval distance</var> be the result of evaluating
+  <code>(<var>iteration progress</var> − <var>start offset</var>)
+        / (<var>end offset</var> − <var>start offset</var>)</code>.</p>
+    <li data-md>
+     <p>Let <var>transformed distance</var> be the result of evaluating
+  the <a data-link-type="dfn" href="https://drafts.csswg.org/css-easing-2/#easing-function" id="ref-for-easing-function⑦">easing function</a> associated with
+  the first keyframe in <var>interval endpoints</var>
+  passing <var>interval distance</var> as the input progress.</p>
+    <li data-md>
+     <p>Return the result of applying
+  the <a data-link-type="dfn" href="https://drafts.csswg.org/css-values-4/#interpolation" id="ref-for-interpolation①">interpolation procedure</a> defined
+  by the <a data-link-type="dfn" href="#animation-type" id="ref-for-animation-type⑦">animation type</a> of the <var>target property</var>
+  to the values of the <var>target property</var>
+  specified on the two keyframes in <var>interval endpoints</var>,
+  taking the first such value as <var>V</var><sub>start</sub>
+  and the second as <var>V</var><sub>end</sub>
+  and using <var>transformed distance</var>
+  as the interpolation parameter <var>p</var>.</p>
+   </ol>
+   <details class="wpt-tests-block" dir="ltr" lang="en">
+    <summary>Tests</summary>
+    <ul class="wpt-tests-list">
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/web-animations/animation-model/keyframe-effects/effect-value-interval-distance.html" title="web-animations/animation-model/keyframe-effects/effect-value-interval-distance.html">effect-value-interval-distance.html</a> <a class="wpt-live" href="http://wpt.live/web-animations/animation-model/keyframe-effects/effect-value-interval-distance.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/web-animations/animation-model/keyframe-effects/effect-value-interval-distance.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/web-animations/animation-model/keyframe-effects/effect-value-iteration-composite-operation.html" title="web-animations/animation-model/keyframe-effects/effect-value-iteration-composite-operation.html">effect-value-iteration-composite-operation.html</a> <a class="wpt-live" href="http://wpt.live/web-animations/animation-model/keyframe-effects/effect-value-iteration-composite-operation.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/web-animations/animation-model/keyframe-effects/effect-value-iteration-composite-operation.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/web-animations/animation-model/keyframe-effects/effect-value-opacity-replaced-effect-in-shadow-root.html" title="web-animations/animation-model/keyframe-effects/effect-value-opacity-replaced-effect-in-shadow-root.html">effect-value-opacity-replaced-effect-in-shadow-root.html</a> <a class="wpt-live" href="http://wpt.live/web-animations/animation-model/keyframe-effects/effect-value-opacity-replaced-effect-in-shadow-root.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/web-animations/animation-model/keyframe-effects/effect-value-opacity-replaced-effect-in-shadow-root.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/web-animations/animation-model/keyframe-effects/effect-value-opacity-replaced-effect.html" title="web-animations/animation-model/keyframe-effects/effect-value-opacity-replaced-effect.html">effect-value-opacity-replaced-effect.html</a> <a class="wpt-live" href="http://wpt.live/web-animations/animation-model/keyframe-effects/effect-value-opacity-replaced-effect.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/web-animations/animation-model/keyframe-effects/effect-value-opacity-replaced-effect.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/web-animations/animation-model/keyframe-effects/effect-value-overlapping-keyframes.html" title="web-animations/animation-model/keyframe-effects/effect-value-overlapping-keyframes.html">effect-value-overlapping-keyframes.html</a> <a class="wpt-live" href="http://wpt.live/web-animations/animation-model/keyframe-effects/effect-value-overlapping-keyframes.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/web-animations/animation-model/keyframe-effects/effect-value-overlapping-keyframes.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/web-animations/animation-model/keyframe-effects/effect-value-replaced-animations.html" title="web-animations/animation-model/keyframe-effects/effect-value-replaced-animations.html">effect-value-replaced-animations.html</a> <a class="wpt-live" href="http://wpt.live/web-animations/animation-model/keyframe-effects/effect-value-replaced-animations.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/web-animations/animation-model/keyframe-effects/effect-value-replaced-animations.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/web-animations/animation-model/keyframe-effects/effect-value-transformed-distance.html" title="web-animations/animation-model/keyframe-effects/effect-value-transformed-distance.html">effect-value-transformed-distance.html</a> <a class="wpt-live" href="http://wpt.live/web-animations/animation-model/keyframe-effects/effect-value-transformed-distance.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/web-animations/animation-model/keyframe-effects/effect-value-transformed-distance.html"><small>(source)</small></a>
+    </ul>
+   </details>
+   <div class="note" role="note">
+    <p>Note that this procedure assumes the following
+    about the list of <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe③⑥">keyframes</a> specified on the effect:</p>
+    <ul>
+     <li data-md>
+      <p>Each <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe③⑦">keyframe</a> has a specified <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets②①">computed keyframe offset</a>
+in the range [0, 1].</p>
+     <li data-md>
+      <p>The list of <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe③⑧">keyframes</a> is sorted in ascending order
+by <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets②②">computed keyframe offset</a>.</p>
+     <li data-md>
+      <p>For a given property,
+there is at most one specified property value on each keyframe.</p>
+    </ul>
+    <p>It is the responsibility of the user of the model
+    (for example, a declarative markup or programming interface)
+    to ensure these conditions are met.</p>
+    <p>For example, for the <a href="#programming-interface">programming interface</a>
+    defined by this specification,
+    these conditions are met by
+    the procedure to produce the <a data-link-type="dfn" href="#computed-keyframes" id="ref-for-computed-keyframes②">computed keyframes</a>
+    that become the input to this procedure.</p>
+   </div>
+   <p class="note" role="note"><span class="marker">Note:</span> this procedure permits overlapping <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe③⑨">keyframes</a>.
+  The behavior is that
+  at the point of overlap the output value jumps
+  to the value of the last defined <span id="ref-for-keyframe④⓪">keyframe</span> at that offset.
+  For overlapping keyframes at 0 or 1,
+  the output value for <a data-link-type="dfn" href="#iteration-progress" id="ref-for-iteration-progress①⑥">iteration progress</a> values
+  less than 0 or greater than or equal to 1
+  is the value of
+  the first <span id="ref-for-keyframe④①">keyframe</span> or the last <span id="ref-for-keyframe④②">keyframe</span> in <var>keyframes</var> respectively.</p>
+   <div class="note" role="note">
+    
+    Note that <a data-link-type="dfn" href="#computed-keyframes" id="ref-for-computed-keyframes③">computed keyframes</a> are “live”:
+    user-agents behave as if they are recreated
+    every time the <a data-link-type="dfn" href="#effect-value" id="ref-for-effect-value⑤">effect value</a> is calculated.
+
+
+    <p>For example, if there is an ongoing transition
+    on the <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-fonts-4/#propdef-font-size" id="ref-for-propdef-font-size③">font-size</a> property from <code>10px</code> to <code>20px</code>,
+    a property value specified as <code>1em</code> in a <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe④③">keyframe</a>
+    would during <a href="#calculating-computed-keyframes">keyframe computation</a>
+    resolve against the <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#computed-value" id="ref-for-computed-value⑥">computed value</a>
+    in the range [<code>10px</code>, <code>20px</code>]
+    produced by the transition on <span class="property" id="ref-for-propdef-font-size④">font-size</span>.</p>
+   </div>
+   

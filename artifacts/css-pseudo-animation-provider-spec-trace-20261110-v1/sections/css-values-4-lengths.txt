@@ -1,0 +1,74 @@
+ 6. 
+Distance Units: the <length> type 
+ Lengths refer to distance measurements
+ and are denoted by <length> in the property definitions.
+ A length is a dimension . 
+ For zero lengths the unit identifier is optional
+ (i.e. can be syntactically represented as the <number> 0 ).
+ However, if a 0 could be parsed as either a <number> or a <length> in a property
+ (such as line-height ),
+ it must parse as a <number> . 
+ Properties may restrict the length value to some range.
+ If the value is outside the allowed range,
+ the declaration is invalid and must be ignored . 
+ 
+ Tests 
+ 
+ min-width-001.xht (live test) (source) 
+ numbers-units-005.xht (live test) (source) 
+ numbers-units-006.xht (live test) (source) 
+ 
+ 
+ While some properties allow negative length values,
+ this may complicate the formatting and there may be implementation-specific limits.
+ If a negative length value is allowed but cannot be supported,
+ it must be converted to the nearest value that can be supported. 
+ In cases where the used length cannot be supported,
+ user agents must approximate it in the actual value. 
+ There are two types of length units:
+ relative and absolute .
+ The specified value of a length ( specified length ) is
+ represented by its quantity and its unit.
+ The computed value of a length ( computed length ) is
+ the specified length resolved to an absolute length ,
+ and its unit is not distinguished:
+ it can be represented by any absolute length unit 
+ (but will be serialized using its canonical unit , px ). 
+ 
+ Tests 
+ 
+ calc-unit-analysis.html (live test) (source) 
+ shape-outside-circle-002.html (live test) (source) 
+ shape-outside-circle-004.html (live test) (source) 
+ shape-outside-ellipse-002.html (live test) (source) 
+ shape-outside-ellipse-004.html (live test) (source) 
+ shape-outside-inset-003.html (live test) (source) 
+ shape-outside-polygon-004.html (live test) (source) 
+ 
+ 
+ While the exact supported precision of numeric values,
+ and how they are rounded to match that precision,
+ is generally implementation-defined ,
+ <length> s in border-width and a few other properties
+ are rounded in a specific fashion
+ to ensure reasonable visual display.
+ (This algorithm is called by individual properties explicitly.) 
+ 
+ 
+ To snap a length as a line width 
+ given a <length> len :
+
+
+ 
+ 
+ If len is an integer number of device pixels ,
+do nothing. 
+ 
+ If the absolute value of len is greater than zero, but less than 1 device pixel ,
+round it away from zero to 1 or -1 device pixel . 
+ 
+ If the absolute value of len is greater than 1 device pixel ,
+round it towards zero to the nearest integer number of device pixels . 
+ 
+ 
+ 

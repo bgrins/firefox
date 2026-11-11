@@ -1,0 +1,38 @@
+<h4 class="heading settled" data-level="5.3.2" id="computing-property-values"><span class="secno">5.3.2. </span><span class="content">Computing property values</span><a class="self-link" href="#computing-property-values"></a></h4>
+   <div class="algorithm" data-algorithm="compute a property value">
+    
+    To <dfn class="dfn-paneled" data-dfn-type="dfn" data-noexport id="compute-a-property-value">compute a property value</dfn> given a property <var>property</var>,
+    a value <var>value</var>,
+    and an <code class="idl"><a data-link-type="idl" href="https://dom.spec.whatwg.org/#element" id="ref-for-element②">Element</a></code> <var>element</var>:
+    resolve <var>value</var> according to the “Computed Value” line
+    of the <var>property</var>’s definition table,
+    using the <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#computed-value" id="ref-for-computed-value②">computed values</a> of <var>element</var>
+    as the context for resolving dependencies,
+    and return the result.
+
+
+    <p class="note" role="note"><span class="marker">Note:</span> The <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#computed-value" id="ref-for-computed-value③">computed values</a> on <var>element</var>
+    are not affected by this algorithm.</p>
+    <p>This algorithm implies that property values specified in keyframes
+    can establish order dependencies.
+    When <a data-link-type="dfn" href="#compute-a-property-value" id="ref-for-compute-a-property-value">computing a property value</a>,
+    the <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#computed-value" id="ref-for-computed-value④">computed values</a> of dependencies held by <var>value</var>
+    must be calculated <em>first</em>.</p>
+    <div class="example" id="example-62f40e1a">
+     <a class="self-link" href="#example-62f40e1a"></a>
+      
+<pre class="highlight"><c- a>var</c-> animation <c- o>=</c-> elem<c- p>.</c->animate<c- p>([{</c-> fontSize<c- o>:</c-> <c- t>'10px'</c-><c- p>,</c-> width<c- o>:</c-> <c- t>'10em'</c-> <c- p>},</c->
+                              <c- p>{</c-> fontSize<c- o>:</c-> <c- t>'20px'</c-><c- p>,</c-> width<c- o>:</c-> <c- t>'20em'</c-> <c- p>}],</c-> <c- mf>1000</c-><c- p>);</c->
+animation<c- p>.</c->currentTime <c- o>=</c-> <c- mf>500</c-><c- p>;</c->
+console<c- p>.</c->log<c- p>(</c->getComputedStyle<c- p>(</c->elem<c- p>).</c->fontSize<c- p>);</c-> <c- c1>// Should be 15px</c->
+console<c- p>.</c->log<c- p>(</c->getComputedStyle<c- p>(</c->elem<c- p>).</c->width<c- p>);</c-> <c- c1>// Should be 225px</c->
+</pre>
+     <p>In this example,
+      in order to <a data-link-type="dfn" href="#compute-a-property-value" id="ref-for-compute-a-property-value①">compute a property value</a> for <code>10em</code>,
+      we need to know the <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#computed-value" id="ref-for-computed-value⑤">computed value</a> of <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-fonts-4/#propdef-font-size" id="ref-for-propdef-font-size">font-size</a> on the <a data-link-type="dfn" href="#effect-target-target-element" id="ref-for-effect-target-target-element②">target element</a>,
+      which in turn is determined by the <a data-link-type="dfn" href="#effect-value" id="ref-for-effect-value①">effect value</a> for <span class="property" id="ref-for-propdef-font-size①">font-size</span>,
+      which in turn depends on computing property values for <span class="property" id="ref-for-propdef-font-size②">font-size</span>.
+      Hence, computing property values are subject to ordering constraints.</p>
+    </div>
+   </div>
+   

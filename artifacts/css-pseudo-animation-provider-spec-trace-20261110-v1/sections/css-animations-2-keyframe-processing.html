@@ -1,0 +1,134 @@
+<h3 class="heading settled" data-level="3.2" id="keyframe-processing"><span class="secno">3.2. </span><span class="content">
+Processing Keyframes</span><a class="self-link" href="#keyframe-processing"></a></h3>
+   <p>For each animation effect defined by the <var>N</var>th item
+in the <a data-link-type="dfn" href="https://drafts.csswg.org/css-values-4/#coordinated-value-list" id="ref-for-coordinated-value-list">coordinated value list</a> of the <span class="css">animation-*</span> properties
+on target (pseudo-)element <var>element</var>,
+its associated <a data-link-type="dfn" href="https://drafts.csswg.org/web-animations-1/#keyframe" id="ref-for-keyframe">keyframes</a> are generated as follows:</p>
+   <ol>
+    <li data-md>
+     <p><strong>Set Defaults:</strong></p>
+     <ul>
+      <li data-md>
+       <p>Let <var>default timing function</var> be the corresponding <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#computed-value" id="ref-for-computed-value">computed value</a>
+of <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-animations-1/#propdef-animation-timing-function" id="ref-for-propdef-animation-timing-function①">animation-timing-function</a> on <var>element</var>.</p>
+      <li data-md>
+       <p>Let <var>default composite</var> be the corresponding <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#computed-value" id="ref-for-computed-value①">computed value</a>
+of <a class="css property" data-link-type="property" href="#propdef-animation-composition" id="ref-for-propdef-animation-composition">animation-composition</a> on <var>element</var>.</p>
+      <li data-md>
+       <p>Let <var>keyframes</var> be an empty sequence of <a data-link-type="dfn" href="https://drafts.csswg.org/web-animations-1/#keyframe" id="ref-for-keyframe①">keyframe</a> objects,
+each possessing a
+<var>keyframe offset</var>,
+<var>keyframe timing function</var>,
+<var>keyframe composite</var>,
+and <var>keyframe values</var>.</p>
+      <li data-md>
+       <p>Let <var>animated properties</var> be an empty set of CSS <a data-link-type="dfn" href="https://drafts.csswg.org/cssom-1/#css-declaration-property-name" id="ref-for-css-declaration-property-name">property names</a>.</p>
+     </ul>
+    <li data-md>
+     <p><strong>Collect Declared Keyframes:</strong></p>
+     <ol>
+      <li data-md>
+       <p>Find the last <a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-animations-1/#at-ruledef-keyframes" id="ref-for-at-ruledef-keyframes⑤">@keyframes</a> at-rule in document order
+with <a class="css production" data-link-type="type" href="https://drafts.csswg.org/css-animations-1/#typedef-keyframes-name" id="ref-for-typedef-keyframes-name">&lt;keyframes-name></a> matching
+the corresponding <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-animations-1/#propdef-animation-name" id="ref-for-propdef-animation-name⑦">animation-name</a> value <var>name</var>.</p>
+       <p>If there is no <a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-animations-1/#at-ruledef-keyframes" id="ref-for-at-ruledef-keyframes⑥">@keyframes</a> at-rule
+with <a class="css production" data-link-type="type" href="https://drafts.csswg.org/css-animations-1/#typedef-keyframes-name" id="ref-for-typedef-keyframes-name①">&lt;keyframes-name></a> matching <var>name</var>
+(or if <var>name</var> is <a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-animations-1/#valdef-animation-name-none" id="ref-for-valdef-animation-name-none">none</a>),
+abort this procedure.
+In this case no animation is generated,
+and any existing animation matching <var>name</var> is canceled.</p>
+      <li data-md>
+       <p>Group together all <a class="css production" data-link-type="type" href="https://drafts.csswg.org/css-animations-1/#typedef-keyframe-block" id="ref-for-typedef-keyframe-block">&lt;keyframe-block></a> declarations
+that share the same <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#specified-value" id="ref-for-specified-value">specified</a> <a class="css production" data-link-type="type" href="https://drafts.csswg.org/css-animations-1/#typedef-keyframe-selector" id="ref-for-typedef-keyframe-selector">&lt;keyframe-selector></a>
+(treating <span class="css">from</span> as <span class="css">0%</span> and <span class="css">to</span> as <span class="css">100%</span>),
+last declared <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-animations-1/#propdef-animation-timing-function" id="ref-for-propdef-animation-timing-function②">animation-timing-function</a> <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#computed-value" id="ref-for-computed-value②">computed value</a>
+(defaulting to <var>default timing function</var> if there is no such declaration),
+and last declared <a class="css property" data-link-type="property" href="#propdef-animation-composition" id="ref-for-propdef-animation-composition①">animation-composition</a> <span id="ref-for-computed-value③">computed value</span>
+(defaulting to <var>default composite</var> if there is no such declaration).</p>
+      <li data-md>
+       <p>For each such group of matching <a class="css production" data-link-type="type" href="https://drafts.csswg.org/css-animations-1/#typedef-keyframe-block" id="ref-for-typedef-keyframe-block①">&lt;keyframe-block></a> declarations,
+ordered by their earliest <span class="production" id="ref-for-typedef-keyframe-block②">&lt;keyframe-block></span> in the sorted order:</p>
+       <ol>
+        <li data-md>
+         <p><a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-6/#cascade" id="ref-for-cascade">Cascade</a> together all of its <a data-link-type="dfn" href="https://www.w3.org/TR/CSS2/syndata.html#x14" id="ref-for-x14">declaration blocks</a>
+such that for each CSS property
+(except those that are “not animatable”, which must be ignored)
+the last declaration among all its <a class="css production" data-link-type="type" href="https://drafts.csswg.org/css-animations-1/#typedef-keyframe-block" id="ref-for-typedef-keyframe-block③">&lt;keyframe-block></a> declarations
+takes precedence.
+<a data-link-type="biblio" href="#biblio-css-cascade-4" title="CSS Cascading and Inheritance Level 4">[CSS-CASCADE-4]</a></p>
+         <p class="note" role="note"><span class="marker">Note:</span> The <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-6/#cascade" id="ref-for-cascade①">cascade</a> will
+expand <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#shorthand-property" id="ref-for-shorthand-property">shorthand properties</a> into their <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#longhand" id="ref-for-longhand">sub-properties</a>
+and map together corresponding property pairs in each <a data-link-type="dfn" href="https://drafts.csswg.org/css-logical-1/#logical-property-group" id="ref-for-logical-property-group">logical property group</a>
+according to the <var>element</var>’s <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#computed-value" id="ref-for-computed-value④">computed</a> <a data-link-type="dfn" href="https://drafts.csswg.org/css-writing-modes-4/#writing-mode" id="ref-for-writing-mode">writing mode</a>.</p>
+        <li data-md>
+         <p>Append to <var>keyframes</var> a new empty <a data-link-type="dfn" href="https://drafts.csswg.org/web-animations-1/#keyframe" id="ref-for-keyframe②">keyframe</a>
+with the group’s <var>keyframe offset</var>,
+<var>keyframe timing function</var>,
+and <var>keyframe composite</var>.
+Give its <var>keyframe values</var>
+the set of <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#declared-value" id="ref-for-declared-value">declared values</a> resulting from this cascade.</p>
+        <li data-md>
+         <p>Add each <a data-link-type="dfn" href="https://drafts.csswg.org/cssom-1/#css-declaration-property-name" id="ref-for-css-declaration-property-name①">property name</a> that was added to its <code class="idl"><a data-link-type="idl" href="https://drafts.csswg.org/css-animations-1/#dom-csskeyframesrule-cssrules" id="ref-for-dom-csskeyframesrule-cssrules">cssRules</a></code>
+to <var>animated properties</var>.</p>
+       </ol>
+     </ol>
+    <li data-md>
+     <p><strong>Generate Initial and Final Frames:</strong></p>
+     <ol>
+      <li data-md>
+       <p>Find or create the <var>initial keyframe</var>,
+a <a data-link-type="dfn" href="https://drafts.csswg.org/web-animations-1/#keyframe" id="ref-for-keyframe③">keyframe</a> with a <var>keyframe offset</var> of <span class="css">0%</span>,
+<var>default timing function</var> as its <var>keyframe timing function</var>,
+and <var>default composite</var> as its <var>keyframe composite</var>.</p>
+      <li data-md>
+       <p>For any property in <var>animated properties</var>
+that is not otherwise present in a keyframe with an offset of <span class="css">0%</span>
+or one that would be positioned earlier in the <a data-link-type="dfn" href="#used-keyframe-order" id="ref-for-used-keyframe-order">used keyframe order</a>,
+add the <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#computed-value" id="ref-for-computed-value⑤">computed value</a> of that property on <var>element</var>
+to <var>initial keyframe</var>’s <var>keyframe values</var>.</p>
+      <li data-md>
+       <p>If <var>initial keyframe</var>’s <var>keyframe values</var> is not empty,
+prepend <var>initial keyframe</var> to <var>keyframes</var>.</p>
+      <li data-md>
+       <p>Repeat for <var>final keyframe</var>,
+using an offset of <span class="css">100%</span>,
+considering keyframes positioned <em>later</em> in the <a data-link-type="dfn" href="#used-keyframe-order" id="ref-for-used-keyframe-order①">used keyframe order</a>,
+and <em>appending</em> to <var>keyframes</var>.</p>
+     </ol>
+    <li data-md>
+     <p><strong>Sort Frames:</strong></p>
+     <ul>
+      <li data-md>
+       <p>The <dfn class="dfn-paneled" data-dfn-type="dfn" data-lt="specified keyframe order" data-noexport id="specified-keyframe-order">specified order</dfn> of <var>keyframes</var>
+is the order resulting from the steps above,
+i.e. document order with duplicate keyframes collapsed
+to the earliest position.</p>
+      <li data-md>
+       <p>The <dfn class="dfn-paneled" data-dfn-type="dfn" data-lt="computed keyframe order" data-noexport id="computed-keyframe-order">computed order</dfn> of <var>keyframes</var>—​which is the order returned by <code class="idl"><a data-link-type="idl" href="https://drafts.csswg.org/web-animations-1/#dom-keyframeeffect-getkeyframes" id="ref-for-dom-keyframeeffect-getkeyframes">getKeyframes()</a></code>—​is found by shifting any keyframes whose offset was specified as
+a <a class="css production" data-link-type="type" href="https://drafts.csswg.org/css-values-4/#percentage-value" id="ref-for-percentage-value">&lt;percentage></a>, <span class="css">from</span> keyword, or <span class="css">to</span> keyword
+to the front of the list (after the generated <var>initial keyframe</var>, if any),
+and performing a stable sort on these keyframes
+by their <var>keyframe offset</var>s.</p>
+      <li data-md>
+       <p>The <dfn class="dfn-paneled" data-dfn-type="dfn" data-lt="used keyframe order" data-noexport id="used-keyframe-order">used order</dfn> of <var>keyframes</var>—​which is the order used to interpolate and compute the actual animation frames—​is found by attaching the <var>keyframes</var>
+onto the animation effect’s timeline
+assuming an <a data-link-type="dfn" href="https://drafts.csswg.org/web-animations-1/#iteration-count" id="ref-for-iteration-count">iteration count</a> of 1
+and ordering them from earliest to latest,
+breaking ties by using the <a data-link-type="dfn" href="#computed-keyframe-order" id="ref-for-computed-keyframe-order">computed keyframe order</a>.</p>
+     </ul>
+     <p class="issue" id="issue-67663de2"><a class="self-link" href="#issue-67663de2"></a> Any specific requirements on sorting computed keyframes introduced by
+this spec should be integrated into
+<a href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes"><cite>Web Animations</cite> § 5.3.3 Calculating computed keyframes</a>.
+Any specific requirements on used keyframes introduced by this spec
+should be integrated into
+<a href="https://drafts.csswg.org/web-animations-1/#the-effect-value-of-a-keyframe-animation-effect"><cite>Web Animations</cite> § 5.3.4 The effect value of a keyframe effect</a>.
+The above description of the distinction between these sets of keyframes
+should be moved to an informative note.</p>
+     <p class="note" role="note"><span class="marker">Note:</span> Although the <a data-link-type="dfn" href="#computed-keyframe-order" id="ref-for-computed-keyframe-order①">computed keyframe order</a>
+sorts keyframes with <a class="css production" data-link-type="type" href="https://drafts.csswg.org/css-values-4/#percentage-value" id="ref-for-percentage-value①">&lt;percentage></a> offsets,
+it maintains keyframes specified with a <a class="css production" data-link-type="type" href="https://drafts.csswg.org/scroll-animations-1/#typedef-timeline-range-name" id="ref-for-typedef-timeline-range-name">&lt;timeline-range-name></a>
+in their <a data-link-type="dfn" href="#specified-keyframe-order" id="ref-for-specified-keyframe-order">specified keyframe order</a>—​after any <span class="production" id="ref-for-percentage-value②">&lt;percentage></span> keyframes
+(other than a generated <var>final keyframe</var>),
+even if these come later in the <a data-link-type="dfn" href="#used-keyframe-order" id="ref-for-used-keyframe-order②">used keyframe order</a>.</p>
+   </ol>
+   

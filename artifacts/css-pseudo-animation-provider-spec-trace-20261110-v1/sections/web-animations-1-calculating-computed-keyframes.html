@@ -1,0 +1,154 @@
+<h4 class="heading settled" data-level="5.3.3" id="calculating-computed-keyframes"><span class="secno">5.3.3. </span><span class="content">Calculating computed keyframes</span><a class="self-link" href="#calculating-computed-keyframes"></a></h4>
+   <p>Before calculating the <a data-link-type="dfn" href="#effect-value" id="ref-for-effect-value②">effect value</a> of a <a data-link-type="dfn" href="#keyframe-effect" id="ref-for-keyframe-effect⑦">keyframe effect</a>,
+  the property values on its <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe⑦">keyframes</a> are
+  <a href="#computing-property-values">computed</a>,
+  and the offset to use for any keyframes with a null <a data-link-type="dfn" href="#keyframe-offset" id="ref-for-keyframe-offset②">keyframe offset</a>
+  is computed.
+  The result of resolving these values
+  is a set of <dfn class="dfn-paneled" data-dfn-type="dfn" data-noexport id="computed-keyframes">computed keyframes</dfn>.</p>
+   <p>The calculated <a data-link-type="dfn" href="#keyframe-offset" id="ref-for-keyframe-offset③">keyframe offsets</a>
+  of a set of <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe⑧">keyframe</a> that includes suitable values
+  for each null <span id="ref-for-keyframe-offset④">keyframe offset</span>
+  are referred to as the
+  <dfn class="dfn-paneled" data-dfn-type="dfn" data-noexport id="computed-keyframe-offsets">computed keyframe offsets</dfn>.</p>
+   <div class="algorithm" data-algorithm="compute missing keyframe offsets">
+    
+    To produce <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets">computed keyframe offsets</a>,
+    we define a procedure to <dfn class="dfn-paneled" data-dfn-type="dfn" data-noexport id="compute-missing-keyframe-offsets">compute missing keyframe offsets</dfn>
+    that takes a sequence of <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe⑨">keyframes</a>, <var>keyframes</var>,
+    and has the following steps:
+
+
+    <ol>
+     <li data-md>
+      <p>For each <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe①⓪">keyframe</a> in <var>keyframes</var>,
+let the <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets①">computed keyframe offset</a> of the <span id="ref-for-keyframe①①">keyframe</span>
+be equal to its <a data-link-type="dfn" href="#keyframe-offset" id="ref-for-keyframe-offset⑤">keyframe offset</a> value.</p>
+     <li data-md>
+      <p>If <var>keyframes</var> contains more than one <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe①②">keyframe</a>
+and the <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets②">computed keyframe offset</a>
+of the first <span id="ref-for-keyframe①③">keyframe</span> in <var>keyframes</var>
+is null,
+set the <span id="ref-for-computed-keyframe-offsets③">computed keyframe offset</span> of the first <span id="ref-for-keyframe①④">keyframe</span>
+to 0.</p>
+     <li data-md>
+      <p>If the <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets④">computed keyframe offset</a>
+of the last <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe①⑤">keyframe</a> in <var>keyframes</var>
+is null,
+set its <span id="ref-for-computed-keyframe-offsets⑤">computed keyframe offset</span> to 1.</p>
+     <li data-md>
+      <p>For each pair of <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe①⑥">keyframes</a> <var>A</var> and <var>B</var>
+where:</p>
+      <ul>
+       <li data-md>
+        <p><var>A</var> appears before <var>B</var> in <var>keyframes</var>, and</p>
+       <li data-md>
+        <p><var>A</var> and <var>B</var> have a <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets⑥">computed keyframe offset</a>
+that is not null, and</p>
+       <li data-md>
+        <p>all <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe①⑦">keyframes</a> between <var>A</var> and <var>B</var>
+have a null <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets⑦">computed keyframe offset</a>,</p>
+      </ul>
+      <p>calculate the <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets⑧">computed keyframe offset</a>
+of each <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe①⑧">keyframe</a> between <var>A</var> and <var>B</var>
+as follows:</p>
+      <ol>
+       <li data-md>
+        <p>Let <dfn class="dfn-paneled" data-dfn-type="dfn" data-noexport id="offsetk">offset<sub><var>k</var></sub></dfn> be
+the <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets⑨">computed keyframe offset</a> of a <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe①⑨">keyframe</a> <var>k</var>.</p>
+       <li data-md>
+        <p>Let <var>n</var> be
+the number of keyframes <em>between</em> and including
+<var>A</var> and <var>B</var> minus 1.</p>
+       <li data-md>
+        <p>Let <var>index</var> refer to the position
+of <var>keyframe</var> in the sequence of keyframes between <var>A</var> and <var>B</var>
+such that the first keyframe after <var>A</var> has an <var>index</var> of 1.</p>
+       <li data-md>
+        <p>Set the <a data-link-type="dfn" href="#computed-keyframe-offsets" id="ref-for-computed-keyframe-offsets①⓪">computed keyframe offset</a> of <var>keyframe</var> to
+<a data-link-type="dfn" href="#offsetk" id="ref-for-offsetk">offset</a><sub><var>A</var></sub> +
+(<span id="ref-for-offsetk①">offset</span><sub><var>B</var></sub> −
+<span id="ref-for-offsetk②">offset</span><sub><var>A</var></sub>)
+× <var>index</var> / <var>n</var>.</p>
+      </ol>
+    </ol>
+   </div>
+   <details class="wpt-tests-block" dir="ltr" lang="en">
+    <summary>Tests</summary>
+    <ul class="wpt-tests-list">
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/web-animations/animation-model/keyframe-effects/background-shorthand.html" title="web-animations/animation-model/keyframe-effects/background-shorthand.html">background-shorthand.html</a> <a class="wpt-live" href="http://wpt.live/web-animations/animation-model/keyframe-effects/background-shorthand.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/web-animations/animation-model/keyframe-effects/background-shorthand.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/web-animations/animation-model/keyframe-effects/computed-keyframes-shorthands.html" title="web-animations/animation-model/keyframe-effects/computed-keyframes-shorthands.html">computed-keyframes-shorthands.html</a> <a class="wpt-live" href="http://wpt.live/web-animations/animation-model/keyframe-effects/computed-keyframes-shorthands.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/web-animations/animation-model/keyframe-effects/computed-keyframes-shorthands.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/web-animations/animation-model/keyframe-effects/effect-value-context-filling.html" title="web-animations/animation-model/keyframe-effects/effect-value-context-filling.html">effect-value-context-filling.html</a> <a class="wpt-live" href="http://wpt.live/web-animations/animation-model/keyframe-effects/effect-value-context-filling.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/web-animations/animation-model/keyframe-effects/effect-value-context-filling.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/web-animations/animation-model/keyframe-effects/effect-value-context.html" title="web-animations/animation-model/keyframe-effects/effect-value-context.html">effect-value-context.html</a> <a class="wpt-live" href="http://wpt.live/web-animations/animation-model/keyframe-effects/effect-value-context.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/web-animations/animation-model/keyframe-effects/effect-value-context.html"><small>(source)</small></a>
+    </ul>
+   </details>
+   <p><a data-link-type="dfn" href="#computed-keyframes" id="ref-for-computed-keyframes">Computed keyframes</a> are produced using the following procedure.
+  Note that this procedure is only performed
+  on a <a data-link-type="dfn" href="#keyframe-effect" id="ref-for-keyframe-effect⑧">keyframe effect</a> having an <a data-link-type="dfn" href="#keyframe-effect-effect-target" id="ref-for-keyframe-effect-effect-target⑥">effect target</a>
+  for which computed property values can be calculated.</p>
+   <ol>
+    <li data-md>
+     <p>Let <var>computed keyframes</var> be an empty list of <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe②⓪">keyframes</a>.</p>
+    <li data-md>
+     <p>For each <var>keyframe</var> in the list of <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe②①">keyframes</a>
+  specified on this <a data-link-type="dfn" href="#keyframe-effect" id="ref-for-keyframe-effect⑨">keyframe effect</a>,
+  perform the following steps:</p>
+     <ol>
+      <li data-md>
+       <p>Add a new empty <a data-link-type="dfn" href="#keyframe" id="ref-for-keyframe②②">keyframe</a>, <var>computed keyframe</var>,
+  to <var>computed keyframes</var>.</p>
+      <li data-md>
+       <p>For each property specified in <var>keyframe</var>:</p>
+       <ul>
+        <li data-md>
+         <p><a data-link-type="dfn" href="#compute-a-property-value" id="ref-for-compute-a-property-value②">Compute a property value</a>
+  using the value specified on <var>keyframe</var> as the value,
+  and the <a data-link-type="dfn" href="#effect-target-target-element" id="ref-for-effect-target-target-element③">target element</a> as the element;
+  then add the property and resulting value to <var>computed keyframe</var>.</p>
+        <li data-md>
+         <p>For shorthand properties, add the equivalent longhand properties.</p>
+        <li data-md>
+         <p>For logical properties <a data-link-type="biblio" href="#biblio-css-logical-1" title="CSS Logical Properties and Values Module Level 1">[CSS-LOGICAL-1]</a>,
+  add the <a data-link-type="dfn" href="https://drafts.csswg.org/css-writing-modes-4/#logical-to-physical" id="ref-for-logical-to-physical">equivalent physical properties</a> <a data-link-type="biblio" href="#biblio-css-writing-modes-4" title="CSS Writing Modes Level 4">[CSS-WRITING-MODES-4]</a>
+  based on the computed value of <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-writing-modes-4/#propdef-writing-mode" id="ref-for-propdef-writing-mode">writing-mode</a> and/or <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-writing-modes-3/#propdef-direction" id="ref-for-propdef-direction">direction</a>
+  for the <a data-link-type="dfn" href="#keyframe-effect-effect-target" id="ref-for-keyframe-effect-effect-target⑦">effect target</a>.</p>
+       </ul>
+       <p>For example, if <var>keyframe</var> has
+  a value of <span class="css">12pt</span> for the <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-backgrounds-3/#propdef-border-width" id="ref-for-propdef-border-width">border-width</a> <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#shorthand-property" id="ref-for-shorthand-property">shorthand property</a>,
+  the user agent will <a data-link-type="dfn" href="#compute-a-property-value" id="ref-for-compute-a-property-value③">compute a property value</a> of <span class="css">16px</span>
+  for each of the <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#longhand" id="ref-for-longhand">longhand properties</a>:
+  <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-backgrounds-3/#propdef-border-bottom-width" id="ref-for-propdef-border-bottom-width">border-bottom-width</a>, <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-backgrounds-3/#propdef-border-left-width" id="ref-for-propdef-border-left-width">border-left-width</a>,
+  <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-backgrounds-3/#propdef-border-right-width" id="ref-for-propdef-border-right-width">border-right-width</a>, and <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-backgrounds-3/#propdef-border-top-width" id="ref-for-propdef-border-top-width">border-top-width</a>.
+  As a result, <var>computed keyframe</var> would <em>not</em> have
+  a value for the <span class="property" id="ref-for-propdef-border-width①">border-width</span> property,
+  but would instead include each of the longhand properties,
+  each with the value <span class="css">16px</span>.</p>
+       <p>If conflicts arise when expanding shorthand properties
+  or replacing logical properties with physical properties,
+  apply the following rules in order until the conflict is resolved:</p>
+       <ol>
+        <li data-md>
+         <p>Longhand properties override shorthand properties
+  (e.g. <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-backgrounds-3/#propdef-border-top-color" id="ref-for-propdef-border-top-color">border-top-color</a> overrides <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-backgrounds-3/#propdef-border-top" id="ref-for-propdef-border-top">border-top</a>).</p>
+        <li data-md>
+         <p>Shorthand properties with fewer longhand components
+  override those with more longhand components
+  (e.g. <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-backgrounds-3/#propdef-border-top" id="ref-for-propdef-border-top①">border-top</a> overrides <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-backgrounds-3/#propdef-border-color" id="ref-for-propdef-border-color">border-color</a>).</p>
+        <li data-md>
+         <p>Physical properties override logical properties.</p>
+        <li data-md>
+         <p>For shorthand properties with an equal number of longhand components,
+  properties whose IDL name
+  (see the <a data-link-type="dfn" href="https://drafts.csswg.org/cssom/#css-property-to-idl-attribute" id="ref-for-css-property-to-idl-attribute">CSS property to IDL attribute</a> algorithm <a data-link-type="biblio" href="#biblio-cssom" title="CSS Object Model (CSSOM)">[CSSOM]</a>)
+  appears earlier when sorted in ascending order
+  by the Unicode codepoints that make up each IDL name,
+  override those who appear later.</p>
+       </ol>
+     </ol>
+    <li data-md>
+     <p>Apply the procedure to <a data-link-type="dfn" href="#compute-missing-keyframe-offsets" id="ref-for-compute-missing-keyframe-offsets">compute missing keyframe offsets</a>
+  to <var>computed keyframes</var>.</p>
+    <li data-md>
+     <p>Return <var>computed keyframes</var>.</p>
+   </ol>
+   

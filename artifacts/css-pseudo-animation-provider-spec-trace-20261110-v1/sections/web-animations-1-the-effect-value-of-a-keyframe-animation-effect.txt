@@ -1,0 +1,221 @@
+  5.3.4.   The effect value of a keyframe effect    
+    The  effect value  of a single property referenced by a  keyframe effect 
+  as one of its  target properties ,
+  for a given  iteration progress ,
+   iteration index 
+  and  underlying value 
+  is calculated as follows. 
+    
+     
+      If  iteration progress  is  unresolved 
+  abort this procedure. 
+     
+      Let  target property  be the  longhand property 
+  for which the  effect value  is to be calculated. 
+     
+      If  animation type  of the  target property  is  not animatable 
+  abort this procedure since the effect cannot be applied. 
+     
+      If the   keyframe effect  does not have an  effect target ,
+  or if the  effect target  cannot have computed property values calculated,
+  abort this procedure. 
+     
+      Let  property-specific keyframes  be
+  the result of getting the set of  computed keyframes 
+  for this  keyframe effect . 
+     
+      Remove any  keyframes  from  property-specific keyframes 
+  that do not have a property value for  target property . 
+     
+      If  property-specific keyframes  is empty,
+  return  underlying value . 
+     
+      If there is no  keyframe  in  property-specific keyframes 
+  with a  computed keyframe offset  of 0,
+  create a new  keyframe 
+  with a  computed keyframe offset  of 0,
+  a property value set to  underlying value ,
+  a  keyframe-specific composite operation 
+  of  replace ,
+  and a  keyframe-specific easing function 
+  of the  linear easing function ,
+  and prepend it to the beginning of  property-specific keyframes . 
+     
+      Similarly, if there is no  keyframe  in  property-specific keyframes 
+  with a  computed keyframe offset  of 1,
+  create a new  keyframe 
+  with a  computed keyframe offset  of 1,
+  a property value set to  underlying value ,
+  a  keyframe-specific composite operation 
+  of  replace ,
+  and a  keyframe-specific easing function 
+  of the  linear easing function ,
+  and append it to the end of  property-specific keyframes . 
+    
+    
+     Other specifications may override
+    the implicit keyframe generation behavior
+    in the preceding two steps.
+    For example, the
+     named timeline range keyframe selectors 
+    defined by Scroll Animations
+    can cause these implicit keyframes not to be generated. 
+     A future level of this specification should
+    incorporate the overridden behavior directly into this algorithm. 
+    
+    
+     
+      Let  interval endpoints  be an empty sequence of keyframes. 
+     
+      Populate  interval endpoints  by following the steps
+  from the first matching condition below: 
+      
+       If  iteration progress  < 0
+  and there is more than one  keyframe 
+  in  property-specific keyframes 
+  with a  computed keyframe offset  of 0,
+       
+        Add the first  keyframe  in  property-specific keyframes 
+  to  interval endpoints . 
+       If  iteration progress  ≥ 1
+  and there is more than one  keyframe 
+  in  property-specific keyframes 
+  with a  computed keyframe offset  of 1,
+       
+        Add the last  keyframe  in  property-specific keyframes 
+  to  interval endpoints . 
+       Otherwise,
+       
+        
+         
+          Append to  interval endpoints 
+  the last  keyframe  in  property-specific keyframes 
+  whose  computed keyframe offset  is
+  less than or equal to  iteration progress  and less than 1.
+  If there is no such  keyframe 
+  (because, for example, the  iteration progress  is negative),
+  add the last  keyframe 
+  whose  computed keyframe offset  is 0. 
+         
+          Append to  interval endpoints 
+  the next  keyframe  in  property-specific keyframes 
+  after the one added in the previous step. 
+        
+      
+     
+      For each  keyframe  in  interval endpoints : 
+      
+       
+        If  keyframe  has a  composite operation 
+  that is  not   replace ,
+  or  keyframe  has no  composite operation 
+  and the  composite operation  of this  keyframe effect 
+  is  not   replace ,
+  then perform the following steps: 
+        
+         
+          Let  composite operation to use  be
+  the  composite operation  of  keyframe ,
+  or if it has none,
+  the  composite operation  of this  keyframe effect . 
+         
+          Let  value to combine  be
+  the property value of  target property  specified on  keyframe . 
+         
+          Replace the property value of  target property  on  keyframe 
+  with the result of combining
+   underlying value  ( V  a ) and
+   value to combine  ( V  b )
+  using the procedure for the  composite operation to use 
+  corresponding to the  target property ’s  animation type . 
+        
+      
+     
+      If there is only one keyframe in  interval endpoints 
+  return the property value of  target property  on that keyframe. 
+     
+      Let  start offset  be the  computed keyframe offset 
+  of the first keyframe in  interval endpoints . 
+     
+      Let  end offset  be the  computed keyframe offset 
+  of last keyframe in  interval endpoints . 
+     
+      Let  interval distance  be the result of evaluating
+   ( iteration progress  −  start offset )
+        / ( end offset  −  start offset ) . 
+     
+      Let  transformed distance  be the result of evaluating
+  the  easing function  associated with
+  the first keyframe in  interval endpoints 
+  passing  interval distance  as the input progress. 
+     
+      Return the result of applying
+  the  interpolation procedure  defined
+  by the  animation type  of the  target property 
+  to the values of the  target property 
+  specified on the two keyframes in  interval endpoints ,
+  taking the first such value as  V  start 
+  and the second as  V  end 
+  and using  transformed distance 
+  as the interpolation parameter  p . 
+    
+    
+     Tests 
+     
+       effect-value-interval-distance.html    (live test)     (source)  
+       effect-value-iteration-composite-operation.html    (live test)     (source)  
+       effect-value-opacity-replaced-effect-in-shadow-root.html    (live test)     (source)  
+       effect-value-opacity-replaced-effect.html    (live test)     (source)  
+       effect-value-overlapping-keyframes.html    (live test)     (source)  
+       effect-value-replaced-animations.html    (live test)     (source)  
+       effect-value-transformed-distance.html    (live test)     (source)  
+     
+    
+    
+     Note that this procedure assumes the following
+    about the list of  keyframes  specified on the effect: 
+     
+      
+       Each  keyframe  has a specified  computed keyframe offset 
+in the range [0, 1]. 
+      
+       The list of  keyframes  is sorted in ascending order
+by  computed keyframe offset . 
+      
+       For a given property,
+there is at most one specified property value on each keyframe. 
+     
+     It is the responsibility of the user of the model
+    (for example, a declarative markup or programming interface)
+    to ensure these conditions are met. 
+     For example, for the  programming interface 
+    defined by this specification,
+    these conditions are met by
+    the procedure to produce the  computed keyframes 
+    that become the input to this procedure. 
+    
+     Note:  this procedure permits overlapping  keyframes .
+  The behavior is that
+  at the point of overlap the output value jumps
+  to the value of the last defined  keyframe  at that offset.
+  For overlapping keyframes at 0 or 1,
+  the output value for  iteration progress  values
+  less than 0 or greater than or equal to 1
+  is the value of
+  the first  keyframe  or the last  keyframe  in  keyframes  respectively. 
+    
+    
+    Note that  computed keyframes  are “live”:
+    user-agents behave as if they are recreated
+    every time the  effect value  is calculated.
+
+
+     For example, if there is an ongoing transition
+    on the  font-size  property from  10px  to  20px ,
+    a property value specified as  1em  in a  keyframe 
+    would during  keyframe computation 
+    resolve against the  computed value 
+    in the range [ 10px ,  20px ]
+    produced by the transition on  font-size . 
+    
+   

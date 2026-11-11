@@ -1,0 +1,156 @@
+ 6.13. Model liveness 
+ Changes made to any part of the model
+ cause the entire timing model to be updated
+ and any dependent style. 
+ Unless otherwise stated,
+ invoking the methods or constructors,
+ or getting or setting the members
+ of interfaces defined in the Web Animations API 
+ does not produce a style change event . 
+ Note: Other specifications that extend this specification
+ are expected to refine the requirements on style change events 
+ by introducing circumstances where such events are triggered.
+ For example,
+ when the interfaces in this specification represent
+ animations defined by CSS markup,
+ many of their methods will need to trigger style change events 
+ in order to reflect changes to the specified style. 
+ 
+ 
+ This section is non-normative 
+
+
+ Based on the above requirement
+ and normative requirements elsewhere in this specification,
+ the following invariants can be observed: 
+ 
+ Changes made to the Web Animations model take effect immediately
+ 
+ For example, if the KeyframeEffect associated with an Animation 
+ is seeked (see § 4.5.4 Setting the current time of an animation )
+ via the Web Animations API ,
+ the value returned when querying the animation’s startTime 
+ will reflect updated state of the model immediately. 
+ 
+ 
+ 
+ // Initially animation.effect.getComputedTiming().localTime is 3000 
+animation . currentTime += 2000 ; 
+alert ( animation . effect . getComputedTiming (). localTime ); // Displays "5000" 
+ 
+ 
+ Querying the computed style of a property affected by animation
+ returns the fully up-to-date state of the animation
+ 
+ For example, if the used style of an element is queried
+ immediately after applying a new Animation to that element,
+ the result of the new animation will be incorporated
+ in the value returned. 
+ 
+ 
+ 
+ // Set opacity to 0 immediately 
+elem . animate ({ opacity : 0 }, { fill : 'forwards' }); 
+alert ( window . getComputedStyle ( elem ). opacity ); // Displays "0" 
+ 
+ 
+ Changes made within the same task are synchronized
+ such that the whole set of changes is rendered together
+ 
+ As a result of changes to the model taking effect immediately
+ combined with ECMAScript’s run-to-completion semantics,
+ there should never be a situation where, for example,
+ only the changes to specified style are rendered
+ without applying animation. 
+ 
+ 
+ 
+ // Fade the opacity with fallback for browsers that don't 
+ // support Element.animate 
+elem . style . opacity = '0' ; 
+elem . animate ([ { opacity : 1 }, { opacity : 0 } ], 500 ); 
+ 
+ 
+ Note, however, that in the example above,
+ a user agent may render a frame
+ with none of the above changes applied.
+ This might happen, for example,
+ if rendering occurs in a separate process
+ that is scheduled to run shortly after the above task completes
+ but before the changes can be communicated to the process. 
+ The value returned by
+ the currentTime attribute of a document timeline 
+ will not change within a task
+ 
+ Due to the requirement on timelines 
+ to update their current time 
+ each time the update animations and send events procedure is run,
+ querying the currentTime twice
+ within a long block of code that is executed in the same script block
+ will return the same value as shown in the following example. 
+ 
+ 
+ 
+ var a = document . timeline . currentTime ; 
+ // ... many lines of code ... 
+ var b = document . timeline . currentTime ; 
+alert ( b - a ); // Displays 0 
+ 
+ 
+ The time passed to a requestAnimationFrame callback
+ will be equal to document.timeline.currentTime 
+ 
+ Since HTML’s event loop processing model defines
+ that the procedure to update animations and send events 
+ is performed prior to
+ running animation frame callbacks ,
+ and since the time passed to such callbacks
+ is the same now timestamp is passed to both procedures,
+ the current time of a the default document timeline 
+ should match the time passed to requestAnimationFrame . 
+ 
+ 
+ 
+ window . requestAnimationFrame ( function ( now ) { 
+ // Displays 0 
+ alert ( now - document . timeline . currentTime ); 
+ }); 
+ 
+ 
+ Calling methods from this programming interface
+ will generally not cause transitions to be triggered
+ 
+ Consider the following example: 
+ 
+ 
+ 
+ // Setup transition start point 
+div . style . opacity = '1' ; 
+getComputedStyle ( div ). opacity ; 
+
+ // Setup transition end point 
+div . style . transition = 'opacity 1s' ; 
+div . style . opacity = '0' ; 
+
+ // Fire an animation 
+div . animate ({ opacity : [ 0.5 , 1 ] }, 500 ); 
+
+ // Wait for the transition to end -- the following will never be called! 
+div . addEventListener ( 'transitionend' , () => { 
+ console . log ( 'transitionend' ); 
+ }); 
+ 
+ 
+ In this case, calling animate() 
+ will not trigger a style change event .
+ As a result, the pending style change
+ will be processed at the same time as
+ the style change resulting from the new animation.
+ Since the animation style will override
+ the before-change style and the after-change style ,
+ no transition will be generated
+ and the event handler for the transitionend event
+ will never be called. 
+ 
+ 
+ 
