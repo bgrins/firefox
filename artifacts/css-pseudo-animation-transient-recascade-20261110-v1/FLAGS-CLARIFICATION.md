@@ -1,0 +1,1 @@
+The frozen report's phrase “retaining its flags” refers specifically to `CascadeInputs::new_from_style`: it copies `style.flags.for_cascade_inputs()` and initializes `included_cascade_flags` to empty. It does not copy every computed-style flag verbatim. This clarification changes no source or frozen input and records the independent review observation.

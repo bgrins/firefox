@@ -1,0 +1,343 @@
+diff --git a/dom/base/nsDOMWindowUtils.cpp b/dom/base/nsDOMWindowUtils.cpp
+--- a/dom/base/nsDOMWindowUtils.cpp
++++ b/dom/base/nsDOMWindowUtils.cpp
+@@ -3343,6 +3343,114 @@
+ }
+ 
+ NS_IMETHODIMP
++nsDOMWindowUtils::GetMissingPseudoRecascadeForTesting(
++    Element* aElement, const nsAString& aPseudoElement,
++    Element* aAnimationDonor, const nsAString& aAnimationProperty,
++    Element* aTransitionDonor, const nsAString& aTransitionProperty,
++    const nsAString& aResultProperty, uint32_t aFlags, nsAString& aResult) {
++  RefPtr<Document> document = GetDocument();
++  RefPtr<PresShell> presShell = GetPresShell();
++  RefPtr<Element> element = aElement;
++  RefPtr<Element> animationDonor = aAnimationDonor;
++  RefPtr<Element> transitionDonor = aTransitionDonor;
++  if (!document || !presShell || (aFlags & ~7u)) {
++    return NS_ERROR_INVALID_ARG;
++  }
++  for (Element* candidate :
++       {element.get(), animationDonor.get(), transitionDonor.get()}) {
++    if (!candidate || candidate->OwnerDoc() != document ||
++        !candidate->IsInComposedDoc()) {
++      return NS_ERROR_INVALID_ARG;
++    }
++  }
++  auto pseudo = PseudoStyleRequest::Parse(aPseudoElement,
++                                          document->DefaultStyleAttrURLData());
++  if (!pseudo) {
++    return NS_ERROR_INVALID_ARG;
++  }
++  const NS_ConvertUTF16toUTF8 resultName(aResultProperty);
++  const auto resultId = nsCSSProps::LookupProperty(resultName);
++  if (resultId == eCSSProperty_UNKNOWN || nsCSSProps::IsShorthand(resultId)) {
++    return NS_ERROR_INVALID_ARG;
++  }
++  const auto property =
++      CSSPropertyId::FromIdOrCustomProperty(resultId, resultName);
++  document->FlushPendingNotifications(FlushType::Style);
++  ServoStyleSet* styleSet = presShell->StyleSet();
++  RefPtr<ComputedStyle> primary = styleSet->ResolveStyleLazily(*element);
++  RefPtr<ComputedStyle> animationStyle =
++      styleSet->ResolveStyleLazily(*animationDonor);
++  RefPtr<ComputedStyle> transitionStyle =
++      styleSet->ResolveStyleLazily(*transitionDonor);
++  const PseudoStyleRequest basePseudo =
++      (aFlags & 2u) ? PseudoStyleRequest(PseudoStyleType::After) : *pseudo;
++  RefPtr<ComputedStyle> base =
++      styleSet->ResolveStyleLazily(*element, basePseudo);
++  if (!primary || !base || !animationStyle || !transitionStyle) {
++    return NS_ERROR_FAILURE;
++  }
++  auto values = [](const nsAString& aProperty, const ComputedStyle& aStyle) {
++    if (aProperty.IsEmpty()) {
++      return UniquePtr<StyleAnimationValueMap>(
++          Servo_AnimationValueMap_Create());
++    }
++    const NS_ConvertUTF16toUTF8 name(aProperty);
++    const auto id = nsCSSProps::LookupProperty(name);
++    if (id == eCSSProperty_UNKNOWN || nsCSSProps::IsShorthand(id)) {
++      return UniquePtr<StyleAnimationValueMap>();
++    }
++    const auto property = CSSPropertyId::FromIdOrCustomProperty(id, name);
++    return UniquePtr<StyleAnimationValueMap>(
++        Servo_AnimationValueMap_FromComputedStyleForTesting(&aStyle,
++                                                            &property));
++  };
++  auto animations = values(aAnimationProperty, *animationStyle);
++  auto transitions = values(aTransitionProperty, *transitionStyle);
++  if (!animations || !transitions) {
++    return NS_ERROR_INVALID_ARG;
++  }
++  RefPtr<ComputedStyle> result = styleSet->RecascadeStyleForMissingPseudo(
++      *element, *pseudo, *base, (aFlags & 1u) ? *animationStyle : *primary,
++      *animations, *transitions);
++  if (result && (aFlags & 4u)) {
++    UniquePtr<StyleAnimationValueMap> empty(Servo_AnimationValueMap_Create());
++    result = styleSet->RecascadeStyleForMissingPseudo(
++        *element, *pseudo, *result, *primary, *empty, *empty);
++  }
++  JSONStringWriteFunc<nsCString> output;
++  JSONWriter writer(output, JSONWriter::SingleLineStyle);
++  writer.Start();
++  writer.BoolProperty("admitted", !!result);
++  writer.BoolProperty("originUnchanged",
++                      Servo_Element_GetMaybeOutOfDateStyle(element) == primary);
++  writer.BoolProperty("noPseudoCreated", !element->GetPseudoElement(*pseudo));
++  writer.BoolProperty("pseudoMatches",
++                      result && result->GetPseudoType() == pseudo->mType);
++  writer.BoolProperty(
++      "displayIsBlock",
++      result && result->StyleDisplay()->mDisplay == StyleDisplay::Block);
++  writer.BoolProperty(
++      "displayIsInline",
++      result && result->StyleDisplay()->mDisplay == StyleDisplay::Inline);
++  RefPtr<StyleAnimationValue> value =
++      result ? Servo_ComputedValues_ExtractAnimationValue(result, &property)
++                   .Consume()
++             : nullptr;
++  if (value) {
++    nsAutoCString text;
++    Servo_AnimationValue_Serialize(value, &property, styleSet->RawData(),
++                                   &text);
++    writer.StringProperty("value",
++                          Span<const char>(text.Data(), text.Length()));
++  } else {
++    writer.NullProperty("value");
++  }
++  writer.End();
++  CopyUTF8toUTF16(output.StringCRef(), aResult);
++  return NS_OK;
++}
++
++NS_IMETHODIMP
+ nsDOMWindowUtils::GetUnanimatedComputedStyle(Element* aElement,
+                                              const nsAString& aPseudoElement,
+                                              const nsAString& aProperty,
+diff --git a/dom/base/test/mochitest.toml b/dom/base/test/mochitest.toml
+--- a/dom/base/test/mochitest.toml
++++ b/dom/base/test/mochitest.toml
+@@ -553,6 +553,8 @@
+ 
+ ["test_missing_pseudo_animation_query.html"]
+ 
++["test_missing_pseudo_animation_recascade.html"]
++
+ ["test_mozMatchesSelector.html"]
+ 
+ ["test_mutationobservers.html"]
+diff --git a/dom/base/test/test_missing_pseudo_animation_recascade.html b/dom/base/test/test_missing_pseudo_animation_recascade.html
+new file mode 100644
+--- /dev/null
++++ b/dom/base/test/test_missing_pseudo_animation_recascade.html
+@@ -0,0 +1,164 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Transient pseudo cascade with explicit origin maps</title>
++<script src="/tests/SimpleTest/SimpleTest.js"></script>
++<link rel="stylesheet" href="/tests/SimpleTest/test.css">
++<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#cascade-origin">
++<style>
++  .subject { font-size: 20px; }
++  .subject::before { content: none; margin-left: 10px; opacity: 0.25; }
++  .subject::after { content: none; margin-left: 15px; }
++  .important::before { margin-left: 30px !important; }
++  .relative::before { margin-left: 2em; }
++  .logical { direction: rtl; }
++  .logical::before { margin: 0; margin-inline-start: 2em; }
++  .flex { display: flex; }
++  .contents { display: contents; }
++  .generated::before { content: "generated"; }
++</style>
++<script>
++"use strict";
++
++const utils = SpecialPowers.getDOMWindowUtils(window);
++
++async function fixture(body) {
++  const root = document.createElement("div");
++  const subject = document.createElement("div");
++  subject.className = "subject";
++  const animation = document.createElement("div");
++  animation.style.cssText = "margin-left:50px;opacity:0.5;font-size:30px;--gap:50px";
++  const transition = document.createElement("div");
++  transition.style.cssText = "margin-left:70px;opacity:0.8;font-size:40px";
++  root.append(subject, animation, transition);
++  document.body.append(root);
++  const query = (property, animationProperty = "", transitionProperty = "", pseudo = "::before", flags = 0) =>
++    JSON.parse(utils.getMissingPseudoRecascadeForTesting(subject, pseudo,
++      animation, animationProperty, transition, transitionProperty, property, flags));
++  try {
++    await body({ root, subject, animation, transition, query });
++  } finally {
++    root.remove();
++  }
++}
++
++function accepted(result, label) {
++  ok(result.admitted, `${label}: admitted`);
++  ok(result.pseudoMatches, `${label}: exact pseudo identity`);
++  ok(result.originUnchanged, `${label}: origin style not replaced`);
++  ok(result.noPseudoCreated, `${label}: no generated pseudo created`);
++}
++
++add_task(async function cascade_origins() {
++  await fixture(async ({ subject, animation, transition, query }) => {
++    is(getComputedStyle(subject, "::before").marginLeft, "10px", "Setup: authored pseudo base is 10px");
++    is(getComputedStyle(animation).marginLeft, "50px", "Setup: animation donor is 50px");
++    is(getComputedStyle(transition).marginLeft, "70px", "Setup: transition donor is 70px");
++    let result = query("margin-left");
++    accepted(result, "author");
++    is(result.value, "10px", "Normal author value without origin maps");
++    result = query("margin-left", "margin-left");
++    accepted(result, "animation");
++    is(result.value, "50px", "Animation origin beats normal author");
++    subject.classList.add("important");
++    result = query("margin-left", "margin-left");
++    accepted(result, "important");
++    is(result.value, "30px", "Important author beats animation origin");
++    result = query("margin-left", "", "margin-left");
++    accepted(result, "transition only");
++    is(result.value, "70px", "Transition origin beats important author");
++    result = query("margin-left", "margin-left", "margin-left");
++    accepted(result, "overlapping origins");
++    is(result.value, "70px", "Transition origin beats animation and important author");
++  });
++});
++
++add_task(async function disjoint_maps_and_no_publication() {
++  await fixture(async ({ subject, query }) => {
++    const before = getComputedStyle(subject, "::before").marginLeft;
++    let result = query("margin-left", "margin-left", "opacity");
++    accepted(result, "disjoint animation");
++    is(result.value, "50px", "Disjoint animation property survives transition map");
++    result = query("opacity", "margin-left", "opacity");
++    accepted(result, "disjoint transition");
++    is(result.value, "0.8", "Disjoint transition property survives animation map");
++    is(getComputedStyle(subject, "::before").marginLeft, before, "Transient cascade is not published to public style");
++    result = query("margin-left", "margin-left", "margin-left", "::before", 4);
++    accepted(result, "remove origin maps");
++    is(result.value, "10px", "Empty maps remove both origins from a previously recascaded rule path");
++    is(query("margin-left").value, "10px", "Later empty request has no stale origin values");
++  });
++});
++
++add_task(async function inheritance_and_authored_relative_values() {
++  await fixture(async ({ subject, query }) => {
++    subject.classList.add("relative");
++    is(getComputedStyle(subject).fontSize, "20px", "Setup: originating font is 20px");
++    let result = query("margin-left");
++    accepted(result, "origin inheritance");
++    is(result.value, "40px", "Pseudo inherits originating element font");
++    result = query("margin-left", "font-size");
++    accepted(result, "animated font provider");
++    is(result.value, "60px", "Authored em declaration uses cascaded font value");
++    subject.style.fontSize = "25px";
++    result = query("margin-left");
++    accepted(result, "changed origin inheritance");
++    is(result.value, "50px", "Fresh primary style supplies changed inheritance");
++    subject.classList.remove("relative");
++    subject.classList.add("logical");
++    result = query("margin-right", "font-size");
++    accepted(result, "logical authored value");
++    is(result.value, "60px", "RTL logical declaration maps using pseudo writing mode");
++    is(query("margin-left", "font-size").value, "0px", "RTL logical declaration does not overwrite opposite edge");
++  });
++});
++
++add_task(async function custom_property_provider() {
++  const style = document.createElement("style");
++  style.textContent = ".custom::before { margin-left: var(--gap, 12px); }";
++  document.head.append(style);
++  try {
++    await fixture(async ({ subject, animation, query }) => {
++      subject.classList.add("custom");
++      is(getComputedStyle(animation).getPropertyValue("--gap").trim(), "50px", "Setup: custom-property donor is 50px");
++      is(query("margin-left").value, "12px", "Absent custom provider uses authored fallback");
++      const result = query("margin-left", "--gap");
++      accepted(result, "custom provider");
++      is(result.value, "50px", "Authored var declaration uses origin custom-property map");
++    });
++  } finally {
++    style.remove();
++  }
++});
++
++add_task(async function pseudo_layout_parent() {
++  await fixture(async ({ root, subject, query }) => {
++    root.classList.add("flex");
++    let result = query("opacity", "opacity");
++    accepted(result, "ordinary origin layout parent");
++    ok(result.displayIsInline, "Pseudo inside a block origin is not a flex item");
++    subject.classList.add("contents");
++    result = query("opacity", "opacity");
++    accepted(result, "contents origin layout parent");
++    ok(result.displayIsBlock, "Pseudo of display contents origin is blockified as flex item");
++    is(result.value, "0.5", "Contents ancestry preserves animation-origin value");
++  });
++});
++
++add_task(async function supported_and_rejected_identity() {
++  await fixture(async ({ subject, query }) => {
++    let result = query("margin-left", "margin-left", "", "::after");
++    accepted(result, "after identity");
++    is(result.value, "50px", "After pseudo receives its own transient origin rule");
++    result = query("font-size", "font-size", "", "::marker");
++    accepted(result, "marker identity");
++    is(result.value, "30px", "Marker accepts a permitted font property");
++    ok(!query("margin-left", "margin-left", "", "").admitted, "Ordinary element request is rejected");
++    ok(!query("margin-left", "margin-left", "", "::before", 1).admitted, "Mismatched primary style is rejected");
++    ok(!query("margin-left", "margin-left", "", "::before", 2).admitted, "Mismatched base pseudo is rejected");
++    subject.classList.add("generated");
++    result = query("margin-left", "margin-left");
++    is(result.noPseudoCreated, false, "Setup: generated pseudo exists before rejection");
++    ok(!result.admitted, "Generated pseudo request is rejected");
++  });
++});
++</script>
+diff --git a/dom/interfaces/base/nsIDOMWindowUtils.idl b/dom/interfaces/base/nsIDOMWindowUtils.idl
+--- a/dom/interfaces/base/nsIDOMWindowUtils.idl
++++ b/dom/interfaces/base/nsIDOMWindowUtils.idl
+@@ -1596,6 +1596,15 @@
+                                   in AString value1,
+                                   in AString value2);
+ 
++  AString getMissingPseudoRecascadeForTesting(in Element aElement,
++                                              in AString aPseudoElement,
++                                              in Element aAnimationDonor,
++                                              in AString aAnimationProperty,
++                                              in Element aTransitionDonor,
++                                              in AString aTransitionProperty,
++                                              in AString aResultProperty,
++                                              in unsigned long aFlags);
++
+   // Temporary diagnostic for request-local missing-pseudo composition.
+   AString getMissingPseudoAnimationValuesForTesting(in Element aElement,
+                                                     in AString aPseudoElement,
+diff --git a/servo/ports/geckolib/glue.rs b/servo/ports/geckolib/glue.rs
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -7446,6 +7446,21 @@
+         .into()
+ }
+ 
++#[unsafe(no_mangle)]
++pub extern "C" fn Servo_AnimationValueMap_FromComputedStyleForTesting(
++    style: &ComputedValues,
++    property: &structs::CSSPropertyId,
++) -> *mut AnimationValueMap {
++    let Some(property) = OwnedPropertyDeclarationId::from_gecko_css_property_id(property) else {
++        return ptr::null_mut();
++    };
++    let Some(value) = AnimationValue::from_computed_values(property.as_borrowed(), style) else {
++        return ptr::null_mut();
++    };
++    let mut values = Box::new(AnimationValueMap::default());
++    values.insert(property, value);
++    Box::into_raw(values)
++}
+ 
+ #[unsafe(no_mangle)]
+ pub extern "C" fn Servo_RecascadeStyleForMissingPseudo(
