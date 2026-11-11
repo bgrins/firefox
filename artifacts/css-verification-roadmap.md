@@ -10,6 +10,7 @@ Signing resumed successfully. New signed commits are:
 
 | Commit | Content |
 | --- | --- |
+| 713bb6d320ec | Accepted singleton alias non-capture laws and updated 170-entry repair catalogue |
 | 7382007a82b4 | Matching-auto clip composition repair: three native files, nine-case WPT and expected-failure update (#171) |
 | 302fe2b5ba00 | Clip guard proof, optimized native comparison, complete corrected result analysis and delivery checks |
 | bb0af1f4041c | Signed standalone tooling integration, canonical builds and installed/source-only validation |
@@ -63,6 +64,8 @@ Signing resumed successfully. New signed commits are:
 The original Bloom milestones 1–6 remain conditional results at their recorded revisions. The standalone CSS Lean repository is at signed 898fb45815c115362093116d81c09715ba94fcab. No whole-CSS or whole-Stylo verification is claimed. Historical detailed milestones remain under css-continuation-roadmap-20261104-v278.
 
 The stable first-order derivation tooling is integrated as opt-in `CssDerivation`, with import-only relocation and reuse of the existing input/escape modules. Root authenticated all 39 delivered files, replayed the source-only and installed checkers (143 audits, nine controls and three 13-row actual-file runners), and built both the default library and the opt-in target. Static coverage registration remains 11,923 declarations. Existing CSS source/test bytes and `.DS_Store` were preserved; the full historical runtime suite was not repeated. JSON text parsing, outer-document construction and manually reviewed CSS prose mapping remain boundaries. See css-first-order-library-integration-20261110-v1/ROOT-INTEGRATION.json and its independent review.
+
+The current local optimized browser includes #171. BuildID 20261110165601 was built successfully from clean tracked 713bb6d320ec and is left installed in objdir-full.noindex/dist/Nightly.app. A final two-page WPT run with the committed expectation update exits zero: 47 callbacks plus two OK harness endings, all 49 results expected. All nine new cases pass; the two unrelated expected failures remain. Source/binary identity and the 29 preexisting untracked paths are preserved. See css-clip-auto-current-build-20261110-v1/build-result.json and WPT-RESULTS.json. This supersedes the earlier restored #170 browser receipt; broader SMIL and proof comparisons remain the preceding acceptance evidence.
 
 ## Current feedback investigation
 
