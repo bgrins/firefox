@@ -1,0 +1,28 @@
+diff --git a/layout/style/ServoStyleSet.cpp b/layout/style/ServoStyleSet.cpp
+--- a/layout/style/ServoStyleSet.cpp
++++ b/layout/style/ServoStyleSet.cpp
+@@ -1342,9 +1342,9 @@
+   if (!pc || !pc->IsDynamic() || IsInServoTraversal() || StylistNeedsUpdate() ||
+       aElement.OwnerDoc() != mDocument || !aElement.IsInComposedDoc() ||
+       aPseudo.mIdentifier ||
+-      (aPseudo.mType != PseudoStyleType::before &&
+-       aPseudo.mType != PseudoStyleType::after &&
+-       aPseudo.mType != PseudoStyleType::marker) ||
++      (aPseudo.mType != PseudoStyleType::Before &&
++       aPseudo.mType != PseudoStyleType::After &&
++       aPseudo.mType != PseudoStyleType::Marker) ||
+       aElement.GetPseudoElement(aPseudo) ||
+       aBase.GetPseudoType() != aPseudo.mType ||
+       aPrimary.GetPseudoType() != PseudoStyleType::NotPseudo) {
+diff --git a/dom/base/nsDOMWindowUtils.cpp b/dom/base/nsDOMWindowUtils.cpp
+--- a/dom/base/nsDOMWindowUtils.cpp
++++ b/dom/base/nsDOMWindowUtils.cpp
+@@ -3383,7 +3383,7 @@
+   RefPtr<ComputedStyle> transitionStyle =
+       styleSet->ResolveStyleLazily(*transitionDonor);
+   const PseudoStyleRequest basePseudo =
+-      (aFlags & 2u) ? PseudoStyleRequest(PseudoStyleType::after) : *pseudo;
++      (aFlags & 2u) ? PseudoStyleRequest(PseudoStyleType::After) : *pseudo;
+   RefPtr<ComputedStyle> base =
+       styleSet->ResolveStyleLazily(*element, basePseudo);
+   if (!primary || !base || !animationStyle || !transitionStyle) {

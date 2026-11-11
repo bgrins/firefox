@@ -1,0 +1,636 @@
+diff --git a/dom/animation/Animation.cpp b/dom/animation/Animation.cpp
+--- a/dom/animation/Animation.cpp
++++ b/dom/animation/Animation.cpp
+@@ -1700,6 +1700,23 @@
+   if (keyframeEffect) {
+     keyframeEffect->WillComposeStyle();
+   }
++}
++
++Nullable<TimeDuration> Animation::GetHoldTimeForComposition(
++    const TimeStamp* aSampleTime) const {
++  auto holdTime = mHoldTime;
++  if (Pending() && mHoldTime.IsNull() && !mStartTime.IsNull()) {
++    Nullable<TimeDuration> timeToUse;
++    if (mTimeline && mTimeline->TracksWallclockTime()) {
++      timeToUse = mTimeline->ToTimelineTime(aSampleTime ? *aSampleTime
++                                                        : TimeStamp::Now());
++    }
++    if (!timeToUse.IsNull()) {
++      holdTime = CurrentTimeFromTimelineTime(
++          timeToUse.Value(), mStartTime.Value(), PlaybackRateInternal());
++    }
++  }
++  return holdTime;
+ }
+ 
+ void Animation::ComposeStyle(
+@@ -1749,16 +1766,7 @@
+   const bool pending = Pending();
+   {
+     AutoRestore<Nullable<TimeDuration>> restoreHoldTime(mHoldTime);
+-    if (pending && mHoldTime.IsNull() && !mStartTime.IsNull()) {
+-      Nullable<TimeDuration> timeToUse;
+-      if (mTimeline && mTimeline->TracksWallclockTime()) {
+-        timeToUse = mTimeline->ToTimelineTime(TimeStamp::Now());
+-      }
+-      if (!timeToUse.IsNull()) {
+-        mHoldTime = CurrentTimeFromTimelineTime(
+-            timeToUse.Value(), mStartTime.Value(), PlaybackRateInternal());
+-      }
+-    }
++    mHoldTime = GetHoldTimeForComposition();
+ 
+     KeyframeEffect* keyframeEffect = mEffect->AsKeyframeEffect();
+     if (keyframeEffect) {
+diff --git a/dom/animation/Animation.h b/dom/animation/Animation.h
+--- a/dom/animation/Animation.h
++++ b/dom/animation/Animation.h
+@@ -537,6 +537,7 @@
+   void MaybeResolveFinishedPromise();
+   void DoFinishNotification(SyncNotifyFlag aSyncNotifyFlag);
+   friend class AsyncFinishNotification;
++  friend class mozilla::EffectCompositor;
+   void DoFinishNotificationImmediately(MicroTaskRunnable* aAsync = nullptr);
+   void QueuePlaybackEvent(nsAtom* aOnEvent, TimeStamp&& aScheduledEventTime);
+   void MaybeResolvePromiseWithThis(Promise*);
+@@ -555,6 +556,8 @@
+   void ResetPendingTasks();
+   StickyTimeDuration EffectEnd() const;
+ 
++  Nullable<TimeDuration> GetHoldTimeForComposition(
++      const TimeStamp* aSampleTime = nullptr) const;
+   Nullable<TimeDuration> GetCurrentTimeForHoldTime(
+       const Nullable<TimeDuration>& aHoldTime) const;
+   Nullable<TimeDuration> GetUnconstrainedCurrentTime() const {
+diff --git a/dom/animation/CSSAnimation.cpp b/dom/animation/CSSAnimation.cpp
+--- a/dom/animation/CSSAnimation.cpp
++++ b/dom/animation/CSSAnimation.cpp
+@@ -498,6 +498,17 @@
+   return newKeyframe;
+ }
+ 
++Maybe<KeyframeEffect::CSSKeyframeGenerationOptions>
++CSSAnimationKeyframeEffect::CaptureCSSGenerationOptions() const {
++  // Check if we do need to do this. This flag is set if the keyframes come from
++  // the JS API.
++  if (mIgnoreKeyframesGeneration) {
++    return Nothing();
++  }
++  return Some(
++      CSSKeyframeGenerationOptions{mDefaultTimingFunction, mDefaultComposite});
++}
++
+ // The step 3 (Generate Initial and Final Frames) in
+ // https://drafts.csswg.org/css-animations-2/#keyframe-processing
+ //
+@@ -507,14 +518,9 @@
+ // property values here since the caller will do that. Perhaps we could merge
+ // them together in the future.
+ // https://drafts.csswg.org/web-animations-1/#computed-keyframes
+-bool CSSAnimationKeyframeEffect::GetComputedKeyframes(
++void KeyframeEffect::CSSKeyframeGenerationOptions::GenerateComputedKeyframes(
++    const nsTArray<Keyframe>& aSpecifiedKeyframes,
+     nsTArray<Keyframe>& aKeyframes) const {
+-  // Check if we do need to do this. This flag is set if the keyframes come from
+-  // the JS API.
+-  if (mIgnoreKeyframesGeneration) {
+-    return false;
+-  }
+-
+   // FIXME: Perhaps we could cache |allProperties| for keyframes with
+   // <percentage> offsets. (The properties of keyframes with
+   // <timeline-range-offset> offsets need to be checked everytime
+@@ -524,14 +530,14 @@
+   AnimatedPropertyIDSet toProperties;
+ 
+   // Add 2 more elements for the insertion of 0% and 100% if any.
+-  nsTArray<Keyframe> percentageKeyframes(mKeyframes.Length() + 2);
+-  nsTArray<Keyframe> rangeKeyframes(mKeyframes.Length());
++  nsTArray<Keyframe> percentageKeyframes(aSpecifiedKeyframes.Length() + 2);
++  nsTArray<Keyframe> rangeKeyframes(aSpecifiedKeyframes.Length());
+ 
+   // Iterate keyframes and collect properties first. We have to append the
+   // propeties to the 0% or 100% keyframes if needed. We merged keyframes and
+   // converted the properties into physical longhands for the specified
+   // keyframes already, so we can just collect the propertis information here.
+-  for (const Keyframe& keyframe : mKeyframes) {
++  for (const Keyframe& keyframe : aSpecifiedKeyframes) {
+     MOZ_ASSERT(keyframe.mOffset);
+     if (keyframe.mOffset->IsPercentageOffset()) {
+       percentageKeyframes.AppendElement(keyframe);
+@@ -646,7 +652,6 @@
+   if (!rangeKeyframes.IsEmpty()) {
+     aKeyframes.AppendElements(std::move(rangeKeyframes));
+   }
+-  return true;
+ }
+ 
+ void CSSAnimationKeyframeEffect::MaybeFlushUnanimatedStyle() const {
+diff --git a/dom/animation/CSSAnimation.h b/dom/animation/CSSAnimation.h
+--- a/dom/animation/CSSAnimation.h
++++ b/dom/animation/CSSAnimation.h
+@@ -216,9 +216,11 @@
+   void SetDefaultComposite(const CompositeOperation& aComposite) {
+     mDefaultComposite = aComposite;
+   }
+-  bool GetComputedKeyframes(nsTArray<Keyframe>& aKeyframes) const override;
+ 
+  private:
++  Maybe<CSSKeyframeGenerationOptions> CaptureCSSGenerationOptions()
++      const override;
++
+   CSSAnimation* GetOwningCSSAnimation() {
+     return mAnimation ? mAnimation->AsCSSAnimation() : nullptr;
+   }
+diff --git a/dom/animation/EffectCompositor.cpp b/dom/animation/EffectCompositor.cpp
+--- a/dom/animation/EffectCompositor.cpp
++++ b/dom/animation/EffectCompositor.cpp
+@@ -497,6 +497,142 @@
+   return true;
+ }
+ 
++bool EffectCompositor::ComposeServoAnimationRulesForMissingPseudo(
++    const OwningAnimationTarget& aTarget, const ComputedStyle* aBaseStyle,
++    const ComputedStyle* aEndpointStyle,
++    UniquePtr<StyleAnimationValueMap>& aAnimationValues,
++    UniquePtr<StyleAnimationValueMap>& aTransitionValues) {
++  MOZ_ASSERT(NS_IsMainThread());
++  if (!mPresContext || !mPresContext->IsDynamic() || !aTarget || !aBaseStyle ||
++      !aEndpointStyle ||
++      nsContentUtils::GetContextForContent(aTarget.mElement) != mPresContext ||
++      aAnimationValues || aTransitionValues ||
++      &aAnimationValues == &aTransitionValues) {
++    return false;
++  }
++  const auto pseudo = aTarget.mPseudoRequest.mType;
++  if ((pseudo != PseudoStyleType::Before && pseudo != PseudoStyleType::After &&
++       pseudo != PseudoStyleType::Marker) ||
++      aBaseStyle->GetPseudoType() != pseudo ||
++      aEndpointStyle->GetPseudoType() != pseudo ||
++      aTarget.mElement->GetPseudoElement(aTarget.mPseudoRequest)) {
++    return false;
++  }
++
++  const OwningAnimationTarget target = aTarget;
++  RefPtr<const ComputedStyle> baseStyle = aBaseStyle;
++  RefPtr<const ComputedStyle> endpointStyle = aEndpointStyle;
++  nsTArray<RefPtr<KeyframeEffect>> sortedEffects;
++  {
++    EffectSet* effects = EffectSet::Get(target.mElement, target.mPseudoRequest);
++    if (!effects) {
++      return false;
++    }
++    for (KeyframeEffect* effect : *effects) {
++      if (!effect->GetAnimation()) {
++        return false;
++      }
++      sortedEffects.AppendElement(effect);
++    }
++  }
++  if (sortedEffects.IsEmpty()) {
++    return false;
++  }
++  sortedEffects.Sort(EffectCompositeOrderComparator());
++
++  struct PreparedEffect {
++    RefPtr<KeyframeEffect> mEffect;
++    RefPtr<Animation> mAnimation;
++    RefPtr<dom::AnimationTimeline> mTimeline;
++    dom::AnimationRange mRange;
++    KeyframeEffect::PropertyInputSnapshot mInputs;
++    ComputedTiming mTiming;
++    dom::IterationCompositeOperation mIterationComposite;
++    CascadeLevel mLevel;
++    nsTArray<AnimationProperty> mProperties;
++  };
++  nsTArray<PreparedEffect> prepared;
++  const TimeStamp sampleTime = TimeStamp::Now();
++  for (const RefPtr<KeyframeEffect>& effect : sortedEffects) {
++    RefPtr<Animation> animation = effect->GetAnimation();
++    const auto& effectTarget = effect->GetAnimationTarget();
++    if (!animation || animation->GetEffect() != effect.get() ||
++        effectTarget.mElement != target.mElement ||
++        effectTarget.mPseudoRequest != target.mPseudoRequest) {
++      return false;
++    }
++    RefPtr<dom::AnimationTimeline> timeline = animation->GetTimeline();
++    const dom::AnimationRange range = animation->GetTimelineRange();
++    auto inputs = effect->CapturePropertyInputs();
++    inputs.RefreshComputedOffsets(timeline, &range);
++    ComputedTiming timing;
++    if (!timeline || !timeline->IsUnresolvedTimeline()) {
++      TimingParams parameters = effect->SpecifiedTiming();
++      if (timeline && !timeline->IsMonotonicallyIncreasing()) {
++        const auto duration = timeline->TimelineDuration(range);
++        MOZ_ASSERT(!duration.IsNull());
++        parameters = parameters.Normalize(duration.Value());
++      }
++      timing = dom::AnimationEffect::GetComputedTimingAt(
++          animation->GetCurrentTimeForHoldTime(
++              animation->GetHoldTimeForComposition(&sampleTime)),
++          parameters, animation->PlaybackRateInternal(),
++          animation->AtTimelineBoundary(), dom::EndpointBehavior::Exclusive);
++    }
++    prepared.AppendElement(PreparedEffect{effect,
++                                          animation,
++                                          timeline,
++                                          range,
++                                          std::move(inputs),
++                                          timing,
++                                          effect->IterationComposite(),
++                                          animation->CascadeLevel(),
++                                          {}});
++  }
++
++  AnimatedPropertyIDSet allProperties;
++  AnimatedPropertyIDSet animationProperties;
++  for (PreparedEffect& effect : prepared) {
++    bool referencesAttributes = false;
++    effect.mProperties = KeyframeEffect::BuildPropertiesFromInputs(
++        effect.mInputs, endpointStyle, effect.mTimeline, referencesAttributes);
++    for (const AnimationProperty& property : effect.mProperties) {
++      allProperties.AddProperty(property.mProperty);
++      if (effect.mLevel == CascadeLevel::Animations) {
++        animationProperties.AddProperty(property.mProperty);
++      }
++    }
++  }
++  KeyframeEffect::BaseValuesHashmap baseValues;
++  for (const auto& property : allProperties) {
++    RefPtr<StyleAnimationValue> value =
++        Servo_ComputedValues_ExtractAnimationValue(baseStyle, &property)
++            .Consume();
++    baseValues.InsertOrUpdate(property, std::move(value));
++  }
++
++  aAnimationValues.reset(Servo_AnimationValueMap_Create());
++  aTransitionValues.reset(Servo_AnimationValueMap_Create());
++  InvertibleAnimatedPropertyIDSet animationSkip;
++  InvertibleAnimatedPropertyIDSet transitionSkip;
++  animationSkip.Setup(&animationProperties, true);
++  transitionSkip.Setup(&animationProperties, false);
++  for (const PreparedEffect& effect : prepared) {
++    if (effect.mTiming.mProgress.IsNull()) {
++      continue;
++    }
++    KeyframeEffect::ComposeProperties(
++        *aAnimationValues, effect.mProperties, baseValues, effect.mTiming,
++        effect.mIterationComposite, animationSkip);
++    if (effect.mLevel == CascadeLevel::Transitions) {
++      KeyframeEffect::ComposeProperties(
++          *aTransitionValues, effect.mProperties, baseValues, effect.mTiming,
++          effect.mIterationComposite, transitionSkip);
++    }
++  }
++  return true;
++}
++
+ bool EffectCompositor::HasPendingStyleUpdates() const {
+   for (auto& elementSet : mElementsToRestyle) {
+     if (elementSet.Count()) {
+diff --git a/dom/animation/EffectCompositor.h b/dom/animation/EffectCompositor.h
+--- a/dom/animation/EffectCompositor.h
++++ b/dom/animation/EffectCompositor.h
+@@ -15,6 +15,7 @@
+ #include "mozilla/PseudoElementHashEntry.h"
+ #include "mozilla/RefPtr.h"
+ #include "mozilla/ServoTypes.h"
++#include "mozilla/UniquePtr.h"
+ #include "mozilla/dom/EndpointBehavior.h"
+ #include "nsCycleCollectionParticipant.h"
+ #include "nsTArray.h"
+@@ -136,6 +137,16 @@
+       dom::EndpointBehavior aEndpointBehavior =
+           dom::EndpointBehavior::Exclusive);
+ 
++  // The styles must describe the same sample and target. Base style excludes
++  // target animation/transition rules; endpoint style includes its providers.
++  // Lazy-resolution borrows must be released, and preparation must not reenter
++  // mutation of the captured target, animation or provider context.
++  bool ComposeServoAnimationRulesForMissingPseudo(
++      const OwningAnimationTarget& aTarget, const ComputedStyle* aBaseStyle,
++      const ComputedStyle* aEndpointStyle,
++      UniquePtr<StyleAnimationValueMap>& aAnimationValues,
++      UniquePtr<StyleAnimationValueMap>& aTransitionValues);
++
+   bool HasPendingStyleUpdates() const;
+ 
+   static bool HasAnimationsForCompositor(const nsIFrame* aFrame,
+diff --git a/dom/animation/KeyframeEffect.cpp b/dom/animation/KeyframeEffect.cpp
+--- a/dom/animation/KeyframeEffect.cpp
++++ b/dom/animation/KeyframeEffect.cpp
+@@ -650,32 +650,20 @@
+       computedTiming.mCurrentIterationForAccumulation;
+ }
+ 
+-void KeyframeEffect::ComposeStyleRule(StyleAnimationValueMap& aAnimationValues,
+-                                      const AnimationProperty& aProperty,
+-                                      const AnimationPropertySegment& aSegment,
+-                                      const ComputedTiming& aComputedTiming) {
+-  auto* opaqueTable =
+-      reinterpret_cast<RawServoAnimationValueTable*>(&mBaseValues);
+-  Servo_AnimationCompose(&aAnimationValues, opaqueTable, &aProperty.mProperty,
+-                         &aSegment, &aProperty.mSegments.LastElement(),
+-                         &aComputedTiming, mEffectOptions.mIterationComposite);
+-}
+-
+-void KeyframeEffect::ComposeStyle(
++/* static */
++void KeyframeEffect::ComposeProperties(
+     StyleAnimationValueMap& aComposeResult,
+-    const InvertibleAnimatedPropertyIDSet& aPropertiesToSkip,
+-    EndpointBehavior aEndpointBehavior) {
+-  ComputedTiming computedTiming = GetComputedTiming(nullptr, aEndpointBehavior);
+-
+-  // If the progress is null, we don't have fill data for the current
+-  // time so we shouldn't animate.
+-  if (computedTiming.mProgress.IsNull()) {
+-    return;
+-  }
+-
+-  for (size_t propIdx = 0, propEnd = mProperties.Length(); propIdx != propEnd;
++    const nsTArray<AnimationProperty>& aProperties,
++    const BaseValuesHashmap& aBaseValues, const ComputedTiming& aComputedTiming,
++    IterationCompositeOperation aIterationComposite,
++    const InvertibleAnimatedPropertyIDSet& aPropertiesToSkip) {
++  MOZ_ASSERT(!aComputedTiming.mProgress.IsNull());
++  const auto* opaqueTable =
++      reinterpret_cast<const RawServoAnimationValueTable*>(&aBaseValues);
++
++  for (size_t propIdx = 0, propEnd = aProperties.Length(); propIdx != propEnd;
+        ++propIdx) {
+-    const AnimationProperty& prop = mProperties[propIdx];
++    const AnimationProperty& prop = aProperties[propIdx];
+ 
+     MOZ_ASSERT(prop.mSegments[0].mFromKey <= 0.0, "incorrect first from key");
+     MOZ_ASSERT(prop.mSegments[prop.mSegments.Length() - 1].mToKey >= 1.0,
+@@ -692,7 +680,7 @@
+     const AnimationPropertySegment *segment = prop.mSegments.Elements(),
+                                    *segmentEnd =
+                                        segment + prop.mSegments.Length();
+-    while (segment->mToKey <= computedTiming.mProgress.Value()) {
++    while (segment->mToKey <= aComputedTiming.mProgress.Value()) {
+       MOZ_ASSERT(segment->mFromKey <= segment->mToKey, "incorrect keys");
+       if ((segment + 1) == segmentEnd) {
+         break;
+@@ -706,8 +694,26 @@
+                        prop.mSegments.Length(),
+                "out of array bounds");
+ 
+-    ComposeStyleRule(aComposeResult, prop, *segment, computedTiming);
+-  }
++    Servo_AnimationCompose(&aComposeResult, opaqueTable, &prop.mProperty,
++                           segment, &prop.mSegments.LastElement(),
++                           &aComputedTiming, aIterationComposite);
++  }
++}
++
++void KeyframeEffect::ComposeStyle(
++    StyleAnimationValueMap& aComposeResult,
++    const InvertibleAnimatedPropertyIDSet& aPropertiesToSkip,
++    EndpointBehavior aEndpointBehavior) {
++  ComputedTiming computedTiming = GetComputedTiming(nullptr, aEndpointBehavior);
++
++  // If the progress is null, we don't have fill data for the current
++  // time so we shouldn't animate.
++  if (computedTiming.mProgress.IsNull()) {
++    return;
++  }
++
++  ComposeProperties(aComposeResult, mProperties, mBaseValues, computedTiming,
++                    mEffectOptions.mIterationComposite, aPropertiesToSkip);
+ 
+   // If the animation produces a change hint that affects the overflow region,
+   // we need to record the current time to unthrottle the animation
+@@ -911,49 +917,86 @@
+   return effect.forget();
+ }
+ 
+-nsTArray<AnimationProperty> KeyframeEffect::BuildProperties(
+-    const ComputedStyle* aStyle, const AnimationTimeline* aTimeline,
+-    bool& aReferencesAttributes) {
+-  MOZ_ASSERT(aStyle);
+-  aReferencesAttributes = false;
+-
+-  nsTArray<AnimationProperty> result;
+-  // If mTarget is false (i.e. mTarget.mElement is null), return an empty
+-  // property array.
+-  if (!mTarget) {
+-    return result;
+-  }
+-
++bool KeyframeEffect::GetComputedKeyframes(
++    nsTArray<Keyframe>& aKeyframes) const {
++  auto options = CaptureCSSGenerationOptions();
++  if (!options) {
++    return false;
++  }
++  options->GenerateComputedKeyframes(mKeyframes, aKeyframes);
++  return true;
++}
++
++KeyframeOffsetsHasRangeOffset
++KeyframeEffect::PropertyInputSnapshot::RefreshComputedOffsets(
++    const AnimationTimeline* aTimeline, const AnimationRange* aRange) {
++  return KeyframeUtils::ComputeMissingKeyframeOffsets(mSpecifiedKeyframes,
++                                                      aTimeline, aRange);
++}
++
++KeyframeEffect::PropertyInputSnapshot KeyframeEffect::CapturePropertyInputs()
++    const {
+   // When GetComputedKeyframeValues or GetAnimationPropertiesFromKeyframes
+   // calculate computed values from |mKeyframes|, they could possibly
+   // trigger a subsequent restyle in which we rebuild animations. If that
+   // happens we could find that |mKeyframes| is overwritten while it is
+   // being iterated over. Normally that shouldn't happen but just in case we
+   // make a copy of |mKeyframes| first and iterate over that instead.
+-  auto keyframesCopy(mKeyframes.Clone());
+-
+-  // We generate the missing 0%/100% keyframes and append the missing
+-  // properties to 0%/100% only if the keyframes come from CSS Keyframes rule.
+-  // Note: We probably can avoid an extra copy above if GetComputedKeyframes()
+-  // return true. However, we use the same function in GetKeyframes() so for
+-  // readibility we still keep it as it is. If this result in any performance
+-  // impact, we should write a special version of GetComputedKeyframes() here.
++  auto specifiedKeyframes = mKeyframes.Clone();
++  auto options = CaptureCSSGenerationOptions();
++  return PropertyInputSnapshot(mTarget, mEffectOptions.mComposite,
++                               std::move(specifiedKeyframes),
++                               std::move(options));
++}
++
++/* static */
++nsTArray<AnimationProperty> KeyframeEffect::BuildPropertiesFromInputs(
++    const PropertyInputSnapshot& aInputs, const ComputedStyle* aStyle,
++    const AnimationTimeline* aTimeline, bool& aReferencesAttributes) {
++  MOZ_ASSERT(aStyle);
++  aReferencesAttributes = false;
++  if (!aInputs.mTarget) {
++    return {};
++  }
++
+   nsTArray<Keyframe> computedKeyframes;
+-  const nsTArray<Keyframe>& keyframes = GetComputedKeyframes(computedKeyframes)
++  if (aInputs.mCSSGenerationOptions) {
++    aInputs.mCSSGenerationOptions->GenerateComputedKeyframes(
++        aInputs.mSpecifiedKeyframes, computedKeyframes);
++  }
++  const nsTArray<Keyframe>& keyframes = aInputs.mCSSGenerationOptions
+                                             ? computedKeyframes
+-                                            : keyframesCopy;
+-
+-  result = KeyframeUtils::GetAnimationPropertiesFromKeyframes(
+-      keyframes, mTarget.mElement, mTarget.mPseudoRequest, aStyle,
+-      mEffectOptions.mComposite, aTimeline, aReferencesAttributes);
++                                            : aInputs.mSpecifiedKeyframes;
++  return KeyframeUtils::GetAnimationPropertiesFromKeyframes(
++      keyframes, aInputs.mTarget.mElement, aInputs.mTarget.mPseudoRequest,
++      aStyle, aInputs.mComposite, aTimeline, aReferencesAttributes);
++}
++
++nsTArray<AnimationProperty> KeyframeEffect::BuildProperties(
++    const ComputedStyle* aStyle, const AnimationTimeline* aTimeline,
++    bool& aReferencesAttributes) {
++  MOZ_ASSERT(aStyle);
++  aReferencesAttributes = false;
++
++  nsTArray<AnimationProperty> result;
++  // If mTarget is false (i.e. mTarget.mElement is null), return an empty
++  // property array.
++  if (!mTarget) {
++    return result;
++  }
++
++  auto inputs = CapturePropertyInputs();
++  result = BuildPropertiesFromInputs(inputs, aStyle, aTimeline,
++                                     aReferencesAttributes);
+ 
+ #ifdef DEBUG
+-  MOZ_ASSERT(SpecifiedKeyframeArraysAreEqual(mKeyframes, keyframesCopy),
+-             "Apart from the computed offset members, the keyframes array"
+-             " should not be modified");
++  MOZ_ASSERT(
++      SpecifiedKeyframeArraysAreEqual(mKeyframes, inputs.mSpecifiedKeyframes),
++      "Apart from the computed offset members, the keyframes array"
++      " should not be modified");
+ #endif
+ 
+-  mKeyframes = std::move(keyframesCopy);
++  mKeyframes = std::move(inputs.mSpecifiedKeyframes);
+   return result;
+ }
+ 
+diff --git a/dom/animation/KeyframeEffect.h b/dom/animation/KeyframeEffect.h
+--- a/dom/animation/KeyframeEffect.h
++++ b/dom/animation/KeyframeEffect.h
+@@ -173,9 +173,16 @@
+ 
+   void GetKeyframes(JSContext* aCx, nsTArray<JSObject*>& aResult,
+                     ErrorResult& aRv);
+-  virtual bool GetComputedKeyframes(nsTArray<Keyframe>& aKeyframes) const {
+-    return false;
+-  }
++  struct CSSKeyframeGenerationOptions {
++    StyleComputedTimingFunction mDefaultTimingFunction;
++    CompositeOperation mDefaultComposite;
++
++    void GenerateComputedKeyframes(
++        const nsTArray<Keyframe>& aSpecifiedKeyframes,
++        nsTArray<Keyframe>& aKeyframes) const;
++  };
++
++  bool GetComputedKeyframes(nsTArray<Keyframe>& aKeyframes) const;
+   void GetProperties(nsTArray<AnimationPropertyDetails>& aProperties,
+                      ErrorResult& aRv) const;
+ 
+@@ -262,6 +269,36 @@
+                                                 const nsIFrame* aFrame) const;
+ 
+   const nsTArray<AnimationProperty>& Properties() const { return mProperties; }
++
++  // Owns specified keys and CSS defaults; declaration blocks remain shared.
++  class PropertyInputSnapshot {
++   public:
++    KeyframeOffsetsHasRangeOffset RefreshComputedOffsets(
++        const AnimationTimeline* aTimeline, const AnimationRange* aRange);
++    const OwningAnimationTarget& Target() const { return mTarget; }
++
++   private:
++    friend class KeyframeEffect;
++
++    PropertyInputSnapshot(
++        const OwningAnimationTarget& aTarget, CompositeOperation aComposite,
++        nsTArray<Keyframe>&& aSpecifiedKeyframes,
++        Maybe<CSSKeyframeGenerationOptions>&& aCSSGenerationOptions)
++        : mTarget(aTarget),
++          mComposite(aComposite),
++          mSpecifiedKeyframes(std::move(aSpecifiedKeyframes)),
++          mCSSGenerationOptions(std::move(aCSSGenerationOptions)) {}
++
++    OwningAnimationTarget mTarget;
++    CompositeOperation mComposite;
++    nsTArray<Keyframe> mSpecifiedKeyframes;
++    Maybe<CSSKeyframeGenerationOptions> mCSSGenerationOptions;
++  };
++
++  PropertyInputSnapshot CapturePropertyInputs() const;
++  static nsTArray<AnimationProperty> BuildPropertiesFromInputs(
++      const PropertyInputSnapshot& aInputs, const ComputedStyle* aStyle,
++      const AnimationTimeline* aTimeline, bool& aReferencesAttributes);
+   bool ReferencesAttributes() const { return mReferencesAttributes; }
+ 
+   // Update |mProperties| by recalculating from |mKeyframes| using
+@@ -277,6 +314,19 @@
+   // mutating any state in ComposeStyle() since it might be called during
+   // parallel traversal.
+   void WillComposeStyle();
++
++  using BaseValuesHashmap =
++      nsRefPtrHashtable<nsGenericHashKey<CSSPropertyId>, StyleAnimationValue>;
++
++  // Requires non-null progress and valid, non-empty segment arrays.
++  // Does not update effect bookkeeping.
++  static void ComposeProperties(
++      StyleAnimationValueMap& aComposeResult,
++      const nsTArray<AnimationProperty>& aProperties,
++      const BaseValuesHashmap& aBaseValues,
++      const ComputedTiming& aComputedTiming,
++      IterationCompositeOperation aIterationComposite,
++      const InvertibleAnimatedPropertyIDSet& aPropertiesToSkip);
+ 
+   // Updates |aComposeResult| with the animation values produced by this
+   // AnimationEffect for the current time except any properties contained
+@@ -386,6 +436,11 @@
+  protected:
+   ~KeyframeEffect() override = default;
+ 
++  virtual Maybe<CSSKeyframeGenerationOptions> CaptureCSSGenerationOptions()
++      const {
++    return Nothing();
++  }
++
+   template <class OptionsType>
+   static already_AddRefed<KeyframeEffect> ConstructKeyframeEffect(
+       const GlobalObject& aGlobal, Element* aTarget,
+@@ -480,8 +535,6 @@
+   // The non-animated values for properties in this effect that contain at
+   // least one animation value that is composited with the underlying value
+   // (i.e. it uses the additive or accumulate composite mode).
+-  using BaseValuesHashmap =
+-      nsRefPtrHashtable<nsGenericHashKey<CSSPropertyId>, StyleAnimationValue>;
+   BaseValuesHashmap mBaseValues;
+ 
+  private:
+@@ -510,11 +563,6 @@
+   };
+   CumulativeChanges mCumulativeChanges;
+ 
+-  void ComposeStyleRule(StyleAnimationValueMap& aAnimationValues,
+-                        const AnimationProperty& aProperty,
+-                        const AnimationPropertySegment& aSegment,
+-                        const ComputedTiming& aComputedTiming);
+-
+   already_AddRefed<const ComputedStyle> CreateComputedStyleForAnimationValue(
+       NonCustomCSSPropertyId aProperty, const AnimationValue& aValue,
+       nsPresContext* aPresContext, const ComputedStyle* aBaseComputedStyle);
