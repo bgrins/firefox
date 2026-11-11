@@ -1,0 +1,21 @@
+# Number lexical bridge
+
+Import `CssDerivation.NumberLexical` for the proved bridge from the fixed typed JSON number document, through parser lowering and scalar CSS number syntax, to an independent byte lexical model. The public domain is normalized ASCII satisfying number-entry recognition. The observations preserve source spelling, the exact numeric prefix and remainder, integer/fraction/exponent digit runs, outer-sign presence and syntactic integer classification. Numeric remainder is distinct from the remainder after a percentage or dimension suffix.
+
+This is an opt-in research facade. It adds no feature claim to the main CSS coverage registry and does not change the `CssDerivation` or `CssSemantics` facades. `Reference.NumberLexical` contains source-shaped Lean models, not Rust bindings or extracted implementations. Historical `native` function names designate those Lean algorithms. Neither building nor checking this library requires Firefox, Stylo, Cargo, a browser or a sibling repository.
+
+Run the standalone cold check from the library root:
+
+```sh
+python3 -B number_lexical_check.py --lean /path/to/lean --out /tmp/number-lexical-check
+```
+
+The output directory must be absent. The pinned toolchain is Lean 4.35.0-rc4. The checker authenticates import-only transport, reconstructs and replays the accepted source checker, then cold-compiles the installed dependency closure and public facade. It checks the same 457 theorem declarations (398 preserved and 59 new, including 22 new boundary cases; the preserved set contains 295 already-canonical and 103 previously separate reference declarations), exact axiom sets and 126 executable rows. Accepted-source replay additionally checks five malformed-document refusals, three compiling semantic mutations and three provenance mutations. Two installed-facade controls reject missing or changed dependencies. The default CSS registry is checked without rebuilding the entire CSS library. All owned compiled temporary directories are removed; full logs remain.
+
+Three preserved reference modules emit nine preexisting unused-simp warnings. Their complete diagnostic outputs must match the accepted hashes after replacing only relocated module filenames. Other diagnostics are rejected. No proof was altered to silence warnings. Existing derivation checkers retain their separate warning policy and unchanged import closure.
+
+`TRANSPORT.json` records every accepted input and its installed identity. Reverse relocation changes only import module names; theorem names and bodies are unchanged. `COMPATIBILITY.json` pins the previous derivation modules, shared CSS model sources, public registries and checker/config files. The actual-file executable is `CssDerivation/Tools/NumberLexicalRunner.lean`; it decodes and executes its supplied JSON document. It does not import the fixed fixture or correspondence theorems. A changed valid document produces different output. Runtime/test modules are excluded from the public facade.
+
+`origin/CLAUSES.json` retains the manually selected CSS Syntax source spans at revision `c410ee5e4d2afe6d8b2e8ce53723b8d1eb3b5b67`: consume-number, starts-with-a-number and the ASCII digit definition. `origin/MAPPING.md` records the independent model correspondence and exclusions. The fixed document identity matters: arbitrary well-typed documents are not necessarily CSS algorithms. JSON text parsing/quotation and manual interpretation of spec prose remain trusted boundaries. Byte-to-scalar lifting is not UTF-8 decoding. Model error-state preservation is not a native error-field mapping. Floating-point conversion, integer clamping and full native token semantics remain outside this bridge.
+
+`EVIDENCE.json` identifies the independent proof review and subsequent default-feature native calibration report. That separate experiment observed lexical agreement on 196 native cases (180 admitted model rows, 284 comparisons) and rejected three compiled native mutations. It used cssparser's default, fast_match_byte and fast_match_color features. This finite evidence does not establish Rust refinement, full Gecko feature parity, arbitrary histories or floating-point correctness; this standalone check does not rerun it.
