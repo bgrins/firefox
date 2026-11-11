@@ -1,0 +1,61 @@
+--- v3/check.py
++++ v4/check.py
+@@ -15,7 +15,7 @@
+ def input_names():
+     names = [str(p.relative_to(HERE)) for p in HERE.glob('*.py')]
+     names += [str(p.relative_to(HERE)) for p in HERE.glob('*.patch')]
+-    names += ['RUN-PLAN.json', 'SOURCE-ROLES.json', 'EXPECTED-BASELINE.json', 'EXPECTED-CALLBACKS.json', 'EXPECTED-CHANGES.json', 'DRIVER-ASSERTIONS.json', 'RECASCADE-ASSERTIONS.json', 'ORIGINS.json', 'COMPILE-AMENDMENT.json', 'ENUM-AMENDMENT.json', 'MARKER-AMENDMENT.json']
++    names += ['RUN-PLAN.json', 'SOURCE-ROLES.json', 'EXPECTED-BASELINE.json', 'EXPECTED-CALLBACKS.json', 'EXPECTED-CHANGES.json', 'DRIVER-ASSERTIONS.json', 'RECASCADE-ASSERTIONS.json', 'ORIGINS.json', 'COMPILE-AMENDMENT.json', 'ENUM-AMENDMENT.json', 'MARKER-AMENDMENT.json', 'GEOMETRY-AMENDMENT.json']
+     for directory in ['source', 'candidate', 'runtime-inputs']:
+         names += [str(p.relative_to(HERE)) for p in sorted((HERE / directory).rglob('*')) if p.is_file()]
+     assert len(names) == len(set(names))
+@@ -48,6 +48,21 @@
+ def main():
+     parser = argparse.ArgumentParser(); parser.add_argument('--frozen', action='store_true'); args = parser.parse_args()
+     origins, plan, roles = [load(HERE / n) for n in ['ORIGINS.json', 'RUN-PLAN.json', 'SOURCE-ROLES.json']]
++    geometry = load(HERE / 'GEOMETRY-AMENDMENT.json')
++    prior = ROOT / geometry['runtime_origin']
++    assert sha(prior / 'RUN-INPUTS.json') == geometry['runtime_manifest_sha256']
++    prior_manifest = load(prior / 'RUN-INPUTS.json')
++    assert all(sha(prior / n) == h for n, h in prior_manifest.items())
++    assert geometry['before'] == 'overflow: scroll;' and geometry['after'] == 'overflow-x: hidden; overflow-y: scroll;'
++    prior_fixture = (prior / geometry['fixture']).read_text()
++    assert prior_fixture.count(geometry['before']) == 1
++    assert (HERE / geometry['fixture']).read_text() == prior_fixture.replace(geometry['before'], geometry['after'])
++    assert sha(prior / geometry['fixture']) == geometry['before_sha256']
++    assert sha(HERE / geometry['fixture']) == geometry['after_sha256']
++    assert sha(HERE / 'GEOMETRY-AMENDMENT.patch') == geometry['patch_sha256']
++    for name, digest in prior_manifest.items():
++        if name not in ['check.py', 'RUN-PLAN.json', geometry['fixture']]:
++            assert sha(HERE / name) == digest, name
+     amendment = load(HERE / 'ENUM-AMENDMENT.json')
+     initial = ROOT / amendment['runtime_origin']
+     assert sha(initial / 'RUN-INPUTS.json') == amendment['runtime_manifest_sha256']
+@@ -104,12 +119,12 @@
+     assert plan['driver_expected_assertions'] == 208 and plan['recascade_expected_assertions'] == 100
+     with tempfile.TemporaryDirectory(prefix='transient-recascade-runtime-check-') as directory:
+         scratch = Path(directory) / 'sources'; shutil.copytree(HERE / 'source', scratch)
+-        for name in patches + ['recascade.patch']:
++        for name in patches + ['recascade.patch', 'GEOMETRY-AMENDMENT.patch']:
+             subprocess.run(['patch', '--batch', '-p1', '-i', str(HERE / name)], cwd=scratch, check=True, capture_output=True)
+         assert all((scratch / name).read_bytes() == (HERE / 'candidate' / name).read_bytes() for name in roles)
+         for name in [plan['driver_test'], plan['recascade_test']]:
+             assert (scratch / name).read_bytes() == (HERE / 'runtime-inputs' / plan['fixtures'][name]).read_bytes()
+-        for name in reversed(patches + ['recascade.patch']):
++        for name in reversed(patches + ['recascade.patch', 'GEOMETRY-AMENDMENT.patch']):
+             subprocess.run(['patch', '-R', '--batch', '-p1', '-i', str(HERE / name)], cwd=scratch, check=True, capture_output=True)
+         assert all((scratch / name).read_bytes() == (HERE / 'source' / name).read_bytes() for name in roles)
+         assert all(not (scratch / name).exists() for name in plan['candidate_only_fixtures'])
+@@ -129,7 +144,11 @@
+     for name, filename in plan['fixtures'].items():
+         assert pins[name] is None
+         original = candidate / filename if name == plan['recascade_test'] else previous / 'runtime-inputs' / filename
+-        assert (HERE / 'runtime-inputs' / filename).read_bytes() == original.read_bytes()
++        expected_fixture = original.read_text()
++        if name == plan['driver_test']:
++            assert expected_fixture.count(geometry['before']) == 1
++            expected_fixture = expected_fixture.replace(geometry['before'], geometry['after'])
++        assert (HERE / 'runtime-inputs' / filename).read_text() == expected_fixture
+     old_manifest = tomllib.loads((previous / 'candidate' / plan['driver_manifest']).read_text())
+     manifest = tomllib.loads((HERE / 'candidate' / plan['driver_manifest']).read_text())
+     assert manifest == dict(old_manifest, **{Path(plan['recascade_test']).name: {}})

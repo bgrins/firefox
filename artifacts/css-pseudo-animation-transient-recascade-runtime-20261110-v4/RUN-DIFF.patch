@@ -1,0 +1,38 @@
+--- query-v4/run.py
++++ recascade-v1/run.py
+@@ -26,7 +26,7 @@
+     return value
+ 
+ 
+-bundle, process, analyze, driver_analyze = module('bundle'), module('process'), module('analyze'), module('driver-analyze')
++bundle, process, analyze, driver_analyze, recascade_analyze = module('bundle'), module('process'), module('analyze'), module('driver-analyze'), module('recascade-analyze')
+ process.ROOT = ROOT
+ sha = bundle.sha
+ 
+@@ -148,6 +148,9 @@
+             results['driver_lint'] = process.run([PYTHON, './mach', 'lint', '--linter', 'eslint', plan['driver_test']], output / 'driver-lint.log', env, 600)
+             save(output / 'DRIVER-LINT.json', results['driver_lint'])
+             assert results['driver_lint']['exit_code'] == 0, 'installed driver lint failed'
++            results['recascade_lint'] = process.run([PYTHON, './mach', 'lint', '--linter', 'eslint', plan['recascade_test']], output / 'recascade-lint.log', env, 600)
++            save(output / 'RECASCADE-LINT.json', results['recascade_lint'])
++            assert results['recascade_lint']['exit_code'] == 0, 'installed recascade lint failed'
+             results['manifest_lint'] = process.run([PYTHON, './mach', 'lint', '--linter', 'test-manifest-toml', plan['driver_manifest']], output / 'manifest-lint.log', env, 600)
+             save(output / 'MANIFEST-LINT.json', results['manifest_lint'])
+             assert results['manifest_lint']['exit_code'] == 0, 'installed manifest lint failed'
+@@ -186,6 +189,16 @@
+             save(output / 'DRIVER-RESULTS.json', driver_result)
+             assert results['driver']['exit_code'] == 0, 'driver command failed; setup classification retained'
+             assert driver_result['gate_passed'], 'direct driver failed; distinguish setup gates from result failures'
++            command = [PYTHON, './mach', 'mochitest', '--headless', '--flavor=plain',
++                       f'--appname={APP / "Contents/MacOS/firefox"}',
++                       f'--log-raw={output / "recascade-raw.jsonl"}', plan['recascade_test']]
++            results['recascade'] = process.run(command, output / 'recascade.log', dict(env, STYLO_THREADS='1', MOZ_CRASHREPORTER_DISABLE='1'), 1800)
++            save(output / 'RECASCADE-COMMAND.json', results['recascade'])
++            assert {p: sha(ROOT / p) for p in binaries} == binaries
++            recascade_result = recascade_analyze.parse(output / 'recascade-raw.jsonl')
++            save(output / 'RECASCADE-RESULTS.json', recascade_result)
++            assert results['recascade']['exit_code'] == 0, 'recascade command failed; setup classification retained'
++            assert recascade_result['gate_passed'], 'direct recascade failed; distinguish setup gates from result failures'
+         else:
+             save(output / 'DRIVER-NOT-RUN.json', {'reason': plan['driver_baseline'], 'executed': False})
+ 
