@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Underlying values for animations of generated and non-generated pseudos</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#applying-the-composited-result">
+<link rel="help" href="https://drafts.csswg.org/cssom/#dom-window-getcomputedstyle">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="../../testcommon.js"></script>
+<style>
+  .subject::before { margin-left: 10px; }
+  .subject.generated::before { content: "x"; display: inline-block; }
+  .subject.changed::before { margin-left: 20px; }
+  .subject.important::before { margin-left: 30px !important; }
+</style>
+<body>
+<script>
+function subject(t, generated) {
+  const element = createDiv(t);
+  element.className = generated ? "subject generated" : "subject";
+  return element;
+}
+
+function animatePseudo(t, element, keyframes) {
+  const animation = element.animate(keyframes, {
+    duration: 1000,
+    pseudoElement: "::before",
+  });
+  t.add_cleanup(() => animation.cancel());
+  animation.pause();
+  animation.currentTime = 500;
+  assert_equals(animation.effect.target, element);
+  assert_equals(animation.effect.pseudoElement, "::before");
+  assert_equals(animation.effect.getComputedTiming().progress, 0.5);
+  return animation;
+}
+
+for (const generated of [true, false]) {
+  const label = generated ? "generated" : "non-generated";
+
+  test(t => {
+    const element = subject(t, generated);
+    assert_equals(getComputedStyle(element, "::before").marginLeft, "10px");
+    animatePseudo(t, element, { marginLeft: "100px" });
+    assert_equals(getComputedStyle(element, "::before").marginLeft, "55px");
+  }, `Implicit starting keyframe uses the underlying ${label} pseudo style`);
+
+  test(t => {
+    const element = subject(t, generated);
+    animatePseudo(t, element, { marginLeft: "100px" });
+    const before = getComputedStyle(element, "::before").marginLeft;
+    element.classList.add("changed");
+    const after = getComputedStyle(element, "::before").marginLeft;
+    assert_equals(after, "60px", "Changed underlying value is composed at the same progress");
+    assert_equals(before, "55px", "Original underlying value was composed");
+  }, `Underlying style changes update a paused ${label} pseudo animation`);
+
+  test(t => {
+    const element = subject(t, generated);
+    element.classList.add("important");
+    animatePseudo(t, element, { marginLeft: ["0px", "100px"] });
+    assert_equals(getComputedStyle(element, "::before").marginLeft, "30px");
+  }, `Important style wins over the ${label} pseudo animation`);
+
+  test(t => {
+    const element = subject(t, generated);
+    const animation = animatePseudo(t, element, { marginLeft: ["0px", "100px"] });
+    getComputedStyle(element, "::before").marginLeft;
+    animation.cancel();
+    assert_equals(getComputedStyle(element, "::before").marginLeft, "10px");
+  }, `Cancellation restores the underlying ${label} pseudo style`);
+}
+
+test(t => {
+  const element = subject(t, false);
+  animatePseudo(t, element, { transform: ["translateX(0px)", "translateX(100px)"] });
+  const absent = getComputedStyle(element, "::before").transform;
+  element.classList.add("generated");
+  const present = getComputedStyle(element, "::before").transform;
+  element.classList.remove("generated");
+  const removed = getComputedStyle(element, "::before").transform;
+  assert_equals(present, "matrix(1, 0, 0, 1, 50, 0)", "Generated pseudo animation");
+  assert_equals(absent, present, "Non-generated pseudo animation before creation");
+  assert_equals(removed, present, "Non-generated pseudo animation after removal");
+}, "Transform animation survives pseudo generation and removal after computed-style reads");
+</script>
