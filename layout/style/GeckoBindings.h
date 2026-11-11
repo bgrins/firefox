@@ -393,6 +393,7 @@ void Gecko_EnsureStyleViewTimelineArrayLength(void* array, size_t len);
 // Searches from the end of |keyframes| for a Keyframe object with the specified
 // offset and timing function. If none is found, a new Keyframe object with the
 // specified |offset| and |timingFunction| will be appended to |keyframes|.
+// An existing match is moved to the end for reverse-source-order construction.
 //
 // @param keyframes  An array of Keyframe objects, sorted by descending offset.
 //                   The last Keyframe in the array, if any, MUST have an
@@ -412,7 +413,7 @@ mozilla::Keyframe* Gecko_GetOrCreateKeyframeForPercentageOffset(
     const mozilla::dom::CompositeOperationOrAuto composition);
 
 // The variant of the above method but this is specialized for the keyframe
-// offset with the timeline range name.
+// offset with the timeline range name. Existing matches are not moved.
 // @param aRangeName The timeline range name to search for.
 mozilla::Keyframe* Gecko_GetOrCreateKeyframeForTimelineRangeOffset(
     nsTArray<mozilla::Keyframe>* aKeyframes,

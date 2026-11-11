@@ -8111,9 +8111,7 @@ pub unsafe extern "C" fn Servo_StyleSet_GetKeyframesForName(
     // into ascending offset order.
     keyframes.reverse();
 
-    // After appending the missing initial and final keyframes, we start to append the Keyframes
-    // with timeline range names. We create the Keyframes in a temporary array because we need to
-    // reverse it later.
+    // Keep range group indices stable until property deduplication is complete.
     let mut keyframes_with_range_names = nsTArray::new();
     // The indexes of keyframes_with_range_names that correspond to the grouped keyframes.
     // e.g. If there are 4 keyframes:
@@ -8133,7 +8131,8 @@ pub unsafe extern "C" fn Servo_StyleSet_GetKeyframesForName(
     // [1] cover 20% {...}
     // Only the last property value of `width` is kept.
     let mut grouped_keyframes_indexes = HashSet::new();
-    for step in animation.steps_with_range_name.iter().rev() {
+    let mut keyframe_source_positions = Vec::new();
+    for (source_position, step) in animation.steps_with_range_name.iter().enumerate().rev() {
         debug_assert!(!step.start_offset.range_name.is_none());
         let (timing_function, composition) = get_timing_func_and_composition(step);
         let mut matched_idx = 0;
@@ -8150,6 +8149,9 @@ pub unsafe extern "C" fn Servo_StyleSet_GetKeyframesForName(
         // Check if we may have to de-duplicate this keyframe's mPropertyValues.
         if matched_idx != keyframes_with_range_names.len() {
             grouped_keyframes_indexes.insert(matched_idx);
+            keyframe_source_positions[matched_idx] = source_position;
+        } else {
+            keyframe_source_positions.push(source_position);
         }
 
         match step.value {
@@ -8178,8 +8180,17 @@ pub unsafe extern "C" fn Servo_StyleSet_GetKeyframesForName(
         &mut keyframes_with_range_names,
         grouped_keyframes_indexes,
     );
-    // Reverse the keyframes order because we reversed them in the loop above.
-    keyframes.extend(&mut keyframes_with_range_names.drain(..).rev());
+    // Reorder only after the saved group indices have been consumed.
+    debug_assert_eq!(
+        keyframes_with_range_names.len(),
+        keyframe_source_positions.len()
+    );
+    let mut ordered_keyframes: Vec<_> = keyframes_with_range_names
+        .drain(..)
+        .zip(keyframe_source_positions)
+        .collect();
+    ordered_keyframes.sort_unstable_by_key(|(_, position)| *position);
+    keyframes.extend(ordered_keyframes.into_iter().map(|(keyframe, _)| keyframe));
     true
 }
 

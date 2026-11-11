@@ -148,8 +148,16 @@
   to   { margin-top: 16px; }
   from { font-size: 16px; animation-composition: add; animation-timing-function: linear; }
   to   { font-size: 32px; }
-  from { padding-left: 2px; animation-composition: accumulate; }
+  from { padding-left: 2px; margin-top: 10px; animation-composition: accumulate; }
   to   { padding-left: 4px; }
+}
+
+@keyframes anim-merge-interleaved-offsets {
+  to { margin-left: 40px; margin-right: 50px; }
+  50% { margin-left: 10px; animation-timing-function: linear; }
+  from { margin-left: 0px; margin-right: 0px; }
+  50% { margin-right: 20px; animation-timing-function: ease-in; }
+  50% { margin-inline-start: 30px; animation-timing-function: linear; }
 }
 
 @keyframes anim-overriding {
@@ -617,7 +625,7 @@ test(t => {
     { offset: 0, computedOffset: 0, easing: "ease", composite: "add",
       color: "rgb(0, 0, 0)" },
     { offset: 0, computedOffset: 0, easing: "ease", composite: "accumulate",
-      marginTop: "8px", paddingLeft: "2px" },
+      marginTop: "10px", paddingLeft: "2px" },
     { offset: 0, computedOffset: 0, easing: "linear", composite: "add",
       fontSize: "16px" },
     { offset: 1, computedOffset: 1, easing: "ease", composite: "auto",
@@ -628,6 +636,26 @@ test(t => {
 }, 'KeyframeEffect.getKeyframes() returns expected frames for an ' +
    'animation with multiple keyframes for the same time and with ' +
    'different easing functions and composite operations');
+
+test(t => {
+  const div = addDiv(t);
+  div.style.writingMode = 'horizontal-tb';
+  div.style.direction = 'ltr';
+  div.style.animation = 'anim-merge-interleaved-offsets 100s';
+
+  const expected = [
+    { offset: 0, computedOffset: 0, easing: "ease", composite: "auto",
+      marginLeft: "0px", marginRight: "0px" },
+    { offset: 0.5, computedOffset: 0.5, easing: "linear", composite: "auto",
+      marginLeft: "30px" },
+    { offset: 0.5, computedOffset: 0.5, easing: "ease-in", composite: "auto",
+      marginRight: "20px" },
+    { offset: 1, computedOffset: 1, easing: "ease", composite: "auto",
+      marginLeft: "40px", marginRight: "50px" },
+  ];
+  assert_frame_lists_equal(getKeyframes(div), expected);
+}, 'KeyframeEffect.getKeyframes() orders merged percentage groups by their ' +
+   'first occurrence while later logical declarations win');
 
 test(t => {
   const div = addDiv(t);

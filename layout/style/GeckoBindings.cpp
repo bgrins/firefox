@@ -6,6 +6,8 @@
 
 #include "mozilla/GeckoBindings.h"
 
+#include <algorithm>
+
 #include "AnchorPositioningUtils.h"
 #include "ChildIterator.h"
 #include "ErrorReporter.h"
@@ -1119,9 +1121,14 @@ Keyframe* Gecko_GetOrCreateKeyframeForPercentageOffset(
                  aKeyframes->LastElement().mOffset->mPercentage >= aOffset,
              "The percentage offset should be less than or equal to the last "
              "keyframe's offset if there are exisiting keyframes");
-  return GetOrCreateKeyframe(aKeyframes, StyleTimelineRangeName::None, aOffset,
-                             aTimingFunction, aComposition)
-      .first;
+  Keyframe* keyframe =
+      GetOrCreateKeyframe(aKeyframes, StyleTimelineRangeName::None, aOffset,
+                          aTimingFunction, aComposition)
+          .first;
+  // Reverse construction must place each group at its earliest source position.
+  std::rotate(keyframe, keyframe + 1,
+              aKeyframes->Elements() + aKeyframes->Length());
+  return &aKeyframes->LastElement();
 }
 
 Keyframe* Gecko_GetOrCreateKeyframeForTimelineRangeOffset(
