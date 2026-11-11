@@ -1,0 +1,25 @@
+--- range/run.py
++++ owned/run.py
+@@ -54,10 +54,13 @@
+     mode, name, *prior = sys.argv[1:]
+     assert mode in ['baseline', 'candidate'] and len(prior) == (mode == 'candidate')
+     assert all(Path(n).name == n and n not in ['.', '..'] for n in [name, *prior])
++    ready = json.loads((HERE / 'FREEZE-READY.json').read_text())
++    assert ready['status'] == 'PASS' and ready['manifest_sha256'] == sha(HERE / 'RUN-INPUTS.json')
+     for path, expected in json.loads((HERE / 'RUN-INPUTS.json').read_text()).items():
+         assert sha(HERE / path) == expected, ('changed runner input', path)
+     plan = json.loads((HERE / 'RUN-PLAN.json').read_text())
+     roles = json.loads((HERE / 'SOURCE-ROLES.json').read_text())
++    assert ready['head'] == plan['head']
+     assert isinstance(plan['head'], str) and len(plan['head']) == 40, 'Execution HEAD is not frozen'
+     assert git('rev-parse', 'HEAD').decode().strip() == plan['head'], 'HEAD changed; review/re-pin'
+     assert not git('diff', '--name-only').strip() and not git('diff', '--cached', '--name-only').strip()
+@@ -153,7 +156,7 @@
+         save(output / 'TEST-RESULTS.json', parsed)
+         if mode == 'baseline':
+             expected_baseline = json.loads((HERE / 'EXPECTED-BASELINE.json').read_text())
+-            assert analyze.rows(parsed) == analyze.rows(expected_baseline), 'baseline status vector changed'
++            assert analyze.compare(expected_baseline, parsed)['accepted_changes_only'], 'baseline vector or diagnostics/classification changed'
+         if baseline is not None:
+             comparison = analyze.compare(baseline, parsed)
+             save(output / 'COMPARISON.json', comparison)

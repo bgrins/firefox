@@ -1,0 +1,133 @@
+--- range/parser-controls.py
++++ owned/parser-controls.py
+@@ -13,22 +13,14 @@
+ 
+ 
+ def main():
+-    expected = json.loads((HERE / 'EXPECTED-CALLBACKS.json').read_text())
+-    changes = json.loads((HERE / 'EXPECTED-CHANGES.json').read_text())
+-    improving = {(r['test'], r['subtest']) for r in changes}
+-    expected_baseline = json.loads((HERE / 'EXPECTED-BASELINE.json').read_text())
+-    baseline_statuses = {(r['test'], r['subtest']): r['status'] for r in expected_baseline['subtests']}
++    baseline = json.loads((HERE / 'EXPECTED-BASELINE.json').read_text())
+     events = [{'action': 'suite_start'}]
+-    for test in sorted({r[0] for r in expected}):
++    for test in sorted({r['test'] for r in baseline['harness']}):
+         events.append({'action': 'test_start', 'test': test})
+-        for url, name in expected:
+-            if url == test:
+-                events.append({'action': 'test_status', 'test': test, 'subtest': name,
+-                               'status': baseline_statuses[(test, name)]})
+-        events.append({'action': 'test_end', 'test': test, 'status': 'OK'})
++        events += [dict(r, action='test_status') for r in baseline['subtests'] if r['test'] == test]
++        events += [dict(r, action='test_end') for r in baseline['harness'] if r['test'] == test]
+     events.append({'action': 'suite_end'})
+     rejected = []
+-
+     def rejects(label, operation):
+         try:
+             operation()
+@@ -36,28 +28,14 @@
+             rejected.append(label)
+         else:
+             raise ValueError('Malformed control accepted: ' + label)
+-
+-    with tempfile.TemporaryDirectory(prefix='keyframe-order-parser-') as directory:
++    with tempfile.TemporaryDirectory(prefix='owned-generation-parser-') as directory:
+         def parse(rows):
+             path = Path(directory) / 'raw.jsonl'
+             path.write_text(''.join((r if isinstance(r, str) else json.dumps(r)) + '\n' for r in rows))
+             return a.parse(path)
+-
+-        baseline = parse(events)
+-        assert a.rows(baseline) == a.rows(expected_baseline)
+-        wrong_baseline = copy.deepcopy(baseline)
+-        next(r for r in wrong_baseline['subtests'] if r['status'] == 'FAIL' and (r['test'], r['subtest']) not in improving)['status'] = 'PASS'
+-        assert a.rows(wrong_baseline) != a.rows(expected_baseline)
+-        rejected.append('changed-known-baseline-failure')
+-        candidate_events = copy.deepcopy(events)
+-        for row in candidate_events:
+-            if row['action'] == 'test_status' and (row['test'], row['subtest']) in improving:
+-                row['status'] = 'PASS'
+-        candidate = parse(candidate_events)
+-        assert a.compare(baseline, candidate)['accepted_changes_only']
+-        assert not a.compare(baseline, baseline)['accepted_changes_only']
+-        assert not a.compare(candidate, candidate)['accepted_changes_only']
+-        rejected += ['missing-improvements', 'already-passing-baseline']
++        parsed = parse(events)
++        assert a.compare(baseline, parsed)['accepted_changes_only']
++        assert a.compare(parsed, parsed)['accepted_changes_only']
+         callback = next(i for i, r in enumerate(events) if r['action'] == 'test_status')
+         ending = next(i for i, r in enumerate(events) if r['action'] == 'test_end')
+         for label, mutated in [
+@@ -70,8 +48,10 @@
+             ('duplicate-test-start', events[:1] + [events[1]] + events[1:]),
+             ('crash', events + [{'action': 'crash'}]),
+             ('error-log', events + [{'action': 'log', 'level': 'ERROR'}]),
++            ('critical-log', events + [{'action': 'log', 'level': 'CRITICAL'}]),
+             ('assertion-count', events + [{'action': 'assertion_count', 'count': 1, 'min_expected': 0, 'max_expected': 0}]),
+             ('duplicate-json-key', ['{"action":"suite_start","action":"suite_start"}'] + events[1:]),
++            ('callback-after-end', events + [events[callback]]),
+         ]:
+             rejects(label, lambda mutated=mutated: parse(mutated))
+         for label, index, field, value in [
+@@ -84,35 +64,32 @@
+             mutated[index][field] = value
+             rejects(label, lambda mutated=mutated: parse(mutated))
+         for field in ['subtests', 'harness']:
+-            mutated = copy.deepcopy(candidate)
++            mutated = copy.deepcopy(parsed)
+             mutated[field].append(copy.deepcopy(mutated[field][0]))
+-            rejects('duplicate-parsed-' + field, lambda mutated=mutated: a.compare(baseline, mutated))
+-        for label, edit in [
+-            ('unexpected-regression', lambda d: next(r for r in d['subtests'] if (r['test'], r['subtest']) not in improving).update(status='FAIL')),
+-            ('lost-assertion', lambda d: d['subtests'].pop()),
+-            ('lost-harness', lambda d: d['harness'].pop()),
+-            ('partial-improvement', lambda d: next(r for r in d['subtests'] if (r['test'], r['subtest']) in improving).update(status='FAIL')),
+-        ]:
+-            mutated = copy.deepcopy(candidate)
+-            edit(mutated)
+-            assert not a.compare(baseline, mutated)['accepted_changes_only'], label
+-            rejected.append(label)
+-        mutated = copy.deepcopy(candidate)
+-        next(r for r in mutated['subtests'] if (r['test'], r['subtest']) not in improving)['message'] = 'changed diagnostic'
+-        assert not a.compare(baseline, mutated)['accepted_changes_only']
+-        rejected.append('unexpected-message-change')
+-        mutated = copy.deepcopy(candidate)
+-        next(r for r in mutated['subtests'] if (r['test'], r['subtest']) in improving)['message'] = 'intentional improvement'
+-        assert a.compare(baseline, mutated)['accepted_changes_only']
+-        collision = {'subtests': [{'test': '/collision', 'subtest': None, 'status': 'PASS'}],
+-                     'harness': [{'test': '/collision', 'status': 'OK'}]}
+-        assert len(a.rows(collision)) == 2
+-        mutated = copy.deepcopy(collision)
+-        mutated['subtests'][0]['status'] = 'FAIL'
+-        assert a.rows(collision) != a.rows(mutated)
++            rejects('duplicate-parsed-' + field, lambda mutated=mutated: a.compare(parsed, mutated))
++        for status, replacement in [('PASS', 'FAIL'), ('FAIL', 'PASS')]:
++            mutated = copy.deepcopy(parsed)
++            next(r for r in mutated['subtests'] if r['status'] == status)['status'] = replacement
++            assert not a.compare(parsed, mutated)['accepted_changes_only']
++            rejected.append('unexpected-' + status + '-to-' + replacement)
++        for group in ['subtests', 'harness']:
++            mutated = copy.deepcopy(parsed)
++            mutated[group].pop(0)
++            assert not a.compare(parsed, mutated)['accepted_changes_only']
++            rejected.append('lost-' + group)
++            for field, value in [('message', 'changed diagnostic'), ('expected', 'changed classification'), ('known_intermittent', ['FAIL'])]:
++                mutated = copy.deepcopy(parsed)
++                mutated[group][0][field] = value
++                assert not a.compare(parsed, mutated)['accepted_changes_only']
++                rejected.append(group + '-' + field + '-change')
++        collision = {'subtests': [{'test': '/collision', 'subtest': None, 'status': 'PASS'}], 'harness': [{'test': '/collision', 'status': 'OK'}]}
++        assert len(a.rows(collision)) == 2 and a.compare(collision, collision)['accepted_changes_only']
++        changed = copy.deepcopy(collision)
++        changed['subtests'][0]['status'] = 'FAIL'
++        assert not a.compare(collision, changed)['accepted_changes_only']
+         rejected.append('callback-harness-key-collision')
+-    return {'status': 'pass', 'synthetic_only': True, 'callback_count': len(expected),
+-            'rejected_controls': rejected, 'builds_or_browser_tests_executed': False}
++    assert len(rejected) == len(set(rejected))
++    return {'status': 'pass', 'synthetic_only': True, 'callback_count': len(parsed['subtests']), 'rejected_controls': rejected, 'builds_or_browser_tests_executed': False}
+ 
+ 
+ if __name__ == '__main__':

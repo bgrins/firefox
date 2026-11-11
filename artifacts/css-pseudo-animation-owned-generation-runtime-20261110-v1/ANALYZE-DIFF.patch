@@ -1,0 +1,39 @@
+--- range/analyze.py
++++ owned/analyze.py
+@@ -78,19 +78,20 @@
+     left, right = rows(base), rows(candidate)
+     changes = [{'kind': key[0], 'test': key[1], 'subtest': key[2],
+                 'baseline': left.get(key), 'candidate': right.get(key)}
+-               for key in sorted(left.keys() | right.keys(), key=repr) if left.get(key) != right.get(key)]
+-    expected_changes = json.loads((HERE / 'EXPECTED-CHANGES.json').read_text())
+-    improving = {(r['kind'], r['test'], r['subtest']) for r in expected_changes}
+-    def messages(result):
+-        return {(kind, row['test'], row.get('subtest')): row.get('message')
+-                for kind, field in [('assertion', 'subtests'), ('harness', 'harness')]
+-                for row in result[field]}
+-    lm, rm = messages(base), messages(candidate)
+-    message_changes = [key for key in sorted(lm.keys() | rm.keys(), key=repr)
+-                       if key not in improving and lm.get(key) != rm.get(key)]
+-    return {'accepted_changes_only': set(left) == set(right) and changes == expected_changes and not message_changes,
+-            'identical_callback_statuses_and_inventory': not changes,
+-            'baseline_rows': len(left), 'candidate_rows': len(right),
+-            'assertion_and_harness_kinds_distinct': True,
+-            'changes': changes, 'messages_compared_except_intended_improvements': True,
+-            'unexpected_message_changes': message_changes}
++               for key in sorted(left.keys() | right.keys(), key=repr)
++               if left.get(key) != right.get(key)]
++    assert json.loads((HERE / 'EXPECTED-CHANGES.json').read_text()) == []
++    def details(result):
++        return {(kind, row['test'], row.get('subtest')):
++                {field: row[field] for field in ['message', 'expected', 'known_intermittent'] if field in row}
++                for kind, group in [('assertion', 'subtests'), ('harness', 'harness')]
++                for row in result[group]}
++    ld, rd = details(base), details(candidate)
++    detail_changes = [key for key in sorted(ld.keys() | rd.keys(), key=repr)
++                      if ld.get(key) != rd.get(key)]
++    return {'accepted_changes_only': set(left) == set(right) and not changes and not detail_changes,
++            'policy': 'zero changes', 'baseline_rows': len(left), 'candidate_rows': len(right),
++            'identical_callback_statuses_and_inventory': set(left) == set(right) and not changes,
++            'assertion_and_harness_kinds_distinct': True, 'changes': changes,
++            'messages_and_expected_classifications_compared': True,
++            'unexpected_detail_changes': detail_changes}
