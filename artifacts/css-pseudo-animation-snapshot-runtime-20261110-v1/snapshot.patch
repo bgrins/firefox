@@ -1,0 +1,122 @@
+--- a/dom/animation/KeyframeEffect.h
++++ b/dom/animation/KeyframeEffect.h
+@@ -262,6 +262,21 @@
+                                                 const nsIFrame* aFrame) const;
+ 
+   const nsTArray<AnimationProperty>& Properties() const { return mProperties; }
++
++  // Owns array storage and references; declaration blocks remain shared.
++  // Generated endpoint defaults and offsets are captured, not refreshed.
++  struct PropertyInputSnapshot {
++    OwningAnimationTarget mTarget;
++    CompositeOperation mComposite;
++    nsTArray<Keyframe> mSpecifiedKeyframes;
++    nsTArray<Keyframe> mComputedKeyframes;
++    bool mHasComputedKeyframes;
++  };
++
++  PropertyInputSnapshot CapturePropertyInputs() const;
++  static nsTArray<AnimationProperty> BuildPropertiesFromInputs(
++      const PropertyInputSnapshot& aInputs, const ComputedStyle* aStyle,
++      const AnimationTimeline* aTimeline, bool& aReferencesAttributes);
+   bool ReferencesAttributes() const { return mReferencesAttributes; }
+ 
+   // Update |mProperties| by recalculating from |mKeyframes| using
+--- a/dom/animation/KeyframeEffect.cpp
++++ b/dom/animation/KeyframeEffect.cpp
+@@ -911,17 +911,10 @@
+   return effect.forget();
+ }
+ 
+-nsTArray<AnimationProperty> KeyframeEffect::BuildProperties(
+-    const ComputedStyle* aStyle, const AnimationTimeline* aTimeline,
+-    bool& aReferencesAttributes) {
+-  MOZ_ASSERT(aStyle);
+-  aReferencesAttributes = false;
+-
+-  nsTArray<AnimationProperty> result;
+-  // If mTarget is false (i.e. mTarget.mElement is null), return an empty
+-  // property array.
++KeyframeEffect::PropertyInputSnapshot KeyframeEffect::CapturePropertyInputs()
++    const {
+   if (!mTarget) {
+-    return result;
++    return {{}, mEffectOptions.mComposite, {}, {}, false};
+   }
+ 
+   // When GetComputedKeyframeValues or GetAnimationPropertiesFromKeyframes
+@@ -930,7 +923,7 @@
+   // happens we could find that |mKeyframes| is overwritten while it is
+   // being iterated over. Normally that shouldn't happen but just in case we
+   // make a copy of |mKeyframes| first and iterate over that instead.
+-  auto keyframesCopy(mKeyframes.Clone());
++  auto specifiedKeyframes(mKeyframes.Clone());
+ 
+   // We generate the missing 0%/100% keyframes and append the missing
+   // properties to 0%/100% only if the keyframes come from CSS Keyframes rule.
+@@ -939,21 +932,54 @@
+   // readibility we still keep it as it is. If this result in any performance
+   // impact, we should write a special version of GetComputedKeyframes() here.
+   nsTArray<Keyframe> computedKeyframes;
+-  const nsTArray<Keyframe>& keyframes = GetComputedKeyframes(computedKeyframes)
+-                                            ? computedKeyframes
+-                                            : keyframesCopy;
+-
+-  result = KeyframeUtils::GetAnimationPropertiesFromKeyframes(
+-      keyframes, mTarget.mElement, mTarget.mPseudoRequest, aStyle,
+-      mEffectOptions.mComposite, aTimeline, aReferencesAttributes);
++  const bool hasComputedKeyframes = GetComputedKeyframes(computedKeyframes);
++  return {mTarget, mEffectOptions.mComposite, std::move(specifiedKeyframes),
++          std::move(computedKeyframes), hasComputedKeyframes};
++}
++
++/* static */
++nsTArray<AnimationProperty> KeyframeEffect::BuildPropertiesFromInputs(
++    const PropertyInputSnapshot& aInputs, const ComputedStyle* aStyle,
++    const AnimationTimeline* aTimeline, bool& aReferencesAttributes) {
++  MOZ_ASSERT(aStyle);
++  aReferencesAttributes = false;
++  if (!aInputs.mTarget) {
++    return {};
++  }
++
++  const nsTArray<Keyframe>& keyframes = aInputs.mHasComputedKeyframes
++                                            ? aInputs.mComputedKeyframes
++                                            : aInputs.mSpecifiedKeyframes;
++  return KeyframeUtils::GetAnimationPropertiesFromKeyframes(
++      keyframes, aInputs.mTarget.mElement, aInputs.mTarget.mPseudoRequest,
++      aStyle, aInputs.mComposite, aTimeline, aReferencesAttributes);
++}
++
++nsTArray<AnimationProperty> KeyframeEffect::BuildProperties(
++    const ComputedStyle* aStyle, const AnimationTimeline* aTimeline,
++    bool& aReferencesAttributes) {
++  MOZ_ASSERT(aStyle);
++  aReferencesAttributes = false;
++
++  nsTArray<AnimationProperty> result;
++  // If mTarget is false (i.e. mTarget.mElement is null), return an empty
++  // property array.
++  if (!mTarget) {
++    return result;
++  }
++
++  auto inputs = CapturePropertyInputs();
++  result = BuildPropertiesFromInputs(inputs, aStyle, aTimeline,
++                                     aReferencesAttributes);
+ 
+ #ifdef DEBUG
+-  MOZ_ASSERT(SpecifiedKeyframeArraysAreEqual(mKeyframes, keyframesCopy),
+-             "Apart from the computed offset members, the keyframes array"
+-             " should not be modified");
++  MOZ_ASSERT(
++      SpecifiedKeyframeArraysAreEqual(mKeyframes, inputs.mSpecifiedKeyframes),
++      "Apart from the computed offset members, the keyframes array"
++      " should not be modified");
+ #endif
+ 
+-  mKeyframes = std::move(keyframesCopy);
++  mKeyframes = std::move(inputs.mSpecifiedKeyframes);
+   return result;
+ }
+ 

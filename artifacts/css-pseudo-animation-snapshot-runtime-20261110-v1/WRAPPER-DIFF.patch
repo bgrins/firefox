@@ -1,0 +1,146 @@
+--- original/run.py
++++ snapshot/run.py
+@@ -39,6 +39,14 @@
+ 
+ def exists(path):
+     return path.exists() or path.is_symlink()
++
++
++def verify_test_inputs():
++    for path, expected in json.loads((HERE / 'runtime-inputs/test-source-pins.json').read_text()).items():
++        if expected is None:
++            assert not exists(ROOT / path), ('unexpected test metadata', path)
++        else:
++            assert sha(ROOT / path) == expected, ('test input changed', path)
+ 
+ 
+ def main():
+@@ -58,7 +66,8 @@
+         assert sha(HERE / 'candidate' / path) == role['candidate']
+     retained = json.loads((HERE / 'runtime-inputs/retained-build.json').read_text())
+     assert all(sha(ROOT / path) == expected for path, expected in retained['binaries'].items())
+-    fixtures = {ROOT / p: HERE / 'runtime-inputs' / Path(p).name for p in plan['suites'][:2]}
++    fixtures = {ROOT / path: HERE / 'runtime-inputs' / filename for path, filename in plan['fixtures'].items()}
++    verify_test_inputs()
+     metadata = [ROOT / (str(p.relative_to(ROOT)).replace('/tests/', '/meta/', 1) + '.ini') for p in fixtures]
+     assert all(not exists(p) for p in [*fixtures, *metadata])
+     baseline = None
+@@ -195,6 +204,7 @@
+             assert all(sha(ROOT / p) == role['base'] for p, role in roles.items())
+             assert {p: sha(ROOT / p) for p in retained['binaries']} == retained['binaries']
+             assert sha(ROOT / 'mozconfig') == plan['mozconfig_sha256']
++            verify_test_inputs()
+         step('verification', verify)
+     if not errors:
+         try:
+--- original/analyze.py
++++ snapshot/analyze.py
+@@ -37,48 +37,94 @@
+     return {CONTROL20: twenty, CONTROL9: nine}
+ 
+ 
++HERE = Path(__file__).resolve().parent
++
++
++def strict_json(text):
++    def pairs(items):
++        result = {}
++        for key, value in items:
++            assert key not in result, ('duplicate JSON key', key)
++            result[key] = value
++        return result
++    return json.loads(text, object_pairs_hook=pairs)
++
++
+ def parse(path):
+     starts, ends, callbacks = {}, {}, {}
++    suite_active = False
+     suite_starts = suite_ends = 0
+     for line in Path(path).read_text().splitlines():
+-        row = json.loads(line)
++        row = strict_json(line)
+         action = row.get('action')
++        assert action != 'crash', row
++        assert not (action == 'log' and row.get('level') in ['ERROR', 'CRITICAL']), row
+         if action == 'suite_start':
++            assert not suite_active and suite_starts == 0
++            suite_active = True
+             suite_starts += 1
+         elif action == 'suite_end':
++            assert suite_active and starts and set(starts) == set(ends)
++            suite_active = False
+             suite_ends += 1
+         elif action == 'test_start':
++            assert suite_active
+             test = row['test']
+             assert test not in starts, ('duplicate test_start', test)
+             starts[test] = True
+         elif action == 'test_status':
+             test, name = row['test'], row['subtest']
+             assert test in starts and test not in ends, ('unpaired callback', test)
++            assert isinstance(name, str) or name is None
+             key = (test, name)
+             assert key not in callbacks, ('duplicate callback', key)
++            assert row['status'] in ['PASS', 'FAIL'], row
+             callbacks[key] = {k: row[k] for k in ['test', 'subtest', 'status', 'message', 'expected', 'known_intermittent'] if k in row}
+         elif action == 'test_end':
+             test = row['test']
+             assert test in starts and test not in ends, ('unpaired test_end', test)
++            assert row['status'] == 'OK', row
+             ends[test] = {k: row[k] for k in ['test', 'status', 'message', 'expected', 'known_intermittent'] if k in row}
++        elif action == 'assertion_count':
++            assert row['min_expected'] <= row['count'] <= row['max_expected'], row
+     assert suite_starts == suite_ends == 1, (suite_starts, suite_ends)
+-    assert starts and set(starts) == set(ends), 'incomplete test lifecycle'
++    assert starts and set(starts) == set(ends)
++    plan = json.loads((HERE/'RUN-PLAN.json').read_text())
++    expected_pages = {'/'+name.removeprefix('testing/web-platform/tests/') for name in plan['suites']}
++    assert set(ends) == expected_pages, (set(ends), expected_pages)
++    assert all(any(url == test for url, _ in callbacks) for test in ends)
+     for test, expected in expected_controls().items():
+         actual = {name for (url, name) in callbacks if url == test}
+         assert actual == expected, (test, actual ^ expected)
+-        assert ends[test]['status'] == 'OK', ends[test]
+-    for test in ['/web-animations/interfaces/KeyframeEffect/target.html', '/web-animations/interfaces/Animation/commitStyles.html']:
+-        assert test in ends and ends[test]['status'] == 'OK', test
+-        assert any(url == test for url, _ in callbacks), test
+-    for prefix in ['/web-animations/animation-model/combining-effects/', '/web-animations/animation-model/keyframe-effects/']:
+-        assert any(test.startswith(prefix) for test in ends), prefix
+-    assert len([key for key in callbacks if key[0].endswith('/KeyframeEffect/target.html')]) == 24
+-    return {'subtests': [callbacks[key] for key in sorted(callbacks)], 'harness': [ends[test] for test in sorted(ends)], 'subtest_count': len(callbacks), 'test_count': len(ends)}
++    target = '/web-animations/interfaces/KeyframeEffect/target.html'
++    assert len([key for key in callbacks if key[0] == target]) == 24
++    attribute = '/css/css-animations/keyframe-attribute-mutation.html'
++    names = {f'Keyframe attr mutation: {mode}, {qualification}, {history}'
++             for mode, qualification in [(m, 'unqualified') for m in ['CSS ordinary', 'CSS registered', 'WAAPI ordinary', 'WAAPI registered']]+[('CSS ordinary', 'qualified')]
++             for history in ['retained', 'fresh']}
++    names |= {f'Keyframe attr mutation: ordinary-style control, {qualification}' for qualification in ['qualified','unqualified']}
++    assert {name for (url, name) in callbacks if url == attribute} == names
++    return {'subtests': [callbacks[key] for key in sorted(callbacks, key=repr)],
++            'harness': [ends[test] for test in sorted(ends)],
++            'subtest_count': len(callbacks), 'test_count': len(ends)}
++
++
++def rows(result):
++    output = {}
++    for kind, field in [('assertion', 'subtests'), ('harness', 'harness')]:
++        for row in result[field]:
++            key = (kind, row['test'], row.get('subtest'))
++            assert key not in output, ('duplicate comparison key', key)
++            output[key] = row['status']
++    return output
+ 
+ 
+ def compare(base, candidate):
+-    def rows(result):
+-        return {(row['test'], row.get('subtest')): row['status'] for field in ['subtests', 'harness'] for row in result[field]}
+     left, right = rows(base), rows(candidate)
+-    changes = [{'test': key[0], 'subtest': key[1], 'baseline': left.get(key), 'candidate': right.get(key)} for key in sorted(left.keys() | right.keys(), key=lambda x: (x[0], x[1] or '')) if left.get(key) != right.get(key)]
+-    return {'identical_callback_statuses_and_inventory': not changes, 'baseline_rows': len(left), 'candidate_rows': len(right), 'changes': changes, 'messages_compared': False}
++    changes = [{'kind': key[0], 'test': key[1], 'subtest': key[2],
++                'baseline': left.get(key), 'candidate': right.get(key)}
++               for key in sorted(left.keys() | right.keys(), key=repr) if left.get(key) != right.get(key)]
++    return {'identical_callback_statuses_and_inventory': not changes,
++            'baseline_rows': len(left), 'candidate_rows': len(right),
++            'assertion_and_harness_kinds_distinct': True,
++            'changes': changes, 'messages_compared': False}

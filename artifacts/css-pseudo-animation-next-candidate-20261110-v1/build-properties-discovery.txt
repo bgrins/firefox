@@ -1,0 +1,43 @@
+>>>  873: nsTArray<AnimationProperty> KeyframeEffect::BuildProperties(
+     874:     const ComputedStyle* aStyle, const AnimationTimeline* aTimeline) {
+     875:   MOZ_ASSERT(aStyle);
+     876: 
+     877:   nsTArray<AnimationProperty> result;
+     878:   // If mTarget is false (i.e. mTarget.mElement is null), return an empty
+     879:   // property array.
+     880:   if (!mTarget) {
+     881:     return result;
+     882:   }
+     883: 
+     884:   // When GetComputedKeyframeValues or GetAnimationPropertiesFromKeyframes
+     885:   // calculate computed values from |mKeyframes|, they could possibly
+     886:   // trigger a subsequent restyle in which we rebuild animations. If that
+     887:   // happens we could find that |mKeyframes| is overwritten while it is
+     888:   // being iterated over. Normally that shouldn't happen but just in case we
+     889:   // make a copy of |mKeyframes| first and iterate over that instead.
+     890:   auto keyframesCopy(mKeyframes.Clone());
+     891: 
+     892:   // We generate the missing 0%/100% keyframes and append the missing
+     893:   // properties to 0%/100% only if the keyframes come from CSS Keyframes rule.
+     894:   // Note: We probably can avoid an extra copy above if GetComputedKeyframes()
+     895:   // return true. However, we use the same function in GetKeyframes() so for
+     896:   // readibility we still keep it as it is. If this result in any performance
+     897:   // impact, we should write a special version of GetComputedKeyframes() here.
+     898:   nsTArray<Keyframe> computedKeyframes;
+     899:   const nsTArray<Keyframe>& keyframes = GetComputedKeyframes(computedKeyframes)
+     900:                                             ? computedKeyframes
+     901:                                             : keyframesCopy;
+     902: 
+     903:   result = KeyframeUtils::GetAnimationPropertiesFromKeyframes(
+     904:       keyframes, mTarget.mElement, mTarget.mPseudoRequest, aStyle,
+     905:       mEffectOptions.mComposite, aTimeline);
+     906: 
+     907: #ifdef DEBUG
+     908:   MOZ_ASSERT(SpecifiedKeyframeArraysAreEqual(mKeyframes, keyframesCopy),
+     909:              "Apart from the computed offset members, the keyframes array"
+     910:              " should not be modified");
+     911: #endif
+     912: 
+     913:   mKeyframes = std::move(keyframesCopy);
+     914:   return result;
+     915: }

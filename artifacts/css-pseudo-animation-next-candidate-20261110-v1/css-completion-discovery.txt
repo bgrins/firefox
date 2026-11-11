@@ -1,0 +1,141 @@
+>>>  657: bool CSSAnimationKeyframeEffect::GetComputedKeyframes(
+     658:     nsTArray<Keyframe>& aKeyframes) const {
+     659:   // Check if we do need to do this. This flag is set if the keyframes come from
+     660:   // the JS API.
+     661:   if (mIgnoreKeyframesGeneration) {
+     662:     return false;
+     663:   }
+     664: 
+     665:   // FIXME: Perhaps we could cache |allProperties| for keyframes with
+     666:   // <percentage> offsets. (The properties of keyframes with
+     667:   // <timeline-range-offset> offsets need to be checked everytime
+     668:   // unfortunately.)
+     669:   AnimatedPropertyIDSet allProperties;
+     670:   AnimatedPropertyIDSet fromProperties;
+     671:   AnimatedPropertyIDSet toProperties;
+     672: 
+     673:   // Add 2 more elements for the insertion of 0% and 100% if any.
+     674:   nsTArray<Keyframe> percentageKeyframes(mKeyframes.Length() + 2);
+     675:   nsTArray<Keyframe> rangeKeyframes(mKeyframes.Length());
+     676: 
+     677:   // Iterate keyframes and collect properties first. We have to append the
+     678:   // propeties to the 0% or 100% keyframes if needed. We merged keyframes and
+     679:   // converted the properties into physical longhands for the specified
+     680:   // keyframes already, so we can just collect the propertis information here.
+     681:   for (const Keyframe& keyframe : mKeyframes) {
+     682:     MOZ_ASSERT(keyframe.mOffset);
+     683:     if (keyframe.mOffset->IsPercentageOffset()) {
+     684:       percentageKeyframes.AppendElement(keyframe);
+     685:     } else {
+     686:       rangeKeyframes.AppendElement(keyframe);
+     687:     }
+     688: 
+     689:     if (std::isnan(keyframe.mComputedOffset)) {
+     690:       continue;
+     691:     }
+     692: 
+     693:     AnimatedPropertyIDSet currentProperties;
+     694:     for (const auto& pair : keyframe.mPropertyValues) {
+     695:       MOZ_ASSERT(
+     696:           !pair.mProperty.IsShorthand(),
+     697:           "The shorthands should be expanded already for CSS Animations");
+     698:       MOZ_ASSERT(KeyframeUtils::IsAnimatableProperty(pair.mProperty),
+     699:                  "It should be animatable for CSS Animations");
+     700:       currentProperties.AddProperty(pair.mProperty);
+     701:     }
+     702:     allProperties.AddProperties(currentProperties);
+     703: 
+     704:     // Note that the automatic from (0%) and to (100%) keyframes are only
+     705:     // generated for properties that don’t have keyframes at or earlier than 0%
+     706:     // or at or after 100% (respectively).
+     707:     // https://drafts.csswg.org/scroll-animations-1/#named-range-keyframes
+     708:     //
+     709:     // So we have to collect the properties with offsets <= 0 and offsets >= 1,
+     710:     // no matter what keyframe-specific timing function and keyframe-specific
+     711:     // composite are used.
+     712:     if (keyframe.mComputedOffset <= 0.0) {
+     713:       fromProperties.AddProperties(currentProperties);
+     714:     } else if (keyframe.mComputedOffset >= 1.0) {
+     715:       toProperties.AddProperties(currentProperties);
+     716:     }
+     717:   }
+     718: 
+     719:   // We keep the specified order if all of them are unresolved. Otherwise, sort
+     720:   // them with computed offsets to get the used order. We do this for finding
+     721:   // and generating the initial and final keyframes (since we need the used
+     722:   // order to search the keyframes below).
+     723:   //
+     724:   // Also, in getKeyframes(), other browsers show the keyframes with
+     725:   // <timeline-range-offset> offsets in the order of the computed offsets. This
+     726:   // is vague in the spec after we introduced <timeline-range-offset>, so we
+     727:   // just match the behavior of other browsers here.
+     728:   rangeKeyframes.StableSort(ComputedOffsetComparator());
+     729: 
+     730:   // The default composite used to search to 0% and 100% keyframes below.
+     731:   const dom::CompositeOperationOrAuto defaultComposite = [&]() {
+     732:     switch (mDefaultComposite) {
+     733:       case CompositeOperation::Replace:
+     734:         return dom::CompositeOperationOrAuto::Replace;
+     735:       case CompositeOperation::Add:
+     736:         return dom::CompositeOperationOrAuto::Add;
+     737:       case CompositeOperation::Accumulate:
+     738:         return dom::CompositeOperationOrAuto::Accumulate;
+     739:     }
+     740:     // The initial value is replace.
+     741:     return dom::CompositeOperationOrAuto::Replace;
+     742:   }();
+     743: 
+     744:   // Generate Initial and Final Frames:
+     745:   // 1. Find or create the initial keyframe, a keyframe with a keyframe offset
+     746:   //    of 0%, default timing function as its keyframe timing function, and
+     747:   //    default composite as its keyframe composite.
+     748:   // 2. For any property in animated properties that is not otherwise present
+     749:   //    in a keyframe with an offset of 0% or one that would be positioned
+     750:   //    earlier in the used keyframe order, add the computed value of that
+     751:   //    property on element to initial keyframe’s keyframe values.
+     752:   // 3. If initial keyframe’s keyframe values is not empty, prepend initial
+     753:   //    keyframe to keyframes. (Note: We add it to keyframes after the last
+     754:   //    keyframe with offset 0%.)
+     755: 
+     756:   const bool isEmptyKeyframes =
+     757:       percentageKeyframes.IsEmpty() && rangeKeyframes.IsEmpty();
+     758:   auto appendProperties = [&](Keyframe& aKeyframe,
+     759:                               const AnimatedPropertyIDSet& aCurrentProperties) {
+     760:     auto& propertyValues = aKeyframe.mPropertyValues;
+     761:     for (const auto& property : allProperties) {
+     762:       if (aCurrentProperties.HasProperty(property)) {
+     763:         continue;
+     764:       }
+     765:       // The nullptr of |mServoDeclarationBlock| means we use the base values,
+     766:       // i.e. the value generated for that property by finding the computed
+     767:       // value for that property in the absence of animations.
+     768:       propertyValues.AppendElement(PropertyValuePair{property, nullptr});
+     769:     }
+     770:   };
+     771:   // Check the equality of two property sets. Note that |fromProperties| must be
+     772:   // a subset of |allProperties|.
+     773:   if (!allProperties.IsSubsetOf(fromProperties) && !isEmptyKeyframes) {
+     774:     Keyframe* fromKeyframe = GetOrCreateInitialOrFinalComputedKeyframe(
+     775:         percentageKeyframes, rangeKeyframes, TargetKeyframe::Initial,
+     776:         mDefaultTimingFunction, defaultComposite);
+     777:     MOZ_ASSERT(fromKeyframe);
+     778:     appendProperties(*fromKeyframe, fromProperties);
+     779:   }
+     780: 
+     781:   // 4. Repeat for final keyframe, using an offset of 100%, considering
+     782:   // keyframes positioned later in the used keyframe order, and appending to
+     783:   // keyframes. Note that |toProperties| must be a subset of |allProperties|.
+     784:   if (!allProperties.IsSubsetOf(toProperties) && !isEmptyKeyframes) {
+     785:     Keyframe* toKeyframe = GetOrCreateInitialOrFinalComputedKeyframe(
+     786:         percentageKeyframes, rangeKeyframes, TargetKeyframe::Final,
+     787:         mDefaultTimingFunction, defaultComposite);
+     788:     MOZ_ASSERT(toKeyframe);
+     789:     appendProperties(*toKeyframe, toProperties);
+     790:   }
+     791: 
+     792:   aKeyframes = std::move(percentageKeyframes);
+     793:   if (!rangeKeyframes.IsEmpty()) {
+     794:     aKeyframes.AppendElements(std::move(rangeKeyframes));
+     795:   }
+     796:   return true;
+     797: }

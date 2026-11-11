@@ -1,0 +1,22 @@
+# Snapshot prerequisite: focused preservation gate
+
+Use ten explicit pages in TEST-INVENTORY.json. No new fixture is required; the two prior pseudo-control pages are temporarily installed verbatim. Source copies and presence/absence of per-page metadata are pinned in TEST-SOURCES.json. Fresh baseline status counts are deliberately unspecified; known subtest failures may remain and must be retained exactly. A crash, incomplete lifecycle, or failed harness is a coverage failure, not a pass because counts happened to match.
+
+| Pages (relative to WPT root) | Source rationale |
+| --- | --- |
+| web-animations/interfaces/KeyframeEffect/pseudo-compose-cssom-lifetime.html (retained20) | Generated/missing pseudo retained CSSOM reads, seek/cancel/restart, setKeyframes, retargeting, relative endpoints and ordered effects. Baseline failures remain expected because this patch has no CSSOM hook. |
+| web-animations/interfaces/KeyframeEffect/pseudo-compose-underlying.html (retained9) | Implicit endpoints, underlying changes, important precedence, cancellation and transform pseudo generation/removal. |
+| web-animations/interfaces/KeyframeEffect/target.html | Null targets, generated/absent pseudo identities and retargeting enter the existing renderer property-preparation paths; preserve the unsupported placeholder failure separately. |
+| css/css-animations/KeyframeEffect-getKeyframes.tentative.html | CSS effects generate missing initial/final/partial endpoints, default and per-keyframe easing/composites, shorthand grouping and variable values. Style/getAnimations creates and updates CSSAnimationKeyframeEffect, so BuildProperties reaches its virtual completion; getKeyframes additionally checks that the unchanged serialization caller still observes expected completion. |
+| css/css-animations/KeyframeEffect-setKeyframes.tentative.html | JS setKeyframes on CSS effects sets mIgnoreKeyframesGeneration; covers successful opt-out, subsequent rule/style changes and unsuccessful setKeyframes not enabling opt-out. |
+| css/css-animations/CSSAnimation-effect.tentative.html | CSS effect replacement/retargeting, pending effects and composite changes exercise property rebuilding and the target/composite values now retained by snapshot. |
+| scroll-animations/css/merge-timeline-offset-keyframes.html | CSS range and percentage keyframes with equal/different easing exercise split/sort/merge choices and implicit endpoint completion. |
+| scroll-animations/css/timeline-offset-in-keyframe-change-timeline.tentative.html | Switches a CSS animation between timeline types and checks range-based computed offsets and completion. This is preservation coverage; the new snapshot does not refresh those offsets. |
+| scroll-animations/css/timeline-offset-keyframes-with-document-timeline.html | Unresolved named-range keys on a document timeline exercise the skipped-range branch and CSS-generated endpoints. |
+| scroll-animations/css/timeline-offset-keyframes-zero-length-attachment-range.html | Degenerate versus ordinary attachment ranges exercise unresolved offsets and generated implicit endpoints without assuming every computed offset is finite/resolved. |
+
+These pages cover the newly crossed owned-input boundary; the earlier29-page composition suite alone was not a substitute for CSS subclass generation coverage. No new callback oracle is invented for this refactor: record the complete baseline callback/harness inventory and compare candidate statuses exactly, including expected failures. Keep assertion and harness record kinds distinct in keys, reject duplicate callbacks, and retain all raw logs/messages. The clip-runtime comparator collision must not be reused.
+
+A reversible candidate experiment must compile the real snapshot patch, preserve the full retained application/source/config and remove only its owned temporary fixtures/backups after verification. The currently retained browser includes clip fix171; older baseline statuses are not a suitable oracle. No run is authorized by this artifact itself; root executes the separately reviewed wrapper.
+
+Optimized preservation can validate this prerequisite's ordinary paths, but it is not sufficient to close the final missing-pseudo debug gate. In particular the old transform assertion arose when a broad pseudo hook affected normal traversal; no such hook exists here. Final CSSOM integration still needs debug execution plus fresh timing/provider/mask/recascade validation.
