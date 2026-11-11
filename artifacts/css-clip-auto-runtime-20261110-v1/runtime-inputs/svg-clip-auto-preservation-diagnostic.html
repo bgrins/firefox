@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Local SMIL clip preservation observations</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const SVG = "http://www.w3.org/2000/svg";
+const observations = new Map();
+
+function observe(id, attributes, time, underlying) {
+  const svg = document.createElementNS(SVG, "svg");
+  const marker = document.createElementNS(SVG, "marker");
+  const animation = document.createElementNS(SVG, "animate");
+  marker.style.clip = underlying;
+  for (const [name, value] of Object.entries({
+    attributeName: "clip", attributeType: "CSS", begin: "0s", dur: "1s",
+    repeatCount: "3", fill: "freeze", ...attributes,
+  })) {
+    animation.setAttribute(name, value);
+  }
+  svg.append(marker);
+  document.body.append(svg);
+  svg.pauseAnimations();
+  svg.setCurrentTime(0);
+  assert_equals(getComputedStyle(marker).clip, underlying, `${id} static base`);
+  marker.append(animation);
+  svg.setCurrentTime(time);
+  const row = {
+    schema: 1, id, time, underlying,
+    clip: getComputedStyle(marker).clip,
+    paused: svg.animationsPaused(),
+  };
+  observations.set(id, row);
+  dump("CLIP_SMIL_OBSERVATION " + JSON.stringify(row) + "\n");
+  svg.remove();
+  return row.clip;
+}
+
+test(() => {
+  assert_equals(typeof dump, "function", "Firefox diagnostic output is enabled");
+  for (const [kind, from, to, underlying] of [
+    ["numeric", "rect(10px, 20px, 30px, 40px)",
+     "rect(30px, 40px, 50px, 60px)", "rect(3px, 7px, 11px, 13px)"],
+    ["mixed", "rect(auto, 20px, 30px, 40px)",
+     "rect(auto, 40px, 50px, 60px)", "rect(auto, 7px, 11px, 13px)"],
+  ]) {
+    for (const accumulate of ["none", "sum"]) {
+      for (const time of [0.5, 2.5]) {
+        observe(`repeat-${kind}-${accumulate}-${time}`,
+                { from, to, accumulate }, time, underlying);
+      }
+    }
+    observe(`sandwich-${kind}`, { from, to: from, additive: "sum" },
+            0.5, underlying);
+    observe(`by-only-${kind}`, { by: from }, 0.5, underlying);
+  }
+  assert_equals(observations.size, 12);
+  assert_true([...observations.values()].every(row => row.paused));
+  assert_not_equals(observations.get("repeat-numeric-sum-2.5").clip,
+                    observations.get("repeat-numeric-none-2.5").clip,
+                    "The numeric repeat control accumulates");
+  for (const id of ["sandwich-numeric", "by-only-numeric"]) {
+    assert_not_equals(observations.get(id).clip, observations.get(id).underlying,
+                      `${id} changes the base value`);
+  }
+}, "SMIL diagnostic numeric controls are active");
+</script>

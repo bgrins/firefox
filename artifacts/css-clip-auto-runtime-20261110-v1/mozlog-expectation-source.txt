@@ -1,0 +1,27 @@
+testing/mozbase/mozlog/mozlog/structuredlog.py at 0dcfe7c2e7a8cd9924894449dd1d97d3c604d79c
+    )
+    def test_status(self, data):
+        """
+        Log a test_status message indicating a subtest result. Tests that
+        do not have subtests are not expected to produce test_status messages.
+
+        :param test: Identifier of the test that produced the result.
+        :param subtest: Name of the subtest.
+        :param status: Status string indicating the subtest result
+        :param expected: Status string indicating the expected subtest result.
+        :param message: Optional string containing a message associated with the result.
+        :param stack: Optional stack trace encountered during test execution.
+        :param extra: Optional suite-specific data associated with the test result.
+        :param known_intermittent: Optional list of string expected intermittent statuses
+        :param subsuite: Optional name of the subsuite to which the test belongs.
+        :param group: Optional name of the test group or manifest name (useful
+                     when running in paralle)
+        """
+
+        if data["expected"] == data["status"] or data["status"] == "SKIP":
+            del data["expected"]
+
+        test_key = (data.get("subsuite"), data["test"])
+        if test_key not in self._state.running_tests:
+            self.error(
+                "test_status for %s logged while not in progress. "

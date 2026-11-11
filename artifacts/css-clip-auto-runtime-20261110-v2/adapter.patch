@@ -1,0 +1,39 @@
+--- v1/analyze.py
++++ v2/analyze.py
+@@ -102,7 +102,8 @@
+             observation(row['data'], observations)
+     assert suite_starts == suite_ends == 1, (suite_starts, suite_ends)
+     assert starts and set(starts) == set(ends), 'incomplete test lifecycle'
+-    assert all(row['status'] == 'OK' for row in ends.values()), ends
++    harness_status = 'OK' if flavor == 'wpt' else 'PASS'
++    assert all(row['status'] == harness_status for row in ends.values()), ends
+     if flavor == 'wpt':
+         expected = {
+             CONTROL: NEW_CONTROLS,
+--- v1/parser-controls.py
++++ v2/parser-controls.py
+@@ -38,7 +38,7 @@
+         result.append({'action': 'test_start', 'test': test})
+         for _ in range(2):
+             result.append({'action': 'test_status', 'test': test, 'subtest': 'Repeated assertion name', 'status': 'PASS'})
+-        result.append({'action': 'test_end', 'test': test, 'status': 'OK'})
++        result.append({'action': 'test_end', 'test': test, 'status': 'PASS'})
+     result.append({'action': 'suite_end'})
+     return result
+ 
+@@ -76,6 +76,15 @@
+         rejects('duplicate-observation', lambda: parse(wpt[:obs]+[wpt[obs]]+wpt[obs:]))
+         rejects('duplicate-WPT-callback', lambda: parse(wpt[:cb]+[wpt[cb]]+wpt[cb:]))
+         rejects('missing-callback', lambda: parse(wpt[:cb]+wpt[cb+1:]))
++        wrong_wpt=copy.deepcopy(wpt)
++        next(row for row in wrong_wpt if row['action'] == 'test_end')['status']='PASS'
++        rejects('WPT-PASS-harness-ending', lambda: parse(wrong_wpt))
++        wrong_mochi=copy.deepcopy(mochi)
++        next(row for row in wrong_mochi if row['action'] == 'test_end')['status']='OK'
++        rejects('Mochitest-OK-harness-ending', lambda: parse(wrong_mochi, 'mochitest'))
++        wrong_mochi=copy.deepcopy(mochi)
++        next(row for row in wrong_mochi if row['action'] == 'test_end')['status']='FAIL'
++        rejects('Mochitest-FAIL-harness-ending', lambda: parse(wrong_mochi, 'mochitest'))
+         rejects('missing-suite-end', lambda: parse(wpt[:-1]))
+         rejects('early-suite-end', lambda: parse([wpt[0], wpt[-1]]+wpt[1:-1]))
+         for name, key, value in [('schema-bool', 'schema', True), ('unexpected-id', 'id', 'unknown'),

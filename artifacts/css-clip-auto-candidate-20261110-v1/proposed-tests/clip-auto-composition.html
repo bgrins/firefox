@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Composition of clip rectangles with auto components</title>
+<link rel="help" href="https://drafts.csswg.org/css-masking-1/#clip-property">
+<link rel="help" href="https://drafts.csswg.org/web-animations-2/#the-effect-value-of-a-keyframe-animation-effect">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#combining-values">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const mixed = "rect(auto, 50px, 50px, 10px)";
+const numeric = "rect(10px, 50px, 50px, 10px)";
+
+function sample(t, value, options, time, underlying = "auto") {
+  const target = document.createElement("div");
+  target.style.position = "absolute";
+  target.style.clip = underlying;
+  document.body.append(target);
+  const animation = target.animate([{ clip: value }, { clip: value }], {
+    duration: 1000,
+    fill: "both",
+    ...options,
+  });
+  animation.pause();
+  animation.currentTime = time;
+  t.add_cleanup(() => {
+    animation.cancel();
+    target.remove();
+  });
+  return getComputedStyle(target).clip;
+}
+
+const iterations = { iterations: 3, iterationComposite: "accumulate" };
+
+for (const [name, value, time, expected] of [
+  ["matching auto components accumulate", mixed, 2500,
+   "rect(auto, 150px, 150px, 30px)"],
+  ["first iteration retains matching auto", mixed, 500, mixed],
+  ["numeric components accumulate", numeric, 2500,
+   "rect(30px, 150px, 150px, 30px)"],
+  ["top-level auto remains auto", "auto", 2500, "auto"],
+]) {
+  test(t => {
+    assert_equals(sample(t, value, iterations, time), expected);
+  }, `Iteration composition: ${name}`);
+}
+
+for (const composite of ["add", "accumulate"]) {
+  test(t => {
+    assert_equals(sample(t, mixed, { composite }, 500, mixed),
+                  "rect(auto, 100px, 100px, 20px)");
+  }, `Effect composition ${composite}: matching auto components combine`);
+}
+
+test(t => {
+  assert_equals(sample(t, numeric, { composite: "add" }, 500, numeric),
+                "rect(20px, 100px, 100px, 20px)");
+}, "Effect addition: numeric components combine");
+
+test(t => {
+  assert_equals(sample(t, mixed, { composite: "add" }, 500, numeric), mixed);
+}, "Effect addition: mismatched component types retain the effect value");
+
+test(t => {
+  assert_equals(sample(t, "auto", { composite: "add" }, 500, "auto"), "auto");
+}, "Effect addition: top-level auto remains auto");
+</script>

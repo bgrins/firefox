@@ -1,0 +1,109 @@
+--- a/servo/components/style/properties/helpers/animated_properties.mako.rs
++++ b/servo/components/style/properties/helpers/animated_properties.mako.rs
+@@ -730,25 +730,11 @@
+ impl Animate for ClipRect {
+     #[inline]
+     fn animate(&self, other: &Self, procedure: Procedure) -> Result<Self, ()> {
+-        use crate::values::computed::LengthOrAuto;
+-        let animate_component = |this: &LengthOrAuto, other: &LengthOrAuto| {
+-            let result = this.animate(other, procedure)?;
+-            if let Procedure::Interpolate { .. } = procedure {
+-                return Ok(result);
+-            }
+-            if result.is_auto() {
+-                // FIXME(emilio): Why? A couple SMIL tests fail without this,
+-                // but it seems extremely fishy.
+-                return Err(());
+-            }
+-            Ok(result)
+-        };
+-
+         Ok(ClipRect {
+-            top: animate_component(&self.top, &other.top)?,
+-            right: animate_component(&self.right, &other.right)?,
+-            bottom: animate_component(&self.bottom, &other.bottom)?,
+-            left: animate_component(&self.left, &other.left)?,
++            top: self.top.animate(&other.top, procedure)?,
++            right: self.right.animate(&other.right, procedure)?,
++            bottom: self.bottom.animate(&other.bottom, procedure)?,
++            left: self.left.animate(&other.left, procedure)?,
+         })
+     }
+ }
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -499,29 +499,42 @@
+     from.interpolable_with(to)
+ }
+ 
+-#[unsafe(no_mangle)]
+-pub extern "C" fn Servo_AnimationValues_Add(
++fn animate_for_smil(
++    a: &AnimationValue,
++    b: &AnimationValue,
++    procedure: Procedure,
++) -> Strong<AnimationValue> {
++    let Ok(value) = a.animate(b, procedure) else {
++        return Strong::null();
++    };
++    // Preserve SMIL's rejection of additive clip rectangles containing auto.
++    if let AnimationValue::Clip(computed::ClipRectOrAuto::Rect(rect)) = &value {
++        if rect.top.is_auto()
++            || rect.right.is_auto()
++            || rect.bottom.is_auto()
++            || rect.left.is_auto()
++        {
++            return Strong::null();
++        }
++    }
++    Arc::new(value).into()
++}
++
++#[unsafe(no_mangle)]
++pub extern "C" fn Servo_AnimationValues_AddForSMIL(
+     a: &AnimationValue,
+     b: &AnimationValue,
+ ) -> Strong<AnimationValue> {
+-    if let Ok(value) = a.animate(b, Procedure::Add) {
+-        Arc::new(value).into()
+-    } else {
+-        Strong::null()
+-    }
+-}
+-
+-#[unsafe(no_mangle)]
+-pub extern "C" fn Servo_AnimationValues_Accumulate(
++    animate_for_smil(a, b, Procedure::Add)
++}
++
++#[unsafe(no_mangle)]
++pub extern "C" fn Servo_AnimationValues_AccumulateForSMIL(
+     a: &AnimationValue,
+     b: &AnimationValue,
+     count: u64,
+ ) -> Strong<AnimationValue> {
+-    if let Ok(value) = a.animate(b, Procedure::Accumulate { count }) {
+-        Arc::new(value).into()
+-    } else {
+-        Strong::null()
+-    }
++    animate_for_smil(a, b, Procedure::Accumulate { count })
+ }
+ 
+ #[unsafe(no_mangle)]
+--- a/dom/smil/SMILCSSValueType.cpp
++++ b/dom/smil/SMILCSSValueType.cpp
+@@ -251,9 +251,11 @@
+ 
+     RefPtr<StyleAnimationValue> result;
+     if (aCompositeOp == CompositeOperation::Add) {
+-      result = Servo_AnimationValues_Add(*destValue, *valueToAdd).Consume();
++      result =
++          Servo_AnimationValues_AddForSMIL(*destValue, *valueToAdd).Consume();
+     } else {
+-      result = Servo_AnimationValues_Accumulate(*destValue, *valueToAdd, aCount)
++      result = Servo_AnimationValues_AccumulateForSMIL(*destValue, *valueToAdd,
++                                                       aCount)
+                    .Consume();
+     }
+ 

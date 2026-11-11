@@ -1,0 +1,190 @@
+--- a/servo/components/style/properties/helpers/animated_properties.mako.rs
++++ b/servo/components/style/properties/helpers/animated_properties.mako.rs
+@@ -730,25 +730,11 @@
+ impl Animate for ClipRect {
+     #[inline]
+     fn animate(&self, other: &Self, procedure: Procedure) -> Result<Self, ()> {
+-        use crate::values::computed::LengthOrAuto;
+-        let animate_component = |this: &LengthOrAuto, other: &LengthOrAuto| {
+-            let result = this.animate(other, procedure)?;
+-            if let Procedure::Interpolate { .. } = procedure {
+-                return Ok(result);
+-            }
+-            if result.is_auto() {
+-                // FIXME(emilio): Why? A couple SMIL tests fail without this,
+-                // but it seems extremely fishy.
+-                return Err(());
+-            }
+-            Ok(result)
+-        };
+-
+         Ok(ClipRect {
+-            top: animate_component(&self.top, &other.top)?,
+-            right: animate_component(&self.right, &other.right)?,
+-            bottom: animate_component(&self.bottom, &other.bottom)?,
+-            left: animate_component(&self.left, &other.left)?,
++            top: self.top.animate(&other.top, procedure)?,
++            right: self.right.animate(&other.right, procedure)?,
++            bottom: self.bottom.animate(&other.bottom, procedure)?,
++            left: self.left.animate(&other.left, procedure)?,
+         })
+     }
+ }
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -499,29 +499,42 @@
+     from.interpolable_with(to)
+ }
+ 
+-#[unsafe(no_mangle)]
+-pub extern "C" fn Servo_AnimationValues_Add(
++fn animate_for_smil(
++    a: &AnimationValue,
++    b: &AnimationValue,
++    procedure: Procedure,
++) -> Strong<AnimationValue> {
++    let Ok(value) = a.animate(b, procedure) else {
++        return Strong::null();
++    };
++    // Preserve SMIL's rejection of additive clip rectangles containing auto.
++    if let AnimationValue::Clip(computed::ClipRectOrAuto::Rect(rect)) = &value {
++        if rect.top.is_auto()
++            || rect.right.is_auto()
++            || rect.bottom.is_auto()
++            || rect.left.is_auto()
++        {
++            return Strong::null();
++        }
++    }
++    Arc::new(value).into()
++}
++
++#[unsafe(no_mangle)]
++pub extern "C" fn Servo_AnimationValues_AddForSMIL(
+     a: &AnimationValue,
+     b: &AnimationValue,
+ ) -> Strong<AnimationValue> {
+-    if let Ok(value) = a.animate(b, Procedure::Add) {
+-        Arc::new(value).into()
+-    } else {
+-        Strong::null()
+-    }
+-}
+-
+-#[unsafe(no_mangle)]
+-pub extern "C" fn Servo_AnimationValues_Accumulate(
++    animate_for_smil(a, b, Procedure::Add)
++}
++
++#[unsafe(no_mangle)]
++pub extern "C" fn Servo_AnimationValues_AccumulateForSMIL(
+     a: &AnimationValue,
+     b: &AnimationValue,
+     count: u64,
+ ) -> Strong<AnimationValue> {
+-    if let Ok(value) = a.animate(b, Procedure::Accumulate { count }) {
+-        Arc::new(value).into()
+-    } else {
+-        Strong::null()
+-    }
++    animate_for_smil(a, b, Procedure::Accumulate { count })
+ }
+ 
+ #[unsafe(no_mangle)]
+--- a/dom/smil/SMILCSSValueType.cpp
++++ b/dom/smil/SMILCSSValueType.cpp
+@@ -251,9 +251,11 @@
+ 
+     RefPtr<StyleAnimationValue> result;
+     if (aCompositeOp == CompositeOperation::Add) {
+-      result = Servo_AnimationValues_Add(*destValue, *valueToAdd).Consume();
++      result =
++          Servo_AnimationValues_AddForSMIL(*destValue, *valueToAdd).Consume();
+     } else {
+-      result = Servo_AnimationValues_Accumulate(*destValue, *valueToAdd, aCount)
++      result = Servo_AnimationValues_AccumulateForSMIL(*destValue, *valueToAdd,
++                                                       aCount)
+                    .Consume();
+     }
+ 
+--- a/testing/web-platform/meta/web-animations/animation-model/keyframe-effects/effect-value-iteration-composite-operation.html.ini
++++ b/testing/web-platform/meta/web-animations/animation-model/keyframe-effects/effect-value-iteration-composite-operation.html.ini
+@@ -4,8 +4,5 @@
+   [iteration composition of incompatible calc-size() bases (accumulation skipped at 0%, allowed at 50%)]
+     expected: FAIL
+ 
+-  [iteration composition of incompatible clip rects (accumulation skipped at 0%, allowed at 50%)]
+-    expected: FAIL
+-
+   [iteration composition of discrete type animation (align-content)]
+     expected: FAIL
+--- /dev/null
++++ b/testing/web-platform/tests/web-animations/animation-model/keyframe-effects/clip-auto-composition.html
+@@ -0,0 +1,67 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Composition of clip rectangles with auto components</title>
++<link rel="help" href="https://drafts.csswg.org/css-masking-1/#clip-property">
++<link rel="help" href="https://drafts.csswg.org/web-animations-2/#the-effect-value-of-a-keyframe-animation-effect">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#combining-values">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++const mixed = "rect(auto, 50px, 50px, 10px)";
++const numeric = "rect(10px, 50px, 50px, 10px)";
++
++function sample(t, value, options, time, underlying = "auto") {
++  const target = document.createElement("div");
++  target.style.position = "absolute";
++  target.style.clip = underlying;
++  document.body.append(target);
++  const animation = target.animate([{ clip: value }, { clip: value }], {
++    duration: 1000,
++    fill: "both",
++    ...options,
++  });
++  animation.pause();
++  animation.currentTime = time;
++  t.add_cleanup(() => {
++    animation.cancel();
++    target.remove();
++  });
++  return getComputedStyle(target).clip;
++}
++
++const iterations = { iterations: 3, iterationComposite: "accumulate" };
++
++for (const [name, value, time, expected] of [
++  ["matching auto components accumulate", mixed, 2500,
++   "rect(auto, 150px, 150px, 30px)"],
++  ["first iteration retains matching auto", mixed, 500, mixed],
++  ["numeric components accumulate", numeric, 2500,
++   "rect(30px, 150px, 150px, 30px)"],
++  ["top-level auto remains auto", "auto", 2500, "auto"],
++]) {
++  test(t => {
++    assert_equals(sample(t, value, iterations, time), expected);
++  }, `Iteration composition: ${name}`);
++}
++
++for (const composite of ["add", "accumulate"]) {
++  test(t => {
++    assert_equals(sample(t, mixed, { composite }, 500, mixed),
++                  "rect(auto, 100px, 100px, 20px)");
++  }, `Effect composition ${composite}: matching auto components combine`);
++}
++
++test(t => {
++  assert_equals(sample(t, numeric, { composite: "add" }, 500, numeric),
++                "rect(20px, 100px, 100px, 20px)");
++}, "Effect addition: numeric components combine");
++
++test(t => {
++  assert_equals(sample(t, mixed, { composite: "add" }, 500, numeric), mixed);
++}, "Effect addition: mismatched component types retain the effect value");
++
++test(t => {
++  assert_equals(sample(t, "auto", { composite: "add" }, 500, "auto"), "auto");
++}, "Effect addition: top-level auto remains auto");
++</script>

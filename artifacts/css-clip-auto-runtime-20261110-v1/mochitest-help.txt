@@ -1,0 +1,205 @@
+Creating the 'common' site at /Users/bgrins/.mozbuild/srcdirs/firefox-4cbffe2ae3f2/_virtualenvs/common
+usage: mach [global arguments] mochitest [command arguments]
+
+Run any flavor of mochitest (integration test).
+
+Global Arguments:
+  -v, --verbose         Print verbose output.
+  -q, --quiet           Don't print as much output.
+  -l, --log-file FILENAME
+                        Filename to write log data to.
+  --log-interval        Prefix log line with interval from last message rather
+                        than relative time. Note that this is NOT execution
+                        time if there are parallel operations.
+  --no-interactive      Automatically selects the default option on any
+                        interactive prompts. If the output is not a terminal,
+                        then --no-interactive is assumed.
+  --log-no-times        Do not prefix log lines with times. By default, mach
+                        will prefix each output line with the time since
+                        command start.
+  -h, --help            Show this help message.
+  --debug-command       Start a Python debugger when command is dispatched.
+  --profile-command     Capture a Python profile of the mach process as
+                        command is dispatched.
+  --settings FILENAME   Path to settings file.
+
+Command Arguments:
+  -h, --help            show this help message and exit
+  --force               Force reinstallation of test symlinks even if up to
+                        date.
+
+Output Logging:
+  Each option represents a possible logging format and takes a filename to
+  write that format to, or '-' to write to stdout. Some options are provided
+  by the mozlog utility; see https://firefox-source-
+  docs.mozilla.org/mozbase/mozlog.html for extended documentation.
+
+  --log-raw LOG_RAW     Raw structured log messages (provided by mozlog)
+  --log-unittest LOG_UNITTEST
+                        Unittest style output (provided by mozlog)
+  --log-xunit LOG_XUNIT
+                        xUnit compatible XML (provided by mozlog)
+  --log-html LOG_HTML   HTML report (provided by mozlog)
+  --log-mach LOG_MACH   Human-readable output (provided by mozlog)
+  --log-tbpl LOG_TBPL   TBPL style log format (provided by mozlog)
+  --log-grouped LOG_GROUPED
+                        Grouped summary of test results (provided by mozlog)
+  --log-raw-level LOG_RAW_LEVEL
+                        A least log level to subscribe to for the given
+                        formatter (debug, info, error, etc.)
+  --log-raw-unexpectedonly
+                        Suppress process output for tests with expected
+                        results.
+  --log-mach-verbose    Enables verbose mode for the given formatter.
+  --log-mach-level LOG_MACH_LEVEL
+                        A least log level to subscribe to for the given
+                        formatter (debug, info, error, etc.)
+  --log-mach-buffer LOG_MACH_BUFFER
+                        If specified, enables message buffering at the given
+                        buffer size limit.
+  --log-mach-screenshot
+                        Enable logging reftest-analyzer compatible screenshot
+                        data.
+  --log-mach-no-screenshot
+                        Disable logging reftest-analyzer compatible screenshot
+                        data.
+  --log-mach-unexpectedonly
+                        Suppress process output for tests with expected
+                        results.
+  --log-tbpl-compact    Enables compact mode for the given formatter.
+  --log-tbpl-level LOG_TBPL_LEVEL
+                        A least log level to subscribe to for the given
+                        formatter (debug, info, error, etc.)
+  --log-tbpl-buffer LOG_TBPL_BUFFER
+                        If specified, enables message buffering at the given
+                        buffer size limit.
+  --log-tbpl-unexpectedonly
+                        Suppress process output for tests with expected
+                        results.
+
+MochitestArguments:
+  General mochitest arguments.
+
+  TEST                  Test to run. Can be a single test file or a directory
+                        of tests (to run recursively). If omitted, the entire
+                        suite is run.
+  -f, --flavor {a11y, browser, chrome, plain}
+                        Only run tests of this flavor.
+  --keep-open [KEEP_OPEN]
+                        Always keep the browser open after tests complete. Or
+                        always close the browser with --keep-open=false
+  --appname APP         Override the default binary used to run tests with the
+                        path provided, e.g /usr/bin/firefox. If you have run
+                        ./mach package beforehand, you can specify 'dist' to
+                        run tests against the distribution bundle's binary.
+  --android             Force an android test run.
+  --no-autorun          Do not start running tests automatically.
+  --timeout TIMEOUT     The per-test timeout in seconds (default: 60 seconds).
+  --max-timeouts MAXTIMEOUTS
+                        The maximum number of timeouts permitted before
+                        halting testing.
+  --shuffle             Shuffle execution order of tests.
+  --bisect-chunk BISECTCHUNK
+                        Specify the failing test name to find the previous
+                        tests that may be causing the failure.
+  --start-at STARTAT    Start running the test sequence at this test.
+  --end-at ENDAT        Stop running the test sequence at this test.
+  --subsuite SUBSUITE   Subsuite of tests to run. Unlike tags, subsuites also
+                        remove tests from the default set. Only one can be
+                        specified at once.
+  --setenv NAME=VALUE   Sets the given variable in the application's
+                        environment.
+  --install-extension EXTENSIONSTOINSTALL
+                        Install the specified extension in the testing
+                        profile. Can be a path to a .xpi file.
+  --conditioned-profile
+                        Download and run with a full conditioned profile.
+  --repeat REPEAT       Repeat the tests the given number of times.
+  --run-until-failure   Run tests repeatedly but stop the first time a test
+                        fails. Default cap is 30 runs, which can be overridden
+                        with the --repeat parameter.
+  --run-slower          Delay execution between tests.
+  --use-http3-server    Whether to use the Http3 server
+  --use-http2-server    Whether to use the Http2 server
+  --setpref PREF=VALUE  Defines an extra user preference.
+  --jsconsole           Open the Browser Console.
+  --jsdebugger          Start the browser JS debugger before running the test.
+  --jsdebugger-path JSDEBUGGERPATH
+                        Path to a Firefox binary that will be used to run the
+                        toolbox. Should be used together with --jsdebugger.
+  --debug-on-failure    Breaks execution and enters the JS debugger on a test
+                        failure. Should be used together with --jsdebugger.
+  --disable-e10s        Run tests with electrolysis preferences and test
+                        filtering disabled.
+  --enable-a11y-checks  Run tests with accessibility checks enabled.
+  --disable-fission     Run tests with fission (site isolation) disabled.
+  --enable-xorigin-tests
+                        Run tests in a cross origin iframe.
+  --dmd                 Run tests with DMD active.
+  --dump-output-directory DUMPOUTPUTDIRECTORY
+                        Specifies the directory in which to place dumped
+                        memory reports.
+  --dump-about-memory-after-test
+                        Dump an about:memory log after each test in the
+                        directory specified by --dump-output-directory.
+  --dump-dmd-after-test
+                        Dump a DMD log (and an accompanying about:memory log)
+                        after each test. These will be dumped into your
+                        default temp directory, NOT the directory specified by
+                        --dump-output-directory. The logs are numbered by
+                        test, and each test will include output that indicates
+                        the DMD output filename.
+  --screenshot-on-fail  Take screenshots on all test failures. Set
+                        $MOZ_UPLOAD_DIR to a directory for storing the
+                        screenshots.
+  --quiet               Do not print test log lines unless a failure occurs.
+  --headless            Run tests in headless mode.
+  --use-test-media-devices
+                        Use test media device drivers for media testing.
+  --debugger DEBUGGER   Debugger binary to run tests in. Program name or path.
+  --debugger-args DEBUGGERARGS
+                        Arguments to pass to the debugger.
+  --valgrind VALGRIND   Valgrind binary to run tests with. Program name or
+                        path.
+  --valgrind-args VALGRINDARGS
+                        Comma-separated list of extra arguments to pass to
+                        Valgrind.
+  --valgrind-supp-files VALGRINDSUPPFILES
+                        Comma-separated list of suppression files to pass to
+                        Valgrind.
+  --tag TEST_TAGS       Filter out tests that don't have the given tag. Can be
+                        used multiple times in which case the test must
+                        contain at least one of the given tags.
+  --marionette MARIONETTE
+                        host:port to use when connecting to Marionette
+  --websocket-process-bridge-port WEBSOCKET_PROCESS_BRIDGE_PORT
+                        Port for websocket/process bridge. Default 8191.
+  --verify              Run tests in verification mode: Run many times in
+                        different ways, to see if there are intermittent
+                        failures.
+  --verify-fission      Run tests once without Fission, once with Fission
+  --verify-max-time VERIFY_MAX_TIME
+                        Maximum time, in seconds, to run in --verify mode.
+  --profiler            Run the Firefox Profiler and get a performance profile
+                        of the mochitest. This is useful to find performance
+                        issues, and also to see what exactly the test is
+                        doing. To get profiler options run:
+                        `MOZ_PROFILER_HELP=1 ./mach run`
+  --profiler-save-only  Run the Firefox Profiler and save it to the path
+                        specified by the MOZ_UPLOAD_DIR environment variable.
+  --run-failures RUNFAILURES
+                        Run fail-if/skip-if tests that match a keyword given.
+  --timeout-as-pass     treat harness level timeouts as passing (used for
+                        quarantine jobs).
+  --crash-as-pass       treat harness level crashes as passing (used for
+                        quarantine jobs).
+  --compare-preferences
+                        Compare preferences at the end of each test and report
+                        changed ones as failures.
+  --restart-after-failure
+                        Terminate the session on first failure and restart
+                        where you left off.
+  --restart-between-tests
+                        Restart the browser between each test to identify
+                        tests with undocumented dependencies.
+  --variant VARIANT     use specified variant for any harness level changes.

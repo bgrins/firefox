@@ -1,0 +1,13 @@
+>>>  119: void KeyframeEffect::SetIterationComposite(
+     120:     const IterationCompositeOperation& aIterationComposite) {
+     121:   if (mEffectOptions.mIterationComposite == aIterationComposite) {
+     122:     return;
+     123:   }
+     124: 
+     125:   if (mAnimation && mAnimation->IsRelevant()) {
+     126:     MutationObservers::NotifyAnimationChanged(mAnimation);
+     127:   }
+     128: 
+     129:   mEffectOptions.mIterationComposite = aIterationComposite;
+     130:   RequestRestyle(EffectCompositor::RestyleType::Layer);
+     131: }
