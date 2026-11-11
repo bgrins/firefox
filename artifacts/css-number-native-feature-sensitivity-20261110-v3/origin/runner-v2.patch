@@ -1,0 +1,18 @@
+--- v1/run.py
++++ v2/run.py
+@@ -73,11 +73,14 @@
+ 
+         run('cargo-version', [cargo, '--version'])
+         run('rustc-version', [rustc, '-vV'])
+-        run('lock', [cargo, 'generate-lockfile', '--offline'])
++        resolved, _ = run('resolve', [cargo, 'metadata', '--offline', '--format-version=1', '--filter-platform=' + audited['HOST']])
++        resolved_features = audited['metadata'](json.loads(resolved), workspace, dependency['package_records'])
+         shutil.copyfile(workspace / 'Cargo.lock', output / 'Cargo.lock')
+         lock_hash = sha(workspace / 'Cargo.lock')
+         raw, _ = run('metadata', [cargo, 'metadata', '--frozen', '--format-version=1', '--filter-platform=' + audited['HOST']])
+         features = audited['metadata'](json.loads(raw), workspace, dependency['package_records'])
++        assert features == resolved_features
++        assert sha(workspace / 'Cargo.lock') == lock_hash
+         save(output / 'FEATURES.json', features)
+         run('feature-tree', [cargo, 'tree', '--frozen', '--target', audited['HOST'], '-e', 'features', '-p', 'cssparser'])
+         for variant in ['baseline'] + list(mutations['MUTATIONS']):
