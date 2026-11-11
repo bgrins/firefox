@@ -1,0 +1,4309 @@
+--- /dev/null
++++ b/CssDerivation/Backend.lean
+@@ -0,0 +1,58 @@
++import Lean
++
++namespace CssDerivation
++
++structure State where
++  input : List Char
++  error : Bool
++  deriving DecidableEq, Repr
++
++inductive Program : Type → Type 1 where
++  | pure {α : Type} : α → Program α
++  | read : Program (Option Char)
++  | scan : Nat → (Char → Bool) → Program (List Char)
++  | skip : (Char → Bool) → Program Unit
++  | raiseError : Program Unit
++  | branch {α : Type} : Bool → Program α → Program α → Program α
++  | bind {α β : Type} : Program α → (α → Program β) → Program β
++
++def scanPrefix (predicate : Char → Bool) : Nat → List Char → List Char × List Char
++  | 0, input => ([], input)
++  | _ + 1, [] => ([], [])
++  | budget + 1, c :: rest =>
++      if predicate c then
++        let later := scanPrefix predicate budget rest
++        (c :: later.1, later.2)
++      else ([], c :: rest)
++
++def skipOne (predicate : Char → Bool) : List Char → List Char
++  | [] => []
++  | c :: rest => if predicate c then rest else c :: rest
++
++def run : {α : Type} → Program α → State → α × State
++  | _, .pure value, state => (value, state)
++  | _, .read, state =>
++      match state.input with
++      | [] => (none, state)
++      | c :: rest => (some c, { state with input := rest })
++  | _, .scan budget predicate, state =>
++      let scanned := scanPrefix predicate budget state.input
++      (scanned.1, { state with input := scanned.2 })
++  | _, .skip predicate, state => ((), { state with input := skipOne predicate state.input })
++  | _, .raiseError, state => ((), { state with error := true })
++  | _, .branch condition yes no, state => if condition then run yes state else run no state
++  | _, .bind first next, state =>
++      let result := run first state
++      run (next result.1) result.2
++
++structure Result where
++  value : Char
++  rest : List Char
++  error : Bool
++  deriving DecidableEq, Repr
++
++def execute (program : Program Char) (input : List Char) : Result :=
++  let result := run program ⟨input, false⟩
++  ⟨result.1, result.2.input, result.2.error⟩
++
++end CssDerivation
+--- /dev/null
++++ b/CssDerivation/Codec/Data.lean
+@@ -0,0 +1,227 @@
++import CssDerivation.FirstOrder
++
++namespace CssDerivation.TypedCodec
++open FirstOrder
++
++inductive DataExpr where
++  | nat : Nat → DataExpr
++  | scalar : Char → DataExpr
++  | bool : Bool → DataExpr
++  | nil | unit
++  | var : Nat → DataExpr
++  | code : DataExpr → DataExpr
++  | scalarOf : DataExpr → DataExpr
++  | add : DataExpr → DataExpr → DataExpr
++  | sub : DataExpr → DataExpr → DataExpr
++  | mul : DataExpr → DataExpr → DataExpr
++  | leNat : DataExpr → DataExpr → DataExpr
++  | ltNat : DataExpr → DataExpr → DataExpr
++  | eqNat : DataExpr → DataExpr → DataExpr
++  | leChar : DataExpr → DataExpr → DataExpr
++  | eqChar : DataExpr → DataExpr → DataExpr
++  | and : DataExpr → DataExpr → DataExpr
++  | or : DataExpr → DataExpr → DataExpr
++  | cons : DataExpr → DataExpr → DataExpr
++  | ite : DataExpr → DataExpr → DataExpr → DataExpr
++  | foldNat : DataExpr → DataExpr → DataExpr → DataExpr
++  | scope : Ty → DataExpr → DataExpr
++  deriving Repr, DecidableEq
++
++inductive DataStmt where
++  | ret : DataExpr → DataStmt
++  | letE : DataExpr → DataStmt → DataStmt
++  | read : DataStmt → DataStmt → DataStmt
++  | scan : Nat → DataExpr → DataStmt → DataStmt
++  | raiseError : DataStmt → DataStmt
++  | branch : DataExpr → DataStmt → DataStmt → DataStmt
++  deriving Repr, DecidableEq
++
++def encodeVar : Var Γ t → Nat
++  | .here => 0
++  | .there v => encodeVar v + 1
++
++def inferVar : (Γ : List Ty) → Nat → Option (Σ t, Var Γ t)
++  | [], _ => none
++  | t :: _, 0 => some ⟨t, .here⟩
++  | _ :: Γ, n + 1 => do
++      let ⟨t, v⟩ ← inferVar Γ n
++      pure ⟨t, .there v⟩
++
++def expect {F : Ty → Type} (t : Ty) : (Σ u, F u) → Option (F t)
++  | ⟨u, e⟩ => if h : u = t then some (h ▸ e) else none
++
++def decodeVar (Γ : List Ty) (t : Ty) (n : Nat) : Option (Var Γ t) :=
++  (inferVar Γ n).bind (expect t)
++
++def encodeExpr : Expr Γ t → DataExpr
++  | .nat n => .nat n
++  | .scalar c => .scalar c
++  | .bool b => .bool b
++  | .nil => .nil
++  | .unit => .unit
++  | .var v => .var (encodeVar v)
++  | .code a => .code (encodeExpr a)
++  | .scalarOf a => .scalarOf (encodeExpr a)
++  | .add a b => .add (encodeExpr a) (encodeExpr b)
++  | .sub a b => .sub (encodeExpr a) (encodeExpr b)
++  | .mul a b => .mul (encodeExpr a) (encodeExpr b)
++  | .leNat a b => .leNat (encodeExpr a) (encodeExpr b)
++  | .ltNat a b => .ltNat (encodeExpr a) (encodeExpr b)
++  | .eqNat a b => .eqNat (encodeExpr a) (encodeExpr b)
++  | .leChar a b => .leChar (encodeExpr a) (encodeExpr b)
++  | .eqChar a b => .eqChar (encodeExpr a) (encodeExpr b)
++  | .and a b => .and (encodeExpr a) (encodeExpr b)
++  | .or a b => .or (encodeExpr a) (encodeExpr b)
++  | .cons a b => .cons (encodeExpr a) (encodeExpr b)
++  | .ite c a b => .ite (encodeExpr c) (encodeExpr a) (encodeExpr b)
++  | .foldNat xs z f => .foldNat (encodeExpr xs) (encodeExpr z) (encodeExpr f)
++
++def inferExpr (Γ : List Ty) : DataExpr → Option (Σ t, Expr Γ t)
++  | .nat n => some ⟨.nat, .nat n⟩
++  | .scalar c => some ⟨.scalar, .scalar c⟩
++  | .bool b => some ⟨.bool, .bool b⟩
++  | .nil => some ⟨.chars, .nil⟩
++  | .unit => some ⟨.unit, .unit⟩
++  | .var n => do
++      let ⟨t, v⟩ ← inferVar Γ n
++      pure ⟨t, .var v⟩
++  | .code a => do
++      let a ← (inferExpr Γ a).bind (expect .scalar)
++      pure ⟨.nat, .code a⟩
++  | .scalarOf a => do
++      let a ← (inferExpr Γ a).bind (expect .nat)
++      pure ⟨.scalar, .scalarOf a⟩
++  | .add a b => do
++      let a ← (inferExpr Γ a).bind (expect .nat)
++      let b ← (inferExpr Γ b).bind (expect .nat)
++      pure ⟨.nat, .add a b⟩
++  | .sub a b => do
++      let a ← (inferExpr Γ a).bind (expect .nat)
++      let b ← (inferExpr Γ b).bind (expect .nat)
++      pure ⟨.nat, .sub a b⟩
++  | .mul a b => do
++      let a ← (inferExpr Γ a).bind (expect .nat)
++      let b ← (inferExpr Γ b).bind (expect .nat)
++      pure ⟨.nat, .mul a b⟩
++  | .leNat a b => do
++      let a ← (inferExpr Γ a).bind (expect .nat)
++      let b ← (inferExpr Γ b).bind (expect .nat)
++      pure ⟨.bool, .leNat a b⟩
++  | .ltNat a b => do
++      let a ← (inferExpr Γ a).bind (expect .nat)
++      let b ← (inferExpr Γ b).bind (expect .nat)
++      pure ⟨.bool, .ltNat a b⟩
++  | .eqNat a b => do
++      let a ← (inferExpr Γ a).bind (expect .nat)
++      let b ← (inferExpr Γ b).bind (expect .nat)
++      pure ⟨.bool, .eqNat a b⟩
++  | .leChar a b => do
++      let a ← (inferExpr Γ a).bind (expect .scalar)
++      let b ← (inferExpr Γ b).bind (expect .scalar)
++      pure ⟨.bool, .leChar a b⟩
++  | .eqChar a b => do
++      let a ← (inferExpr Γ a).bind (expect .scalar)
++      let b ← (inferExpr Γ b).bind (expect .scalar)
++      pure ⟨.bool, .eqChar a b⟩
++  | .and a b => do
++      let a ← (inferExpr Γ a).bind (expect .bool)
++      let b ← (inferExpr Γ b).bind (expect .bool)
++      pure ⟨.bool, .and a b⟩
++  | .or a b => do
++      let a ← (inferExpr Γ a).bind (expect .bool)
++      let b ← (inferExpr Γ b).bind (expect .bool)
++      pure ⟨.bool, .or a b⟩
++  | .cons a b => do
++      let a ← (inferExpr Γ a).bind (expect .scalar)
++      let b ← (inferExpr Γ b).bind (expect .chars)
++      pure ⟨.chars, .cons a b⟩
++  | .ite c a b => do
++      let c ← (inferExpr Γ c).bind (expect .bool)
++      let ⟨t, a⟩ ← inferExpr Γ a
++      let b ← (inferExpr Γ b).bind (expect t)
++      pure ⟨t, .ite c a b⟩
++  | .foldNat xs z f => do
++      let xs ← (inferExpr Γ xs).bind (expect .chars)
++      let z ← (inferExpr Γ z).bind (expect .nat)
++      let f ← (inferExpr (.scalar :: .nat :: Γ) f).bind (expect .nat)
++      pure ⟨.nat, .foldNat xs z f⟩
++  | .scope head e => do
++      if Γ.head? = some head then inferExpr Γ e else none
++
++def decodeExpr (Γ : List Ty) (t : Ty) (e : DataExpr) : Option (Expr Γ t) :=
++  (inferExpr Γ e).bind (expect t)
++
++def encodeStmt : Stmt Γ t → DataStmt
++  | .ret e => .ret (encodeExpr e)
++  | .letE e next => .letE (encodeExpr e) (encodeStmt next)
++  | .read eof next => .read (encodeStmt eof) (encodeStmt next)
++  | .scan budget p next => .scan budget (encodeExpr p) (encodeStmt next)
++  | .raiseError next => .raiseError (encodeStmt next)
++  | .branch c a b => .branch (encodeExpr c) (encodeStmt a) (encodeStmt b)
++
++def decodeStmt (Γ : List Ty) (t : Ty) : DataStmt → Option (Stmt Γ t)
++  | .ret e => do
++      let e ← decodeExpr Γ t e
++      pure (.ret e)
++  | .letE e next => do
++      let ⟨u, e⟩ ← inferExpr Γ e
++      let next ← decodeStmt (u :: Γ) t next
++      pure (.letE e next)
++  | .read eof next => do
++      let eof ← decodeStmt Γ t eof
++      let next ← decodeStmt (.scalar :: Γ) t next
++      pure (.read eof next)
++  | .scan budget p next => do
++      let p ← decodeExpr (.scalar :: Γ) .bool p
++      let next ← decodeStmt (.chars :: Γ) t next
++      pure (.scan budget p next)
++  | .raiseError next => do
++      let next ← decodeStmt Γ t next
++      pure (.raiseError next)
++  | .branch c a b => do
++      let c ← decodeExpr Γ .bool c
++      let a ← decodeStmt Γ t a
++      let b ← decodeStmt Γ t b
++      pure (.branch c a b)
++
++def normalizeExpr : DataExpr → DataExpr
++  | .scope _ e => normalizeExpr e
++  | .nat n => .nat n
++  | .scalar c => .scalar c
++  | .bool b => .bool b
++  | .nil => .nil
++  | .unit => .unit
++  | .var n => .var n
++  | .code a => .code (normalizeExpr a)
++  | .scalarOf a => .scalarOf (normalizeExpr a)
++  | .add a b => .add (normalizeExpr a) (normalizeExpr b)
++  | .sub a b => .sub (normalizeExpr a) (normalizeExpr b)
++  | .mul a b => .mul (normalizeExpr a) (normalizeExpr b)
++  | .leNat a b => .leNat (normalizeExpr a) (normalizeExpr b)
++  | .ltNat a b => .ltNat (normalizeExpr a) (normalizeExpr b)
++  | .eqNat a b => .eqNat (normalizeExpr a) (normalizeExpr b)
++  | .leChar a b => .leChar (normalizeExpr a) (normalizeExpr b)
++  | .eqChar a b => .eqChar (normalizeExpr a) (normalizeExpr b)
++  | .and a b => .and (normalizeExpr a) (normalizeExpr b)
++  | .or a b => .or (normalizeExpr a) (normalizeExpr b)
++  | .cons a b => .cons (normalizeExpr a) (normalizeExpr b)
++  | .ite a b c => .ite (normalizeExpr a) (normalizeExpr b) (normalizeExpr c)
++  | .foldNat a b c => .foldNat (normalizeExpr a) (normalizeExpr b) (normalizeExpr c)
++
++def normalizeStmt : DataStmt → DataStmt
++  | .ret e => .ret (normalizeExpr e)
++  | .letE e next => .letE (normalizeExpr e) (normalizeStmt next)
++  | .read eof next => .read (normalizeStmt eof) (normalizeStmt next)
++  | .scan n e next => .scan n (normalizeExpr e) (normalizeStmt next)
++  | .raiseError next => .raiseError (normalizeStmt next)
++  | .branch e a b => .branch (normalizeExpr e) (normalizeStmt a) (normalizeStmt b)
++
++def checkExpr (Γ : List Ty) (t : Ty) (data : DataExpr) : Option (Expr Γ t) := do
++  let e ← decodeExpr Γ t data
++  if encodeExpr e = normalizeExpr data then some e else none
++
++def checkStmt (Γ : List Ty) (t : Ty) (data : DataStmt) : Option (Stmt Γ t) := do
++  let p ← decodeStmt Γ t data
++  if encodeStmt p = normalizeStmt data then some p else none
++
++end CssDerivation.TypedCodec
+--- /dev/null
++++ b/CssDerivation/Codec/DataLaws.lean
+@@ -0,0 +1,77 @@
++import CssDerivation.Codec.Data
++
++namespace CssDerivation.TypedCodec
++open FirstOrder
++
++@[simp] theorem expect_same {F : Ty → Type} (e : F t) :
++    expect t ⟨t, e⟩ = some e := by simp [expect]
++
++@[simp] theorem inferVar_encode (v : Var Γ t) :
++    inferVar Γ (encodeVar v) = some ⟨t, v⟩ := by
++  induction v with
++  | here => rfl
++  | there v ih => simp [encodeVar, inferVar, ih]
++
++theorem decodeVar_encode (v : Var Γ t) :
++    decodeVar Γ t (encodeVar v) = some v := by
++  simp [decodeVar]
++
++@[simp] theorem inferExpr_encode (e : Expr Γ t) :
++    inferExpr Γ (encodeExpr e) = some ⟨t, e⟩ := by
++  induction e <;> simp_all [encodeExpr, inferExpr]
++
++@[simp] theorem decodeExpr_encode (e : Expr Γ t) :
++    decodeExpr Γ t (encodeExpr e) = some e := by
++  simp [decodeExpr]
++
++theorem decodeStmt_encode (p : Stmt Γ t) :
++    decodeStmt Γ t (encodeStmt p) = some p := by
++  induction p <;> simp_all [encodeStmt, decodeStmt]
++
++@[simp] theorem normalize_encodeExpr (e : Expr Γ t) :
++    normalizeExpr (encodeExpr e) = encodeExpr e := by
++  induction e <;> simp_all [encodeExpr, normalizeExpr]
++
++@[simp] theorem normalize_encodeStmt (p : Stmt Γ t) :
++    normalizeStmt (encodeStmt p) = encodeStmt p := by
++  induction p <;> simp_all [encodeStmt, normalizeStmt]
++
++theorem checkExpr_roundtrip (e : Expr Γ t) :
++    checkExpr Γ t (encodeExpr e) = some e := by
++  simp [checkExpr]
++
++theorem checkStmt_roundtrip (p : Stmt Γ t) :
++    checkStmt Γ t (encodeStmt p) = some p := by
++  simp [checkStmt, decodeStmt_encode]
++
++theorem checkExpr_faithful (data : DataExpr) (e : Expr Γ t)
++    (accepted : checkExpr Γ t data = some e) :
++    encodeExpr e = normalizeExpr data := by
++  unfold checkExpr at accepted
++  cases h : decodeExpr Γ t data with
++  | none => simp [h] at accepted
++  | some actual =>
++    rw [h] at accepted
++    change (if _ then some actual else none) = _ at accepted
++    split at accepted
++    next faithful => cases Option.some.inj accepted; exact faithful
++    next => contradiction
++
++theorem checkStmt_faithful (data : DataStmt) (p : Stmt Γ t)
++    (accepted : checkStmt Γ t data = some p) :
++    encodeStmt p = normalizeStmt data := by
++  unfold checkStmt at accepted
++  cases h : decodeStmt Γ t data with
++  | none => simp [h] at accepted
++  | some actual =>
++    rw [h] at accepted
++    change (if _ then some actual else none) = _ at accepted
++    split at accepted
++    next faithful => cases Option.some.inj accepted; exact faithful
++    next => contradiction
++
++theorem scope_mismatch_rejected (Γ : List Ty) (head : Ty) (e : DataExpr)
++    (mismatch : Γ.head? ≠ some head) : inferExpr Γ (.scope head e) = none := by
++  simp [inferExpr, mismatch]
++
++end CssDerivation.TypedCodec
+--- /dev/null
++++ b/CssDerivation/Codec/Json/Document.lean
+@@ -0,0 +1,30 @@
++import CssDerivation.Codec.Json.Encoder
++
++namespace CssDerivation.JsonSchema
++open Lean FirstOrder TypedCodec
++
++def readDefinition (j : Json) (name : String) (head result : Ty) : Option (String × Ty × DataExpr) := do
++  let source ← field j name
++  let data ← readExprData [] source
++  let _ ← TypedCodec.checkExpr [head] result data
++  some (name, head, data)
++
++def readDocument (j : Json) : Option (Stmt [] .scalar) := do
++  if !fieldsExactly j ["schema", "definitions", "program", "source_map"] then none else do
++    let schema ← field j "schema"
++    if schema.getNat?.toOption != some 1 then none else do
++      let definitions ← field j "definitions"
++      if !fieldsExactly definitions ["hexExpr", "whitespaceExpr", "magnitudeExpr", "decodeExpr"] then none else do
++        let hex ← readDefinition definitions "hexExpr" .scalar .bool
++        let whitespace ← readDefinition definitions "whitespaceExpr" .scalar .bool
++        let magnitude ← readDefinition definitions "magnitudeExpr" .chars .nat
++        let decode ← readDefinition definitions "decodeExpr" .nat .scalar
++        let sourceMap ← field j "source_map"
++        let _ ← sourceMap.getObj?.toOption
++        let program ← field j "program"
++        checkStmtJson [hex, whitespace, magnitude, decode] [] .scalar program
++
++def readDocumentText (text : String) : Option (Stmt [] .scalar) :=
++  Json.parse text |>.toOption.bind readDocument
++
++end CssDerivation.JsonSchema
+--- /dev/null
++++ b/CssDerivation/Codec/Json/Encoder.lean
+@@ -0,0 +1,48 @@
++import CssDerivation.Codec.Json.Reader
++
++namespace CssDerivation.JsonSchema
++open Lean FirstOrder TypedCodec
++
++def nodeJson (op : String) (args : List Json) : Json :=
++  rightObject 2 1 "args" (.arr args.toArray) "op" (.str op)
++
++def natJson (n : Nat) : Json := .num (.fromNat n)
++
++def encodeExprJson : Expr Γ t → Json
++  | .nat n => nodeJson "nat" [natJson n]
++  | .scalar c => nodeJson "scalar" [natJson c.toNat]
++  | .bool b => nodeJson "bool" [.bool b]
++  | .var v => nodeJson "var" [natJson (encodeVar v)]
++  | .nil => nodeJson "nil" []
++  | .unit => nodeJson "unit" []
++  | .code a => nodeJson "code" [encodeExprJson a]
++  | .scalarOf a => nodeJson "scalarOf" [encodeExprJson a]
++  | .add a b => nodeJson "add" [encodeExprJson a, encodeExprJson b]
++  | .sub a b => nodeJson "sub" [encodeExprJson a, encodeExprJson b]
++  | .mul a b => nodeJson "mul" [encodeExprJson a, encodeExprJson b]
++  | .leNat a b => nodeJson "leNat" [encodeExprJson a, encodeExprJson b]
++  | .ltNat a b => nodeJson "ltNat" [encodeExprJson a, encodeExprJson b]
++  | .eqNat a b => nodeJson "eqNat" [encodeExprJson a, encodeExprJson b]
++  | .leChar a b => nodeJson "leChar" [encodeExprJson a, encodeExprJson b]
++  | .eqChar a b => nodeJson "eqChar" [encodeExprJson a, encodeExprJson b]
++  | .and a b => nodeJson "and" [encodeExprJson a, encodeExprJson b]
++  | .or a b => nodeJson "or" [encodeExprJson a, encodeExprJson b]
++  | .cons a b => nodeJson "cons" [encodeExprJson a, encodeExprJson b]
++  | .ite a b c => nodeJson "ite" [encodeExprJson a, encodeExprJson b, encodeExprJson c]
++  | .foldNat a b c => nodeJson "foldNat" [encodeExprJson a, encodeExprJson b, encodeExprJson c]
++
++def encodeStmtJson : Stmt Γ t → Json
++  | .ret e => nodeJson "ret" [encodeExprJson e]
++  | .letE e p => nodeJson "letE" [encodeExprJson e, encodeStmtJson p]
++  | .read a b => nodeJson "read" [encodeStmtJson a, encodeStmtJson b]
++  | .scan n e p => nodeJson "scan" [natJson n, encodeExprJson e, encodeStmtJson p]
++  | .raiseError p => nodeJson "raiseError" [encodeStmtJson p]
++  | .branch e a b => nodeJson "branch" [encodeExprJson e, encodeStmtJson a, encodeStmtJson b]
++
++def checkExprJson (aliases : Aliases) (Γ : List Ty) (t : Ty) (j : Json) : Option (Expr Γ t) :=
++  (readExprData aliases j).bind (TypedCodec.checkExpr Γ t)
++
++def checkStmtJson (aliases : Aliases) (Γ : List Ty) (t : Ty) (j : Json) : Option (Stmt Γ t) :=
++  (readStmtData aliases j).bind (TypedCodec.checkStmt Γ t)
++
++end CssDerivation.JsonSchema
+--- /dev/null
++++ b/CssDerivation/Codec/Json/EncoderLaws.lean
+@@ -0,0 +1,77 @@
++import CssDerivation.Codec.Json.Encoder
++import CssDerivation.Codec.Json.SchemaLaws
++
++namespace CssDerivation.JsonSchema
++open Lean FirstOrder TypedCodec
++
++theorem scalar_from_char (c : Char) : scalarAllowed c.toNat := c.valid
++
++theorem natJson_value (n : Nat) : (natJson n).getNat? = .ok n := rfl
++
++theorem encodeExprJson_schema (aliases : Aliases) (e : Expr Γ t) :
++    ExprSchema aliases (encodeExprJson e) (encodeExpr e) := by
++  induction e with
++  | nat n => exact .node (.rightArgs 2 1 _ _) (.nat (natJson_value n))
++  | scalar c =>
++    simpa only [encodeExprJson, encodeExpr, nodeJson, Char.ofNat_toNat] using
++      (ExprSchema.node (Node.rightArgs 2 1 "scalar" [natJson c.toNat])
++        (ExprArguments.scalar (natJson_value c.toNat) (scalar_from_char c)))
++  | bool b => exact .node (.rightArgs 2 1 _ _) (.bool b)
++  | var v => exact .node (.rightArgs 2 1 _ _) (.var (natJson_value (encodeVar v)))
++  | nil => exact .node (.rightArgs 2 1 _ _) .nil
++  | unit => exact .node (.rightArgs 2 1 _ _) .unit
++  | code a ha => exact .node (.rightArgs 2 1 _ _) (.code ha)
++  | scalarOf a ha => exact .node (.rightArgs 2 1 _ _) (.scalarOf ha)
++  | add a b ha hb => exact .node (.rightArgs 2 1 _ _) (.add ha hb)
++  | sub a b ha hb => exact .node (.rightArgs 2 1 _ _) (.sub ha hb)
++  | mul a b ha hb => exact .node (.rightArgs 2 1 _ _) (.mul ha hb)
++  | leNat a b ha hb => exact .node (.rightArgs 2 1 _ _) (.leNat ha hb)
++  | ltNat a b ha hb => exact .node (.rightArgs 2 1 _ _) (.ltNat ha hb)
++  | eqNat a b ha hb => exact .node (.rightArgs 2 1 _ _) (.eqNat ha hb)
++  | leChar a b ha hb => exact .node (.rightArgs 2 1 _ _) (.leChar ha hb)
++  | eqChar a b ha hb => exact .node (.rightArgs 2 1 _ _) (.eqChar ha hb)
++  | and a b ha hb => exact .node (.rightArgs 2 1 _ _) (.and ha hb)
++  | or a b ha hb => exact .node (.rightArgs 2 1 _ _) (.or ha hb)
++  | cons a b ha hb => exact .node (.rightArgs 2 1 _ _) (.cons ha hb)
++  | ite a b c ha hb hc => exact .node (.rightArgs 2 1 _ _) (.ite ha hb hc)
++  | foldNat a b c ha hb hc => exact .node (.rightArgs 2 1 _ _) (.foldNat ha hb hc)
++
++theorem encodeStmtJson_schema (aliases : Aliases) (p : Stmt Γ t) :
++    StmtSchema aliases (encodeStmtJson p) (encodeStmt p) := by
++  induction p with
++  | ret e => exact .node (.rightArgs 2 1 _ _) (.ret (encodeExprJson_schema aliases e))
++  | letE e p hp => exact .node (.rightArgs 2 1 _ _) (.letE (encodeExprJson_schema aliases e) hp)
++  | read a b ha hb => exact .node (.rightArgs 2 1 _ _) (.read ha hb)
++  | scan n e p hp => exact .node (.rightArgs 2 1 _ _) (.scan (natJson_value n) (encodeExprJson_schema aliases e) hp)
++  | raiseError p hp => exact .node (.rightArgs 2 1 _ _) (.raiseError hp)
++  | branch e a b ha hb => exact .node (.rightArgs 2 1 _ _) (.branch (encodeExprJson_schema aliases e) ha hb)
++
++theorem expression_json_roundtrip (aliases : Aliases) (e : Expr Γ t) :
++    checkExprJson aliases Γ t (encodeExprJson e) = some e := by
++  rw [checkExprJson, (readExprData_spec _ _ _).mpr (encodeExprJson_schema aliases e)]
++  exact checkExpr_roundtrip e
++
++theorem statement_json_roundtrip (aliases : Aliases) (p : Stmt Γ t) :
++    checkStmtJson aliases Γ t (encodeStmtJson p) = some p := by
++  rw [checkStmtJson, (readStmtData_spec _ _ _).mpr (encodeStmtJson_schema aliases p)]
++  exact checkStmt_roundtrip p
++
++theorem accepted_expression_schema (aliases : Aliases) (j : Json) (e : Expr Γ t)
++    (accepted : checkExprJson aliases Γ t j = some e) :
++    ∃ raw, ExprSchema aliases j raw ∧ encodeExpr e = normalizeExpr raw := by
++  cases h : readExprData aliases j with
++  | none => simp [checkExprJson, h] at accepted
++  | some raw =>
++    have checked : TypedCodec.checkExpr Γ t raw = some e := by simpa [checkExprJson, h] using accepted
++    exact ⟨raw, (readExprData_spec _ _ _).mp h, checkExpr_faithful raw e checked⟩
++
++theorem accepted_statement_schema (aliases : Aliases) (j : Json) (p : Stmt Γ t)
++    (accepted : checkStmtJson aliases Γ t j = some p) :
++    ∃ raw, StmtSchema aliases j raw ∧ encodeStmt p = normalizeStmt raw := by
++  cases h : readStmtData aliases j with
++  | none => simp [checkStmtJson, h] at accepted
++  | some raw =>
++    have checked : TypedCodec.checkStmt Γ t raw = some p := by simpa [checkStmtJson, h] using accepted
++    exact ⟨raw, (readStmtData_spec _ _ _).mp h, checkStmt_faithful raw p checked⟩
++
++end CssDerivation.JsonSchema
+--- /dev/null
++++ b/CssDerivation/Codec/Json/Reader.lean
+@@ -0,0 +1,166 @@
++import CssDerivation.Codec.Json.Schema
++
++namespace CssDerivation.JsonSchema
++open Lean FirstOrder TypedCodec
++
++mutual
++  def readExpr (aliases : Aliases) (j : Json) : Option { e : DataExpr // ExprSchema aliases j e } :=
++    match j with
++    | .obj ⟨⟨.inner outer "op" (.str op) .leaf (.inner inner "args" (.arr ⟨args⟩) .leaf .leaf)⟩⟩ => do
++        let ⟨e, proof⟩ ← readExprArguments aliases op args
++        some ⟨e, .node (.rightOp outer inner op args) proof⟩
++    | .obj ⟨⟨.inner outer "args" (.arr ⟨args⟩) .leaf (.inner inner "op" (.str op) .leaf .leaf)⟩⟩ => do
++        let ⟨e, proof⟩ ← readExprArguments aliases op args
++        some ⟨e, .node (.rightArgs outer inner op args) proof⟩
++    | .obj ⟨⟨.inner outer "op" (.str op) (.inner inner "args" (.arr ⟨args⟩) .leaf .leaf) .leaf⟩⟩ => do
++        let ⟨e, proof⟩ ← readExprArguments aliases op args
++        some ⟨e, .node (.leftOp outer inner op args) proof⟩
++    | .obj ⟨⟨.inner outer "args" (.arr ⟨args⟩) (.inner inner "op" (.str op) .leaf .leaf) .leaf⟩⟩ => do
++        let ⟨e, proof⟩ ← readExprArguments aliases op args
++        some ⟨e, .node (.leftArgs outer inner op args) proof⟩
++    | _ => none
++  termination_by sizeOf j
++
++  def readExprArguments (aliases : Aliases) (op : String) (args : List Json) :
++      Option { e : DataExpr // ExprArguments aliases op args e } :=
++    match op, args with
++    | "nat", [j] =>
++      match h : j.getNat? with
++      | .ok n => some ⟨.nat n, .nat h⟩
++      | .error _ => none
++    | "scalar", [j] =>
++      match h : j.getNat? with
++      | .ok n => if valid : scalarAllowed n then some ⟨.scalar (Char.ofNat n), .scalar h valid⟩ else none
++      | .error _ => none
++    | "bool", [.bool b] => some ⟨.bool b, .bool b⟩
++    | "var", [j] =>
++      match h : j.getNat? with
++      | .ok n => some ⟨.var n, .var h⟩
++      | .error _ => none
++    | "nil", [] => some ⟨.nil, .nil⟩
++    | "unit", [] => some ⟨.unit, .unit⟩
++    | "use", [.str name] =>
++      match h : aliases.find? (fun entry => entry.1 == name) with
++      | none => none
++      | some (found, head, body) =>
++        if same : found = name then some ⟨.scope head body, .use (by simpa [same] using h)⟩ else none
++    | "code", [ja] => do
++        let ⟨a, ha⟩ ← readExpr aliases ja
++        some ⟨.code a, .code ha⟩
++    | "scalarOf", [ja] => do
++        let ⟨a, ha⟩ ← readExpr aliases ja
++        some ⟨.scalarOf a, .scalarOf ha⟩
++    | "add", [ja, jb] => do
++        let ⟨a, ha⟩ ← readExpr aliases ja
++        let ⟨b, hb⟩ ← readExpr aliases jb
++        some ⟨.add a b, .add ha hb⟩
++    | "sub", [ja, jb] => do
++        let ⟨a, ha⟩ ← readExpr aliases ja
++        let ⟨b, hb⟩ ← readExpr aliases jb
++        some ⟨.sub a b, .sub ha hb⟩
++    | "mul", [ja, jb] => do
++        let ⟨a, ha⟩ ← readExpr aliases ja
++        let ⟨b, hb⟩ ← readExpr aliases jb
++        some ⟨.mul a b, .mul ha hb⟩
++    | "leNat", [ja, jb] => do
++        let ⟨a, ha⟩ ← readExpr aliases ja
++        let ⟨b, hb⟩ ← readExpr aliases jb
++        some ⟨.leNat a b, .leNat ha hb⟩
++    | "ltNat", [ja, jb] => do
++        let ⟨a, ha⟩ ← readExpr aliases ja
++        let ⟨b, hb⟩ ← readExpr aliases jb
++        some ⟨.ltNat a b, .ltNat ha hb⟩
++    | "eqNat", [ja, jb] => do
++        let ⟨a, ha⟩ ← readExpr aliases ja
++        let ⟨b, hb⟩ ← readExpr aliases jb
++        some ⟨.eqNat a b, .eqNat ha hb⟩
++    | "leChar", [ja, jb] => do
++        let ⟨a, ha⟩ ← readExpr aliases ja
++        let ⟨b, hb⟩ ← readExpr aliases jb
++        some ⟨.leChar a b, .leChar ha hb⟩
++    | "eqChar", [ja, jb] => do
++        let ⟨a, ha⟩ ← readExpr aliases ja
++        let ⟨b, hb⟩ ← readExpr aliases jb
++        some ⟨.eqChar a b, .eqChar ha hb⟩
++    | "and", [ja, jb] => do
++        let ⟨a, ha⟩ ← readExpr aliases ja
++        let ⟨b, hb⟩ ← readExpr aliases jb
++        some ⟨.and a b, .and ha hb⟩
++    | "or", [ja, jb] => do
++        let ⟨a, ha⟩ ← readExpr aliases ja
++        let ⟨b, hb⟩ ← readExpr aliases jb
++        some ⟨.or a b, .or ha hb⟩
++    | "cons", [ja, jb] => do
++        let ⟨a, ha⟩ ← readExpr aliases ja
++        let ⟨b, hb⟩ ← readExpr aliases jb
++        some ⟨.cons a b, .cons ha hb⟩
++    | "ite", [ja, jb, jc] => do
++        let ⟨a, ha⟩ ← readExpr aliases ja
++        let ⟨b, hb⟩ ← readExpr aliases jb
++        let ⟨c, hc⟩ ← readExpr aliases jc
++        some ⟨.ite a b c, .ite ha hb hc⟩
++    | "foldNat", [ja, jb, jc] => do
++        let ⟨a, ha⟩ ← readExpr aliases ja
++        let ⟨b, hb⟩ ← readExpr aliases jb
++        let ⟨c, hc⟩ ← readExpr aliases jc
++        some ⟨.foldNat a b c, .foldNat ha hb hc⟩
++    | _, _ => none
++  termination_by sizeOf args
++
++  def readStmt (aliases : Aliases) (j : Json) : Option { p : DataStmt // StmtSchema aliases j p } :=
++    match j with
++    | .obj ⟨⟨.inner outer "op" (.str op) .leaf (.inner inner "args" (.arr ⟨args⟩) .leaf .leaf)⟩⟩ => do
++        let ⟨p, proof⟩ ← readStmtArguments aliases op args
++        some ⟨p, .node (.rightOp outer inner op args) proof⟩
++    | .obj ⟨⟨.inner outer "args" (.arr ⟨args⟩) .leaf (.inner inner "op" (.str op) .leaf .leaf)⟩⟩ => do
++        let ⟨p, proof⟩ ← readStmtArguments aliases op args
++        some ⟨p, .node (.rightArgs outer inner op args) proof⟩
++    | .obj ⟨⟨.inner outer "op" (.str op) (.inner inner "args" (.arr ⟨args⟩) .leaf .leaf) .leaf⟩⟩ => do
++        let ⟨p, proof⟩ ← readStmtArguments aliases op args
++        some ⟨p, .node (.leftOp outer inner op args) proof⟩
++    | .obj ⟨⟨.inner outer "args" (.arr ⟨args⟩) (.inner inner "op" (.str op) .leaf .leaf) .leaf⟩⟩ => do
++        let ⟨p, proof⟩ ← readStmtArguments aliases op args
++        some ⟨p, .node (.leftArgs outer inner op args) proof⟩
++    | _ => none
++  termination_by sizeOf j
++
++  def readStmtArguments (aliases : Aliases) (op : String) (args : List Json) :
++      Option { p : DataStmt // StmtArguments aliases op args p } :=
++    match op, args with
++    | "ret", [je] => do
++      let ⟨e, he⟩ ← readExpr aliases je
++      some ⟨.ret e, .ret he⟩
++    | "letE", [je, jp] => do
++      let ⟨e, he⟩ ← readExpr aliases je
++      let ⟨p, hp⟩ ← readStmt aliases jp
++      some ⟨.letE e p, .letE he hp⟩
++    | "read", [ja, jb] => do
++      let ⟨a, ha⟩ ← readStmt aliases ja
++      let ⟨b, hb⟩ ← readStmt aliases jb
++      some ⟨.read a b, .read ha hb⟩
++    | "scan", [jn, je, jp] =>
++      match hn : jn.getNat? with
++      | .error _ => none
++      | .ok n => do
++        let ⟨e, he⟩ ← readExpr aliases je
++        let ⟨p, hp⟩ ← readStmt aliases jp
++        some ⟨.scan n e p, .scan hn he hp⟩
++    | "raiseError", [jp] => do
++      let ⟨p, hp⟩ ← readStmt aliases jp
++      some ⟨.raiseError p, .raiseError hp⟩
++    | "branch", [je, ja, jb] => do
++      let ⟨e, he⟩ ← readExpr aliases je
++      let ⟨a, ha⟩ ← readStmt aliases ja
++      let ⟨b, hb⟩ ← readStmt aliases jb
++      some ⟨.branch e a b, .branch he ha hb⟩
++    | _, _ => none
++  termination_by sizeOf args
++end
++
++def readExprData (aliases : Aliases) (j : Json) : Option DataExpr :=
++  (readExpr aliases j).map Subtype.val
++
++def readStmtData (aliases : Aliases) (j : Json) : Option DataStmt :=
++  (readStmt aliases j).map Subtype.val
++
++end CssDerivation.JsonSchema
+--- /dev/null
++++ b/CssDerivation/Codec/Json/Schema.lean
+@@ -0,0 +1,88 @@
++import CssDerivation.Codec.LegacyJson
++
++namespace CssDerivation.JsonSchema
++open Lean FirstOrder TypedCodec
++
++def rightObject (outer inner : Nat) (first : String) (a : Json) (second : String) (b : Json) : Json :=
++  .obj ⟨⟨.inner outer first a .leaf (.inner inner second b .leaf .leaf)⟩⟩
++
++def leftObject (outer inner : Nat) (first : String) (a : Json) (second : String) (b : Json) : Json :=
++  .obj ⟨⟨.inner outer first a (.inner inner second b .leaf .leaf) .leaf⟩⟩
++
++inductive Node : Json → String → List Json → Prop where
++  | rightOp (outer inner op args) :
++      Node (rightObject outer inner "op" (.str op) "args" (.arr args.toArray)) op args
++  | rightArgs (outer inner op args) :
++      Node (rightObject outer inner "args" (.arr args.toArray) "op" (.str op)) op args
++  | leftOp (outer inner op args) :
++      Node (leftObject outer inner "op" (.str op) "args" (.arr args.toArray)) op args
++  | leftArgs (outer inner op args) :
++      Node (leftObject outer inner "args" (.arr args.toArray) "op" (.str op)) op args
++
++def scalarAllowed (n : Nat) : Prop := n < 0xD800 ∨ (0xDFFF < n ∧ n < 0x110000)
++instance (n : Nat) : Decidable (scalarAllowed n) := inferInstanceAs (Decidable (_ ∨ _))
++
++mutual
++  inductive ExprSchema (aliases : Aliases) : Json → DataExpr → Prop where
++    | node {j op args e} : Node j op args → ExprArguments aliases op args e → ExprSchema aliases j e
++
++  inductive ExprArguments (aliases : Aliases) : String → List Json → DataExpr → Prop where
++    | nat {j n} : j.getNat? = .ok n → ExprArguments aliases "nat" [j] (.nat n)
++    | scalar {j n} : j.getNat? = .ok n → scalarAllowed n →
++        ExprArguments aliases "scalar" [j] (.scalar (Char.ofNat n))
++    | bool (b) : ExprArguments aliases "bool" [.bool b] (.bool b)
++    | var {j n} : j.getNat? = .ok n → ExprArguments aliases "var" [j] (.var n)
++    | nil : ExprArguments aliases "nil" [] .nil
++    | unit : ExprArguments aliases "unit" [] .unit
++    | use {name head body} : aliases.find? (fun entry => entry.1 == name) = some (name, head, body) →
++        ExprArguments aliases "use" [.str name] (.scope head body)
++    | code {ja a} : ExprSchema aliases ja a →
++        ExprArguments aliases "code" [ja] (.code a)
++    | scalarOf {ja a} : ExprSchema aliases ja a →
++        ExprArguments aliases "scalarOf" [ja] (.scalarOf a)
++    | add {ja jb a b} : ExprSchema aliases ja a → ExprSchema aliases jb b →
++        ExprArguments aliases "add" [ja, jb] (.add a b)
++    | sub {ja jb a b} : ExprSchema aliases ja a → ExprSchema aliases jb b →
++        ExprArguments aliases "sub" [ja, jb] (.sub a b)
++    | mul {ja jb a b} : ExprSchema aliases ja a → ExprSchema aliases jb b →
++        ExprArguments aliases "mul" [ja, jb] (.mul a b)
++    | leNat {ja jb a b} : ExprSchema aliases ja a → ExprSchema aliases jb b →
++        ExprArguments aliases "leNat" [ja, jb] (.leNat a b)
++    | ltNat {ja jb a b} : ExprSchema aliases ja a → ExprSchema aliases jb b →
++        ExprArguments aliases "ltNat" [ja, jb] (.ltNat a b)
++    | eqNat {ja jb a b} : ExprSchema aliases ja a → ExprSchema aliases jb b →
++        ExprArguments aliases "eqNat" [ja, jb] (.eqNat a b)
++    | leChar {ja jb a b} : ExprSchema aliases ja a → ExprSchema aliases jb b →
++        ExprArguments aliases "leChar" [ja, jb] (.leChar a b)
++    | eqChar {ja jb a b} : ExprSchema aliases ja a → ExprSchema aliases jb b →
++        ExprArguments aliases "eqChar" [ja, jb] (.eqChar a b)
++    | and {ja jb a b} : ExprSchema aliases ja a → ExprSchema aliases jb b →
++        ExprArguments aliases "and" [ja, jb] (.and a b)
++    | or {ja jb a b} : ExprSchema aliases ja a → ExprSchema aliases jb b →
++        ExprArguments aliases "or" [ja, jb] (.or a b)
++    | cons {ja jb a b} : ExprSchema aliases ja a → ExprSchema aliases jb b →
++        ExprArguments aliases "cons" [ja, jb] (.cons a b)
++    | ite {ja jb jc a b c} : ExprSchema aliases ja a → ExprSchema aliases jb b → ExprSchema aliases jc c →
++        ExprArguments aliases "ite" [ja, jb, jc] (.ite a b c)
++    | foldNat {ja jb jc a b c} : ExprSchema aliases ja a → ExprSchema aliases jb b → ExprSchema aliases jc c →
++        ExprArguments aliases "foldNat" [ja, jb, jc] (.foldNat a b c)
++end
++
++mutual
++  inductive StmtSchema (aliases : Aliases) : Json → DataStmt → Prop where
++    | node {j op args p} : Node j op args → StmtArguments aliases op args p → StmtSchema aliases j p
++
++  inductive StmtArguments (aliases : Aliases) : String → List Json → DataStmt → Prop where
++    | ret {je e} : ExprSchema aliases je e → StmtArguments aliases "ret" [je] (.ret e)
++    | letE {je jp e p} : ExprSchema aliases je e → StmtSchema aliases jp p →
++        StmtArguments aliases "letE" [je, jp] (.letE e p)
++    | read {ja jb a b} : StmtSchema aliases ja a → StmtSchema aliases jb b →
++        StmtArguments aliases "read" [ja, jb] (.read a b)
++    | scan {jn je jp n e p} : jn.getNat? = .ok n → ExprSchema aliases je e → StmtSchema aliases jp p →
++        StmtArguments aliases "scan" [jn, je, jp] (.scan n e p)
++    | raiseError {jp p} : StmtSchema aliases jp p → StmtArguments aliases "raiseError" [jp] (.raiseError p)
++    | branch {je ja jb e a b} : ExprSchema aliases je e → StmtSchema aliases ja a → StmtSchema aliases jb b →
++        StmtArguments aliases "branch" [je, ja, jb] (.branch e a b)
++end
++
++end CssDerivation.JsonSchema
+--- /dev/null
++++ b/CssDerivation/Codec/Json/SchemaLaws.lean
+@@ -0,0 +1,113 @@
++import CssDerivation.Codec.Json.Reader
++
++namespace CssDerivation.JsonSchema
++open Lean FirstOrder TypedCodec
++
++mutual
++  theorem readExpr_complete {aliases j e} (schema : ExprSchema aliases j e) :
++      readExpr aliases j = some ⟨e, schema⟩ := by
++    cases schema with
++    | node shape arguments =>
++      cases shape <;>
++        simp only [rightObject, leftObject, readExpr.eq_def] <;>
++        rw [readExprArguments_complete arguments] <;> rfl
++  termination_by (sizeOf e, 1)
++  decreasing_by all_goals simp_wf; all_goals simp_all only; all_goals omega
++
++  theorem readExprArguments_complete {aliases op args e} (schema : ExprArguments aliases op args e) :
++      readExprArguments aliases op args = some ⟨e, schema⟩ := by
++    cases schema with
++    | nat h => rw [readExprArguments.eq_1]; split <;> simp_all <;> grind
++    | scalar h valid => rw [readExprArguments.eq_2]; split <;> simp_all <;> grind
++    | bool b => rw [readExprArguments]
++    | var h => rw [readExprArguments.eq_4]; split <;> simp_all <;> grind
++    | nil => rw [readExprArguments]
++    | unit => rw [readExprArguments]
++    | use h => rw [readExprArguments.eq_7]; split <;> simp_all <;> grind
++    | code ha =>
++      rw [readExprArguments, readExpr_complete ha]; rfl
++    | scalarOf ha =>
++      rw [readExprArguments, readExpr_complete ha]; rfl
++    | add ha hb =>
++      rw [readExprArguments, readExpr_complete ha, readExpr_complete hb]; rfl
++    | sub ha hb =>
++      rw [readExprArguments, readExpr_complete ha, readExpr_complete hb]; rfl
++    | mul ha hb =>
++      rw [readExprArguments, readExpr_complete ha, readExpr_complete hb]; rfl
++    | leNat ha hb =>
++      rw [readExprArguments, readExpr_complete ha, readExpr_complete hb]; rfl
++    | ltNat ha hb =>
++      rw [readExprArguments, readExpr_complete ha, readExpr_complete hb]; rfl
++    | eqNat ha hb =>
++      rw [readExprArguments, readExpr_complete ha, readExpr_complete hb]; rfl
++    | leChar ha hb =>
++      rw [readExprArguments, readExpr_complete ha, readExpr_complete hb]; rfl
++    | eqChar ha hb =>
++      rw [readExprArguments, readExpr_complete ha, readExpr_complete hb]; rfl
++    | and ha hb =>
++      rw [readExprArguments, readExpr_complete ha, readExpr_complete hb]; rfl
++    | or ha hb =>
++      rw [readExprArguments, readExpr_complete ha, readExpr_complete hb]; rfl
++    | cons ha hb =>
++      rw [readExprArguments, readExpr_complete ha, readExpr_complete hb]; rfl
++    | ite ha hb hc =>
++      rw [readExprArguments, readExpr_complete ha, readExpr_complete hb, readExpr_complete hc]; rfl
++    | foldNat ha hb hc =>
++      rw [readExprArguments, readExpr_complete ha, readExpr_complete hb, readExpr_complete hc]; rfl
++  termination_by (sizeOf e, 0)
++  decreasing_by all_goals simp_wf; all_goals simp_all only; all_goals omega
++end
++
++mutual
++  theorem readStmt_complete {aliases j p} (schema : StmtSchema aliases j p) :
++      readStmt aliases j = some ⟨p, schema⟩ := by
++    cases schema with
++    | node shape arguments =>
++      cases shape <;>
++        simp only [rightObject, leftObject, readStmt.eq_def] <;>
++        rw [readStmtArguments_complete arguments] <;> rfl
++  termination_by (sizeOf p, 1)
++  decreasing_by all_goals simp_wf; all_goals simp_all only; all_goals omega
++
++  theorem readStmtArguments_complete {aliases op args p} (schema : StmtArguments aliases op args p) :
++      readStmtArguments aliases op args = some ⟨p, schema⟩ := by
++    cases schema with
++    | ret he => rw [readStmtArguments, readExpr_complete he]; rfl
++    | letE he hp => rw [readStmtArguments, readExpr_complete he, readStmt_complete hp]; rfl
++    | read ha hb => rw [readStmtArguments, readStmt_complete ha, readStmt_complete hb]; rfl
++    | scan hn he hp =>
++      rw [readStmtArguments]
++      rw [readExpr_complete he, readStmt_complete hp]
++      split <;> simp_all <;> grind
++    | raiseError hp => rw [readStmtArguments, readStmt_complete hp]; rfl
++    | branch he ha hb =>
++      rw [readStmtArguments, readExpr_complete he, readStmt_complete ha, readStmt_complete hb]; rfl
++  termination_by (sizeOf p, 0)
++  decreasing_by all_goals simp_wf; all_goals simp_all only; all_goals omega
++end
++
++theorem readExprData_spec (aliases : Aliases) (j : Json) (e : DataExpr) :
++    readExprData aliases j = some e ↔ ExprSchema aliases j e := by
++  constructor
++  · intro accepted
++    cases h : readExpr aliases j with
++    | none => simp [readExprData, h] at accepted
++    | some value =>
++      have same : value.val = e := by simpa [readExprData, h] using accepted
++      exact same ▸ value.property
++  · intro schema
++    simp [readExprData, readExpr_complete schema]
++
++theorem readStmtData_spec (aliases : Aliases) (j : Json) (p : DataStmt) :
++    readStmtData aliases j = some p ↔ StmtSchema aliases j p := by
++  constructor
++  · intro accepted
++    cases h : readStmt aliases j with
++    | none => simp [readStmtData, h] at accepted
++    | some value =>
++      have same : value.val = p := by simpa [readStmtData, h] using accepted
++      exact same ▸ value.property
++  · intro schema
++    simp [readStmtData, readStmt_complete schema]
++
++end CssDerivation.JsonSchema
+--- /dev/null
++++ b/CssDerivation/Codec/Json/TypedSchemaLaws.lean
+@@ -0,0 +1,113 @@
++import CssDerivation.Codec.Json.EncoderLaws
++
++namespace CssDerivation.JsonSchema
++open Lean FirstOrder TypedCodec
++
++mutual
++  theorem alias_free_expression_normalized {j e} (schema : ExprSchema [] j e) :
++      normalizeExpr e = e := by
++    cases schema with
++    | node _ arguments => exact alias_free_arguments_normalized arguments
++  termination_by (sizeOf e, 1)
++  decreasing_by all_goals simp_wf; all_goals simp_all only; all_goals omega
++
++  theorem alias_free_arguments_normalized {op args e} (schema : ExprArguments [] op args e) :
++      normalizeExpr e = e := by
++    cases schema with
++    | nat _ => rfl
++    | scalar _ _ => rfl
++    | bool _ => rfl
++    | var _ => rfl
++    | nil => rfl
++    | unit => rfl
++    | use h => simp at h
++    | code ha =>
++      simp only [normalizeExpr, alias_free_expression_normalized ha]
++    | scalarOf ha =>
++      simp only [normalizeExpr, alias_free_expression_normalized ha]
++    | add ha hb =>
++      simp only [normalizeExpr, alias_free_expression_normalized ha, alias_free_expression_normalized hb]
++    | sub ha hb =>
++      simp only [normalizeExpr, alias_free_expression_normalized ha, alias_free_expression_normalized hb]
++    | mul ha hb =>
++      simp only [normalizeExpr, alias_free_expression_normalized ha, alias_free_expression_normalized hb]
++    | leNat ha hb =>
++      simp only [normalizeExpr, alias_free_expression_normalized ha, alias_free_expression_normalized hb]
++    | ltNat ha hb =>
++      simp only [normalizeExpr, alias_free_expression_normalized ha, alias_free_expression_normalized hb]
++    | eqNat ha hb =>
++      simp only [normalizeExpr, alias_free_expression_normalized ha, alias_free_expression_normalized hb]
++    | leChar ha hb =>
++      simp only [normalizeExpr, alias_free_expression_normalized ha, alias_free_expression_normalized hb]
++    | eqChar ha hb =>
++      simp only [normalizeExpr, alias_free_expression_normalized ha, alias_free_expression_normalized hb]
++    | and ha hb =>
++      simp only [normalizeExpr, alias_free_expression_normalized ha, alias_free_expression_normalized hb]
++    | or ha hb =>
++      simp only [normalizeExpr, alias_free_expression_normalized ha, alias_free_expression_normalized hb]
++    | cons ha hb =>
++      simp only [normalizeExpr, alias_free_expression_normalized ha, alias_free_expression_normalized hb]
++    | ite ha hb hc =>
++      simp only [normalizeExpr, alias_free_expression_normalized ha, alias_free_expression_normalized hb, alias_free_expression_normalized hc]
++    | foldNat ha hb hc =>
++      simp only [normalizeExpr, alias_free_expression_normalized ha, alias_free_expression_normalized hb, alias_free_expression_normalized hc]
++  termination_by (sizeOf e, 0)
++  decreasing_by all_goals simp_wf; all_goals simp_all only; all_goals omega
++end
++
++mutual
++  theorem alias_free_statement_normalized {j p} (schema : StmtSchema [] j p) :
++      normalizeStmt p = p := by
++    cases schema with
++    | node _ arguments => exact alias_free_statement_arguments_normalized arguments
++  termination_by (sizeOf p, 1)
++  decreasing_by all_goals simp_wf; all_goals simp_all only; all_goals omega
++
++  theorem alias_free_statement_arguments_normalized {op args p} (schema : StmtArguments [] op args p) :
++      normalizeStmt p = p := by
++    cases schema with
++    | ret he => simp only [normalizeStmt, alias_free_expression_normalized he]
++    | letE he hp => simp only [normalizeStmt, alias_free_expression_normalized he, alias_free_statement_normalized hp]
++    | read ha hb => simp only [normalizeStmt, alias_free_statement_normalized ha, alias_free_statement_normalized hb]
++    | scan _ he hp => simp only [normalizeStmt, alias_free_expression_normalized he, alias_free_statement_normalized hp]
++    | raiseError hp => simp only [normalizeStmt, alias_free_statement_normalized hp]
++    | branch he ha hb =>
++      simp only [normalizeStmt, alias_free_expression_normalized he,
++        alias_free_statement_normalized ha, alias_free_statement_normalized hb]
++  termination_by (sizeOf p, 0)
++  decreasing_by all_goals simp_wf; all_goals simp_all only; all_goals omega
++end
++
++theorem alias_free_expression_json_spec (j : Json) (e : Expr Γ t) :
++    checkExprJson [] Γ t j = some e ↔ ExprSchema [] j (encodeExpr e) := by
++  constructor
++  · intro accepted
++    obtain ⟨raw, schema, encoded⟩ := accepted_expression_schema [] j e accepted
++    rw [alias_free_expression_normalized schema] at encoded
++    rw [← encoded] at schema
++    exact schema
++  · intro schema
++    rw [checkExprJson, (readExprData_spec _ _ _).mpr schema]
++    exact checkExpr_roundtrip e
++
++theorem alias_free_statement_json_spec (j : Json) (p : Stmt Γ t) :
++    checkStmtJson [] Γ t j = some p ↔ StmtSchema [] j (encodeStmt p) := by
++  constructor
++  · intro accepted
++    obtain ⟨raw, schema, encoded⟩ := accepted_statement_schema [] j p accepted
++    rw [alias_free_statement_normalized schema] at encoded
++    rw [← encoded] at schema
++    exact schema
++  · intro schema
++    rw [checkStmtJson, (readStmtData_spec _ _ _).mpr schema]
++    exact checkStmt_roundtrip p
++
++theorem expression_schema_deterministic {aliases j a b}
++    (first : ExprSchema aliases j a) (second : ExprSchema aliases j b) : a = b := by
++  exact Option.some.inj (((readExprData_spec _ _ _).mpr first).symm.trans ((readExprData_spec _ _ _).mpr second))
++
++theorem statement_schema_deterministic {aliases j a b}
++    (first : StmtSchema aliases j a) (second : StmtSchema aliases j b) : a = b := by
++  exact Option.some.inj (((readStmtData_spec _ _ _).mpr first).symm.trans ((readStmtData_spec _ _ _).mpr second))
++
++end CssDerivation.JsonSchema
+--- /dev/null
++++ b/CssDerivation/Codec/LegacyJson.lean
+@@ -0,0 +1,182 @@
++import CssDerivation.Codec.DataLaws
++
++namespace CssDerivation.TypedCodec
++open FirstOrder Lean
++
++structure Atom where
++  natural : Option Nat := none
++  boolean : Option Bool := none
++  text : Option String := none
++  expression : Option DataExpr := none
++  statement : Option DataStmt := none
++
++structure Layer where
++  atom : Atom := {}
++  arguments : Option (List Atom) := none
++
++abbrev Aliases := List (String × Ty × DataExpr)
++
++def expressionNode (aliases : Aliases) : String → List Atom → Option DataExpr
++  | "nat", [a] => a.natural.map .nat
++  | "scalar", [a] => do
++      let n ← a.natural
++      if n < 0xD800 ∨ (0xDFFF < n ∧ n < 0x110000) then some (.scalar (Char.ofNat n)) else none
++  | "bool", [a] => a.boolean.map .bool
++  | "var", [a] => a.natural.map .var
++  | "nil", [] => some .nil
++  | "unit", [] => some .unit
++  | "use", [a] => do
++      let name ← a.text
++      let (_, head, body) ← aliases.find? (fun entry => entry.1 == name)
++      some (.scope head body)
++  | "code", [a] => do
++      let a ← a.expression
++      some (.code a)
++  | "scalarOf", [a] => do
++      let a ← a.expression
++      some (.scalarOf a)
++  | "add", [a, b] => do
++      let a ← a.expression
++      let b ← b.expression
++      some (.add a b)
++  | "sub", [a, b] => do
++      let a ← a.expression
++      let b ← b.expression
++      some (.sub a b)
++  | "mul", [a, b] => do
++      let a ← a.expression
++      let b ← b.expression
++      some (.mul a b)
++  | "leNat", [a, b] => do
++      let a ← a.expression
++      let b ← b.expression
++      some (.leNat a b)
++  | "ltNat", [a, b] => do
++      let a ← a.expression
++      let b ← b.expression
++      some (.ltNat a b)
++  | "eqNat", [a, b] => do
++      let a ← a.expression
++      let b ← b.expression
++      some (.eqNat a b)
++  | "leChar", [a, b] => do
++      let a ← a.expression
++      let b ← b.expression
++      some (.leChar a b)
++  | "eqChar", [a, b] => do
++      let a ← a.expression
++      let b ← b.expression
++      some (.eqChar a b)
++  | "and", [a, b] => do
++      let a ← a.expression
++      let b ← b.expression
++      some (.and a b)
++  | "or", [a, b] => do
++      let a ← a.expression
++      let b ← b.expression
++      some (.or a b)
++  | "cons", [a, b] => do
++      let a ← a.expression
++      let b ← b.expression
++      some (.cons a b)
++  | "ite", [a, b, c] => do
++      let a ← a.expression
++      let b ← b.expression
++      let c ← c.expression
++      some (.ite a b c)
++  | "foldNat", [a, b, c] => do
++      let a ← a.expression
++      let b ← b.expression
++      let c ← c.expression
++      some (.foldNat a b c)
++  | _, _ => none
++
++def statementNode : String → List Atom → Option DataStmt
++  | "ret", [e] => e.expression.map .ret
++  | "letE", [e, next] => do
++      let e ← e.expression
++      let next ← next.statement
++      some (.letE e next)
++  | "read", [eof, next] => do
++      let eof ← eof.statement
++      let next ← next.statement
++      some (.read eof next)
++  | "scan", [budget, predicate, next] => do
++      let budget ← budget.natural
++      let predicate ← predicate.expression
++      let next ← next.statement
++      some (.scan budget predicate next)
++  | "raiseError", [next] => next.statement.map .raiseError
++  | "branch", [condition, yes, no] => do
++      let condition ← condition.expression
++      let yes ← yes.statement
++      let no ← no.statement
++      some (.branch condition yes no)
++  | _, _ => none
++
++def exactFields {α : Type} (expected : List String) (fields : List (String × α)) : Bool :=
++  fields.length == expected.length && expected.all (fun key => fields.countP (fun e => e.1 == key) == 1)
++
++def objectNode (aliases : Aliases) (fields : List (String × Layer)) : Layer :=
++  let result : Option Atom := do
++    if !exactFields ["op", "args"] fields then none else do
++      let (_, op) ← fields.find? (fun f => f.1 == "op")
++      let op ← op.atom.text
++      let (_, args) ← fields.find? (fun f => f.1 == "args")
++      let args ← args.arguments
++      some { expression := expressionNode aliases op args, statement := statementNode op args }
++  { atom := result.getD {} }
++
++mutual
++  def foldJson (aliases : Aliases) : Json → Layer
++    | .null => {}
++    | .bool b => { atom := { boolean := some b } }
++    | .num n => { atom := { natural := (Json.num n).getNat?.toOption } }
++    | .str text => { atom := { text := some text } }
++    | .arr ⟨xs⟩ => { arguments := some ((foldArray aliases xs).map Layer.atom) }
++    | .obj ⟨⟨tree⟩⟩ => objectNode aliases (foldObject aliases tree)
++
++  def foldArray (aliases : Aliases) : List Json → List Layer
++    | [] => []
++    | x :: xs => foldJson aliases x :: foldArray aliases xs
++
++  def foldObject (aliases : Aliases) :
++      Std.DTreeMap.Internal.Impl String (fun _ => Json) → List (String × Layer)
++    | .leaf => []
++    | .inner _ key value left right =>
++        foldObject aliases left ++ (key, foldJson aliases value) :: foldObject aliases right
++end
++
++def field (j : Json) (name : String) : Option Json := (j.getObjVal? name).toOption
++
++def fieldsExactly (j : Json) (names : List String) : Bool :=
++  match j with
++  | .obj fields => exactFields names fields.toList
++  | _ => false
++
++def definition (j : Json) (name : String) (head result : Ty) : Option (String × Ty × DataExpr) := do
++  let source ← field j name
++  let data ← (foldJson [] source).atom.expression
++  let _ ← checkExpr [head] result data
++  some (name, head, data)
++
++def decodeDocument (j : Json) : Option (Stmt [] .scalar) := do
++  if !fieldsExactly j ["schema", "definitions", "program", "source_map"] then none else do
++    let schema ← field j "schema"
++    if schema.getNat?.toOption != some 1 then none else do
++      let definitions ← field j "definitions"
++      if !fieldsExactly definitions ["hexExpr", "whitespaceExpr", "magnitudeExpr", "decodeExpr"] then none else do
++        let hex ← definition definitions "hexExpr" .scalar .bool
++        let whitespace ← definition definitions "whitespaceExpr" .scalar .bool
++        let magnitude ← definition definitions "magnitudeExpr" .chars .nat
++        let decode ← definition definitions "decodeExpr" .nat .scalar
++        let sourceMap ← field j "source_map"
++        let _ ← sourceMap.getObj?.toOption
++        let program ← field j "program"
++        let data ← (foldJson [hex, whitespace, magnitude, decode] program).atom.statement
++        checkStmt [] .scalar data
++
++def decodeText (text : String) : Option (Stmt [] .scalar) :=
++  Json.parse text |>.toOption.bind decodeDocument
++
++end CssDerivation.TypedCodec
+--- /dev/null
++++ b/CssDerivation/Examples/EscapeBackend.lean
+@@ -0,0 +1,29 @@
++import CssDerivation.Backend
++
++namespace CssDerivation
++
++def isHex (c : Char) : Bool := (Char.ofNat 48 ≤ c && c ≤ Char.ofNat 57) || (Char.ofNat 65 ≤ c && c ≤ Char.ofNat 70) || (Char.ofNat 97 ≤ c && c ≤ Char.ofNat 102)
++def isWhitespace (c : Char) : Bool := c == Char.ofNat 10 || c == Char.ofNat 9 || c == Char.ofNat 32
++
++def digitValue (c : Char) : Nat :=
++  if c ≤ Char.ofNat 57 then c.toNat - 48
++  else if c ≤ Char.ofNat 70 then c.toNat - 55
++  else c.toNat - 87
++
++def magnitude (digits : List Char) : Nat :=
++  digits.foldl (fun value c => value * 16 + digitValue c) 0
++
++def decode (value : Nat) : Char :=
++  if value = 0 ∨ (55296 ≤ value ∧ value ≤ 57343) ∨ 1114111 < value then Char.ofNat 65533 else Char.ofNat value
++
++def escape : Program Char :=
++  .bind .read fun first =>
++    match first with
++    | none => .bind .raiseError fun _ => .pure (Char.ofNat 65533)
++    | some c => .branch (isHex c)
++        (.bind (.scan 5 isHex) fun digits =>
++          .bind (.scan 1 isWhitespace) fun _ =>
++            .pure (decode (magnitude (c :: digits))))
++        (.pure c)
++
++end CssDerivation
+--- /dev/null
++++ b/CssDerivation/Examples/EscapeBackendCorrespondence.lean
+@@ -0,0 +1,93 @@
++import CssDerivation.Examples.EscapeBackend
++import CssSemantics.CssEscape
++import CssSemantics.CssInput
++
++namespace CssDerivation
++
++theorem hex_equivalent (c : Char) : isHex c = CssSemantics.CssEscape.hex c := rfl
++theorem digit_equivalent (c : Char) : digitValue c = CssSemantics.CssEscape.digitValue c := rfl
++theorem magnitude_equivalent (digits : List Char) : magnitude digits = CssSemantics.CssEscape.magnitude digits := rfl
++theorem decode_equivalent (value : Nat) : decode value = CssSemantics.CssEscape.decode value := rfl
++
++theorem whitespace_equivalent (c : Char) : isWhitespace c = CssSemantics.CssEscape.whitespace c := by
++  change (c == '\n' || c == '\t' || c == ' ') = (c == ' ' || c == '\t' || c == '\n')
++  simp [Bool.or_comm, Bool.or_left_comm, Bool.or_assoc]
++
++theorem scan_equivalent (budget : Nat) (source : List Char) :
++    scanPrefix isHex budget source = CssSemantics.CssEscape.scanHex budget source := by
++  induction budget generalizing source with
++  | zero => rfl
++  | succ budget ih =>
++      cases source with
++      | nil => rfl
++      | cons c rest => simp [scanPrefix, CssSemantics.CssEscape.scanHex, hex_equivalent, ih]
++
++theorem terminator_equivalent (source : List Char) :
++    (scanPrefix isWhitespace 1 source).2 = CssSemantics.CssEscape.skipWhitespace source := by
++  cases source with
++  | nil => rfl
++  | cons c rest =>
++      simp only [scanPrefix, whitespace_equivalent, CssSemantics.CssEscape.skipWhitespace]
++      split <;> rfl
++
++def toReference (result : Result) : CssSemantics.CssEscape.Result :=
++  ⟨result.value, result.rest, result.error⟩
++
++theorem escape_equivalent (source : List Char) :
++    toReference (execute escape source) = CssSemantics.CssEscape.consume source := by
++  cases source with
++  | nil => rfl
++  | cons c rest =>
++      simp [execute, escape, run, toReference, CssSemantics.CssEscape.consume,
++        hex_equivalent, scan_equivalent, terminator_equivalent, decode_equivalent, magnitude_equivalent]
++      split <;> rfl
++
++theorem escape_sound (source : List Char) :
++    CssSemantics.CssEscape.Escaped source (toReference (execute escape source)) := by
++  rw [escape_equivalent]
++  exact CssSemantics.CssEscape.consume_sound source
++
++theorem toReference_injective (a b : Result) (equal : toReference a = toReference b) : a = b := by
++  cases a
++  cases b
++  cases equal
++  rfl
++
++theorem escape_spec (source : List Char) (result : Result) :
++    execute escape source = result ↔ CssSemantics.CssEscape.Escaped source (toReference result) := by
++  constructor
++  · intro equal; rw [← equal]; exact escape_sound source
++  · intro parsed
++    apply toReference_injective
++    exact (escape_equivalent source).trans parsed.result
++
++theorem eof_exactly (source : List Char) :
++    (execute escape source).error = true ↔ source = [] := by
++  have equal := congrArg CssSemantics.CssEscape.Result.eofError (escape_equivalent source)
++  change (execute escape source).error = (CssSemantics.CssEscape.consume source).eofError at equal
++  rw [equal]
++  exact CssSemantics.CssEscape.consume_eofError source
++
++def CallerReady (source : List Char) : Prop :=
++  CssSemantics.CssInput.Normalized source ∧ CssSemantics.CssEscape.ValidAfter source
++
++theorem valid_call (source : List Char) (ready : CallerReady source) :
++    CssSemantics.CssEscape.ValidEscaped source (toReference (execute escape source)) :=
++  ⟨ready.2, escape_sound source⟩
++
++theorem preprocessing_boundary (source : List Char)
++    (valid : CssSemantics.CssEscape.ValidAfter (CssSemantics.CssInput.preprocess source)) :
++    CallerReady (CssSemantics.CssInput.preprocess source) :=
++  ⟨CssSemantics.CssInput.preprocess_normalized source, valid⟩
++
++example : CallerReady [] := by simp [CallerReady, CssSemantics.CssInput.Normalized, CssSemantics.CssEscape.ValidAfter]
++example : CallerReady ['0'] := by simp [CallerReady, CssSemantics.CssInput.Normalized, CssSemantics.CssEscape.ValidAfter]
++
++#print axioms scan_equivalent
++#print axioms escape_equivalent
++#print axioms escape_spec
++#print axioms eof_exactly
++#print axioms valid_call
++#print axioms preprocessing_boundary
++
++end CssDerivation
+--- /dev/null
++++ b/CssDerivation/Examples/EscapeCorrespondence.lean
+@@ -0,0 +1,57 @@
++import CssDerivation.Examples.EscapeTree
++import CssDerivation.Examples.EscapeBackendCorrespondence
++
++namespace CssDerivation.FirstOrder
++
++theorem hex_meaning (c : Char) (env : Env Γ) :
++    eval hexExpr (.cons c env) = CssDerivation.isHex c := rfl
++
++theorem whitespace_meaning (c : Char) (env : Env Γ) :
++    eval whitespaceExpr (.cons c env) = CssDerivation.isWhitespace c := rfl
++
++theorem magnitude_meaning (digits : List Char) (env : Env Γ) :
++    eval magnitudeExpr (.cons digits env) = CssDerivation.magnitude digits := by
++  simp [magnitudeExpr, eval, lookup, CssDerivation.magnitude, CssDerivation.digitValue]
++
++theorem decode_meaning (value : Nat) (env : Env Γ) :
++    eval decodeExpr (.cons value env) = CssDerivation.decode value := by
++  simp [decodeExpr, eval, lookup, CssDerivation.decode, or_assoc]
++
++theorem scan_hex (env : Env Γ) (budget : Nat) (source : List Char) :
++    scanData hexExpr env budget source = scanPrefix CssDerivation.isHex budget source := by
++  rw [scan_lowering]
++  rfl
++
++theorem scan_whitespace (env : Env Γ) (budget : Nat) (source : List Char) :
++    scanData whitespaceExpr env budget source = scanPrefix CssDerivation.isWhitespace budget source := by
++  rw [scan_lowering]
++  rfl
++
++theorem escape_matches_prior (source : List Char) :
++    execute escapeTree source = CssDerivation.execute CssDerivation.escape source := by
++  cases source with
++  | nil => rfl
++  | cons c rest =>
++      simp only [execute, escapeTree, interpret, CssDerivation.execute, CssDerivation.escape, run,
++        hex_meaning, scan_hex, scan_whitespace, eval, lookup, magnitude_meaning, decode_meaning]
++
++theorem lowered_escape_matches_prior (source : List Char) :
++    CssDerivation.execute (lower escapeTree .nil) source = CssDerivation.execute CssDerivation.escape source :=
++  (execute_lowering escapeTree source).trans (escape_matches_prior source)
++
++theorem escape_relation (source : List Char) (result : Result) :
++    execute escapeTree source = result ↔ CssSemantics.CssEscape.Escaped source (toReference result) := by
++  rw [escape_matches_prior]
++  exact CssDerivation.escape_spec source result
++
++theorem ready_escape (source : List Char) (ready : CallerReady source) :
++    CssSemantics.CssEscape.ValidEscaped source (toReference (execute escapeTree source)) := by
++  rw [escape_matches_prior]
++  exact CssDerivation.valid_call source ready
++
++#print axioms escape_matches_prior
++#print axioms lowered_escape_matches_prior
++#print axioms escape_relation
++#print axioms ready_escape
++
++end CssDerivation.FirstOrder
+--- /dev/null
++++ b/CssDerivation/Examples/EscapeDocument.lean
+@@ -0,0 +1,31 @@
++import CssDerivation.Codec.Json.Document
++import CssDerivation.Codec.Json.TypedSchemaLaws
++import CssDerivation.Examples.EscapeJson
++import CssDerivation.Examples.EscapeCorrespondence
++
++namespace CssDerivation.JsonSchema
++open FirstOrder
++
++set_option cbv.warning false in
++set_option maxRecDepth 30000 in
++set_option maxHeartbeats 4000000 in
++theorem fixture_decodes : readDocument TypedCodec.fixture = some escapeTree := by cbv
++
++def runDocument (j : Lean.Json) (input : List Char) : Option Result :=
++  (readDocument j).map (fun p => FirstOrder.execute p input)
++
++theorem fixture_execution (input : List Char) :
++    runDocument TypedCodec.fixture input = some (FirstOrder.execute escapeTree input) := by
++  simp [runDocument, fixture_decodes]
++
++theorem fixture_relation (input : List Char) (result : Result) :
++    runDocument TypedCodec.fixture input = some result ↔
++      CssSemantics.CssEscape.Escaped input (toReference result) := by
++  rw [fixture_execution, Option.some.injEq]
++  exact escape_relation input result
++
++theorem canonical_fixture_roundtrip :
++    checkStmtJson [] [] .scalar (encodeStmtJson escapeTree) = some escapeTree :=
++  statement_json_roundtrip [] escapeTree
++
++end CssDerivation.JsonSchema
+--- /dev/null
++++ b/CssDerivation/Examples/EscapeJson.lean
+@@ -0,0 +1,649 @@
++import CssDerivation.Codec.LegacyJson
++
++namespace CssDerivation.TypedCodec
++
++def fixture : Lean.Json := json% {
++  "schema": 1,
++  "definitions": {
++    "hexExpr": {
++      "op": "or",
++      "args": [
++        {
++          "op": "or",
++          "args": [
++            {
++              "op": "and",
++              "args": [
++                {
++                  "op": "leChar",
++                  "args": [
++                    {
++                      "op": "scalar",
++                      "args": [
++                        48
++                      ]
++                    },
++                    {
++                      "op": "var",
++                      "args": [
++                        0
++                      ]
++                    }
++                  ]
++                },
++                {
++                  "op": "leChar",
++                  "args": [
++                    {
++                      "op": "var",
++                      "args": [
++                        0
++                      ]
++                    },
++                    {
++                      "op": "scalar",
++                      "args": [
++                        57
++                      ]
++                    }
++                  ]
++                }
++              ]
++            },
++            {
++              "op": "and",
++              "args": [
++                {
++                  "op": "leChar",
++                  "args": [
++                    {
++                      "op": "scalar",
++                      "args": [
++                        65
++                      ]
++                    },
++                    {
++                      "op": "var",
++                      "args": [
++                        0
++                      ]
++                    }
++                  ]
++                },
++                {
++                  "op": "leChar",
++                  "args": [
++                    {
++                      "op": "var",
++                      "args": [
++                        0
++                      ]
++                    },
++                    {
++                      "op": "scalar",
++                      "args": [
++                        70
++                      ]
++                    }
++                  ]
++                }
++              ]
++            }
++          ]
++        },
++        {
++          "op": "and",
++          "args": [
++            {
++              "op": "leChar",
++              "args": [
++                {
++                  "op": "scalar",
++                  "args": [
++                    97
++                  ]
++                },
++                {
++                  "op": "var",
++                  "args": [
++                    0
++                  ]
++                }
++              ]
++            },
++            {
++              "op": "leChar",
++              "args": [
++                {
++                  "op": "var",
++                  "args": [
++                    0
++                  ]
++                },
++                {
++                  "op": "scalar",
++                  "args": [
++                    102
++                  ]
++                }
++              ]
++            }
++          ]
++        }
++      ]
++    },
++    "whitespaceExpr": {
++      "op": "or",
++      "args": [
++        {
++          "op": "or",
++          "args": [
++            {
++              "op": "eqChar",
++              "args": [
++                {
++                  "op": "var",
++                  "args": [
++                    0
++                  ]
++                },
++                {
++                  "op": "scalar",
++                  "args": [
++                    10
++                  ]
++                }
++              ]
++            },
++            {
++              "op": "eqChar",
++              "args": [
++                {
++                  "op": "var",
++                  "args": [
++                    0
++                  ]
++                },
++                {
++                  "op": "scalar",
++                  "args": [
++                    9
++                  ]
++                }
++              ]
++            }
++          ]
++        },
++        {
++          "op": "eqChar",
++          "args": [
++            {
++              "op": "var",
++              "args": [
++                0
++              ]
++            },
++            {
++              "op": "scalar",
++              "args": [
++                32
++              ]
++            }
++          ]
++        }
++      ]
++    },
++    "magnitudeExpr": {
++      "op": "foldNat",
++      "args": [
++        {
++          "op": "var",
++          "args": [
++            0
++          ]
++        },
++        {
++          "op": "nat",
++          "args": [
++            0
++          ]
++        },
++        {
++          "op": "add",
++          "args": [
++            {
++              "op": "mul",
++              "args": [
++                {
++                  "op": "var",
++                  "args": [
++                    1
++                  ]
++                },
++                {
++                  "op": "nat",
++                  "args": [
++                    16
++                  ]
++                }
++              ]
++            },
++            {
++              "op": "ite",
++              "args": [
++                {
++                  "op": "leChar",
++                  "args": [
++                    {
++                      "op": "var",
++                      "args": [
++                        0
++                      ]
++                    },
++                    {
++                      "op": "scalar",
++                      "args": [
++                        57
++                      ]
++                    }
++                  ]
++                },
++                {
++                  "op": "sub",
++                  "args": [
++                    {
++                      "op": "code",
++                      "args": [
++                        {
++                          "op": "var",
++                          "args": [
++                            0
++                          ]
++                        }
++                      ]
++                    },
++                    {
++                      "op": "nat",
++                      "args": [
++                        48
++                      ]
++                    }
++                  ]
++                },
++                {
++                  "op": "ite",
++                  "args": [
++                    {
++                      "op": "leChar",
++                      "args": [
++                        {
++                          "op": "var",
++                          "args": [
++                            0
++                          ]
++                        },
++                        {
++                          "op": "scalar",
++                          "args": [
++                            70
++                          ]
++                        }
++                      ]
++                    },
++                    {
++                      "op": "sub",
++                      "args": [
++                        {
++                          "op": "code",
++                          "args": [
++                            {
++                              "op": "var",
++                              "args": [
++                                0
++                              ]
++                            }
++                          ]
++                        },
++                        {
++                          "op": "nat",
++                          "args": [
++                            55
++                          ]
++                        }
++                      ]
++                    },
++                    {
++                      "op": "sub",
++                      "args": [
++                        {
++                          "op": "code",
++                          "args": [
++                            {
++                              "op": "var",
++                              "args": [
++                                0
++                              ]
++                            }
++                          ]
++                        },
++                        {
++                          "op": "nat",
++                          "args": [
++                            87
++                          ]
++                        }
++                      ]
++                    }
++                  ]
++                }
++              ]
++            }
++          ]
++        }
++      ]
++    },
++    "decodeExpr": {
++      "op": "ite",
++      "args": [
++        {
++          "op": "or",
++          "args": [
++            {
++              "op": "or",
++              "args": [
++                {
++                  "op": "eqNat",
++                  "args": [
++                    {
++                      "op": "var",
++                      "args": [
++                        0
++                      ]
++                    },
++                    {
++                      "op": "nat",
++                      "args": [
++                        0
++                      ]
++                    }
++                  ]
++                },
++                {
++                  "op": "and",
++                  "args": [
++                    {
++                      "op": "leNat",
++                      "args": [
++                        {
++                          "op": "nat",
++                          "args": [
++                            55296
++                          ]
++                        },
++                        {
++                          "op": "var",
++                          "args": [
++                            0
++                          ]
++                        }
++                      ]
++                    },
++                    {
++                      "op": "leNat",
++                      "args": [
++                        {
++                          "op": "var",
++                          "args": [
++                            0
++                          ]
++                        },
++                        {
++                          "op": "nat",
++                          "args": [
++                            57343
++                          ]
++                        }
++                      ]
++                    }
++                  ]
++                }
++              ]
++            },
++            {
++              "op": "ltNat",
++              "args": [
++                {
++                  "op": "nat",
++                  "args": [
++                    1114111
++                  ]
++                },
++                {
++                  "op": "var",
++                  "args": [
++                    0
++                  ]
++                }
++              ]
++            }
++          ]
++        },
++        {
++          "op": "scalar",
++          "args": [
++            65533
++          ]
++        },
++        {
++          "op": "scalarOf",
++          "args": [
++            {
++              "op": "var",
++              "args": [
++                0
++              ]
++            }
++          ]
++        }
++      ]
++    }
++  },
++  "program": {
++    "op": "read",
++    "args": [
++      {
++        "op": "raiseError",
++        "args": [
++          {
++            "op": "ret",
++            "args": [
++              {
++                "op": "scalar",
++                "args": [
++                  65533
++                ]
++              }
++            ]
++          }
++        ]
++      },
++      {
++        "op": "branch",
++        "args": [
++          {
++            "op": "use",
++            "args": [
++              "hexExpr"
++            ]
++          },
++          {
++            "op": "scan",
++            "args": [
++              5,
++              {
++                "op": "use",
++                "args": [
++                  "hexExpr"
++                ]
++              },
++              {
++                "op": "scan",
++                "args": [
++                  1,
++                  {
++                    "op": "use",
++                    "args": [
++                      "whitespaceExpr"
++                    ]
++                  },
++                  {
++                    "op": "letE",
++                    "args": [
++                      {
++                        "op": "cons",
++                        "args": [
++                          {
++                            "op": "var",
++                            "args": [
++                              2
++                            ]
++                          },
++                          {
++                            "op": "var",
++                            "args": [
++                              1
++                            ]
++                          }
++                        ]
++                      },
++                      {
++                        "op": "letE",
++                        "args": [
++                          {
++                            "op": "use",
++                            "args": [
++                              "magnitudeExpr"
++                            ]
++                          },
++                          {
++                            "op": "ret",
++                            "args": [
++                              {
++                                "op": "use",
++                                "args": [
++                                  "decodeExpr"
++                                ]
++                              }
++                            ]
++                          }
++                        ]
++                      }
++                    ]
++                  }
++                ]
++              }
++            ]
++          },
++          {
++            "op": "ret",
++            "args": [
++              {
++                "op": "var",
++                "args": [
++                  0
++                ]
++              }
++            ]
++          }
++        ]
++      }
++    ]
++  },
++  "source_map": {
++    "algorithm": {
++      "anchor": "consume-escaped-code-point",
++      "source_bytes": [
++        48316,
++        49501
++      ]
++    },
++    "body": {
++      "source_bytes": [
++        48665,
++        49501
++      ],
++      "operative_text": "Consume the next input code point. hex digit Consume as many hex digits as possible, but no more than 5. If the next input code point is whitespace, consume it as well. Interpret the hex digits as a hexadecimal number. If this number is zero, or is for a surrogate, or is greater than the maximum allowed code point, return U+FFFD REPLACEMENT CHARACTER (\ufffd). Otherwise, return the code point with that value. EOF This is a parse error. Return U+FFFD REPLACEMENT CHARACTER (\ufffd). anything else Return the current input code point."
++    },
++    "definitions": {
++      "digit": {
++        "text": "A code point between U+0030 DIGIT ZERO (0) and U+0039 DIGIT NINE (9) inclusive.",
++        "source_bytes": [
++          29293,
++          29462
++        ]
++      },
++      "hex digit": {
++        "text": "A digit, or a code point between U+0041 LATIN CAPITAL LETTER A (A) and U+0046 LATIN CAPITAL LETTER F (F) inclusive, or a code point between U+0061 LATIN SMALL LETTER A (a) and U+0066 LATIN SMALL LETTER F (f) inclusive.",
++        "source_bytes": [
++          29466,
++          29753
++        ]
++      },
++      "newline": {
++        "text": "U+000A LINE FEED.",
++        "source_bytes": [
++          33496,
++          33785
++        ]
++      },
++      "whitespace": {
++        "text": "A newline, U+0009 CHARACTER TABULATION, or U+0020 SPACE.",
++        "source_bytes": [
++          33789,
++          33930
++        ]
++      },
++      "maximum allowed code point": {
++        "text": "The greatest code point defined by Unicode: U+10FFFF.",
++        "source_bytes": [
++          33934,
++          34049
++        ]
++      },
++      "leading surrogate": {
++        "text": "A leading surrogate is a code point that is in the range U+D800 to U+DBFF, inclusive.",
++        "source": "infra",
++        "source_bytes": [
++          42391,
++          42504
++        ]
++      },
++      "trailing surrogate": {
++        "text": "A trailing surrogate is a code point that is in the range U+DC00 to U+DFFF, inclusive.",
++        "source": "infra",
++        "source_bytes": [
++          42506,
++          42620
++        ]
++      },
++      "surrogate": {
++        "text": "A surrogate is a leading surrogate or a trailing surrogate.",
++        "source": "infra",
++        "source_bytes": [
++          42622,
++          42716
++        ]
++      }
++    },
++    "roles": {
++      "read": "Initial next-input consumption and EOF/literal dispatch",
++      "first scan": "Maximal bounded additional hex consumption",
++      "second scan": "Conditional single whitespace terminator",
++      "first local": "Assemble first consumed scalar plus additional hex digits",
++      "second local": "Interpret the hex digits as a hexadecimal number",
++      "decodeExpr": "Zero/surrogate/maximum replacement or scalar result"
++    }
++  }
++}
++
++end CssDerivation.TypedCodec
+--- /dev/null
++++ b/CssDerivation/Examples/EscapeTree.lean
+@@ -0,0 +1,20 @@
++import CssDerivation.Lowering
++
++namespace CssDerivation.FirstOrder
++
++def hexExpr {Γ : List Ty} : Expr (.scalar :: Γ) .bool :=
++  (.or (.or (.and (.leChar (.scalar (Char.ofNat 48)) (.var .here)) (.leChar (.var .here) (.scalar (Char.ofNat 57)))) (.and (.leChar (.scalar (Char.ofNat 65)) (.var .here)) (.leChar (.var .here) (.scalar (Char.ofNat 70))))) (.and (.leChar (.scalar (Char.ofNat 97)) (.var .here)) (.leChar (.var .here) (.scalar (Char.ofNat 102)))))
++
++def whitespaceExpr {Γ : List Ty} : Expr (.scalar :: Γ) .bool :=
++  (.or (.or (.eqChar (.var .here) (.scalar (Char.ofNat 10))) (.eqChar (.var .here) (.scalar (Char.ofNat 9)))) (.eqChar (.var .here) (.scalar (Char.ofNat 32))))
++
++def magnitudeExpr {Γ : List Ty} : Expr (.chars :: Γ) .nat :=
++  (.foldNat (.var .here) (.nat 0) (.add (.mul (.var (.there .here)) (.nat 16)) (.ite (.leChar (.var .here) (.scalar (Char.ofNat 57))) (.sub (.code (.var .here)) (.nat 48)) (.ite (.leChar (.var .here) (.scalar (Char.ofNat 70))) (.sub (.code (.var .here)) (.nat 55)) (.sub (.code (.var .here)) (.nat 87))))))
++
++def decodeExpr {Γ : List Ty} : Expr (.nat :: Γ) .scalar :=
++  (.ite (.or (.or (.eqNat (.var .here) (.nat 0)) (.and (.leNat (.nat 55296) (.var .here)) (.leNat (.var .here) (.nat 57343)))) (.ltNat (.nat 1114111) (.var .here))) (.scalar (Char.ofNat 65533)) (.scalarOf (.var .here)))
++
++def escapeTree : Stmt [] .scalar :=
++  (.read (.raiseError (.ret (.scalar (Char.ofNat 65533)))) (.branch hexExpr (.scan 5 hexExpr (.scan 1 whitespaceExpr (.letE (.cons (.var (.there (.there .here))) (.var (.there .here))) (.letE magnitudeExpr (.ret decodeExpr))))) (.ret (.var .here))))
++
++end CssDerivation.FirstOrder
+--- /dev/null
++++ b/CssDerivation/FirstOrder.lean
+@@ -0,0 +1,123 @@
++import CssDerivation.Backend
++
++namespace CssDerivation.FirstOrder
++
++inductive Ty where
++  | nat | scalar | bool | chars | unit
++  deriving DecidableEq, Repr
++
++abbrev Ty.Value : Ty → Type
++  | .nat => Nat
++  | .scalar => Char
++  | .bool => Bool
++  | .chars => List Char
++  | .unit => Unit
++
++inductive Var : List Ty → Ty → Type where
++  | here {Γ t} : Var (t :: Γ) t
++  | there {Γ t u} : Var Γ t → Var (u :: Γ) t
++
++inductive Env : List Ty → Type where
++  | nil : Env []
++  | cons {Γ t} : t.Value → Env Γ → Env (t :: Γ)
++
++def lookup : Var Γ t → Env Γ → t.Value
++  | .here, .cons value _ => value
++  | .there index, .cons _ rest => lookup index rest
++
++inductive Expr : List Ty → Ty → Type where
++  | nat {Γ} : Nat → Expr Γ .nat
++  | scalar {Γ} : Char → Expr Γ .scalar
++  | bool {Γ} : Bool → Expr Γ .bool
++  | nil {Γ} : Expr Γ .chars
++  | unit {Γ} : Expr Γ .unit
++  | var {Γ t} : Var Γ t → Expr Γ t
++  | code {Γ} : Expr Γ .scalar → Expr Γ .nat
++  | scalarOf {Γ} : Expr Γ .nat → Expr Γ .scalar
++  | add {Γ} : Expr Γ .nat → Expr Γ .nat → Expr Γ .nat
++  | sub {Γ} : Expr Γ .nat → Expr Γ .nat → Expr Γ .nat
++  | mul {Γ} : Expr Γ .nat → Expr Γ .nat → Expr Γ .nat
++  | leNat {Γ} : Expr Γ .nat → Expr Γ .nat → Expr Γ .bool
++  | ltNat {Γ} : Expr Γ .nat → Expr Γ .nat → Expr Γ .bool
++  | eqNat {Γ} : Expr Γ .nat → Expr Γ .nat → Expr Γ .bool
++  | leChar {Γ} : Expr Γ .scalar → Expr Γ .scalar → Expr Γ .bool
++  | eqChar {Γ} : Expr Γ .scalar → Expr Γ .scalar → Expr Γ .bool
++  | and {Γ} : Expr Γ .bool → Expr Γ .bool → Expr Γ .bool
++  | or {Γ} : Expr Γ .bool → Expr Γ .bool → Expr Γ .bool
++  | ite {Γ t} : Expr Γ .bool → Expr Γ t → Expr Γ t → Expr Γ t
++  | cons {Γ} : Expr Γ .scalar → Expr Γ .chars → Expr Γ .chars
++  | foldNat {Γ} : Expr Γ .chars → Expr Γ .nat → Expr (.scalar :: .nat :: Γ) .nat → Expr Γ .nat
++
++def eval : Expr Γ t → Env Γ → t.Value
++  | .nat value, _ => value
++  | .scalar value, _ => value
++  | .bool value, _ => value
++  | .nil, _ => []
++  | .unit, _ => ()
++  | .var index, env => lookup index env
++  | .code value, env => (eval value env).toNat
++  | .scalarOf value, env => Char.ofNat (eval value env)
++  | .add left right, env => eval left env + eval right env
++  | .sub left right, env => eval left env - eval right env
++  | .mul left right, env => eval left env * eval right env
++  | .leNat left right, env => decide (eval left env ≤ eval right env)
++  | .ltNat left right, env => decide (eval left env < eval right env)
++  | .eqNat left right, env => eval left env == eval right env
++  | .leChar left right, env => decide (eval left env ≤ eval right env)
++  | .eqChar left right, env => eval left env == eval right env
++  | .and left right, env => eval left env && eval right env
++  | .or left right, env => eval left env || eval right env
++  | .ite condition yes no, env => if eval condition env = true then eval yes env else eval no env
++  | .cons first rest, env => eval first env :: eval rest env
++  | .foldNat input initial step, env =>
++      (eval input env).foldl (fun acc c => eval step (.cons c (.cons acc env))) (eval initial env)
++
++inductive Stmt : List Ty → Ty → Type where
++  | ret {Γ t} : Expr Γ t → Stmt Γ t
++  | letE {Γ t u} : Expr Γ u → Stmt (u :: Γ) t → Stmt Γ t
++  | read {Γ t} : Stmt Γ t → Stmt (.scalar :: Γ) t → Stmt Γ t
++  | scan {Γ t} : Nat → Expr (.scalar :: Γ) .bool → Stmt (.chars :: Γ) t → Stmt Γ t
++  | raiseError {Γ t} : Stmt Γ t → Stmt Γ t
++  | branch {Γ t} : Expr Γ .bool → Stmt Γ t → Stmt Γ t → Stmt Γ t
++
++def scanData (predicate : Expr (.scalar :: Γ) .bool) (env : Env Γ) :
++    Nat → List Char → List Char × List Char
++  | 0, input => ([], input)
++  | _ + 1, [] => ([], [])
++  | budget + 1, c :: rest =>
++      if eval predicate (.cons c env) = true then
++        let later := scanData predicate env budget rest
++        (c :: later.1, later.2)
++      else ([], c :: rest)
++
++def interpret : Stmt Γ t → Env Γ → State → t.Value × State
++  | .ret value, env, state => (eval value env, state)
++  | .letE value next, env, state => interpret next (.cons (eval value env) env) state
++  | .read eof present, env, state =>
++      match state.input with
++      | [] => interpret eof env state
++      | c :: rest => interpret present (.cons c env) { state with input := rest }
++  | .scan budget predicate next, env, state =>
++      let scanned := scanData predicate env budget state.input
++      interpret next (.cons scanned.1 env) { state with input := scanned.2 }
++  | .raiseError next, env, state => interpret next env { state with error := true }
++  | .branch condition yes no, env, state =>
++      if eval condition env = true then interpret yes env state else interpret no env state
++
++def lower : Stmt Γ t → Env Γ → Program t.Value
++  | .ret value, env => .pure (eval value env)
++  | .letE value next, env => .bind (.pure (eval value env)) fun value => lower next (.cons value env)
++  | .read eof present, env => .bind .read fun value =>
++      match value with
++      | none => lower eof env
++      | some c => lower present (.cons c env)
++  | .scan budget predicate next, env =>
++      .bind (.scan budget (fun c => eval predicate (.cons c env))) fun chars => lower next (.cons chars env)
++  | .raiseError next, env => .bind .raiseError fun _ => lower next env
++  | .branch condition yes no, env => .branch (eval condition env) (lower yes env) (lower no env)
++
++def execute (program : Stmt [] .scalar) (input : List Char) : Result :=
++  let result := interpret program .nil ⟨input, false⟩
++  ⟨result.1, result.2.input, result.2.error⟩
++
++end CssDerivation.FirstOrder
+--- /dev/null
++++ b/CssDerivation/Lowering.lean
+@@ -0,0 +1,44 @@
++import CssDerivation.FirstOrder
++
++namespace CssDerivation.FirstOrder
++
++theorem scan_lowering (predicate : Expr (.scalar :: Γ) .bool) (env : Env Γ)
++    (budget : Nat) (source : List Char) :
++    scanData predicate env budget source = scanPrefix (fun c => eval predicate (.cons c env)) budget source := by
++  induction budget generalizing source with
++  | zero => rfl
++  | succ budget ih =>
++      cases source with
++      | nil => rfl
++      | cons c rest => simp [scanData, scanPrefix, ih]
++
++theorem lowering_correct (program : Stmt Γ t) (env : Env Γ) (state : State) :
++    run (lower program env) state = interpret program env state := by
++  induction program generalizing state with
++  | ret value => rfl
++  | letE value next ih => simpa [lower, run, interpret] using ih (.cons (eval value env) env) state
++  | read eof present eofIH presentIH =>
++      cases input : state.input with
++      | nil => simpa [lower, run, interpret, input] using eofIH env state
++      | cons c rest =>
++          simpa [lower, run, interpret, input] using presentIH (.cons c env) { state with input := rest }
++  | scan budget predicate next ih =>
++      simpa [lower, run, interpret, scan_lowering] using
++        ih (.cons (scanPrefix (fun c => eval predicate (.cons c env)) budget state.input).1 env)
++          { state with input := (scanPrefix (fun c => eval predicate (.cons c env)) budget state.input).2 }
++  | raiseError next ih => simpa [lower, run, interpret] using ih env { state with error := true }
++  | branch condition yes no yesIH noIH =>
++      simp only [lower, run, interpret]
++      split
++      · exact yesIH env state
++      · exact noIH env state
++
++theorem execute_lowering (program : Stmt [] .scalar) (source : List Char) :
++    CssDerivation.execute (lower program .nil) source = execute program source := by
++  have equal := lowering_correct program .nil ⟨source, false⟩
++  unfold CssDerivation.execute execute
++  rw [equal]
++
++#print axioms lowering_correct
++
++end CssDerivation.FirstOrder
+--- /dev/null
++++ b/CssDerivation/Tests/JsonCases.lean
+@@ -0,0 +1,137 @@
++import CssDerivation.Examples.EscapeDocument
++
++namespace CssDerivation.JsonSchema
++open Lean FirstOrder TypedCodec
++set_option cbv.warning false
++
++def expressionValue (Γ : List Ty) (t : Ty) (env : Env Γ) (j : Json) (aliases : Aliases := []) : Option t.Value :=
++  (checkExprJson aliases Γ t j).map (fun e => eval e env)
++
++theorem right_op_layout :
++    expressionValue [] .nat .nil (rightObject 2 1 "op" (.str "nat") "args" (.arr #[7])) = some 7 := by cbv
++
++theorem right_args_layout :
++    expressionValue [] .nat .nil (rightObject 2 1 "args" (.arr #[7]) "op" (.str "nat")) = some 7 := by cbv
++
++theorem left_op_layout :
++    expressionValue [] .nat .nil (leftObject 2 1 "op" (.str "nat") "args" (.arr #[7])) = some 7 := by cbv
++
++theorem left_args_layout :
++    expressionValue [] .nat .nil (leftObject 2 1 "args" (.arr #[7]) "op" (.str "nat")) = some 7 := by cbv
++
++theorem arbitrary_cache_sizes :
++    expressionValue [] .nat .nil (rightObject 0 999 "op" (.str "nat") "args" (.arr #[7])) = some 7 := by cbv
++
++theorem duplicate_raw_keys_rejected :
++    (readExprData [] (rightObject 2 1 "op" (.str "nat") "op" (.arr #[7]))).isNone = true := by cbv
++
++theorem extra_field_rejected :
++    (readExprData [] (json% {"op":"nat","args":[7],"code":"extra"})).isNone = true := by cbv
++
++theorem unknown_tag_rejected :
++    (readExprData [] (nodeJson "arbitraryLean" [])).isNone = true := by cbv
++
++theorem wrong_arity_rejected :
++    (readExprData [] (nodeJson "sub" [nodeJson "nat" [7]])).isNone = true := by cbv
++
++theorem wrong_primitive_rejected :
++    (readExprData [] (nodeJson "nat" [.bool true])).isNone = true := by cbv
++
++theorem wrong_field_type_rejected :
++    (readExprData [] (json% {"op":"nat","args":7})).isNone = true := by cbv
++
++theorem negative_natural_rejected :
++    (readExprData [] (json% {"op":"nat","args":[-1]})).isNone = true := by cbv
++
++theorem invalid_scalar_surrogate :
++    (readExprData [] (nodeJson "scalar" [55296])).isNone = true := by cbv
++
++theorem invalid_scalar_upper_bound :
++    (readExprData [] (nodeJson "scalar" [1114112])).isNone = true := by cbv
++
++theorem scalar_wrapping_not_admitted :
++    (readExprData [] (nodeJson "scalar" [4294967361])).isNone = true := by cbv
++
++theorem scalar_maximum_admitted :
++    ((checkExprJson [] [] .scalar (nodeJson "scalar" [1114111])).map
++      (fun e => Char.toNat (eval e .nil))) = some 1114111 := by cbv
++
++theorem subtraction_roles_preserved :
++    expressionValue [] .nat .nil (encodeExprJson (.sub (.nat 7) (.nat 2) : Expr [] .nat)) = some 5 := by cbv
++
++theorem same_typed_variable_index_preserved :
++    expressionValue [.nat,.nat] .nat (.cons 3 (.cons 7 .nil))
++      (encodeExprJson (.var (.there .here) : Expr [.nat,.nat] .nat)) = some 7 := by cbv
++
++theorem wrong_result_type_rejected :
++    (checkExprJson [] [] .bool (nodeJson "nat" [7])).isNone = true := by cbv
++
++theorem wrong_operand_type_rejected :
++    (checkExprJson [] [] .nat (nodeJson "add" [nodeJson "bool" [.bool true],nodeJson "nat" [7]])).isNone = true := by cbv
++
++theorem out_of_scope_rejected :
++    (checkExprJson [] [] .nat (nodeJson "var" [0])).isNone = true := by cbv
++
++def foldExample : Expr [] .nat :=
++  .foldNat (.cons (.scalar 'A') .nil) (.nat 5) (.add (.code (.var .here)) (.var (.there .here)))
++
++theorem fold_binder_order_preserved :
++    expressionValue [] .nat .nil (encodeExprJson foldExample) = some 70 := by cbv
++
++theorem wrong_fold_step_type_rejected :
++    (checkExprJson [] [] .nat (nodeJson "foldNat"
++      [nodeJson "nil" [], nodeJson "nat" [0], nodeJson "var" [0]])).isNone = true := by cbv
++
++def repeatedAliases : Aliases := [("same", .nat, .nat 3), ("same", .nat, .nat 7)]
++
++theorem first_alias_match_preserved :
++    expressionValue [.nat] .nat (.cons 99 .nil) (nodeJson "use" [.str "same"]) repeatedAliases = some 3 := by cbv
++
++theorem first_alias_does_not_skip_bad_head :
++    (checkExprJson [("same",.bool,.nat 3),("same",.nat,.nat 7)] [.nat] .nat
++      (nodeJson "use" [.str "same"])).isNone = true := by cbv
++
++theorem alias_missing_head_rejected :
++    (checkExprJson repeatedAliases [] .nat (nodeJson "use" [.str "same"])).isNone = true := by cbv
++
++theorem unknown_alias_rejected :
++    (readExprData repeatedAliases (nodeJson "use" [.str "missing"])).isNone = true := by cbv
++
++theorem alias_cycle_definition_rejected :
++    (readDefinition (json% {"hexExpr":{"op":"use","args":["hexExpr"]}})
++      "hexExpr" .scalar .bool).isNone = true := by cbv
++
++theorem alias_tail_capture_definition_rejected :
++    (readDefinition (json% {"hexExpr":{"op":"eqChar","args":[{"op":"var","args":[1]},{"op":"scalar","args":[0]}]}})
++      "hexExpr" .scalar .bool).isNone = true := by cbv
++
++theorem alias_singleton_reference_admitted :
++    (readDefinition (json% {"hexExpr":{"op":"eqChar","args":[{"op":"var","args":[0]},{"op":"scalar","args":[0]}]}})
++      "hexExpr" .scalar .bool).isSome = true := by cbv
++
++def scanExample : Stmt [] .chars := .scan 1 (.bool true) (.ret (.var .here))
++
++theorem scan_budget_preserved :
++    ((checkStmtJson [] [] .chars (encodeStmtJson scanExample)).map
++      (fun p => (interpret p .nil ⟨['a','b'],false⟩).1)) = some ['a'] := by cbv
++
++theorem read_eof_scope_rejected :
++    (checkStmtJson [] [] .scalar (json% {"op":"read","args":[
++      {"op":"ret","args":[{"op":"var","args":[0]}]},
++      {"op":"ret","args":[{"op":"var","args":[0]}]}]})).isNone = true := by cbv
++
++theorem read_present_scope_admitted :
++    ((checkStmtJson [] [] .scalar (json% {"op":"read","args":[
++      {"op":"ret","args":[{"op":"scalar","args":[65533]}]},
++      {"op":"ret","args":[{"op":"var","args":[0]}]}]})).map
++      (fun p => (FirstOrder.execute p ['A','!']).value.toNat)) = some 65 := by cbv
++
++theorem fixture_hex :
++    runDocument TypedCodec.fixture ['4','1','!'] = some ⟨'A',['!'],false⟩ := by
++  rw [fixture_execution]; decide
++
++theorem fixture_eof :
++    runDocument TypedCodec.fixture [] = some ⟨Char.ofNat 65533,[],true⟩ := by
++  rw [fixture_execution]; decide
++
++end CssDerivation.JsonSchema
+--- /dev/null
++++ b/CssDerivation/Tools/ParserBoundary.lean
+@@ -0,0 +1,11 @@
++import CssDerivation.Codec.Json.Encoder
++
++open Lean CssDerivation CssDerivation.JsonSchema
++
++def main (args : List String) : IO Unit := do
++  for text in args do
++    let value : Option Nat := do
++      let j ← (Json.parse text).toOption
++      let expression ← checkExprJson [] [] .nat j
++      some (FirstOrder.eval expression .nil)
++    IO.println (toJson value).compress
+--- /dev/null
++++ b/CssDerivation/Tools/ReferenceRunner.lean
+@@ -0,0 +1,15 @@
++import CssDerivation.Examples.EscapeDocument
++
++open Lean CssDerivation CssDerivation.JsonSchema
++
++def main (args : List String) : IO Unit := do
++  let path :: inputs := args | throw (IO.userError "usage: ReferenceRunner.lean fixture.json input ...")
++  let text ← IO.FS.readFile path
++  let some program := readDocumentText text | throw (IO.userError "document refused")
++  unless TypedCodec.encodeStmt program = TypedCodec.encodeStmt FirstOrder.escapeTree do
++    throw (IO.userError "parsed tree differs from proved fixture")
++  for input in inputs do
++    let result := FirstOrder.execute program input.toList
++    IO.println (Json.mkObj [
++      ("input", toJson input), ("value", toJson result.value.toNat),
++      ("rest", toJson (String.ofList result.rest)), ("error", toJson result.error)]).compress
+--- /dev/null
++++ b/CssDerivation/Tools/RoundtripRunner.lean
+@@ -0,0 +1,18 @@
++import CssDerivation.Codec.Json.Document
++
++open Lean CssDerivation CssDerivation.JsonSchema
++
++def main (args : List String) : IO Unit := do
++  let path :: inputs := args | throw (IO.userError "usage: RoundtripRunner.lean fixture.json input ...")
++  let text ← IO.FS.readFile path
++  let some original := readDocumentText text | throw (IO.userError "document refused")
++  let canonical := encodeStmtJson original
++  let .ok reparsed := Json.parse canonical.compress | throw (IO.userError "canonical JSON parse failed")
++  let some program := checkStmtJson [] [] .scalar reparsed | throw (IO.userError "canonical JSON refused")
++  unless TypedCodec.encodeStmt program = TypedCodec.encodeStmt original do
++    throw (IO.userError "canonical text roundtrip changed tree")
++  for input in inputs do
++    let result := FirstOrder.execute program input.toList
++    IO.println (Json.mkObj [
++      ("input", toJson input), ("value", toJson result.value.toNat),
++      ("rest", toJson (String.ofList result.rest)), ("error", toJson result.error)]).compress
+--- /dev/null
++++ b/CssDerivation/Tools/Runner.lean
+@@ -0,0 +1,13 @@
++import CssDerivation.Codec.Json.Document
++
++open Lean CssDerivation CssDerivation.JsonSchema
++
++def main (args : List String) : IO Unit := do
++  let path :: inputs := args | throw (IO.userError "usage: Runner.lean fixture.json input ...")
++  let text ← IO.FS.readFile path
++  let some program := readDocumentText text | throw (IO.userError "document refused")
++  for input in inputs do
++    let result := FirstOrder.execute program input.toList
++    IO.println (Json.mkObj [
++      ("input", toJson input), ("value", toJson result.value.toNat),
++      ("rest", toJson (String.ofList result.rest)), ("error", toJson result.error)]).compress
+--- /dev/null
++++ b/CssDerivation.lean
+@@ -0,0 +1,5 @@
++import CssDerivation.Lowering
++import CssDerivation.Codec.DataLaws
++import CssDerivation.Codec.Json.TypedSchemaLaws
++import CssDerivation.Codec.Json.Document
++import CssDerivation.Examples.EscapeDocument
+--- a/README.md
++++ b/README.md
+@@ -14,6 +14,23 @@
+ [primary-spec inventory](research/current-spec-inventory.md). Audit/case counts
+ are not a percentage of CSS specification coverage. Historical checkpoint sections
+ retain their original profile exclusions.
++
++## Opt-in derivation tooling
++
++The separate `CssDerivation` Lean library provides a typed first-order algorithm
++IR, semantics-preserving lowering, typed-data and JSON-value codecs, and a
++CSS escaped-code-point example connected to the existing `CssEscape` relation.
++It adds research tooling, with no new CSS feature-coverage claim. The default
++`CssSemantics` target and its public scalar/input APIs remain unchanged.
++
++Run `lake build CssDerivation` to build the public tooling facade, or
++`python3 derivation_check.py --lean /path/to/lean/bin/lean --out /new/report/path`
++for fresh source-only checks, exact origin authentication, actual-file execution,
++axiom audits, and semantic negative controls. See
++[the tooling contract](research/derivation/README.md) for the module map,
++reproduction, and the remaining prose/JSON-text/legacy-document boundaries.
++The main `check.py` and `coverage.json` continue to account for CSS semantics;
++the separate checker reports tooling results without increasing CSS coverage.
+ 
+ ## Current checked pipeline
+ 
+--- /dev/null
++++ b/derivation_check.py
+@@ -0,0 +1,139 @@
++import argparse
++import hashlib
++import importlib.util
++import json
++import os
++from pathlib import Path
++import re
++import shutil
++import subprocess
++import sys
++import tempfile
++
++sys.dont_write_bytecode = True
++ROOT = Path(__file__).resolve().parent
++RESEARCH = ROOT / "research/derivation"
++
++
++def digest(data):
++    return hashlib.sha256(data).hexdigest()
++
++
++def restore_imports(data, inverse):
++    return "".join(
++        "import " + inverse.get(line[7:].strip(), line[7:].strip()) + "\n"
++        if line.startswith("import ") else line
++        for line in data.decode().splitlines(keepends=True)
++    ).encode()
++
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--lean", required=True, type=Path)
++    parser.add_argument("--out", required=True, type=Path)
++    args = parser.parse_args()
++    lean, out = args.lean.resolve(), args.out.resolve()
++    out.mkdir(parents=True, exist_ok=False)
++    transport = json.loads((RESEARCH / "TRANSPORT.json").read_text())
++    original = json.loads((RESEARCH / "origin/SOURCE-ONLY.json").read_text())
++    records = transport["records"]
++    if {r["source"]: r["source_sha256"] for r in records} != original:
++        raise ValueError("Transport does not cover exact accepted source roster")
++    inverse = {new: old for old, new in transport["module_map"].items()}
++    if len(inverse) != len(transport["module_map"]):
++        raise ValueError("Noninjective module relocation")
++    inputs = {}
++    restored = {}
++    for record in records:
++        name = record["installed"]
++        data = (ROOT / name).read_bytes()
++        inputs[name] = digest(data)
++        if inputs[name] != record["installed_sha256"]:
++            raise ValueError("Installed source changed: " + name)
++        raw = restore_imports(data, inverse) if name.endswith(".lean") else data
++        if digest(raw) != record["source_sha256"]:
++            raise ValueError("Relocation changed more than module imports: " + name)
++        restored[record["source"]] = raw
++    for name in ["derivation_check.py", "CssDerivation.lean", "lakefile.lean", "lean-toolchain",
++                 "research/derivation/TRANSPORT.json", "research/derivation/origin/SOURCE-ONLY.json"]:
++        inputs[name] = digest((ROOT / name).read_bytes())
++    commands = {}
++
++    def run(label, argv, work):
++        process = subprocess.run([str(x) for x in argv], cwd=work,
++                                 env=dict(os.environ, LEAN_PATH=str(work), PYTHONDONTWRITEBYTECODE="1"),
++                                 capture_output=True, text=True)
++        output = process.stdout + process.stderr
++        (out / (label + ".log")).write_text(output)
++        commands[label] = {"exit": process.returncode, "sha256": digest(output.encode())}
++        if process.returncode or re.search(r"(?m)^(?:[^\n]*:\d+:\d+: )?(?:warning:|error:|error\()", output):
++            raise ValueError("Unexpected result: " + label + "\n" + output)
++        return output
++
++    with tempfile.TemporaryDirectory(prefix="css-derivation-", dir=out) as directory:
++        temp = Path(directory)
++        accepted = temp / "accepted"
++        accepted.mkdir()
++        for name, data in restored.items():
++            destination = accepted / name
++            destination.parent.mkdir(parents=True, exist_ok=True)
++            destination.write_bytes(data)
++        run("accepted-regression", [sys.executable, "-B", accepted / "check.py", "--lean", lean,
++                                    "--out", out / "accepted-regression"], accepted)
++        spec = importlib.util.spec_from_file_location("accepted_check", accepted / "check.py")
++        helper = importlib.util.module_from_spec(spec)
++        spec.loader.exec_module(helper)
++        preserved = json.loads((accepted / "PRESERVED.json").read_text())
++        old_modules = preserved["modules"] + helper.OWN
++        modules = [transport["module_map"].get(m, m) for m in old_modules]
++        work = temp / "relocated"
++        work.mkdir()
++        for name in [r["installed"] for r in records if r["installed"].endswith(".lean")] + [
++                "CssDerivation.lean", "lakefile.lean", "lean-toolchain"]:
++            destination = work / name
++            destination.parent.mkdir(parents=True, exist_ok=True)
++            shutil.copyfile(ROOT / name, destination)
++        names = []
++        for module in modules:
++            path = module.replace(".", "/")
++            run("build-" + module, [lean, "-o", path + ".olean", path + ".lean"], work)
++            names += helper.declarations(work / (path + ".lean"))
++        run("build-facade", [lean, "-o", "CssDerivation.olean", "CssDerivation.lean"], work)
++        (work / "Audit.lean").write_text("import CssDerivation.Tests.JsonCases\n" + "".join(
++            "#print axioms " + name + "\n" for name in names))
++        output = run("axioms", [lean, "Audit.lean"], work)
++        audits = {}
++        for line in re.sub(r",\n\s*", ", ", output).splitlines():
++            match = re.fullmatch(r"'([^']+)' (does not depend on any axioms|depends on axioms: \[(.*)\])", line)
++            if not match:
++                raise ValueError("Unexpected axiom record: " + line)
++            axioms = set(match[3].split(", ")) if match[3] else set()
++            if not axioms <= {"propext", "Classical.choice", "Quot.sound"} or match[1] in audits:
++                raise ValueError("Bad axiom dependency record")
++            audits[match[1]] = sorted(axioms)
++        regression = json.loads((out / "accepted-regression/report.json").read_text())
++        if len(names) != len(set(names)) or set(audits) != set(names) or audits != regression["audits"]:
++            raise ValueError("Relocation altered theorem inventory or axiom dependencies")
++        expected = json.loads((accepted / "EXPECTED.json").read_text())
++        for runner in ["Runner", "RoundtripRunner", "ReferenceRunner"]:
++            path = transport["module_map"][runner].replace(".", "/") + ".lean"
++            output = run(runner, [lean, "--run", path, accepted / "escape.json"] +
++                         [row["input"] for row in expected], work)
++            if [json.loads(line) for line in output.splitlines()] != expected:
++                raise ValueError("Relocated runner changed execution")
++        run("lake-target", [lean.parent / "lake", "build", "CssDerivation"], work)
++    if inputs != {name: digest((ROOT / name).read_bytes()) for name in inputs}:
++        raise ValueError("Integration sources changed during verification")
++    report = {"status": "pass", "source_sha256": inputs, "transported_inputs": len(records),
++              "declaration_axioms": audits, "execution_rows_per_runner": len(expected),
++              "semantic_controls": regression["controls"], "commands": commands,
++              "import_only_transport_authenticated": True, "temporary_builds_removed": True,
++              "css_feature_coverage_added": False, "json_text_parser_proved": False,
++              "mechanical_prose_derivation": False}
++    (out / "report.json").write_text(json.dumps(report, indent=2) + "\n")
++    print(f"PASS: {len(audits)} relocated audits, {len(expected)} rows per runner, "
++          f"{len(regression['controls'])} accepted controls, and opt-in Lake target")
++
++
++if __name__ == "__main__":
++    main()
+--- a/lakefile.lean
++++ b/lakefile.lean
+@@ -5,3 +5,4 @@
+ 
+ @[default_target]
+ lean_lib CssSemantics
++lean_lib CssDerivation
+--- /dev/null
++++ b/research/derivation/README.md
+@@ -0,0 +1,78 @@
++# First-order derivation tooling
++
++This opt-in research library transports the accepted first-order escape pipeline,
++typed-data codec, and actual JSON-value schema codec. It is tooling for expressing
++and checking manually interpreted algorithms; it does not mechanically derive CSS
++semantics from prose or add CSS feature coverage.
++
++## Modules and contracts
++
++| Module | Contract |
++| --- | --- |
++| `CssDerivation.Backend` | Stateful effect interpreter over scalar input, remainder, and error flag. |
++| `CssDerivation.FirstOrder`, `Lowering` | Typed de Bruijn syntax, executable semantics, and lowering preserving complete value/state. |
++| `CssDerivation.Codec.Data`, `DataLaws` | Typed constructor roundtrips and accepted normalized-erasure guards. |
++| `CssDerivation.Codec.Json.Schema`, `Reader`, `SchemaLaws` | Independent actual-`Lean.Json` schema, executable reader, soundness and completeness. |
++| `CssDerivation.Codec.Json.Encoder`, `EncoderLaws`, `TypedSchemaLaws` | Canonical JSON-value typed roundtrips and alias-free accepted-schema correspondence. |
++| `CssDerivation.Codec.Json.Document` | Checked fixed legacy escape-document adapter using the new reader. |
++| `CssDerivation.Examples.*` | Preserved escape algorithms, literal fixture, and correspondence to existing `CssSemantics.CssEscape`. |
++| `CssDerivation.Tools.*`, `Tests.JsonCases` | Actual-file runners, parser observations, and kernel boundary cases. |
++
++Module paths are relocated, but declaration namespaces and theorem names are
++preserved. `TRANSPORT.json` records original and installed hashes, the complete
++module map, and the signed source checkpoint. Only import lines change.
++`CssSemantics.CssInput` and `CssSemantics.CssEscape` are reused byte-for-byte from
++the existing library. No duplicated scalar/input implementations are installed.
++
++`Codec.LegacyJson` remains because the accepted schema and document adapter use
++its alias type and field helpers. Its older AST fold is not the execution route:
++`Document` calls the new `Reader`. Retaining this labeled dependency avoids a
++semantic refactor during transport; splitting the helpers can be a later change.
++The backend/tree/reference artifacts remain proof references, while `Tools.Runner`
++imports only `Document` and executes the decoded real-file program.
++
++## Reproduction
++
++```sh
++lake build CssDerivation
++python3 derivation_check.py --lean /path/to/lean/bin/lean --out /new/report/path
++lake env lean --run CssDerivation/Tools/Runner.lean research/derivation/origin/escape.json '41!'
++```
++
++The default `lake build` and main `check.py` still select CSS semantics.
++`derivation_check.py` authenticates every installed source, reverses only the
++module-import relocation, and requires exact equality to the accepted source
++manifest. In fresh temporary trees it runs the unchanged accepted semantic
++harness, compiles the relocated modules, audits the exact same 143 theorem names
++and axiom sets, runs all three actual-file paths, and builds the opt-in Lake
++facade. Temporary compiled output is removed; commands and reports are retained.
++The semantic mutations run on the exactly restored accepted layout; relocated
++positive compilation/audits/runners separately check the module transport.
++
++`origin/` retains only source provenance, the exact input document, expected
++results, and the accepted checker/replay scripts. It does not duplicate Lean
++modules. Its old `MAPPING.md` uses historical capsule-relative source names;
++resolve those through `TRANSPORT.json`. Invoke the installed root checker, not
++the archived checker directly (the latter expects the reconstructed old layout).
++
++## Boundaries
++
++The JSON schema is an internal research format, not CSS grammar. The universal
++codec theorems cover JSON values. Text parsing, serialization, quoted-fixture
++construction, duplicate text keys, and numeric lexical spelling remain outside
++the proofs; actual-file execution supplies finite observations only. The parser
++collapses duplicate text keys before schema checking. Raw JSON map schemas
++explicitly admit the four two-field layouts and arbitrary cached sizes without
++assuming map validity. Canonical encoding uses a valid ordered two-field map.
++
++Aliases are first-match inputs to the generic schema. The fixed document adapter
++checks the four alias definitions with empty aliases and singleton contexts, then
++checks the program; universal top-level document orchestration and alias weakening
++are not claimed. Accepted raw JSON need not re-encode to the identical layout,
++cached size, numeric representation, or alias spelling.
++
++`origin/CLAUSES.json` preserves the reviewed normative excerpt provenance, and
++`origin/MAPPING.md` gives the original interpretation boundary. Specification
++interpretation and caller assumptions remain manually reviewed. No browser,
++Stylo/native refinement, new CSS coverage, ParserIR number extension, bytes,
++CSSOM coercion, or new DOMString theorem is implied by this tooling integration.
+--- /dev/null
++++ b/research/derivation/TRANSPORT.json
+@@ -0,0 +1,272 @@
++{
++  "origin_commit": "0dcfe7c2e7a8cd9924894449dd1d97d3c604d79c",
++  "origin_artifact": "artifacts/css-json-schema-codec-20261110-v1",
++  "canonical_base": "2d13828cd078dde80d097bc590988bc701be79d4",
++  "module_map": {
++    "StatefulIR": "CssDerivation.Backend",
++    "FirstOrder": "CssDerivation.FirstOrder",
++    "Lowering": "CssDerivation.Lowering",
++    "Codec": "CssDerivation.Codec.Data",
++    "Laws": "CssDerivation.Codec.DataLaws",
++    "JsonCodec": "CssDerivation.Codec.LegacyJson",
++    "GeneratedEscape": "CssDerivation.Examples.EscapeBackend",
++    "Bridge": "CssDerivation.Examples.EscapeBackendCorrespondence",
++    "GeneratedFirstOrder": "CssDerivation.Examples.EscapeTree",
++    "FOBridge": "CssDerivation.Examples.EscapeCorrespondence",
++    "FixtureJson": "CssDerivation.Examples.EscapeJson",
++    "Fixture": "CssDerivation.Examples.EscapeDocument",
++    "Cases": "CssDerivation.Tests.JsonCases",
++    "Schema": "CssDerivation.Codec.Json.Schema",
++    "Reader": "CssDerivation.Codec.Json.Reader",
++    "SchemaLaws": "CssDerivation.Codec.Json.SchemaLaws",
++    "Encoder": "CssDerivation.Codec.Json.Encoder",
++    "EncoderLaws": "CssDerivation.Codec.Json.EncoderLaws",
++    "TypedSchemaLaws": "CssDerivation.Codec.Json.TypedSchemaLaws",
++    "Document": "CssDerivation.Codec.Json.Document",
++    "Runner": "CssDerivation.Tools.Runner",
++    "RoundtripRunner": "CssDerivation.Tools.RoundtripRunner",
++    "ReferenceRunner": "CssDerivation.Tools.ReferenceRunner",
++    "ParserBoundary": "CssDerivation.Tools.ParserBoundary"
++  },
++  "records": [
++    {
++      "source": "Bridge.lean",
++      "source_sha256": "7b05b3035b1d66aa7058947743063a1d986f9db05810554af61628ee18a2ebc4",
++      "installed": "CssDerivation/Examples/EscapeBackendCorrespondence.lean",
++      "installed_sha256": "f94e8e14d6ec41054c3abc31a6c35741aead8c60de87696f29833106b614b6ac",
++      "shared": false
++    },
++    {
++      "source": "CLAUSES.json",
++      "source_sha256": "b2926897b43524f22f2004a36380e37e01e9cdee7748e7d861d38d9e9f08b0c0",
++      "installed": "research/derivation/origin/CLAUSES.json",
++      "installed_sha256": "b2926897b43524f22f2004a36380e37e01e9cdee7748e7d861d38d9e9f08b0c0",
++      "shared": false
++    },
++    {
++      "source": "Cases.lean",
++      "source_sha256": "c02069788e346b5bd13a7e2331722a56d84641e8ea925eb82d56cda4a672abb9",
++      "installed": "CssDerivation/Tests/JsonCases.lean",
++      "installed_sha256": "80b0ab002cbc0a52ef2ea5b97c26e2eccad5f371c5c5f05c3d11ab49c3fe1035",
++      "shared": false
++    },
++    {
++      "source": "Codec.lean",
++      "source_sha256": "2ca8a6ac8535fb3d3f636a455b74fa98120f1bf205b26d8f0e6d7fb1f4b19ade",
++      "installed": "CssDerivation/Codec/Data.lean",
++      "installed_sha256": "6cb3ce6d459ff7501631f8e85761957864393035bcac19360a0462140e98bff5",
++      "shared": false
++    },
++    {
++      "source": "CssSemantics/CssEscape.lean",
++      "source_sha256": "c24a72b82f59420429d53be90244e1e684742bb5083b2fd8c9dbf6eec5766d90",
++      "installed": "CssSemantics/CssEscape.lean",
++      "installed_sha256": "c24a72b82f59420429d53be90244e1e684742bb5083b2fd8c9dbf6eec5766d90",
++      "shared": true
++    },
++    {
++      "source": "CssSemantics/CssInput.lean",
++      "source_sha256": "a7a21f4a211d8e593dd5b9261e046aeace7c9d67b3c0524019acaf3739a709e9",
++      "installed": "CssSemantics/CssInput.lean",
++      "installed_sha256": "a7a21f4a211d8e593dd5b9261e046aeace7c9d67b3c0524019acaf3739a709e9",
++      "shared": true
++    },
++    {
++      "source": "Document.lean",
++      "source_sha256": "044a2a1a282f6f17bdd412afd30a3a9325ed71fbf2208bfaa70dbb58a8d63bbf",
++      "installed": "CssDerivation/Codec/Json/Document.lean",
++      "installed_sha256": "03521ef95cb768ab58cff67364202cf05aa7899a0d6c4b560965b349e97295d4",
++      "shared": false
++    },
++    {
++      "source": "EXPECTED.json",
++      "source_sha256": "f85d568e5614bb5746b82c616f32c5e5e7b41f2034d4e00785467c8eaf76f99c",
++      "installed": "research/derivation/origin/EXPECTED.json",
++      "installed_sha256": "f85d568e5614bb5746b82c616f32c5e5e7b41f2034d4e00785467c8eaf76f99c",
++      "shared": false
++    },
++    {
++      "source": "Encoder.lean",
++      "source_sha256": "40ba020e9375e99423c1aa35fe69a3d02616d78a31384ce2ee52af4ac1e47bf7",
++      "installed": "CssDerivation/Codec/Json/Encoder.lean",
++      "installed_sha256": "d83e7185477e89f9131983f9a2e7a915d3f80561faffdeb8fe1374c203037a2c",
++      "shared": false
++    },
++    {
++      "source": "EncoderLaws.lean",
++      "source_sha256": "ac84729ea637ba73b22b6c02c3fe3d1dd66aaa60373e3d2ca96c28e4251cf153",
++      "installed": "CssDerivation/Codec/Json/EncoderLaws.lean",
++      "installed_sha256": "e63b0bfa24ae439c71521e01157f24ac377623981dc67974ae0714fcae77ca4c",
++      "shared": false
++    },
++    {
++      "source": "FOBridge.lean",
++      "source_sha256": "5c0ded9f2add1dcd7c093f124bff8af7e323afd71afab836c6ba7d92840d1bc9",
++      "installed": "CssDerivation/Examples/EscapeCorrespondence.lean",
++      "installed_sha256": "84ca2119adfe645deac8c3cba06002b6d33a55179756b4f732bad5e16dc01bab",
++      "shared": false
++    },
++    {
++      "source": "FirstOrder.lean",
++      "source_sha256": "f86fd34d76aedfcd6086cc8a5ac807eff134d53bf0754b93059f16425944026e",
++      "installed": "CssDerivation/FirstOrder.lean",
++      "installed_sha256": "fa7ebe89eb2e959b573703747b85955342fa0ee7e37cd8b15c52af8fe62af6c6",
++      "shared": false
++    },
++    {
++      "source": "Fixture.lean",
++      "source_sha256": "b22eeae082db1d9c728024c3da304a21df47b8c1e6f567a51dcc31c2a3fe855b",
++      "installed": "CssDerivation/Examples/EscapeDocument.lean",
++      "installed_sha256": "bbcc4aa6c3f1350c3946ae3a9b2898870bf42d47ca436e35fe3038543f08034d",
++      "shared": false
++    },
++    {
++      "source": "FixtureJson.lean",
++      "source_sha256": "b0d18533bfc5463dbb8c1cc9f9fc185f052bd361fb9071303942db1dd0cd1b9d",
++      "installed": "CssDerivation/Examples/EscapeJson.lean",
++      "installed_sha256": "1af3b52c3b7edbf5c1e3c4623706472abbfb641ef415044369ede768dc651095",
++      "shared": false
++    },
++    {
++      "source": "GeneratedEscape.lean",
++      "source_sha256": "02b1ac657aed8a5378ddcde53ee8ac86d676c89d741e634090f95529aa7feb28",
++      "installed": "CssDerivation/Examples/EscapeBackend.lean",
++      "installed_sha256": "a20ef7ac58c23033ae546ec4a6b566f8e21138b1b15bd3a06673d5398223a6de",
++      "shared": false
++    },
++    {
++      "source": "GeneratedFirstOrder.lean",
++      "source_sha256": "8750df041c5ad27d08c4047e54e40cf0fab2bf2ce56c6fe65f01715e02213686",
++      "installed": "CssDerivation/Examples/EscapeTree.lean",
++      "installed_sha256": "ac84e9278b9e62566f88a039bb9ba4c2bb8c3753716f45809394887ae7cb47fb",
++      "shared": false
++    },
++    {
++      "source": "JsonCodec.lean",
++      "source_sha256": "7b29302d8a57ab33894844cfb8c65b267dc0ad8994fcedd7b91f167834a51f40",
++      "installed": "CssDerivation/Codec/LegacyJson.lean",
++      "installed_sha256": "50b31c869a9b1159fb5547b26f2b43ec3af01f0d8de003739a979b5ed17ac1ee",
++      "shared": false
++    },
++    {
++      "source": "Laws.lean",
++      "source_sha256": "45e46b79a528fe7ad16d42fbf87962d235fd6bb58c422797bdb0a257e172c410",
++      "installed": "CssDerivation/Codec/DataLaws.lean",
++      "installed_sha256": "ff5312125be2cab5b6eafdfbb2064f63bfde54dc202b89843868eb252e3a7f09",
++      "shared": false
++    },
++    {
++      "source": "Lowering.lean",
++      "source_sha256": "d6e0653a2832820ea25be477f47eba0adf911d96df1301c5d33fa02d1bbab860",
++      "installed": "CssDerivation/Lowering.lean",
++      "installed_sha256": "4acdb71f5146992397609dc22006d80c938cb98dee967498fea43c7670f0f7da",
++      "shared": false
++    },
++    {
++      "source": "MAPPING.md",
++      "source_sha256": "00cc92cb4e51371b11818becc4e2fc19f88c03cbf02a6a0f3def77044624471f",
++      "installed": "research/derivation/origin/MAPPING.md",
++      "installed_sha256": "00cc92cb4e51371b11818becc4e2fc19f88c03cbf02a6a0f3def77044624471f",
++      "shared": false
++    },
++    {
++      "source": "PARSER-EXPECTED.json",
++      "source_sha256": "5f9bd44e0cbea0e1a8f44dbc3ee4cd31685cb2b6279377770ee950a343245349",
++      "installed": "research/derivation/origin/PARSER-EXPECTED.json",
++      "installed_sha256": "5f9bd44e0cbea0e1a8f44dbc3ee4cd31685cb2b6279377770ee950a343245349",
++      "shared": false
++    },
++    {
++      "source": "PRESERVED.json",
++      "source_sha256": "a9fb82b0eb1ecbef85ad4865f412371a6cbdc788a6ead0561b4161342a3a744a",
++      "installed": "research/derivation/origin/PRESERVED.json",
++      "installed_sha256": "a9fb82b0eb1ecbef85ad4865f412371a6cbdc788a6ead0561b4161342a3a744a",
++      "shared": false
++    },
++    {
++      "source": "ParserBoundary.lean",
++      "source_sha256": "4653c7604ad301a92b51655ca500467bfe0ab38ebca9d3484beda0cf539a1bbe",
++      "installed": "CssDerivation/Tools/ParserBoundary.lean",
++      "installed_sha256": "7e7898f207747e1669cde258df7e93fa481403d89c42a3825938f6a435d2e738",
++      "shared": false
++    },
++    {
++      "source": "Reader.lean",
++      "source_sha256": "11b31b6ce47a96776be1188013ec77ff5d5b62402a689be033b45709cc9a9124",
++      "installed": "CssDerivation/Codec/Json/Reader.lean",
++      "installed_sha256": "65b459c72a65981c6508c23e9f7c707d2b169a60c80c2af3a3e9a7d21ef3b6c6",
++      "shared": false
++    },
++    {
++      "source": "ReferenceRunner.lean",
++      "source_sha256": "b06209a4a9cce08552d05282b359a796970ecb46772bb4efa445eef0d3abdc3c",
++      "installed": "CssDerivation/Tools/ReferenceRunner.lean",
++      "installed_sha256": "bb1e7b33655617a4a76e90f48ce54a16e7d7fdd48b1cd45be4f815cee1b4edba",
++      "shared": false
++    },
++    {
++      "source": "RoundtripRunner.lean",
++      "source_sha256": "67c6b1e36b7b744c20d61280b3a8ae91cb210d1183843b13bf91639d25871dac",
++      "installed": "CssDerivation/Tools/RoundtripRunner.lean",
++      "installed_sha256": "057549adf59eea316079ee0b32040818322f64a262cc7c45174510bd865c9f21",
++      "shared": false
++    },
++    {
++      "source": "Runner.lean",
++      "source_sha256": "bea1e445ca0f9f3585d4649bb69844ae2eb9462412ac5d312c932cbf52602e53",
++      "installed": "CssDerivation/Tools/Runner.lean",
++      "installed_sha256": "0856e675c630394d0248321fe9578a96aadf017622b172bd659c89dbf7afd1f2",
++      "shared": false
++    },
++    {
++      "source": "Schema.lean",
++      "source_sha256": "c608667a455ab1e2935eb6ae0293175a6c3385672db76d0c49a6c8596c72a47a",
++      "installed": "CssDerivation/Codec/Json/Schema.lean",
++      "installed_sha256": "ff0653ba8f3f08e7e02f347638921837215b109834888bff6229e6a7efaf787f",
++      "shared": false
++    },
++    {
++      "source": "SchemaLaws.lean",
++      "source_sha256": "daa7edff7741873ca2cae7ca123e9a2ba7001fe7033d91dcf25e62066eadba98",
++      "installed": "CssDerivation/Codec/Json/SchemaLaws.lean",
++      "installed_sha256": "f17e54725d1d4b3612ec83c632b2fd9628f6c7d29713f4b9ee3ec7babd85eb94",
++      "shared": false
++    },
++    {
++      "source": "StatefulIR.lean",
++      "source_sha256": "965f20d380a9c705fffede7056078a5f0e6971a6693b536d67f48b380a9f701a",
++      "installed": "CssDerivation/Backend.lean",
++      "installed_sha256": "965f20d380a9c705fffede7056078a5f0e6971a6693b536d67f48b380a9f701a",
++      "shared": false
++    },
++    {
++      "source": "TypedSchemaLaws.lean",
++      "source_sha256": "73b56f459eadb674250ff28f4c62b74cec9f6549c5f50971ceafdcfe1c45e1d9",
++      "installed": "CssDerivation/Codec/Json/TypedSchemaLaws.lean",
++      "installed_sha256": "169cfc4c273d65244a55d4af4f59ba4a099a3de8810db31b32e05402bff5284e",
++      "shared": false
++    },
++    {
++      "source": "check.py",
++      "source_sha256": "5ab943e1aa56f654646f012b6e9db283d7bcbe0045b5ea2a084a398de9af5213",
++      "installed": "research/derivation/origin/check.py",
++      "installed_sha256": "5ab943e1aa56f654646f012b6e9db283d7bcbe0045b5ea2a084a398de9af5213",
++      "shared": false
++    },
++    {
++      "source": "escape.json",
++      "source_sha256": "691e30134a4357a2ab96c3fff6871f5d831645a1a9903f17fffd81711a74acf6",
++      "installed": "research/derivation/origin/escape.json",
++      "installed_sha256": "691e30134a4357a2ab96c3fff6871f5d831645a1a9903f17fffd81711a74acf6",
++      "shared": false
++    },
++    {
++      "source": "replay.py",
++      "source_sha256": "f9e09ef8ddb6dd3e610bbc9d88c1c8b665aff6e09b1eccf7694a24b23564700e",
++      "installed": "research/derivation/origin/replay.py",
++      "installed_sha256": "f9e09ef8ddb6dd3e610bbc9d88c1c8b665aff6e09b1eccf7694a24b23564700e",
++      "shared": false
++    }
++  ],
++  "transform": "Replace exact import lines only; preserve namespace/declarations and all non-import bytes."
++}
+--- /dev/null
++++ b/research/derivation/origin/CLAUSES.json
+@@ -0,0 +1,64 @@
++{
++  "origin": "AST-to-prose links are manually chosen; unique source byte spans are extracted mechanically. This is traceability, not a proved semantic mapping.",
++  "source_file": "prior/inputs/css-syntax-3.bs",
++  "source_sha256": "4a4a5a3994bda10a56885e66776169d0e05d5a7515b0def4e8859c20e3fd4afc",
++  "ast_file": "generated/escape.json",
++  "clauses": [
++    {
++      "ast_pointer": "/program",
++      "source_bytes": [
++        48668,
++        48709
++      ],
++      "source_markup": "Consume the <a>next input code point</a>."
++    },
++    {
++      "ast_pointer": "/program/args/1/args/1",
++      "source_bytes": [
++        48750,
++        48816
++      ],
++      "source_markup": "Consume as many <a>hex digits</a> as possible, but no more than 5."
++    },
++    {
++      "ast_pointer": "/program/args/1/args/1/args/2",
++      "source_bytes": [
++        48914,
++        48997
++      ],
++      "source_markup": "If the <a>next input code point</a> is\n\t\t\t<a>whitespace</a>,\n\t\t\tconsume it as well."
++    },
++    {
++      "ast_pointer": "/definitions/magnitudeExpr",
++      "source_bytes": [
++        49001,
++        49057
++      ],
++      "source_markup": "Interpret the <a>hex digits</a> as a hexadecimal number."
++    },
++    {
++      "ast_pointer": "/definitions/decodeExpr",
++      "source_bytes": [
++        49061,
++        49284
++      ],
++      "source_markup": "If this number is zero,\n\t\t\tor is for a <a>surrogate</a>,\n\t\t\tor is greater than the <a>maximum allowed code point</a>,\n\t\t\treturn U+FFFD REPLACEMENT CHARACTER (\ufffd).\n\t\t\tOtherwise, return the <a>code point</a> with that value."
++    },
++    {
++      "ast_pointer": "/program/args/0",
++      "source_bytes": [
++        49306,
++        49381
++      ],
++      "source_markup": "This is a <a>parse error</a>.\n\t\t\tReturn U+FFFD REPLACEMENT CHARACTER (\ufffd)."
++    },
++    {
++      "ast_pointer": "/program/args/1/args/2",
++      "source_bytes": [
++        49413,
++        49456
++      ],
++      "source_markup": "Return the <a>current input code point</a>."
++    }
++  ]
++}
+--- /dev/null
++++ b/research/derivation/origin/EXPECTED.json
+@@ -0,0 +1,80 @@
++[
++  {
++    "input": "",
++    "value": 65533,
++    "rest": "",
++    "error": true
++  },
++  {
++    "input": "41!",
++    "value": 65,
++    "rest": "!",
++    "error": false
++  },
++  {
++    "input": "41  !",
++    "value": 65,
++    "rest": " !",
++    "error": false
++  },
++  {
++    "input": "41\t!",
++    "value": 65,
++    "rest": "!",
++    "error": false
++  },
++  {
++    "input": "000041F",
++    "value": 65,
++    "rest": "F",
++    "error": false
++  },
++  {
++    "input": "0!",
++    "value": 65533,
++    "rest": "!",
++    "error": false
++  },
++  {
++    "input": "D800!",
++    "value": 65533,
++    "rest": "!",
++    "error": false
++  },
++  {
++    "input": "DFFF!",
++    "value": 65533,
++    "rest": "!",
++    "error": false
++  },
++  {
++    "input": "10FFFF!",
++    "value": 1114111,
++    "rest": "!",
++    "error": false
++  },
++  {
++    "input": "110000!",
++    "value": 65533,
++    "rest": "!",
++    "error": false
++  },
++  {
++    "input": "z!",
++    "value": 122,
++    "rest": "!",
++    "error": false
++  },
++  {
++    "input": "1",
++    "value": 1,
++    "rest": "",
++    "error": false
++  },
++  {
++    "input": "abcdef0",
++    "value": 65533,
++    "rest": "0",
++    "error": false
++  }
++]
+--- /dev/null
++++ b/research/derivation/origin/MAPPING.md
+@@ -0,0 +1,57 @@
++# JSON-value schema and proof boundary
++
++This capsule closes the expression/statement JSON-value adapter gap left by the typed-data codec. The new universal statements quantify over `Lean.Json` values, not a second standalone raw-tree representation. The wire schema is a research-tool contract inherited from the existing first-order IR fixture; it is not itself a W3C CSS grammar or an automatically derived formalization of prose.
++
++## Schema, reader and typed composition
++
++`Schema.lean` gives independent inductive `ExprSchema`/`StmtSchema` relations. Each constructor fixes the operation tag, exact argument count, literal interpretation and ordered child roles. Numbers use the existing `Json.getNat?` primitive; scalar literals additionally require the Unicode scalar bounds. The `use` constructor explicitly requires first-match alias lookup and records the declared scope head/body. It does not substitute arbitrary alias membership for the reader's lookup policy.
++
++`Reader.lean` returns a data tree paired with a proof of the corresponding schema relation. It traverses the finite JSON structure with a proved decreasing measure, without fuel or a partial definition. The proof carrier ensures that an accepted node has a schema derivation. `SchemaLaws.lean` separately proves completeness by induction over the schema. Consequently:
++
++```lean
++readExprData aliases j = some e ↔ ExprSchema aliases j e
++readStmtData aliases j = some p ↔ StmtSchema aliases j p
++```
++
++These are soundness and completeness for the stated JSON-value grammar, not merely an implication from returning a certificate. They do not assert that every JSON value is admissible, that arbitrary data has the requested type, or that the reader accepts all unrelated JSON object conventions.
++
++`Encoder.lean` emits actual JSON objects from the existing typed `Expr Γ t`/`Stmt Γ t`. `EncoderLaws.lean` proves their schema derivations and universal typed roundtrips for all contexts, result types and finite typed trees. Scalar encoding uses `Char.toNat`, the character's validity proof and `Char.ofNat_toNat`; it does not silently wrap arbitrary naturals into characters.
++
++The final reader composes schema decoding with the preserved typed checker, including its canonical-erasure guard. For supplied aliases, accepted typed results have a schema derivation for a raw tree and an exact equality between the typed erasure and normalized raw tree. Normalization removes declared alias-scope wrappers; the typed checker validates the wrapper's head and all variable/binder types before accepting it.
++
++For an empty alias environment, `TypedSchemaLaws.lean` proves that schema trees contain no effective scope wrappers. This gives the stronger actual-JSON equivalence:
++
++```lean
++checkExprJson [] Γ t j = some e ↔ ExprSchema [] j (encodeExpr e)
++checkStmtJson [] Γ t j = some p ↔ StmtSchema [] j (encodeStmt p)
++```
++
++Here `encodeExpr`/`encodeStmt` are the preserved typed-data erasures. Thus arbitrary accepted alias-free JSON is related to the exact returned typed tree. This is not a claim that re-encoding an arbitrary accepted JSON value reproduces its original representation: field placement, raw cached sizes, numeric representations and aliases can differ while denoting the same admitted tree.
++
++## Raw object representation
++
++`Lean.Json.obj` exposes a raw binary map tree. `Node` explicitly admits all four exact two-entry arrangements: either child direction and either placement of `op`/`args`. Cached size fields may be arbitrary. In particular, the theorem does **not** assume all supplied raw maps are valid, sorted, balanced or produced by `Json.mkObj`. The reader pattern-matches the representation rather than relying on map lookup. Each admitted node still contains exactly one `op` string and one `args` array; duplicate raw keys, extra nodes and unsupported shapes do not match.
++
++The canonical encoder chooses a valid two-entry `args`-then-`op` tree with correct cached sizes. The universal theorem concerns the explicit `Node` grammar; it does not prove a general raw-map normalization library or any property of arbitrary map lookup on malformed trees. Child array order remains significant and is preserved.
++
++## Actual document route and aliases
++
++`Document.lean` preserves the existing fixed four-definition document protocol. Every definition and the program now use the **new proved AST reader**. Definitions are read with an empty alias environment, checked at the declared singleton head/result type, and then supplied to program decoding. Cyclic/recursive aliases and tail capture are refused by that route. Generic alias-parameterized schema theorems do not assume singleton validation; that validation belongs to this document adapter. Alias scope weakening or complete document orchestration is not separately proved universally.
++
++The top-level version/field/name checks, metadata handling and field lookup still use the preserved document helpers. `source_map` is inert provenance and must be an object; its contents are not a semantic proof. The old `foldJson` implementation remains in a preserved imported module but is not called by the new `Document`, `Reader`, `Encoder` or standalone runner path. This distinction can be checked directly from those definitions.
++
++`FixtureJson.lean` is an unchanged standard `json%` quotation of the exact preserved `escape.json` bytes. The harness verifies that correspondence. `fixture_decodes` is a kernel-checked concrete theorem that the new full document route yields the old proved `escapeTree`; `fixture_relation` composes its value/remainder/EOF behavior with the existing escape relation. Kernel-checked `cbv` performs this closed computation and selected boundary computations; per-declaration axiom audits permit only standard logical dependencies. No native-decision axiom is used.
++
++`Runner` imports only the new document route and executes the typed value decoded from the actual file. `RoundtripRunner` encodes that result as canonical JSON, compresses/parses it, checks the canonical AST through the same reader, compares typed erasures and executes the decoded canonical result. `ReferenceRunner` separately compares the actual-file decoded erasure to the proved escape tree before executing the decoded result. The reference is used for comparison, never substituted as the runtime result.
++
++## Text and specification boundaries
++
++The universal theorems are over JSON **values**. Standard `Json.parse`, `Json.compress`, quotation/elaboration, UTF/string/numeric text lexing and duplicate-text-key policy are not proved here. The text parser keeps the last duplicate object key before the AST reader sees the object. Its natural-number representation admits spellings such as `1e1` as 10 while rejecting `1.0`; `PARSER-EXPECTED.json` records these runtime observations. The actual fixture's text roundtrip is observed, not promoted to a universal serializer/parser theorem.
++
++The CSS interpretation and caller obligations remain those of the pinned predecessor. `CLAUSES.json` retains seven exact excerpts and manually chosen AST-pointer links from [CSS Syntax at c410ee5e4d2afe6d8b2e8ce53723b8d1eb3b5b67](https://github.com/w3c/csswg-drafts/blob/c410ee5e4d2afe6d8b2e8ce53723b8d1eb3b5b67/css-syntax-3/Overview.bs), including [consume an escaped code point](https://drafts.csswg.org/css-syntax-3/#consume-escaped-code-point). Character definitions retain the earlier [Infra source pin](https://github.com/whatwg/infra/blob/c67ae1fb1d161b23d0f8c9bf9917ea1993f7b19a/infra.bs). These are inherited reviewed interpretations, not fresh extraction or latest-draft coverage. The scalar-list input still requires the earlier caller/preprocessing contract for CSS conformance; raw DOMString coercion, bytes and native cursors are outside this milestone.
++
++`PRESERVED.json` pins fifteen copied predecessor files from signed commit `2f8edd8effa87071d0576d488cb6cfa2fc65721c`. Root independently authenticated their Git objects in `ROOT-ORIGINS.json`. Shared pure primitives, the semantic meaning of the IR, the old CSS reference relation and the prose-to-AST interpretation remain trust boundaries. No Firefox source, browser build, WPT, canonical library or Git history is changed by this artifact.
++
++## Validation interpretation
++
++The checker audits all new and preserved theorem declarations, runs kernel boundary cases, executes the three actual-file routes, observes parser boundaries and refuses malformed actual documents. Semantic mutants alter compilable encoder definitions, reader acceptance or document alias selection. Each witness must pass on the baseline; the mutant implementation must compile; an unchanged theorem must fail; and the concrete witness must end in Lean's explicit false-proposition diagnostic. A proof-carrying reader's compile-time refusal to construct an invalid certificate is not mislabeled as a compiling semantic mutant. Hash/literal controls separately test provenance refusal.
+--- /dev/null
++++ b/research/derivation/origin/PARSER-EXPECTED.json
+@@ -0,0 +1,54 @@
++[
++  {
++    "text": "{\"op\":\"nat\",\"args\":[0]}",
++    "value": 0
++  },
++  {
++    "text": "{\"op\":\"nat\",\"args\":[-0]}",
++    "value": 0
++  },
++  {
++    "text": "{\"op\":\"nat\",\"args\":[1]}",
++    "value": 1
++  },
++  {
++    "text": "{\"op\":\"nat\",\"args\":[1e0]}",
++    "value": 1
++  },
++  {
++    "text": "{\"op\":\"nat\",\"args\":[1e1]}",
++    "value": 10
++  },
++  {
++    "text": "{\"op\":\"nat\",\"args\":[1.0e1]}",
++    "value": 10
++  },
++  {
++    "text": "{\"op\":\"nat\",\"args\":[1.0]}",
++    "value": null
++  },
++  {
++    "text": "{\"op\":\"nat\",\"args\":[10e-1]}",
++    "value": null
++  },
++  {
++    "text": "{\"op\":\"nat\",\"args\":[-1]}",
++    "value": null
++  },
++  {
++    "text": "{\"op\":\"nat\",\"args\":[true]}",
++    "value": null
++  },
++  {
++    "text": "{\"op\":\"nat\",\"args\":[01]}",
++    "value": null
++  },
++  {
++    "text": "{\"op\":\"unknown\",\"op\":\"nat\",\"args\":[1]}",
++    "value": 1
++  },
++  {
++    "text": "{\"op\":\"nat\",\"op\":\"unknown\",\"args\":[1]}",
++    "value": null
++  }
++]
+--- /dev/null
++++ b/research/derivation/origin/PRESERVED.json
+@@ -0,0 +1,36 @@
++{
++  "origin_commit": "2f8edd8effa87071d0576d488cb6cfa2fc65721c",
++  "origin_artifact": "artifacts/css-typed-codec-20261110-v1",
++  "modules": [
++    "StatefulIR",
++    "CssSemantics.CssInput",
++    "CssSemantics.CssEscape",
++    "GeneratedEscape",
++    "Bridge",
++    "FirstOrder",
++    "Lowering",
++    "GeneratedFirstOrder",
++    "FOBridge",
++    "Codec",
++    "Laws",
++    "JsonCodec",
++    "FixtureJson"
++  ],
++  "sha256": {
++    "StatefulIR.lean": "965f20d380a9c705fffede7056078a5f0e6971a6693b536d67f48b380a9f701a",
++    "CssSemantics/CssInput.lean": "a7a21f4a211d8e593dd5b9261e046aeace7c9d67b3c0524019acaf3739a709e9",
++    "CssSemantics/CssEscape.lean": "c24a72b82f59420429d53be90244e1e684742bb5083b2fd8c9dbf6eec5766d90",
++    "GeneratedEscape.lean": "02b1ac657aed8a5378ddcde53ee8ac86d676c89d741e634090f95529aa7feb28",
++    "Bridge.lean": "7b05b3035b1d66aa7058947743063a1d986f9db05810554af61628ee18a2ebc4",
++    "FirstOrder.lean": "f86fd34d76aedfcd6086cc8a5ac807eff134d53bf0754b93059f16425944026e",
++    "Lowering.lean": "d6e0653a2832820ea25be477f47eba0adf911d96df1301c5d33fa02d1bbab860",
++    "GeneratedFirstOrder.lean": "8750df041c5ad27d08c4047e54e40cf0fab2bf2ce56c6fe65f01715e02213686",
++    "FOBridge.lean": "5c0ded9f2add1dcd7c093f124bff8af7e323afd71afab836c6ba7d92840d1bc9",
++    "Codec.lean": "2ca8a6ac8535fb3d3f636a455b74fa98120f1bf205b26d8f0e6d7fb1f4b19ade",
++    "Laws.lean": "45e46b79a528fe7ad16d42fbf87962d235fd6bb58c422797bdb0a257e172c410",
++    "JsonCodec.lean": "7b29302d8a57ab33894844cfb8c65b267dc0ad8994fcedd7b91f167834a51f40",
++    "FixtureJson.lean": "b0d18533bfc5463dbb8c1cc9f9fc185f052bd361fb9071303942db1dd0cd1b9d",
++    "escape.json": "691e30134a4357a2ab96c3fff6871f5d831645a1a9903f17fffd81711a74acf6",
++    "CLAUSES.json": "b2926897b43524f22f2004a36380e37e01e9cdee7748e7d861d38d9e9f08b0c0"
++  }
++}
+--- /dev/null
++++ b/research/derivation/origin/SOURCE-ONLY.json
+@@ -0,0 +1,36 @@
++{
++  "Bridge.lean": "7b05b3035b1d66aa7058947743063a1d986f9db05810554af61628ee18a2ebc4",
++  "CLAUSES.json": "b2926897b43524f22f2004a36380e37e01e9cdee7748e7d861d38d9e9f08b0c0",
++  "Cases.lean": "c02069788e346b5bd13a7e2331722a56d84641e8ea925eb82d56cda4a672abb9",
++  "Codec.lean": "2ca8a6ac8535fb3d3f636a455b74fa98120f1bf205b26d8f0e6d7fb1f4b19ade",
++  "CssSemantics/CssEscape.lean": "c24a72b82f59420429d53be90244e1e684742bb5083b2fd8c9dbf6eec5766d90",
++  "CssSemantics/CssInput.lean": "a7a21f4a211d8e593dd5b9261e046aeace7c9d67b3c0524019acaf3739a709e9",
++  "Document.lean": "044a2a1a282f6f17bdd412afd30a3a9325ed71fbf2208bfaa70dbb58a8d63bbf",
++  "EXPECTED.json": "f85d568e5614bb5746b82c616f32c5e5e7b41f2034d4e00785467c8eaf76f99c",
++  "Encoder.lean": "40ba020e9375e99423c1aa35fe69a3d02616d78a31384ce2ee52af4ac1e47bf7",
++  "EncoderLaws.lean": "ac84729ea637ba73b22b6c02c3fe3d1dd66aaa60373e3d2ca96c28e4251cf153",
++  "FOBridge.lean": "5c0ded9f2add1dcd7c093f124bff8af7e323afd71afab836c6ba7d92840d1bc9",
++  "FirstOrder.lean": "f86fd34d76aedfcd6086cc8a5ac807eff134d53bf0754b93059f16425944026e",
++  "Fixture.lean": "b22eeae082db1d9c728024c3da304a21df47b8c1e6f567a51dcc31c2a3fe855b",
++  "FixtureJson.lean": "b0d18533bfc5463dbb8c1cc9f9fc185f052bd361fb9071303942db1dd0cd1b9d",
++  "GeneratedEscape.lean": "02b1ac657aed8a5378ddcde53ee8ac86d676c89d741e634090f95529aa7feb28",
++  "GeneratedFirstOrder.lean": "8750df041c5ad27d08c4047e54e40cf0fab2bf2ce56c6fe65f01715e02213686",
++  "JsonCodec.lean": "7b29302d8a57ab33894844cfb8c65b267dc0ad8994fcedd7b91f167834a51f40",
++  "Laws.lean": "45e46b79a528fe7ad16d42fbf87962d235fd6bb58c422797bdb0a257e172c410",
++  "Lowering.lean": "d6e0653a2832820ea25be477f47eba0adf911d96df1301c5d33fa02d1bbab860",
++  "MAPPING.md": "00cc92cb4e51371b11818becc4e2fc19f88c03cbf02a6a0f3def77044624471f",
++  "PARSER-EXPECTED.json": "5f9bd44e0cbea0e1a8f44dbc3ee4cd31685cb2b6279377770ee950a343245349",
++  "PRESERVED.json": "a9fb82b0eb1ecbef85ad4865f412371a6cbdc788a6ead0561b4161342a3a744a",
++  "ParserBoundary.lean": "4653c7604ad301a92b51655ca500467bfe0ab38ebca9d3484beda0cf539a1bbe",
++  "Reader.lean": "11b31b6ce47a96776be1188013ec77ff5d5b62402a689be033b45709cc9a9124",
++  "ReferenceRunner.lean": "b06209a4a9cce08552d05282b359a796970ecb46772bb4efa445eef0d3abdc3c",
++  "RoundtripRunner.lean": "67c6b1e36b7b744c20d61280b3a8ae91cb210d1183843b13bf91639d25871dac",
++  "Runner.lean": "bea1e445ca0f9f3585d4649bb69844ae2eb9462412ac5d312c932cbf52602e53",
++  "Schema.lean": "c608667a455ab1e2935eb6ae0293175a6c3385672db76d0c49a6c8596c72a47a",
++  "SchemaLaws.lean": "daa7edff7741873ca2cae7ca123e9a2ba7001fe7033d91dcf25e62066eadba98",
++  "StatefulIR.lean": "965f20d380a9c705fffede7056078a5f0e6971a6693b536d67f48b380a9f701a",
++  "TypedSchemaLaws.lean": "73b56f459eadb674250ff28f4c62b74cec9f6549c5f50971ceafdcfe1c45e1d9",
++  "check.py": "5ab943e1aa56f654646f012b6e9db283d7bcbe0045b5ea2a084a398de9af5213",
++  "escape.json": "691e30134a4357a2ab96c3fff6871f5d831645a1a9903f17fffd81711a74acf6",
++  "replay.py": "f9e09ef8ddb6dd3e610bbc9d88c1c8b665aff6e09b1eccf7694a24b23564700e"
++}
+--- /dev/null
++++ b/research/derivation/origin/check.py
+@@ -0,0 +1,241 @@
++import argparse
++import hashlib
++import json
++import os
++from pathlib import Path
++import re
++import shutil
++import subprocess
++import tempfile
++
++ROOT = Path(__file__).resolve().parent
++OWN = ["Schema", "Reader", "SchemaLaws", "Encoder", "EncoderLaws", "TypedSchemaLaws",
++       "Document", "Fixture", "Cases", "Runner", "RoundtripRunner", "ReferenceRunner", "ParserBoundary"]
++
++
++def sha(data):
++    return hashlib.sha256(data).hexdigest()
++
++
++def authenticate(root):
++    preserved = json.loads((root / "PRESERVED.json").read_text())
++    for name, digest in preserved["sha256"].items():
++        if sha((root / name).read_bytes()) != digest:
++            raise ValueError("Preserved source changed: " + name)
++    quoted = ('import JsonCodec\n\nnamespace CssDerivation.TypedCodec\n\ndef fixture : Lean.Json := json% '
++              + (root / "escape.json").read_text() + '\nend CssDerivation.TypedCodec\n')
++    if (root / "FixtureJson.lean").read_text() != quoted:
++        raise ValueError("Quoted fixture is not the exact JSON source")
++
++
++def declarations(path):
++    scopes, result = [], []
++    for raw in path.read_text().splitlines():
++        line = raw.strip()
++        opening = re.fullmatch(r"namespace (\S+)", line)
++        ending = re.fullmatch(r"end(?: (\S+))?", line)
++        theorem = re.match(r"(?:@\[[^]]+\] )?theorem (\S+)", line)
++        if opening:
++            scopes.append(opening[1])
++        elif ending and ending[1] is not None:
++            if not scopes or ending[1] != scopes[-1]:
++                raise ValueError("Unexpected namespace")
++            scopes.pop()
++        elif theorem:
++            result.append(".".join(scopes + [theorem[1]]))
++    if scopes:
++        raise ValueError("Unclosed namespace")
++    return result
++
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--lean", required=True, type=Path)
++    parser.add_argument("--out", required=True, type=Path)
++    args = parser.parse_args()
++    lean, out = args.lean.resolve(), args.out.resolve()
++    out.mkdir(parents=True, exist_ok=False)
++    authenticate(ROOT)
++    preserved = json.loads((ROOT / "PRESERVED.json").read_text())
++    modules = [name.replace(".", "/") for name in preserved["modules"]] + OWN
++    files = [module + ".lean" for module in modules] + [
++        "check.py", "replay.py", "EXPECTED.json", "PARSER-EXPECTED.json", "PRESERVED.json",
++        "escape.json", "CLAUSES.json", "MAPPING.md"]
++    before = {name: sha((ROOT / name).read_bytes()) for name in files}
++    names, own_names = [], []
++    for module in modules:
++        path = ROOT / (module + ".lean")
++        if re.search(r"\bsorry\b|\badmit\b|\bnative_decide\b|^axiom |^unsafe |^partial ", path.read_text(), re.M):
++            raise ValueError("Unapproved proof escape")
++        found = declarations(path)
++        names += found
++        if module in OWN:
++            own_names += found
++    if len(names) != len(set(names)):
++        raise ValueError("Duplicate theorem declaration")
++    commands = {}
++
++    def run(name, argv, work, reject=False):
++        process = subprocess.run([str(x) for x in argv], cwd=work,
++                                 env=dict(os.environ, LEAN_PATH=str(work)), capture_output=True, text=True)
++        output = process.stdout + process.stderr
++        (out / (name + ".log")).write_text(output)
++        commands[name] = {"exit": process.returncode, "output_sha256": sha(output.encode())}
++        if reject:
++            if process.returncode != 1 or "error:" not in output:
++                raise ValueError("Unexpected rejection: " + name + "\n" + output)
++        elif process.returncode or (re.search(r"(?m)^(?:[^\n]*:\d+:\d+: )?(?:warning:|error:|error\()", output) or re.search(r"\bsorry\b", output)):
++            raise ValueError("Unexpected diagnostic: " + name + "\n" + output)
++        return output
++
++    version = run("version", [lean, "--version"], out).strip()
++    if "version 4.35.0-rc4," not in version:
++        raise ValueError("Unexpected Lean version")
++    controls = {}
++    with tempfile.TemporaryDirectory(prefix="json-schema-check-", dir=out) as directory:
++        base = Path(directory)
++        work = base / "positive"
++        work.mkdir()
++        for module in modules:
++            destination = work / (module + ".lean")
++            destination.parent.mkdir(parents=True, exist_ok=True)
++            shutil.copyfile(ROOT / (module + ".lean"), destination)
++            run("build-" + module.replace("/", "-"), [lean, "-o", module + ".olean", module + ".lean"], work)
++        (work / "Audit.lean").write_text("import Cases\n" + "".join(
++            "#print axioms " + name + "\n" for name in names))
++        output = run("axioms", [lean, "Audit.lean"], work)
++        audits = {}
++        for line in re.sub(r",\n\s*", ", ", output).splitlines():
++            match = re.fullmatch(r"'([^']+)' (does not depend on any axioms|depends on axioms: \[(.*)\])", line)
++            if not match:
++                raise ValueError("Unexpected axiom record: " + line)
++            axioms = set(match[3].split(", ")) if match[3] else set()
++            if not axioms <= {"propext", "Classical.choice", "Quot.sound"}:
++                raise ValueError("Unapproved axiom: " + line)
++            if match[1] in audits:
++                raise ValueError("Duplicate axiom record")
++            audits[match[1]] = sorted(axioms)
++        if set(audits) != set(names):
++            raise ValueError("Incomplete axiom audit")
++        expected = json.loads((ROOT / "EXPECTED.json").read_text())
++        for runner in ["Runner", "RoundtripRunner", "ReferenceRunner"]:
++            output = run(runner, [lean, "--run", runner + ".lean", ROOT / "escape.json"] +
++                         [row["input"] for row in expected], work)
++            if [json.loads(line) for line in output.splitlines()] != expected:
++                raise ValueError("Unexpected execution: " + runner)
++        parser_expected = json.loads((ROOT / "PARSER-EXPECTED.json").read_text())
++        output = run("parser-boundary", [lean, "--run", "ParserBoundary.lean"] +
++                     [row["text"] for row in parser_expected], work)
++        if [json.loads(line) for line in output.splitlines()] != [row["value"] for row in parser_expected]:
++            raise ValueError("Unexpected JSON parser observation")
++        refusal_cases = {}
++        fixture = json.loads((ROOT / "escape.json").read_text())
++        for label in ["extra-document-field", "extra-ast-field", "alias-cycle", "alias-tail-capture"]:
++            bad = json.loads(json.dumps(fixture))
++            if label == "extra-document-field":
++                bad["code"] = "extra"
++            elif label == "extra-ast-field":
++                bad["program"]["code"] = "extra"
++            elif label == "alias-cycle":
++                bad["definitions"]["hexExpr"] = {"op": "use", "args": ["hexExpr"]}
++            else:
++                bad["definitions"]["hexExpr"] = {"op": "eqChar", "args": [
++                    {"op": "var", "args": [1]}, {"op": "scalar", "args": [0]}]}
++            path = work / (label + ".json")
++            path.write_text(json.dumps(bad))
++            result = subprocess.run([str(lean), "--run", "Runner.lean", str(path)], cwd=work,
++                                    env=dict(os.environ, LEAN_PATH=str(work)), capture_output=True, text=True)
++            output = result.stdout + result.stderr
++            (out / (label + ".log")).write_text(output)
++            if result.returncode != 1 or output.strip() != "uncaught exception: document refused":
++                raise ValueError("Unexpected malformed-document result: " + label + "\n" + output)
++            refusal_cases[label] = {"exit": result.returncode, "output_sha256": sha(output.encode())}
++        mutations = [
++            ("encoder-opcode", "Encoder", "EncoderLaws", [],
++             [('| .sub a b => nodeJson "sub" [encodeExprJson a, encodeExprJson b]',
++               '| .sub a b => nodeJson "add" [encodeExprJson a, encodeExprJson b]')], "Encoder",
++             "((checkExprJson [] [] .nat (encodeExprJson (.sub (.nat 7) (.nat 2) : Expr [] .nat))).map (fun e => eval e .nil)) = some 5"),
++            ("encoder-child-order", "Encoder", "EncoderLaws", [],
++             [('| .sub a b => nodeJson "sub" [encodeExprJson a, encodeExprJson b]',
++               '| .sub a b => nodeJson "sub" [encodeExprJson b, encodeExprJson a]')], "Encoder",
++             "((checkExprJson [] [] .nat (encodeExprJson (.sub (.nat 7) (.nat 2) : Expr [] .nat))).map (fun e => eval e .nil)) = some 5"),
++            ("encoder-scan-budget", "Encoder", "EncoderLaws", [],
++             [('| .scan n e p => nodeJson "scan" [natJson n, encodeExprJson e, encodeStmtJson p]',
++               '| .scan n e p => nodeJson "scan" [natJson (n + 1), encodeExprJson e, encodeStmtJson p]')], "Encoder",
++             "((checkStmtJson [] [] .chars (encodeStmtJson (.scan 1 (.bool true) (.ret (.var .here)) : Stmt [] .chars))).map (fun p => (interpret p .nil ⟨['a','b'],false⟩).1)) = some ['a']"),
++            ("reader-unit-omission", "Reader", "SchemaLaws", ["Encoder"],
++             [('| "unit", [] => some ⟨.unit, .unit⟩',
++               '| "unit", [] => if true then none else some ⟨.unit, .unit⟩')], "Encoder",
++             '(readExprData [] (nodeJson "unit" [])).isSome = true'),
++            ("reader-raw-layout-omission", "Reader", "SchemaLaws", ["Encoder"],
++             [('some ⟨e, .node (.rightOp outer inner op args) proof⟩',
++               'if true then none else some ⟨e, .node (.rightOp outer inner op args) proof⟩')], "Encoder",
++             '(readExprData [] (rightObject 0 999 "op" (.str "nat") "args" (.arr #[7]))).isSome = true'),
++            ("document-alias-selection", "Document", "Fixture", [],
++             [('let hex ← readDefinition definitions "hexExpr" .scalar .bool',
++               'let hex ← readDefinition definitions "whitespaceExpr" .scalar .bool')], "Document\nimport FixtureJson",
++             "((readDocument TypedCodec.fixture).map (fun p => (FirstOrder.execute p ['4','1','!']).value.toNat)) = some 65"),
++        ]
++        for name, module, proof_module, downstream, edits, witness_import, witness in mutations:
++            witness_source = ("import " + witness_import +
++                "\nopen CssDerivation CssDerivation.FirstOrder CssDerivation.JsonSchema Lean\nset_option cbv.warning false\nset_option maxRecDepth 30000\nset_option maxHeartbeats 4000000\nexample : " + witness + " := by\n  conv => lhs; cbv\n  all_goals decide\n")
++            (work / "Witness.lean").write_text(witness_source)
++            run(name + "-witness-positive", [lean, "Witness.lean"], work)
++            mutant = base / name
++            shutil.copytree(work, mutant)
++            text = (ROOT / (module + ".lean")).read_text()
++            for old, new in edits:
++                if text.count(old) != 1:
++                    raise ValueError("Mutation anchor changed: " + name)
++                text = text.replace(old, new)
++            (mutant / (module + ".lean")).write_text(text)
++            run(name + "-typecheck", [lean, "-o", module + ".olean", module + ".lean"], mutant)
++            for runtime in downstream:
++                run(name + "-" + runtime, [lean, "-o", runtime + ".olean", runtime + ".lean"], mutant)
++            run(name + "-laws", [lean, proof_module + ".lean"], mutant, reject=True)
++            (mutant / "Witness.lean").write_text(witness_source)
++            failure = run(name + "-witness", [lean, "Witness.lean"], mutant, reject=True)
++            if not re.fullmatch(r"Witness\.lean:\d+:\d+: error: Tactic `decide` proved that the proposition\n(?:  [^\n]*\n)+is false\n", failure):
++                raise ValueError("Unexpected semantic witness rejection: " + name + "\n" + failure)
++            controls[name] = "type-correct implementation; unchanged proof and exact false witness rejected"
++        drift = base / "drift"
++        drift.mkdir()
++        for name in files:
++            destination = drift / name
++            destination.parent.mkdir(parents=True, exist_ok=True)
++            shutil.copyfile(ROOT / name, destination)
++        for name, file, diagnostic in [
++            ("typed-ir-drift", "FirstOrder.lean", "Preserved source changed: FirstOrder.lean"),
++            ("source-excerpt-drift", "CLAUSES.json", "Preserved source changed: CLAUSES.json"),
++            ("quotation-drift", "FixtureJson.lean", "Preserved source changed: FixtureJson.lean"),
++        ]:
++            original = (drift / file).read_bytes()
++            (drift / file).write_bytes(original + b"changed")
++            try:
++                authenticate(drift)
++            except ValueError as error:
++                if str(error) != diagnostic:
++                    raise
++                controls[name] = diagnostic
++            else:
++                raise ValueError("Changed input accepted")
++            (drift / file).write_bytes(original)
++    if before != {name: sha((ROOT / name).read_bytes()) for name in files}:
++        raise ValueError("Inputs changed during verification")
++    report = {"status": "pass", "toolchain": version, "audits": audits,
++              "new_declarations": own_names, "kernel_cases": declarations(ROOT / "Cases.lean"),
++              "execution_rows": expected, "parser_observations": parser_expected, "controls": controls,
++              "malformed_documents": refusal_cases,
++              "commands": commands, "sources": before, "temporary_builds_removed": True,
++              "canonical_json_value_roundtrip_proved": True, "json_schema_sound_and_complete_proved": True,
++              "concrete_json_fixture_correspondence_proved": True,
++              "alias_free_json_typed_correspondence_proved": True,
++              "universal_document_orchestration_proved": False,
++              "json_text_parser_proved": False, "mechanical_prose_derivation": False}
++    (out / "report.json").write_text(json.dumps(report, indent=2) + "\n")
++    print(f"PASS: {len(audits)} audits ({len(own_names)} new), {len(report['kernel_cases'])} kernel cases, "
++          f"{len(expected)} execution rows per runner, {len(parser_expected)} parser observations, {len(refusal_cases)} document refusals, {len(controls)} controls")
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/research/derivation/origin/escape.json
+@@ -0,0 +1,643 @@
++{
++  "schema": 1,
++  "definitions": {
++    "hexExpr": {
++      "op": "or",
++      "args": [
++        {
++          "op": "or",
++          "args": [
++            {
++              "op": "and",
++              "args": [
++                {
++                  "op": "leChar",
++                  "args": [
++                    {
++                      "op": "scalar",
++                      "args": [
++                        48
++                      ]
++                    },
++                    {
++                      "op": "var",
++                      "args": [
++                        0
++                      ]
++                    }
++                  ]
++                },
++                {
++                  "op": "leChar",
++                  "args": [
++                    {
++                      "op": "var",
++                      "args": [
++                        0
++                      ]
++                    },
++                    {
++                      "op": "scalar",
++                      "args": [
++                        57
++                      ]
++                    }
++                  ]
++                }
++              ]
++            },
++            {
++              "op": "and",
++              "args": [
++                {
++                  "op": "leChar",
++                  "args": [
++                    {
++                      "op": "scalar",
++                      "args": [
++                        65
++                      ]
++                    },
++                    {
++                      "op": "var",
++                      "args": [
++                        0
++                      ]
++                    }
++                  ]
++                },
++                {
++                  "op": "leChar",
++                  "args": [
++                    {
++                      "op": "var",
++                      "args": [
++                        0
++                      ]
++                    },
++                    {
++                      "op": "scalar",
++                      "args": [
++                        70
++                      ]
++                    }
++                  ]
++                }
++              ]
++            }
++          ]
++        },
++        {
++          "op": "and",
++          "args": [
++            {
++              "op": "leChar",
++              "args": [
++                {
++                  "op": "scalar",
++                  "args": [
++                    97
++                  ]
++                },
++                {
++                  "op": "var",
++                  "args": [
++                    0
++                  ]
++                }
++              ]
++            },
++            {
++              "op": "leChar",
++              "args": [
++                {
++                  "op": "var",
++                  "args": [
++                    0
++                  ]
++                },
++                {
++                  "op": "scalar",
++                  "args": [
++                    102
++                  ]
++                }
++              ]
++            }
++          ]
++        }
++      ]
++    },
++    "whitespaceExpr": {
++      "op": "or",
++      "args": [
++        {
++          "op": "or",
++          "args": [
++            {
++              "op": "eqChar",
++              "args": [
++                {
++                  "op": "var",
++                  "args": [
++                    0
++                  ]
++                },
++                {
++                  "op": "scalar",
++                  "args": [
++                    10
++                  ]
++                }
++              ]
++            },
++            {
++              "op": "eqChar",
++              "args": [
++                {
++                  "op": "var",
++                  "args": [
++                    0
++                  ]
++                },
++                {
++                  "op": "scalar",
++                  "args": [
++                    9
++                  ]
++                }
++              ]
++            }
++          ]
++        },
++        {
++          "op": "eqChar",
++          "args": [
++            {
++              "op": "var",
++              "args": [
++                0
++              ]
++            },
++            {
++              "op": "scalar",
++              "args": [
++                32
++              ]
++            }
++          ]
++        }
++      ]
++    },
++    "magnitudeExpr": {
++      "op": "foldNat",
++      "args": [
++        {
++          "op": "var",
++          "args": [
++            0
++          ]
++        },
++        {
++          "op": "nat",
++          "args": [
++            0
++          ]
++        },
++        {
++          "op": "add",
++          "args": [
++            {
++              "op": "mul",
++              "args": [
++                {
++                  "op": "var",
++                  "args": [
++                    1
++                  ]
++                },
++                {
++                  "op": "nat",
++                  "args": [
++                    16
++                  ]
++                }
++              ]
++            },
++            {
++              "op": "ite",
++              "args": [
++                {
++                  "op": "leChar",
++                  "args": [
++                    {
++                      "op": "var",
++                      "args": [
++                        0
++                      ]
++                    },
++                    {
++                      "op": "scalar",
++                      "args": [
++                        57
++                      ]
++                    }
++                  ]
++                },
++                {
++                  "op": "sub",
++                  "args": [
++                    {
++                      "op": "code",
++                      "args": [
++                        {
++                          "op": "var",
++                          "args": [
++                            0
++                          ]
++                        }
++                      ]
++                    },
++                    {
++                      "op": "nat",
++                      "args": [
++                        48
++                      ]
++                    }
++                  ]
++                },
++                {
++                  "op": "ite",
++                  "args": [
++                    {
++                      "op": "leChar",
++                      "args": [
++                        {
++                          "op": "var",
++                          "args": [
++                            0
++                          ]
++                        },
++                        {
++                          "op": "scalar",
++                          "args": [
++                            70
++                          ]
++                        }
++                      ]
++                    },
++                    {
++                      "op": "sub",
++                      "args": [
++                        {
++                          "op": "code",
++                          "args": [
++                            {
++                              "op": "var",
++                              "args": [
++                                0
++                              ]
++                            }
++                          ]
++                        },
++                        {
++                          "op": "nat",
++                          "args": [
++                            55
++                          ]
++                        }
++                      ]
++                    },
++                    {
++                      "op": "sub",
++                      "args": [
++                        {
++                          "op": "code",
++                          "args": [
++                            {
++                              "op": "var",
++                              "args": [
++                                0
++                              ]
++                            }
++                          ]
++                        },
++                        {
++                          "op": "nat",
++                          "args": [
++                            87
++                          ]
++                        }
++                      ]
++                    }
++                  ]
++                }
++              ]
++            }
++          ]
++        }
++      ]
++    },
++    "decodeExpr": {
++      "op": "ite",
++      "args": [
++        {
++          "op": "or",
++          "args": [
++            {
++              "op": "or",
++              "args": [
++                {
++                  "op": "eqNat",
++                  "args": [
++                    {
++                      "op": "var",
++                      "args": [
++                        0
++                      ]
++                    },
++                    {
++                      "op": "nat",
++                      "args": [
++                        0
++                      ]
++                    }
++                  ]
++                },
++                {
++                  "op": "and",
++                  "args": [
++                    {
++                      "op": "leNat",
++                      "args": [
++                        {
++                          "op": "nat",
++                          "args": [
++                            55296
++                          ]
++                        },
++                        {
++                          "op": "var",
++                          "args": [
++                            0
++                          ]
++                        }
++                      ]
++                    },
++                    {
++                      "op": "leNat",
++                      "args": [
++                        {
++                          "op": "var",
++                          "args": [
++                            0
++                          ]
++                        },
++                        {
++                          "op": "nat",
++                          "args": [
++                            57343
++                          ]
++                        }
++                      ]
++                    }
++                  ]
++                }
++              ]
++            },
++            {
++              "op": "ltNat",
++              "args": [
++                {
++                  "op": "nat",
++                  "args": [
++                    1114111
++                  ]
++                },
++                {
++                  "op": "var",
++                  "args": [
++                    0
++                  ]
++                }
++              ]
++            }
++          ]
++        },
++        {
++          "op": "scalar",
++          "args": [
++            65533
++          ]
++        },
++        {
++          "op": "scalarOf",
++          "args": [
++            {
++              "op": "var",
++              "args": [
++                0
++              ]
++            }
++          ]
++        }
++      ]
++    }
++  },
++  "program": {
++    "op": "read",
++    "args": [
++      {
++        "op": "raiseError",
++        "args": [
++          {
++            "op": "ret",
++            "args": [
++              {
++                "op": "scalar",
++                "args": [
++                  65533
++                ]
++              }
++            ]
++          }
++        ]
++      },
++      {
++        "op": "branch",
++        "args": [
++          {
++            "op": "use",
++            "args": [
++              "hexExpr"
++            ]
++          },
++          {
++            "op": "scan",
++            "args": [
++              5,
++              {
++                "op": "use",
++                "args": [
++                  "hexExpr"
++                ]
++              },
++              {
++                "op": "scan",
++                "args": [
++                  1,
++                  {
++                    "op": "use",
++                    "args": [
++                      "whitespaceExpr"
++                    ]
++                  },
++                  {
++                    "op": "letE",
++                    "args": [
++                      {
++                        "op": "cons",
++                        "args": [
++                          {
++                            "op": "var",
++                            "args": [
++                              2
++                            ]
++                          },
++                          {
++                            "op": "var",
++                            "args": [
++                              1
++                            ]
++                          }
++                        ]
++                      },
++                      {
++                        "op": "letE",
++                        "args": [
++                          {
++                            "op": "use",
++                            "args": [
++                              "magnitudeExpr"
++                            ]
++                          },
++                          {
++                            "op": "ret",
++                            "args": [
++                              {
++                                "op": "use",
++                                "args": [
++                                  "decodeExpr"
++                                ]
++                              }
++                            ]
++                          }
++                        ]
++                      }
++                    ]
++                  }
++                ]
++              }
++            ]
++          },
++          {
++            "op": "ret",
++            "args": [
++              {
++                "op": "var",
++                "args": [
++                  0
++                ]
++              }
++            ]
++          }
++        ]
++      }
++    ]
++  },
++  "source_map": {
++    "algorithm": {
++      "anchor": "consume-escaped-code-point",
++      "source_bytes": [
++        48316,
++        49501
++      ]
++    },
++    "body": {
++      "source_bytes": [
++        48665,
++        49501
++      ],
++      "operative_text": "Consume the next input code point. hex digit Consume as many hex digits as possible, but no more than 5. If the next input code point is whitespace, consume it as well. Interpret the hex digits as a hexadecimal number. If this number is zero, or is for a surrogate, or is greater than the maximum allowed code point, return U+FFFD REPLACEMENT CHARACTER (\ufffd). Otherwise, return the code point with that value. EOF This is a parse error. Return U+FFFD REPLACEMENT CHARACTER (\ufffd). anything else Return the current input code point."
++    },
++    "definitions": {
++      "digit": {
++        "text": "A code point between U+0030 DIGIT ZERO (0) and U+0039 DIGIT NINE (9) inclusive.",
++        "source_bytes": [
++          29293,
++          29462
++        ]
++      },
++      "hex digit": {
++        "text": "A digit, or a code point between U+0041 LATIN CAPITAL LETTER A (A) and U+0046 LATIN CAPITAL LETTER F (F) inclusive, or a code point between U+0061 LATIN SMALL LETTER A (a) and U+0066 LATIN SMALL LETTER F (f) inclusive.",
++        "source_bytes": [
++          29466,
++          29753
++        ]
++      },
++      "newline": {
++        "text": "U+000A LINE FEED.",
++        "source_bytes": [
++          33496,
++          33785
++        ]
++      },
++      "whitespace": {
++        "text": "A newline, U+0009 CHARACTER TABULATION, or U+0020 SPACE.",
++        "source_bytes": [
++          33789,
++          33930
++        ]
++      },
++      "maximum allowed code point": {
++        "text": "The greatest code point defined by Unicode: U+10FFFF.",
++        "source_bytes": [
++          33934,
++          34049
++        ]
++      },
++      "leading surrogate": {
++        "text": "A leading surrogate is a code point that is in the range U+D800 to U+DBFF, inclusive.",
++        "source": "infra",
++        "source_bytes": [
++          42391,
++          42504
++        ]
++      },
++      "trailing surrogate": {
++        "text": "A trailing surrogate is a code point that is in the range U+DC00 to U+DFFF, inclusive.",
++        "source": "infra",
++        "source_bytes": [
++          42506,
++          42620
++        ]
++      },
++      "surrogate": {
++        "text": "A surrogate is a leading surrogate or a trailing surrogate.",
++        "source": "infra",
++        "source_bytes": [
++          42622,
++          42716
++        ]
++      }
++    },
++    "roles": {
++      "read": "Initial next-input consumption and EOF/literal dispatch",
++      "first scan": "Maximal bounded additional hex consumption",
++      "second scan": "Conditional single whitespace terminator",
++      "first local": "Assemble first consumed scalar plus additional hex digits",
++      "second local": "Interpret the hex digits as a hexadecimal number",
++      "decodeExpr": "Zero/surrogate/maximum replacement or scalar result"
++    }
++  }
++}
+--- /dev/null
++++ b/research/derivation/origin/replay.py
+@@ -0,0 +1,41 @@
++import argparse
++import hashlib
++import json
++from pathlib import Path
++import subprocess
++import tempfile
++
++ROOT = Path(__file__).resolve().parent
++
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--lean", required=True, type=Path)
++    parser.add_argument("--out", required=True, type=Path)
++    args = parser.parse_args()
++    out = args.out.resolve()
++    out.mkdir(parents=True, exist_ok=False)
++    sources = json.loads((ROOT / "SOURCE-ONLY.json").read_text())
++    with tempfile.TemporaryDirectory(prefix="json-schema-source-replay-", dir=out) as directory:
++        work = Path(directory)
++        for name, digest in sources.items():
++            data = (ROOT / name).read_bytes()
++            if hashlib.sha256(data).hexdigest() != digest:
++                raise ValueError("Source hash mismatch: " + name)
++            destination = work / name
++            destination.parent.mkdir(parents=True, exist_ok=True)
++            destination.write_bytes(data)
++        command = ["python3", str(work / "check.py"), "--lean", str(args.lean.resolve()),
++                   "--out", str(out / "verification")]
++        process = subprocess.run(command, cwd=work, capture_output=True, text=True)
++        (out / "check.log").write_text(process.stdout + process.stderr)
++        if process.returncode:
++            raise ValueError("Source-only replay failed")
++    (out / "report.json").write_text(json.dumps({
++        "status": "pass", "source_files": sources, "temporary_sources_removed": True,
++        "verification": "verification/report.json"}, indent=2) + "\n")
++    print(f"Source-only replay passed from {len(sources)} files; temporary sources removed")
++
++
++if __name__ == "__main__":
++    main()

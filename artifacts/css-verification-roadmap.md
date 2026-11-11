@@ -10,6 +10,7 @@ Signing resumed successfully. New signed commits are:
 
 | Commit | Content |
 | --- | --- |
+| 0dcfe7c2e7a8 | Actual JSON-value schema and typed codec correspondence, source-only replay and independent review |
 | b0be6ce5764a | Baseline failure triage, reached CSS clip contract and preserved unresolved SVG/SMIL policy |
 | d68b16b121b4 | Reviewed composition extraction: successful optimized build and exact 287-result baseline match |
 | 4d1607b92c59 | Retained CSSOM pseudo controls: 13 PASS / 7 FAIL, all ten generated controls pass |
@@ -56,7 +57,9 @@ Signing resumed successfully. New signed commits are:
 | c1209aa91006 | Final same-rule native validation, comparisons, lint and delivery decision |
 | 0f18d294fbac | Same-rule rollback fix: two Rust files and three WPT changes (#164) |
 
-The original Bloom milestones 1–6 remain conditional results at their recorded revisions. The standalone CSS Lean repository is at 2d13828cd078dde80d097bc590988bc701be79d4. No whole-CSS or whole-Stylo verification is claimed. Historical detailed milestones remain under css-continuation-roadmap-20261104-v278.
+The original Bloom milestones 1–6 remain conditional results at their recorded revisions. The standalone CSS Lean repository is at signed 898fb45815c115362093116d81c09715ba94fcab. No whole-CSS or whole-Stylo verification is claimed. Historical detailed milestones remain under css-continuation-roadmap-20261104-v278.
+
+The stable first-order derivation tooling is integrated as opt-in `CssDerivation`, with import-only relocation and reuse of the existing input/escape modules. Root authenticated all 39 delivered files, replayed the source-only and installed checkers (143 audits, nine controls and three 13-row actual-file runners), and built both the default library and the opt-in target. Static coverage registration remains 11,923 declarations. Existing CSS source/test bytes and `.DS_Store` were preserved; the full historical runtime suite was not repeated. JSON text parsing, outer-document construction and manually reviewed CSS prose mapping remain boundaries. See css-first-order-library-integration-20261110-v1/ROOT-INTEGRATION.json and its independent review.
 
 ## Current feedback investigation
 
@@ -68,7 +71,7 @@ The follow-up lifetime audit found no supported recurring destruction/recreation
 
 ## Next work, in order
 
-1. Integrate the accepted stable first-order parser/codec work into the separately versioned library with an exact patch and scoped registration replay; do not imply a refreshed whole-library gate. The actual-JSON AST milestone and independent acceptance are complete. Its next proof gap is the outer document/alias-environment contract; JSON text parsing and manually reviewed CSS prose mapping remain separate. The distinct ParserIR number-consumption extensions are not yet covered by this JSON schema.
+1. Extend the integrated first-order tooling toward an outer document/alias-environment contract. The actual-JSON AST milestone and standalone integration are complete. A singleton alias non-capture prototype and signature-parameterized document design are under review. JSON text parsing and manually reviewed CSS prose mapping remain separate. The distinct ParserIR number-consumption extensions are not yet covered by this JSON schema.
 2. Continue the missing-pseudo CSSOM implementation from the tested composition extraction. Resolve owning keyframe/property snapshots, current endpoint providers, pending timing and fresh masks before wiring the request-local pseudo recascade/cache path. Preserve the 20-case and nine-case controls. The optimized extraction comparison is complete; assertion-sensitive debug and broader rendering checks remain before accepting a native fix. Package the eventual necessary native source and WPT together in one standalone bugfix commit.
 3. Develop a copied-source equal-auto clip candidate under the reached CSS component-combination contract, preserving existing SMIL admission separately. The specification trace is REACHED for CSS and INCONCLUSIVE for SVG mixed-rectangle integration; SMIL from-by and repetition also select Accumulate, so an operation-only relaxation is insufficient. Validate exact CSS Add/Accumulate, mismatched components, all-numeric controls and existing SMIL cases before accepting a native repair. The eleven extra suite failures were all already expected in metadata and do not add eleven bugs. See css-animation-composition-baseline-triage-20261110-v1 and css-clip-auto-contract-20261110-v1.
 4. Keep #160 held. The checked lifetime-to-phase refinement closes the modeled renewal/ledger composition, but actual task-mask completeness, cause/epoch correspondence, administrative liveness and global native convergence remain open. Use a new concrete source or trace hypothesis for the next mapping step. Do not repeat the completed initial-admission, named-timeline, four-mode feedback or producer-only comparisons merely to accumulate runs.
