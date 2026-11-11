@@ -1,0 +1,191 @@
+--- v1/check.py
++++ v2/check.py
+@@ -36,12 +36,26 @@
+     return value
+ 
+ 
++PREF_SETUP = 'add_setup(async function enable_animation_preferences() {\n  await SpecialPowers.pushPrefEnv({\n    set: [\n      ["layout.css.scroll-driven-animations.enabled", true],\n      ["layout.css.typed-om.enabled", true],\n    ],\n  });\n  const style = document.querySelector("style");\n  const text = style.textContent;\n  style.textContent = text;\n});\n\n'
++
++def amended_test(original):
++    marker = 'add_task(async function explicit_endpoints_and_retarget() {'
++    assert original.count(marker) == 1 and "add_setup(" not in original
++    return original.replace(marker, PREF_SETUP + marker)
++
++
++def validate_preferences(manifest, original_manifest, fixture, original_fixture):
++    assert manifest['test_missing_pseudo_animation_query.html'] == {}
++    assert {k: v for k, v in manifest.items() if k != 'test_missing_pseudo_animation_query.html'} == {k: v for k, v in original_manifest.items() if k != 'test_missing_pseudo_animation_query.html'}
++    assert fixture == amended_test(original_fixture)
++
++
+ def input_names():
+     names = ['run.py', 'analyze.py', 'driver-analyze.py', 'driver-controls.py',
+              'bundle.py', 'process.py', 'check.py', 'freeze.py', 'parser-controls.py',
+              'RUN-PLAN.json', 'SOURCE-ROLES.json', 'EXPECTED-BASELINE.json',
+              'EXPECTED-CALLBACKS.json', 'EXPECTED-CHANGES.json', 'DRIVER-ASSERTIONS.json',
+-             'ORIGINS.json', 'query.patch', 'driver.patch', 'manifest-order.patch']
++             'ORIGINS.json', 'query.patch', 'driver.patch', 'manifest-order.patch', 'pref-setup.patch']
+     for directory in ['source', 'candidate', 'runtime-inputs']:
+         names += [str(p.relative_to(HERE)) for p in sorted((HERE / directory).rglob('*')) if p.is_file()]
+     assert len(names) == len(set(names))
+@@ -83,6 +97,9 @@
+         assert sha(ROOT / name) == digest
+     for name, digest in origins['reviewed_frozen_candidate_files'].items():
+         assert sha(ROOT / name) == digest
++    previous = ROOT / origins['runtime_v1_origin']
++    for name, digest in origins['runtime_v1_files'].items():
++        assert sha(previous / name) == digest
+     old = ROOT / origins['wrapper_origin']
+     driver = ROOT / origins['driver_origin']
+     query = ROOT / origins['query_origin']
+@@ -107,11 +124,11 @@
+     with tempfile.TemporaryDirectory(prefix='pseudo-query-runtime-check-') as directory:
+         scratch = Path(directory) / 'sources'
+         shutil.copytree(HERE / 'source', scratch)
+-        for name in ['query.patch', 'driver.patch', 'manifest-order.patch']:
++        for name in ['query.patch', 'driver.patch', 'manifest-order.patch', 'pref-setup.patch']:
+             subprocess.run(['patch', '--batch', '-p1', '-i', str(HERE / name)], cwd=scratch, check=True, capture_output=True)
+         assert all((scratch / name).read_bytes() == (HERE / 'candidate' / name).read_bytes() for name in roles)
+-        assert (scratch / plan['driver_test']).read_bytes() == (driver / 'test.html').read_bytes()
+-        for name in ['manifest-order.patch', 'driver.patch', 'query.patch']:
++        assert (scratch / plan['driver_test']).read_bytes() == (HERE / 'runtime-inputs' / plan['fixtures'][plan['driver_test']]).read_bytes()
++        for name in ['pref-setup.patch', 'manifest-order.patch', 'driver.patch', 'query.patch']:
+             subprocess.run(['patch', '-R', '--batch', '-p1', '-i', str(HERE / name)], cwd=scratch, check=True, capture_output=True)
+         assert all((scratch / name).read_bytes() == (HERE / 'source' / name).read_bytes() for name in roles)
+         assert not (scratch / plan['driver_test']).exists()
+@@ -135,7 +152,7 @@
+     for name, filename in plan['fixtures'].items():
+         assert pins[name] is None
+         origin = driver / 'test.html' if name == plan['driver_test'] else old / 'runtime-inputs' / filename
+-        assert (HERE / 'runtime-inputs' / filename).read_bytes() == origin.read_bytes()
++        assert (HERE / 'runtime-inputs' / filename).read_bytes() == (amended_test(origin.read_text()).encode() if name == plan['driver_test'] else origin.read_bytes())
+     manifest = tomllib.loads((HERE / 'candidate' / plan['driver_manifest']).read_text())
+     names = [n for n in manifest if n != 'DEFAULT']
+     sort_origin = origins['manifest_sort_source']
+@@ -148,7 +165,32 @@
+     namespace = {'re': re}
+     exec(compile(ast.Module(body=nodes, type_ignores=[]), str(sort_source), 'exec'), namespace)
+     assert names == namespace['sort_paths'](names), 'manifest section ordering'
+-    assert manifest['test_missing_pseudo_animation_query.html']['prefs'] == ['layout.css.scroll-driven-animations.enabled=true', 'layout.css.typed-om.enabled=true']
++    old_manifest = tomllib.loads((driver / 'generated/candidate' / plan['driver_manifest']).read_text())
++    original_test = (driver / 'test.html').read_text()
++    fixture = (HERE / 'runtime-inputs' / plan['fixtures'][plan['driver_test']]).read_text()
++    validate_preferences(manifest, old_manifest, fixture, original_test)
++    preference_controls = []
++    for label, changed in [
++        ('missing-await', fixture.replace('await SpecialPowers.pushPrefEnv', 'SpecialPowers.pushPrefEnv')),
++        ('wrong-pref-value', fixture.replace('["layout.css.typed-om.enabled", true]', '["layout.css.typed-om.enabled", false]')),
++        ('missing-reparse', fixture.replace('  style.textContent = text;\n', '')),
++        ('changed-assertion', fixture.replace('Explicit half sample', 'Changed sample')),
++    ]:
++        try:
++            validate_preferences(manifest, old_manifest, changed, original_test)
++        except AssertionError:
++            preference_controls.append(label)
++        else:
++            raise AssertionError(label + ' accepted')
++    for label, changed in [('global-pref', json.loads(json.dumps(manifest))), ('per-test-pref', json.loads(json.dumps(manifest)))]:
++        changed['DEFAULT' if label == 'global-pref' else 'test_missing_pseudo_animation_query.html']['prefs'] = ['layout.css.typed-om.enabled=true']
++        try:
++            validate_preferences(changed, old_manifest, fixture, original_test)
++        except AssertionError:
++            preference_controls.append(label)
++        else:
++            raise AssertionError(label + ' accepted')
++    assert len(preference_controls) == 6
+     a = module('analyze')
+     base = load(HERE / 'EXPECTED-BASELINE.json')
+     actual = load(old / 'candidate1/TEST-RESULTS.json')
+@@ -159,7 +201,7 @@
+     assert Counter(r['status'] for r in base['subtests']) == {'PASS': 99, 'FAIL': 19}
+     controls = json.loads(subprocess.check_output([sys.executable, '-I', str(HERE / 'parser-controls.py')]))
+     assert controls['status'] == 'pass' and len(controls['rejected_controls']) == 30
+-    direct = json.loads(subprocess.check_output([sys.executable, '-I', str(HERE / 'driver-controls.py')]))
++    direct = json.loads(subprocess.check_output([sys.executable, '-I', '-B', str(HERE / 'driver-controls.py')]))
+     assert direct['status'] == 'PASS' and len(direct['rejected_controls']) == 23
+     if args.frozen:
+         retained_path = HERE / 'runtime-inputs/retained-build.json'
+@@ -173,8 +215,8 @@
+     print(json.dumps({'status': 'PASS', 'frozen': args.frozen, 'native_and_manifest_roles': 11,
+                       'fixtures': 3, 'candidate_only_driver': True, 'ordinary_records': 130,
+                       'driver_assertions': 208, 'ordinary_parser_controls': 30,
+-                      'driver_parser_controls': 23, 'mochitest_tree_restore_model': True,
+-                      'manifest_order_amendment_only': True, 'native_compilation': False,
++                      'driver_parser_controls': 23, 'preference_amendment_controls': preference_controls, 'mochitest_tree_restore_model': True,
++                      'manifest_order_and_pref_setup_only': True, 'native_compilation': False,
+                       'browser_execution': False}, indent=2))
+ 
+ 
+--- v1/RUN-PLAN.json
++++ v2/RUN-PLAN.json
+@@ -1,5 +1,5 @@
+ {
+-  "head": "ec467c0219d3d5daf70f42fcc53677cf8a262173",
++  "head": null,
+   "native_basis": "3f8f7324c20de730eddcf07b224dd93e9be6694d",
+   "mozconfig_sha256": "f44f13a869d612e127868c13af836451bf4d0d127e0a528c149210e56363c0e0",
+   "debug_gate": "Optimized preparation and direct helper exercise only; no final CSSOM caller/recascade acceptance. Final missing-pseudo debug transform-hint gate remains open.",
+@@ -26,8 +26,8 @@
+     "testing/web-platform/tests/web-animations/interfaces/KeyframeEffect/pseudo-compose-cssom-lifetime.html",
+     "testing/web-platform/tests/web-animations/interfaces/KeyframeEffect/pseudo-compose-underlying.html"
+   ],
+-  "retained_build_origin": "artifacts/css-keyframe-order-combined-current-build-20261110-v1/build-result.json",
+-  "retained_build_sha256": "867b65cc201f674265e9d57e95b5fdc168746ef9aaeb29d9133900e02a993163",
++  "retained_build_origin": null,
++  "retained_build_sha256": null,
+   "candidate_only_fixtures": [
+     "dom/base/test/test_missing_pseudo_animation_query.html"
+   ],
+--- v1/SOURCE-ROLES.json
++++ v2/SOURCE-ROLES.json
+@@ -46,7 +46,7 @@
+   },
+   "dom/base/test/mochitest.toml": {
+     "base": "8115de9e80e42b00ea7ec97ca91370ef673ad0b35b82b10ec59a64a4b0dabaa5",
+-    "candidate": "b7b94b2b89fed7b187c18b5efb3ec87d242be824b00cfd0aa9a2b893293dfaa2",
++    "candidate": "6a74cb89448856d12cae5fc0028d4c89a057d8d669add83fe6fe1f523764de4a",
+     "install_both": false
+   },
+   "dom/interfaces/base/nsIDOMWindowUtils.idl": {
+--- v1/README.md
++++ v2/README.md
+@@ -6,7 +6,7 @@
+ 
+ The candidate combines the frozen query-input cumulative patch with direct driver v2. V2 fixes the owning/nonowning target conversion found by independent source review; driver v1 is not used. `ORIGINS.json` and `SOURCE-ROLES.json` authenticate all bytes. There are ten native/IDL files plus one existing test manifest, with three temporarily installed test files. Two WPT fixtures are installed for both modes; the direct mochitest exists only in candidate mode.
+ 
+-The sole additional source amendment is `manifest-order.patch`: move the new test section from beside test_domwindowutils to its alphabetical position before test_mozMatchesSelector. No preferences, test body, driver/helper code or existing test settings change. The authentic manifest linter explicitly checks section order. The preparation checker executes the original signed manifestparser sort functions, including its numeric bug ordering, rather than approximating with lowercased lexical sorting. The frozen driver v2 remains unchanged. Root should include this tiny amendment in source review.
++Runtime v1 stopped before compilation: genuine manifest lint rejected per-test `prefs` for this non-xpcshell manifest. Its failed run and verified restoration remain frozen. This revision retains `manifest-order.patch` and adds only `pref-setup.patch`: remove the new section's prefs and await `SpecialPowers.pushPrefEnv` from `add_setup`. Setup reparses the unchanged inline stylesheet after enabling the prefs, because its `animation-timeline` declaration was initially parsed before setup. No global DEFAULT preferences change. The thirteen tasks and all 208 assertion bodies remain byte-identical. All ten native/IDL files remain byte-identical. The checker reconstructs and reverses all four patches and checks the precise fixture addition. Execution HEAD and retained receipt are unset.
+ 
+ `bundle.py`, `process.py`, the ordinary WPT analyzer and its 30 negative controls are byte-identical to the signed owned-generation transaction. `RUN-DIFF.patch` shows the orchestration delta. Signed historical evidence authenticates the ordinary baseline vector. The source-revision bridge must contain artifact changes only; a newly landed native change requires explicit candidate/baseline reconciliation before freeze.
+ 
+@@ -19,7 +19,7 @@
+ 
+ A failed or missing setup assertion invalidates the corresponding task's semantic interpretation. Unknown exception callbacks and incomplete tasks reject the run without asserting a native defect. Preserve `DRIVER-RESULTS.json`, the complete raw stream and command log. A numerical failure is not automatically a new bug; inspect setup and diagnostic outcomes first. The ordinary WPT gate and direct gate are reported separately; passing one cannot compensate for the other.
+ 
+-The manifest explicitly enables scroll-driven animations and typed OM. The 208-assertion inventory and source remain those of the independently reviewed driver v2. Source-only checks have not calibrated the advanced pending, unresolved, transition-retarget or named-range setups in a browser. Their explicit preconditions are intended to detect failed setup rather than silently claim coverage.
++The awaited setup explicitly enables scroll-driven animations and typed OM before the first task. The 208-assertion inventory and task bodies remain those of the independently reviewed driver v2. Source-only checks have not calibrated the advanced pending, unresolved, transition-retarget or named-range setups in a browser. Their explicit preconditions are intended to detect failed setup rather than silently claim coverage.
+ 
+ ## Restoration and concurrency
+ 
+@@ -31,7 +31,7 @@
+ 
+ ## Preparation checks
+ 
+-`PREPARATION-CHECK.json` records a source-only pass: exact signed helper/evidence origins, all source bases and copied candidates, forward/reverse three-patch reconstruction, exact manifest ordering and preferences, retained 130-record comparison, 30 ordinary parser rejection controls, 23 direct-parser rejection controls and a temporary-tree restoration exercise including changed files, added files and replaced symlinks. `DRIVER-CONTROLS.json` includes first-callback status/deletion/label/duplicate failures, setup failure/deletion, lifecycle/order, malformed JSON, unexpected callbacks, crash/ERROR, todo/intermittent and wrong harness-end cases. It does not prove native behavior.
++`PREPARATION-CHECK.json` records a source-only pass: exact signed helper/evidence origins, all source bases and copied candidates, forward/reverse four-patch reconstruction, exact manifest ordering and awaited fixture preference setup, retained 130-record comparison, 30 ordinary parser rejection controls, 23 direct-parser rejection controls and a temporary-tree restoration exercise including changed files, added files and replaced symlinks. `DRIVER-CONTROLS.json` includes first-callback status/deletion/label/duplicate failures, setup failure/deletion, lifecycle/order, malformed JSON, unexpected callbacks, crash/ERROR, todo/intermittent and wrong harness-end cases. Six additional amendment controls reject lost awaiting, wrong preference value, missing stylesheet reparse, changed assertion body, global DEFAULT preferences and forbidden per-test preferences. The checker now passes -B to driver-controls.py so source-only validation does not create bytecode caches. It does not prove native behavior.
+ 
+ One initial preparation check rejected a naive lowercased manifest-order check; the accepted check now runs the signed real sort functions. This was a checker correction, not a native change. Full installed-file lint, binding generation, compilation and real driver execution remain root-owned gates.
+ 
+@@ -40,9 +40,9 @@
+ After committing the candidate/source-review work, while this execution capsule remains untracked, freeze against the restored matching build receipt:
+ 
+ ```sh
+-python3 -I artifacts/css-pseudo-animation-query-runtime-20261110-v1/freeze.py <exact-HEAD> <artifacts/path/to/retained-build.json>
+-python3 -I artifacts/css-pseudo-animation-query-runtime-20261110-v1/run.py baseline baseline1
+-python3 -I artifacts/css-pseudo-animation-query-runtime-20261110-v1/run.py candidate candidate1 baseline1
++python3 -I artifacts/css-pseudo-animation-query-runtime-20261110-v2/freeze.py <exact-HEAD> <artifacts/path/to/retained-build.json>
++python3 -I artifacts/css-pseudo-animation-query-runtime-20261110-v2/run.py baseline baseline1
++python3 -I artifacts/css-pseudo-animation-query-runtime-20261110-v2/run.py candidate candidate1 baseline1
+ ```
+ 
+ Do not execute until FREEZE-READY.json exists and root has reviewed its exact input manifest. Failed compilation or setup is a necessary review point; do not alter the frozen inputs during a run. Final missing-pseudo CSSOM acceptance remains out of scope: this helper is invoked only by the temporary privileged driver. Provider closure, the public caller/cache/visited handling and transient recascade still need implementation and review. The final debug transform-hint traversal gate remains required.
