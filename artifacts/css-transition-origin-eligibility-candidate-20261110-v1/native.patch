@@ -1,0 +1,96 @@
+--- a/dom/animation/EffectCompositor.cpp
++++ b/dom/animation/EffectCompositor.cpp
+@@ -360,7 +360,9 @@
+   // MOZ_ASSERT_IF(aEffectSet, !aEffectSet->CascadeNeedsUpdate());
+   if (aEffectSet) {
+     animatedProperties.AddProperties(
+-        aEffectSet->PropertiesForAnimationsLevel());
++        aEndpointBehavior == dom::EndpointBehavior::Inclusive
++            ? aEffectSet->PropertiesForAnimationsLevel()
++            : aEffectSet->PropertiesForAnimationsLevelInEffect());
+     // When CommitStyles is called and its endpoint-inclusive behavior is
+     // enabled, the animation that CommitStyles targets is already finished and
+     // so aEffectSet doesn't include it. But its properties still has to be
+@@ -704,12 +706,14 @@
+   propertiesWithImportantRules.Empty();
+ 
+   AnimatedPropertyIDSet propertiesForAnimationsLevel;
++  AnimatedPropertyIDSet propertiesForAnimationsLevelInEffect;
+   AnimatedPropertyIDSet propertiesForTransitionsLevel;
+ 
+   for (const KeyframeEffect* effect : sortedEffectList) {
+     MOZ_ASSERT(effect->GetAnimation(),
+                "Effects on a target element should have an Animation");
+     CascadeLevel cascadeLevel = effect->GetAnimation()->CascadeLevel();
++    const bool inEffect = effect->IsInEffect();
+ 
+     for (const AnimationProperty& prop : effect->Properties()) {
+       // Note that nsCSSPropertyIDSet::HasProperty() returns false for custom
+@@ -724,6 +728,9 @@
+       switch (cascadeLevel) {
+         case EffectCompositor::CascadeLevel::Animations:
+           propertiesForAnimationsLevel.AddProperty(prop.mProperty);
++          if (inEffect) {
++            propertiesForAnimationsLevelInEffect.AddProperty(prop.mProperty);
++          }
+           break;
+         case EffectCompositor::CascadeLevel::Transitions:
+           propertiesForTransitionsLevel.AddProperty(prop.mProperty);
+@@ -734,11 +741,12 @@
+ 
+   aEffectSet.MarkCascadeUpdated();
+ 
+-  // Update EffectSet::mPropertiesForAnimationsLevel to the new set, after
+-  // exiting this scope.
++  // Update both animation-level property sets after exiting this scope.
+   auto scopeExit = MakeScopeExit([&] {
+     aEffectSet.PropertiesForAnimationsLevel() =
+         std::move(propertiesForAnimationsLevel);
++    aEffectSet.PropertiesForAnimationsLevelInEffect() =
++        std::move(propertiesForAnimationsLevelInEffect);
+   });
+ 
+   nsPresContext* presContext = nsContentUtils::GetContextForContent(aElement);
+@@ -762,8 +770,11 @@
+   // rule since the it will be added/removed from the rule tree.
+   const AnimatedPropertyIDSet& prevPropertiesForAnimationsLevel =
+       aEffectSet.PropertiesForAnimationsLevel();
+-  const AnimatedPropertyIDSet& changedPropertiesForAnimationLevel =
++  AnimatedPropertyIDSet changedPropertiesForAnimationLevel =
+       prevPropertiesForAnimationsLevel.Xor(propertiesForAnimationsLevel);
++  changedPropertiesForAnimationLevel.AddProperties(
++      aEffectSet.PropertiesForAnimationsLevelInEffect().Xor(
++          propertiesForAnimationsLevelInEffect));
+   const AnimatedPropertyIDSet& commonProperties =
+       propertiesForTransitionsLevel.Intersect(
+           changedPropertiesForAnimationLevel);
+--- a/dom/animation/EffectSet.h
++++ b/dom/animation/EffectSet.h
+@@ -204,6 +204,12 @@
+   AnimatedPropertyIDSet& PropertiesForAnimationsLevel() {
+     return mPropertiesForAnimationsLevel;
+   }
++  const AnimatedPropertyIDSet& PropertiesForAnimationsLevelInEffect() const {
++    return mPropertiesForAnimationsLevelInEffect;
++  }
++  AnimatedPropertyIDSet& PropertiesForAnimationsLevelInEffect() {
++    return mPropertiesForAnimationsLevelInEffect;
++  }
+ 
+  private:
+   OwningEffectSet mEffects;
+@@ -228,10 +234,11 @@
+   // Specifies the compositor-animatable properties that are overridden by
+   // !important rules.
+   nsCSSPropertyIDSet mPropertiesWithImportantRules;
+-  // Specifies the properties for which the result will be added to the
+-  // animations level of the cascade and hence should be skipped when we are
+-  // composing the animation style for the transitions level of the cascede.
++  // Properties of registered animation-level effects, including effects that
++  // are current but not in effect. Used by compositor eligibility checks.
+   AnimatedPropertyIDSet mPropertiesForAnimationsLevel;
++  // Sampling eligibility is narrower than relevance used by compositor checks.
++  AnimatedPropertyIDSet mPropertiesForAnimationsLevelInEffect;
+ 
+ #ifdef DEBUG
+   // Track how many iterators are referencing this effect set when we are

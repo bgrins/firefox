@@ -1,0 +1,21 @@
+# Experimental separation of registration and origin eligibility
+
+This is a held, copied two-file renderer experiment, not a production-ready fix. It applies over the pinned ec467 source; it changes no live file and has not been compiled or run. Specification conformance and novelty remain unresolved. The observed Firefox 158 result and native consumer audit are in `css-transition-null-progress-source-review-20261110-v1`.
+
+The original all-registered PropertiesForAnimationsLevel set remains byte-for-byte equivalent in its construction and continues to serve compositor eligibility, important-rule handling and transform blocking. A new PropertiesForAnimationsLevelInEffect set includes only properties of Animation-level effects whose ordinary IsInEffect is true. Normal exclusive composition uses this set for its complementary origin masks. Transition properties are still collected regardless of their sampling state, and the transition rule is invalidated when either the existing registration mask or the new sampling mask changes. Both sets publish together at the existing scope-exit boundary.
+
+The extra set costs one AnimatedPropertyIDSet per EffectSet, one extra effect-timing query per registered effect during cascade refresh, plus set insertion/XOR work. No payloads, keyframes, samples or target registration are changed. The all-relevant union is intentionally retained because AnimationInfo::AddAnimationsForProperty accepts relevant delayed effects and asserts that Animation-level properties admitted by the effective-property predicate are not important-overridden. Filtering the original set alone would violate that dependency.
+
+## Held contract gates
+
+1. The hypothesis is that non-sampling effects should not select the origin of other effects' samples. The present specification trace is inconclusive; existing active-overlap behavior must remain Animation-origin even with important declarations.
+2. Ordinary IsInEffect does not necessarily use the time used by Animation::ComposeStyle for pending animations, which may temporarily substitute a wallclock-derived hold time. This prototype is justified only for the nonpending held fixtures. Do not land it as general sampling-policy correctness until a coherent eligibility/sample-time contract is implemented or independently established. An ad hoc Pending fallback would also require dirtying on pending-state changes and is deliberately not added.
+3. Endpoint-inclusive composition keeps the old union and its existing manual target-property addition, preserving that path. Exclusive commitStyles also calls ComposeSortedEffects and is affected by the new mask; its coverage is a required gate. This split is explicit experimental scope, not a claim of unified commitStyles policy.
+4. Existing compositor eligibility stays conservative: an important-overridden future animation can still keep a transition off the compositor while the main-thread rule uses Transition origin. This experiment does not optimize that scheduling behavior or claim compositor timing equivalence.
+5. No debug build, compositor assertion suite, native baseline/candidate comparison or public missing-pseudo repair is accepted by these source checks.
+
+## Proposed focused comparison
+
+Use the frozen three-callback ordinary-element WPT probe, preserving all setup checks: transition-only stays 0.5; active overlap stays important 0.8; current/no-fill is the interpretation probe that this candidate predicts will become 0.5. Add held seeks into active and back into delay on the same effect to prove transition-rule invalidation, plus backwards-fill and disjoint-property controls. Include the existing `dom/animation/test/mozilla/test_cascade.html` and compositor-important coverage to retain the historical active-overlap rule. Confirm delayed important-overridden animations do not enter the compositor under the assertion in AnimationInfo::AddAnimationsForProperty. Keep endpoint-inclusive and exclusive commitStyles controls separate. Root owns any installation/build/runtime transaction.
+
+`check.py` authenticates pinned Git objects, forward/reverse patch replay and copied bytes. Formatting used clang-format 22.1.8 with real source filenames and changed ranges. Those mechanical checks are not a C++ compilation, numerical proof or validation of the held semantic premises.
