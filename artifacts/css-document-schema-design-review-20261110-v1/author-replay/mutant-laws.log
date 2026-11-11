@@ -1,0 +1,36 @@
+Prototype.lean:11:50: error: unsolved goals
+case foldNat
+Γ : List Ty
+t : Ty
+Δ Γ✝ : List Ty
+a✝² : Expr Γ✝ Ty.chars
+a✝¹ : Expr Γ✝ Ty.nat
+a✝ : Expr (Ty.scalar :: Ty.nat :: Γ✝) Ty.nat
+a_ih✝² : encodeExpr (weakenExpr Δ a✝²) = encodeExpr a✝²
+a_ih✝¹ : encodeExpr (weakenExpr Δ a✝¹) = encodeExpr a✝¹
+a_ih✝ : encodeExpr (weakenExpr Δ a✝) = encodeExpr a✝
+⊢ DataExpr.nat 0 = encodeExpr a✝
+Prototype.lean:30:8: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  fun acc c => eval (weakenExpr Δ step) (Env.cons c (Env.cons acc (appendEnv env tail)))
+in the target expression
+  List.foldl (fun acc c => 0) (eval z env) (eval xs env) =
+    List.foldl (fun acc c => eval step (Env.cons c (Env.cons acc env))) (eval z env) (eval xs env)
+
+case foldNat
+Γ : List Ty
+t : Ty
+Δ : List Ty
+tail : Env Δ
+Γ✝ : List Ty
+xs : Expr Γ✝ Ty.chars
+z : Expr Γ✝ Ty.nat
+step : Expr (Ty.scalar :: Ty.nat :: Γ✝) Ty.nat
+ihxs : ∀ (env : Env Γ✝), eval (weakenExpr Δ xs) (appendEnv env tail) = eval xs env
+ihz : ∀ (env : Env Γ✝), eval (weakenExpr Δ z) (appendEnv env tail) = eval z env
+ihstep : ∀ (env : Env (Ty.scalar :: Ty.nat :: Γ✝)), eval (weakenExpr Δ step) (appendEnv env tail) = eval step env
+env : Env Γ✝
+same :
+  (fun acc c => eval (weakenExpr Δ step) (Env.cons c (Env.cons acc (appendEnv env tail)))) = fun acc c =>
+    eval step (Env.cons c (Env.cons acc env))
+⊢ List.foldl (fun acc c => 0) (eval z env) (eval xs env) =
+    List.foldl (fun acc c => eval step (Env.cons c (Env.cons acc env))) (eval z env) (eval xs env)
