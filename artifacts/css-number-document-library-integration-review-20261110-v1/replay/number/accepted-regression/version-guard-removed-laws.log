@@ -1,0 +1,31 @@
+ParserDocumentLaws.lean:27:8: error: `simp` made no progress
+ParserDocumentLaws.lean:35:6: error: unsolved goals
+case neg
+shape : Shape
+j : Json
+p : Parser shape
+keys : fieldsExactly j envelopeKeys = true
+version : Json
+versionField : field j "schema" = some version
+versionOk : ¬version.getStr?.toOption = some "css-parser-ir-v1"
+accepted :
+  ∃ a,
+    field j "source_map" = some a ∧
+      (∃ x, a.getObj?.toOption = some x) ∧ ∃ a, field j "program" = some a ∧ decodeParser shape a = some p
+⊢ EnvelopeSchema j p
+ParserDocumentLaws.lean:35:14: warning: This simp argument is unused:
+  versionOk
+
+Hint: Omit it from the simp argument list.
+  [apply] simp at accepted
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ParserDocumentLaws.lean:41:43: warning: This simp argument is unused:
+  (string_option_spec _ _).mpr versionOk
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [readDocument, (exact_keys_spec _ _ envelope_keys_unique).mpr keys, (field_spec _ _ _).mpr versionField,
+    (field_spec _ _ _).mpr sourceMapField, mapRead, (field_spec _ _ _).mpr sourceField,
+    (decodeParser_spec _ _).mpr programSchema]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
