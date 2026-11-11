@@ -1,0 +1,135 @@
+<h3 id="component-combinators">
+Component Value Combinators</h3>
+
+	Component values can be arranged into property values as follows:
+
+	<ul export dfn-type="grammar">
+		<li>Juxtaposing components means that
+			all of them must occur, in the given order.
+		<li>A double ampersand (<dfn id='comb-all'>&&</dfn>) separates two or more components,
+			all of which must occur, in any order.
+		<li>A double bar (<dfn id='comb-any'>||</dfn>) separates two or more options:
+			one or more of them must occur, in any order.
+		<li>A bar (<dfn id='comb-one'>|</dfn>) separates two or more alternatives:
+			exactly one of them must occur.
+		<li>Brackets ([&nbsp;]) are for grouping.
+	</ul>
+
+	Juxtaposition is stronger than the double ampersand, the double
+	ampersand is stronger than the double bar, and the double bar
+	is stronger than the bar. Thus, the following lines are equivalent:
+
+	<pre>
+	  a b   |   c ||   d &&   e f
+	[ a b ] | [ c || [ d && [ e f ]]]
+	</pre>
+
+	For reorderable combinators (||, &&),
+	ordering of the grammar does not matter:
+	components in the same grouping may be interleaved in any order.
+	Thus, the following lines are equivalent:
+
+	<pre>
+	a || b || c
+	b || a || c
+	</pre>
+
+	Note: Combinators are <em>not</em> associative, so grouping is significant.
+	For example, ''a || b || c'' and ''a || [ b || c ]'' are distinct grammars:
+	the first allows a value like ''b a c'', but the second does not.
+
+<h3 id="component-multipliers">
+Component Value Multipliers</h3>
+
+	Every type, keyword, or bracketed group may be followed by one of
+	the following modifiers:
+
+	<ul export dfn-type="grammar">
+		<li>An asterisk (<dfn id='mult-zero-plus'>*</dfn>)
+			indicates that the preceding type, word, or group
+			occurs zero or more times.
+
+		<li>A plus (<dfn id='mult-one-plus'>+</dfn>)
+			indicates that the preceding type, word, or group
+			occurs one or more times.
+
+		<li>A question mark (<dfn id='mult-opt'>?</dfn>)
+			indicates that the preceding type, word, or group
+			is optional (occurs zero or one times).
+
+		<li>A single number in curly braces (<dfn id='mult-num'>{<var>A</var>}</dfn>)
+			indicates that the preceding type, word, or group
+			occurs <var>A</var> times.
+
+		<li>A comma-separated pair of numbers in curly braces (<dfn id='mult-num-range'>{<var>A</var>,<var>B</var>}</dfn>)
+			indicates that the preceding type, word, or group
+			occurs at least <var>A</var> and at most <var>B</var> times.
+			The <var>B</var> may be omitted ({<var>A</var>,})
+			to indicate that there must be at least <var>A</var> repetitions,
+			with no upper bound on the number of repetitions.
+
+		<li>A hash mark (<dfn id='mult-comma'>#</dfn>)
+			indicates that the preceding type, word, or group
+			occurs one or more times, separated by comma tokens
+			(which may optionally be surrounded by <a href="https://www.w3.org/TR/css-syntax/#whitespace">white space</a> and/or comments).
+			It may optionally be followed by the curly brace forms, above,
+			to indicate precisely how many times the repetition occurs,
+			like ''&lt;length>#{1,4}''.
+
+		<li>An exclamation point (<dfn id='mult-req'>!</dfn>) after a group
+			indicates that the group is required
+			and must produce at least one value;
+			even if the grammar of the items within the group
+			would otherwise allow the entire contents to be omitted,
+			at least one component value must not be omitted.
+	</ul>
+
+	The <css>+</css> and <css>#</css> multipliers may be stacked as ''+#'';
+	similarly, the <css>#</css> and <css>?</css> multipliers, <css>{A}</css> and <css>?</css> multipliers, and <css>{A,B}</css> and <css>?</css> multipliers may be stacked as ''#?'', ''{A}?'', and ''{A,B}?'', respectively.
+	These stacks each represent the later multiplier
+	applied to the result of the earlier multiplier.
+	(These same stacks can be represented using grouping,
+	but in complex grammars this can push the number of brackets beyond readability.)
+
+	For repeated component values (indicated by <css>*</css>, <css>+</css>, or <css>#</css>),
+	[=UAs=] must support at least 20 repetitions of the component.
+	If a property value contains more than the supported number of repetitions,
+	the declaration must be ignored as if it were invalid.
+
+<h3 id='combinator-multiplier-patterns'>
+Combinator and Multiplier Patterns</h3>
+
+	There are a small set of common ways to combine multiple independent <a>component values</a> in particular numbers and orders.
+	In particular, it's common to want to express that,
+	from a set of component value,
+	the author must select zero or more, one or more, or all of them,
+	and in either the order specified in the grammar or in any order.
+
+	All of these can be easily expressed using simple patterns of <a href="#component-combinators">combinators</a> and <a href="#component-multipliers">multipliers</a>:
+
+	<table class='data'>
+		<thead>
+			<tr>
+				<th>
+				<th>in order
+				<th>any order
+		<tbody>
+			<tr>
+				<th>zero or more
+				<td><code>A? B? C?</code>
+				<td><code>A? || B? || C?</code>
+
+			<tr>
+				<th>one or more
+				<td><code>[ A? B? C? ]!</code>
+				<td><code>A || B || C</code>
+
+			<tr>
+				<th>all
+				<td><code>A B C </code>
+				<td><code>A && B && C</code>
+	</table>
+
+	Note that all of the "any order" possibilities are expressed using combinators,
+	while the "in order" possibilities are all variants on juxtaposition.
+
