@@ -1,0 +1,45 @@
+--- a/analyze.py
++++ b/analyze.py
+@@ -140,16 +140,27 @@
+ 
+ def compare(base, candidate):
+     def rows(result):
+-        return {(flavor, row['test'], row.get('subtest'), row.get('occurrence', 0)): row['status']
+-                for flavor, data in result.items() for field in ['subtests', 'harness'] for row in data[field]}
++        records = {}
++        for flavor, data in result.items():
++            for field in ['subtests', 'harness']:
++                for row in data[field]:
++                    key = (flavor, field, row['test'], row.get('subtest'), row.get('occurrence', 0))
++                    assert key not in records, ('duplicate result identity', key)
++                    records[key] = row['status']
++        return records
+     left, right = rows(base), rows(candidate)
+-    intended = {('wpt', CONTROL, name, 0) for name in NEW_FAILURES} | {('wpt', EXISTING, CLIP, 0)}
++    intended = {('wpt', 'subtests', CONTROL, name, 0) for name in NEW_FAILURES} | {('wpt', 'subtests', EXISTING, CLIP, 0)}
+     changes = [{'key': key, 'baseline': left.get(key), 'candidate': right.get(key)}
+                for key in sorted(left.keys() | right.keys(), key=repr) if left.get(key) != right.get(key)]
+     actual = {tuple(row['key']) for row in changes}
+     good = set(left) == set(right) and actual == intended and all(row['baseline'] == 'FAIL' and row['candidate'] == 'PASS' for row in changes)
+     observations_equal = base['wpt']['observations'] == candidate['wpt']['observations']
++    def labels(result):
++        return {(row['test'], row.get('subtest'), row['occurrence']): row.get('message')
++                for row in result['mochitest']['subtests']}
++    labels_equal = labels(base) == labels(candidate)
+     return {'expected_css_improvements_only': good, 'svg_observations_unchanged': observations_equal,
+             'baseline_rows': len(left), 'candidate_rows': len(right), 'changes': changes,
+             'svg_observation_count': len(candidate['wpt']['observations']),
+-            'messages_compared': False, 'gate_passed': good and observations_equal}
++            'mochitest_messages_compared': True, 'mochitest_messages_unchanged': labels_equal,
++            'gate_passed': good and observations_equal and labels_equal}
+--- a/parser-controls.py
++++ b/parser-controls.py
+@@ -37,7 +37,7 @@
+     for test in json.loads((HERE/'RUN-PLAN.json').read_text())['mochitests']:
+         result.append({'action': 'test_start', 'test': test})
+         for _ in range(2):
+-            result.append({'action': 'test_status', 'test': test, 'subtest': 'Repeated assertion name', 'status': 'PASS'})
++            result.append({'action': 'test_status', 'test': test, 'subtest': None, 'message': 'Repeated assertion label', 'status': 'PASS'})
+         result.append({'action': 'test_end', 'test': test, 'status': 'PASS'})
+     result.append({'action': 'suite_end'})
+     return result
