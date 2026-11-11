@@ -1,0 +1,67 @@
+--- a/src/tokenizer.rs
++++ b/src/tokenizer.rs
+@@ -1062,6 +1062,7 @@
+         parser.advance(1);
+     }
+ 
++    let lexical_integral_start = parser.position();
+     let mut integral_part: f64 = 0.;
+     while let Some(digit) = byte_to_decimal_digit(parser.next_byte_unchecked()) {
+         integral_part = integral_part * 10. + digit as f64;
+@@ -1071,6 +1072,8 @@
+         }
+     }
+ 
++    let lexical_integral_end = parser.position();
++    let mut lexical_fraction_start = lexical_integral_end;
+     let mut is_integer = true;
+ 
+     let mut fractional_part: f64 = 0.;
+@@ -1080,6 +1083,7 @@
+     {
+         is_integer = false;
+         parser.advance(1); // Consume '.'
++        lexical_fraction_start = parser.position();
+         let mut factor = 0.1;
+         while let Some(digit) = byte_to_decimal_digit(parser.next_byte_unchecked()) {
+             fractional_part += digit as f64 * factor;
+@@ -1091,6 +1095,9 @@
+         }
+     }
+ 
++    let lexical_fraction_end = parser.position();
++    let mut lexical_exponent_start = lexical_fraction_end;
++    let mut lexical_exponent_end = lexical_fraction_end;
+     let mut value = sign * (integral_part + fractional_part);
+ 
+     if parser.has_at_least(1)
+@@ -1110,6 +1117,7 @@
+         if has_sign {
+             parser.advance(1);
+         }
++        lexical_exponent_start = parser.position();
+         let mut exponent: f64 = 0.;
+         while let Some(digit) = byte_to_decimal_digit(parser.next_byte_unchecked()) {
+             exponent = exponent * 10. + digit as f64;
+@@ -1118,9 +1126,21 @@
+                 break;
+             }
+         }
++        lexical_exponent_end = parser.position();
+         value *= f64::powf(10., sign * exponent);
+     }
+ 
++    let lexical_hex = |s: &str| s.as_bytes().iter().map(|b| format!("{b:02x}")).collect::<String>();
++    eprintln!("TRACE\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
++        start_position.byte_index(), parser.position().byte_index(),
++        lexical_integral_start.byte_index(), lexical_integral_end.byte_index(),
++        lexical_fraction_start.byte_index(), lexical_fraction_end.byte_index(),
++        lexical_exponent_start.byte_index(), lexical_exponent_end.byte_index(),
++        lexical_hex(parser.slice_from(start_position)),
++        lexical_hex(&parser.input[parser.position().byte_index()..]),
++        lexical_hex(parser.slice(lexical_integral_start..lexical_integral_end)),
++        lexical_hex(parser.slice(lexical_fraction_start..lexical_fraction_end)),
++        lexical_hex(parser.slice(lexical_exponent_start..lexical_exponent_end)), has_sign, is_integer);
+     // Reparse long numbers as a whole: exponents can compensate for intermediate overflow/underflow.
+     // Below 256 bytes, finite underflow cannot affect the final f32 payload.
+     if parser.position().byte_index() - start_position.byte_index() >= 256 || !value.is_finite() {
