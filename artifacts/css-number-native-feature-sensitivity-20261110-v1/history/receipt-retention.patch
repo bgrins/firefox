@@ -1,0 +1,18 @@
+--- a/run.py
++++ b/run.py
+@@ -96,6 +96,7 @@
+                 binary = scratch / 'target' / audited['HOST'] / 'debug/numeric'
+                 binaries[label] = dict(binary_sha256=sha(binary), tokenizer_sha256=hashlib.sha256(actual).hexdigest(),
+                     checksum_manifest_sha256=hashlib.sha256(checksum).hexdigest())
++                save(output / 'BINARIES.json', binaries)
+                 run(label, [binary], stdin=(ROOT / 'inputs/native-input.tsv').read_bytes())
+                 audited['vendor'](workspace, dependency['files'], actual, checksum)
+                 assert sha(workspace / 'Cargo.lock') == lock_hash
+@@ -120,6 +121,7 @@
+                 assert changed == mutation['changed_columns'], (variant, changed)
+                 controls[variant] = dict(witness=key, actual=actual, expected=expected, changed_columns=changed,
+                     plain_and_instrumented_completed=True, unchanged_comparison_rejected=True)
++                save(output / 'MUTANTS.json', controls)
+             else:
+                 baseline = reference['public_rows']((output / 'baseline-plain.stdout').read_text())
+                 historical = reference['public_rows']((ROOT / 'inputs/historical-plain.tsv').read_text())
