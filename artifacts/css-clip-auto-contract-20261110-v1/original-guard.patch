@@ -1,0 +1,61 @@
+commit bed034ddc1f7d80e1c7fb21d7010de899d365874
+Author:     Mantaroh Yoshinaga <mantaroh@gmail.com>
+AuthorDate: Wed Aug 30 23:21:49 2017 -0500
+Commit:     Mantaroh Yoshinaga <mantaroh@gmail.com>
+CommitDate: Wed Aug 30 23:21:49 2017 -0500
+
+    servo: Merge #18210 - Skip adding/accumulating ClipRect values which corresponding rect offset is auto (from mantaroh:clip-interpolation-fix); r=nox
+    
+    <!-- Please describe your changes on the following line: -->
+    This is a PR for https://bugzilla.mozilla.org/show_bug.cgi?id=1390352
+    
+    This patch will skip adding/accumulating the values which corresponding rect offset is auto, and  make Servo_AnimationValues_ComputeDistance return negative value instead of 0.0 when the function fails to distinguish its failure.
+    
+    ---
+    <!-- Thank you for contributing to Servo! Please replace each `[ ]` by `[X]` when the step is complete, and replace `__` with appropriate data: -->
+    - [X] `./mach build -d` does not report any errors
+    - [X] `./mach test-tidy` does not report any errors
+    
+    <!-- Either: -->
+    There are already these tests in dom/smil/tests of gecko, this PR will enable these tests.
+    For detail, see https://bugzilla.mozilla.org/show_bug.cgi?id=1390352.
+    
+    <!-- Also, please make sure that "Allow edits from maintainers" checkbox is checked, so that we can help you if you get stuck somewhere along the way.-->
+    
+    <!-- Pull requests that do not address these steps are welcome, but they will require additional verification as part of the review process. -->
+    
+    Source-Repo: https://github.com/servo/servo
+    Source-Revision: 5624c0e3f16e0057bb228627eaf9018ef88e7786
+
+diff --git a/servo/components/style/properties/helpers/animated_properties.mako.rs b/servo/components/style/properties/helpers/animated_properties.mako.rs
+index 25cc6b47e35c..8358b1e2db12 100644
+--- a/servo/components/style/properties/helpers/animated_properties.mako.rs
++++ b/servo/components/style/properties/helpers/animated_properties.mako.rs
+@@ -924,6 +924,27 @@ impl Into<FontStretch> for f64 {
+ impl<H, V> RepeatableListAnimatable for generic_position::Position<H, V>
+     where H: RepeatableListAnimatable, V: RepeatableListAnimatable {}
+ 
++/// https://drafts.csswg.org/css-transitions/#animtype-rect
++impl Animate for ClipRect {
++    #[inline]
++    fn animate(&self, other: &Self, procedure: Procedure) -> Result<Self, ()> {
++        let animate_component = |this: &Option<Au>, other: &Option<Au>| {
++            match (this.animate(other, procedure)?, procedure) {
++                (None, Procedure::Interpolate { .. }) => Ok(None),
++                (None, _) => Err(()),
++                (result, _) => Ok(result),
++            }
++        };
++
++        Ok(ClipRect {
++            top:    animate_component(&self.top, &other.top)?,
++            right:  animate_component(&self.right, &other.right)?,
++            bottom: animate_component(&self.bottom, &other.bottom)?,
++            left:   animate_component(&self.left, &other.left)?,
++        })
++    }
++}
++
+ impl ToAnimatedZero for ClipRect {
+     #[inline]
+     fn to_animated_zero(&self) -> Result<Self, ()> { Err(()) }

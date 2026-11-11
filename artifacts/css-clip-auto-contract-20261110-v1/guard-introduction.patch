@@ -1,0 +1,59 @@
+commit 73820f32c450096df47f729ac8a605e023bc723f
+Author: Emilio Cobos Álvarez <emilio@crisal.io>
+Date:   Wed Mar 6 21:37:48 2019 +0000
+
+    Bug 1532135 - Derive more stuff for clip rects. r=boris
+    
+    I feel a bit weird for using LenghtPercentageOrAuto to implement LengthOrAuto,
+    but I don't think much other code will use it so it seemed a bit better to me.
+    
+    Differential Revision: https://phabricator.services.mozilla.com/D21863
+
+diff --git a/servo/components/style/properties/helpers/animated_properties.mako.rs b/servo/components/style/properties/helpers/animated_properties.mako.rs
+index fcc6e48b41b0..5669101351db 100644
+--- a/servo/components/style/properties/helpers/animated_properties.mako.rs
++++ b/servo/components/style/properties/helpers/animated_properties.mako.rs
+@@ -802,29 +802,29 @@ impl ToAnimatedZero for Visibility {
+ impl Animate for ClipRect {
+     #[inline]
+     fn animate(&self, other: &Self, procedure: Procedure) -> Result<Self, ()> {
+-        use crate::values::computed::Length;
+-        let animate_component = |this: &Option<Length>, other: &Option<Length>| {
+-            match (this.animate(other, procedure)?, procedure) {
+-                (None, Procedure::Interpolate { .. }) => Ok(None),
+-                (None, _) => Err(()),
+-                (result, _) => Ok(result),
++        use crate::values::computed::LengthOrAuto;
++        let animate_component = |this: &LengthOrAuto, other: &LengthOrAuto| {
++            let result = this.animate(other, procedure)?;
++            if let Procedure::Interpolate { .. } = procedure {
++                return Ok(result);
+             }
++            if result.is_auto() {
++                // FIXME(emilio): Why? A couple SMIL tests fail without this,
++                // but it seems extremely fishy.
++                return Err(());
++            }
++            Ok(result)
+         };
+ 
+         Ok(ClipRect {
+-            top:    animate_component(&self.top, &other.top)?,
+-            right:  animate_component(&self.right, &other.right)?,
++            top: animate_component(&self.top, &other.top)?,
++            right: animate_component(&self.right, &other.right)?,
+             bottom: animate_component(&self.bottom, &other.bottom)?,
+-            left:   animate_component(&self.left, &other.left)?,
++            left: animate_component(&self.left, &other.left)?,
+         })
+     }
+ }
+ 
+-impl ToAnimatedZero for ClipRect {
+-    #[inline]
+-    fn to_animated_zero(&self) -> Result<Self, ()> { Err(()) }
+-}
+-
+ <%
+     FILTER_FUNCTIONS = [ 'Blur', 'Brightness', 'Contrast', 'Grayscale',
+                          'HueRotate', 'Invert', 'Opacity', 'Saturate',
