@@ -1,0 +1,27 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Pending animation timing</title>
+<h1>Pending animation timing</h1>
+<button id="run">Run</button>
+<pre id="output"></pre>
+<script src="pending-timing.js"></script>
+<script>
+  document.getElementById("run").onclick = async event => {
+    event.target.disabled = true;
+    const output = document.getElementById("output");
+    output.textContent = "";
+    try {
+      for (const mode of [
+        "pending-cross",
+        "pending-before",
+        "running-cross",
+        "held-cross",
+      ]) {
+        const result = await runPendingTimingProbe(mode);
+        output.textContent += JSON.stringify(result, null, 2) + "\n";
+      }
+    } finally {
+      event.target.disabled = false;
+    }
+  };
+</script>

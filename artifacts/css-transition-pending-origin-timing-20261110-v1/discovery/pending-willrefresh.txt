@@ -1,0 +1,25 @@
+>>>  185: void DocumentTimeline::WillRefresh() {
+     186:   if (!mDocument->GetPresShell()) {
+     187:     // If we're not displayed, don't tick animations.
+     188:     return;
+     189:   }
+     190:   UpdateLastRefreshDriverTime();
+     191:   if (mAnimationOrder.isEmpty()) {
+     192:     return;
+     193:   }
+     194:   nsAutoAnimationMutationBatch mb(mDocument);
+     195: 
+     196:   TickState state;
+     197:   bool ticked = Tick(state);
+     198:   if (!ticked) {
+     199:     return;
+     200:   }
+     201:   // We already assert that GetRefreshDriver() is non-null at the beginning
+     202:   // of this function but we check it again here to be sure that ticking
+     203:   // animations does not have any side effects that cause us to lose the
+     204:   // connection with the refresh driver, such as triggering the destruction
+     205:   // of mDocument's PresShell.
+     206:   if (nsRefreshDriver* refreshDriver = GetRefreshDriver()) {
+     207:     refreshDriver->EnsureAnimationUpdate();
+     208:   }
+     209: }

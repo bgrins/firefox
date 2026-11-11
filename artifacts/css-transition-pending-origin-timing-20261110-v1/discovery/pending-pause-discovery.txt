@@ -1,0 +1,16 @@
+>>> 2061: void Animation::PauseAt(const TimeDuration& aReadyTime) {
+    2062:   MOZ_ASSERT(mPendingState == PendingState::PausePending,
+    2063:              "Expected to pause a pause-pending animation");
+    2064: 
+    2065:   if (!mStartTime.IsNull() && mHoldTime.IsNull()) {
+    2066:     mHoldTime = CurrentTimeFromTimelineTime(aReadyTime, mStartTime.Value(),
+    2067:                                             PlaybackRateInternal());
+    2068:   }
+    2069:   ApplyPendingPlaybackRate();
+    2070:   mStartTime.SetNull();
+    2071:   mPendingState = PendingState::NotPending;
+    2072: 
+    2073:   UpdateTiming(SeekFlag::NoSeek, SyncNotifyFlag::Async);
+    2074: 
+    2075:   MaybeResolvePromiseWithThis(mReady);
+    2076: }

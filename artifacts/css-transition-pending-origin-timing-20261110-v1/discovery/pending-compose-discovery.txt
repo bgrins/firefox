@@ -1,0 +1,69 @@
+>>> 1693: void Animation::ComposeStyle(
+    1694:     StyleAnimationValueMap& aComposeResult,
+    1695:     const InvertibleAnimatedPropertyIDSet& aPropertiesToSkip,
+    1696:     EndpointBehavior aEndpointBehavior) {
+    1697:   if (!mEffect) {
+    1698:     return;
+    1699:   }
+    1700:   if (mTimeline && mTimeline->IsUnresolvedTimeline()) {
+    1701:     return;
+    1702:   }
+    1703: 
+    1704:   // In order to prevent flicker, there are a few cases where we want to use
+    1705:   // a different time for rendering that would otherwise be returned by
+    1706:   // GetCurrentTimeAsDuration. These are:
+    1707:   //
+    1708:   // (a) For animations that are pausing but which are still running on the
+    1709:   //     compositor. In this case we send a layer transaction that removes the
+    1710:   //     animation but which also contains the animation values calculated on
+    1711:   //     the main thread. To prevent flicker when this occurs we want to ensure
+    1712:   //     the timeline time used to calculate the main thread animation values
+    1713:   //     does not lag far behind the time used on the compositor. Ideally we
+    1714:   //     would like to use the "animation ready time", but for now we just use
+    1715:   //     the current wallclock time. TODO(emilio): After bug 1864425 it seems we
+    1716:   //     could just use the ready time, or maybe we can remove this?
+    1717:   //
+    1718:   // (b) For animations that are pausing that we have already taken off the
+    1719:   //     compositor. In this case we record a pending ready time but we don't
+    1720:   //     apply it until the next tick. However, while waiting for the next tick,
+    1721:   //     we should still use the pending ready time as the timeline time. If we
+    1722:   //     use the regular timeline time the animation may appear jump backwards
+    1723:   //     if the main thread's timeline time lags behind the compositor.
+    1724:   //
+    1725:   // (c) For animations that are play-pending due to an aborted pause operation
+    1726:   //     (i.e. a pause operation that was interrupted before we entered the
+    1727:   //     paused state). When we cancel a pending pause we might momentarily take
+    1728:   //     the animation off the compositor, only to re-add it moments later. In
+    1729:   //     that case the compositor might have been ahead of the main thread so we
+    1730:   //     should use the current wallclock time to ensure the animation doesn't
+    1731:   //     temporarily jump backwards.
+    1732:   //
+    1733:   // To address each of these cases we temporarily tweak the hold time
+    1734:   // immediately before updating the style rule and then restore it immediately
+    1735:   // afterwards. This is purely to prevent visual flicker. Other behavior
+    1736:   // such as dispatching events continues to rely on the regular timeline time.
+    1737:   const bool pending = Pending();
+    1738:   {
+    1739:     AutoRestore<Nullable<TimeDuration>> restoreHoldTime(mHoldTime);
+    1740:     if (pending && mHoldTime.IsNull() && !mStartTime.IsNull()) {
+    1741:       Nullable<TimeDuration> timeToUse;
+    1742:       if (mTimeline && mTimeline->TracksWallclockTime()) {
+    1743:         timeToUse = mTimeline->ToTimelineTime(TimeStamp::Now());
+    1744:       }
+    1745:       if (!timeToUse.IsNull()) {
+    1746:         mHoldTime = CurrentTimeFromTimelineTime(
+    1747:             timeToUse.Value(), mStartTime.Value(), PlaybackRateInternal());
+    1748:       }
+    1749:     }
+    1750: 
+    1751:     KeyframeEffect* keyframeEffect = mEffect->AsKeyframeEffect();
+    1752:     if (keyframeEffect) {
+    1753:       keyframeEffect->ComposeStyle(aComposeResult, aPropertiesToSkip,
+    1754:                                    aEndpointBehavior);
+    1755:     }
+    1756:   }
+    1757: 
+    1758:   MOZ_ASSERT(
+    1759:       pending == Pending(),
+    1760:       "Pending state should not change during the course of compositing");
+    1761: }

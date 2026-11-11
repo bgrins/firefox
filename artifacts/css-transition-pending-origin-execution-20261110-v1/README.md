@@ -1,0 +1,9 @@
+# Pending timing browser witness
+
+Root authenticated eight original native Git inputs and three copied query inputs, reviewed the standalone probe, and executed all four modes in System Firefox158.0. This used a separate tool-owned browser/profile while the objdir candidate compiled; no candidate application was used or changed by this probe. All47setupchecks passed, with eight style observations. The page left zero targets/animations and the tool confirmed closure of its owned instance.
+
+The pending-cross case returned20px twice while ordinary progress stayed null, current time stayed1920ms before a2000ms delay, and pending pause/start/time/target/rate state survived style reads. The timeline stayed17611.18ms throughout the task; the public wallclock estimate advanced to2079.82ms local time. The pending-before, running-cross and held-cross controls returned80px twice each. Raw tool output and explicitly serialized page data are retained.
+
+This establishes browser reachability of the timing divergence predicted by the pinned source review. It refutes a universal equivalence between ordinary in-effect status and actual composition sampling. It does not establish that System Firefox158 has identical source to the pinned research HEAD, prove the proposed origin policy normative, or constitute a new Firefox bug. The held filtering patch was not applied; its predicted sample suppression remains source analysis rather than an executed before/after comparison.
+
+A future eligibility decision must share the exact captured timing used for sampling. Recomputing another wallclock time at cache refresh does not discharge that obligation. The conditional Lean origin model keeps timing coherence as an explicit premise; this witness demonstrates why it cannot be assumed for all native callers.

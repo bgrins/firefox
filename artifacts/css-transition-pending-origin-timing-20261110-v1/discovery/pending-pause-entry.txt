@@ -1,0 +1,72 @@
+>>> 1940: void Animation::Pause(ErrorResult& aRv) {
+    1941:   // If animation has a pending pause task, abort these steps.
+    1942:   // If the play state of animation is paused, abort these steps.
+    1943:   if (IsPausedOrPausing()) {
+    1944:     return;
+    1945:   }
+    1946: 
+    1947:   AutoMutationBatchForAnimation mb(*this);
+    1948: 
+    1949:   // Let has finite timeline be true if animation has an associated timeline
+    1950:   // that is not monotonically increasing.
+    1951:   const bool hasFiniteTimeline = HasFiniteTimeline();
+    1952: 
+    1953:   if (GetCurrentTimeAsDuration().IsNull()) {
+    1954:     if (!hasFiniteTimeline) {
+    1955:       // If the animation’s current time is unresolved and has finite timeline
+    1956:       // is false, perform the steps according to the first matching condition
+    1957:       // below:
+    1958:       if (PlaybackRateInternal() >= 0.0) {
+    1959:         // If animation’s playback rate is ≥ 0, set hold time to zero.
+    1960:         mHoldTime.SetValue(TimeDuration());
+    1961:       } else {
+    1962:         if (EffectEnd() == TimeDuration::Forever()) {
+    1963:           // If associated effect end for animation is positive infinity, throw
+    1964:           // an "InvalidStateError" DOMException and abort these steps.
+    1965:           return aRv.ThrowInvalidStateError(
+    1966:               "Can't seek to infinite effect end");
+    1967:         }
+    1968:         // Otherwise, set hold time to animation’s associated effect end.
+    1969:         mHoldTime.SetValue(TimeDuration(EffectEnd()));
+    1970:       }
+    1971:     } else {
+    1972:       // If has finite timeline is true, and the animation’s current time is
+    1973:       // unresolved, set the auto align start time flag to true.
+    1974:       mAutoAlignStartTime = true;
+    1975:     }
+    1976:   }
+    1977: 
+    1978:   // Let has pending ready promise be a boolean flag that is initially false.
+    1979:   bool hasPendingReadyPromise = false;
+    1980: 
+    1981:   // If animation has a pending play task, cancel that task and let has pending
+    1982:   // ready promise be true.
+    1983:   if (mPendingState == PendingState::PlayPending) {
+    1984:     CancelPendingTasks();
+    1985:     hasPendingReadyPromise = true;
+    1986:   }
+    1987: 
+    1988:   // If has pending ready promise is false, set animation’s current ready
+    1989:   // promise to a new promise in the relevant Realm of animation.
+    1990:   if (!hasPendingReadyPromise) {
+    1991:     // Clear ready promise. We'll create a new one lazily.
+    1992:     mReady = nullptr;
+    1993:   }
+    1994: 
+    1995:   // Schedule the panding pause task. See Animation::PauseAt() for details.
+    1996:   mPendingState = PendingState::PausePending;
+    1997:   mPendingReadyTime = {};
+    1998:   if (Document* doc = GetRenderedDocument()) {
+    1999:     mPendingReadyTime = EnsurePaintIsScheduled(*doc);
+    2000:   }
+    2001: 
+    2002:   // Run the procedure to update an animation’s finished state for animation
+    2003:   // with the did seek flag set to false, and the synchronously notify flag set
+    2004:   // to false.
+    2005:   UpdateTiming(SeekFlag::NoSeek, SyncNotifyFlag::Async);
+    2006:   if (IsRelevant()) {
+    2007:     MutationObservers::NotifyAnimationChanged(this);
+    2008:   }
+    2009: 
+    2010:   PostUpdate();
+    2011: }
