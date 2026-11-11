@@ -1,0 +1,11 @@
+# Independent offline-resolution amendment review
+
+The revised preparation is ready for root's native execution gate. Independent source-only replay and actual metadata-only replay both pass. No native compilation, tokenizer execution or browser test occurred during this review.
+
+Final SOURCE-ONLY SHA is `fff8051dd2e28cdc084695e49df2b9dcd97f3e1bb3de741699c4f438969d3bc9` (41 inputs), authenticated in SOURCES.json. Against v1, exactly README.md, REPORT.md, TOOLCHAIN.json and run.py changed. All strict schema, comparator, tokenizer mutations, corpus, model observations, materializer, dependency audit and source-checker bytes are unchanged. The stored runner patch is exactly the independently regenerated diff.
+
+V1's first offline generate-lockfile failed before any build. V2 instead runs offline metadata against the retained seed, audits actual package identities/paths/features, retains the resolved lock, and runs metadata again frozen. The runner requires both feature maps and the lock hash to remain equal. This changes resolution orchestration, not the planned eight builds or mutation acceptance criteria.
+
+The independent metadata replay produced the same resolved lock as the author's actual replay: `eb88094dff2b216e2a4a59c35880a787d696c36f800281a4a66cfd1a8f3b2eeb`. Both commands exited zero, and both sets of stdout/stderr hashes were checked. The report and resolved lock match the author's receipts. Actual cssparser features are exactly default, fast_match_byte and fast_match_color. All 437 materialized source files remain pinned. No target directory was created; temporary source/Cargo-home workspaces were removed. The separate source replay again passes the 180 typed rows, 18 schema refusals and four synthetic metadata controls.
+
+The previous review's scopes remain unchanged: retained Lean rows, normalized-ASCII lexical correspondence, limited default-feature parity, no independent floating-point oracle, no full Gecko configuration or native refinement proof. Host SDK/linker/environment remain partly unpinned. Successful metadata resolution now has direct evidence; native compilation and all three exact first-witness failures remain unexecuted gates. Root owns that execution and should retain v1's failure as historical evidence.
