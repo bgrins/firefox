@@ -1,0 +1,9 @@
+# Bounded numeric tokenizer search
+
+This experiment extends the previously accepted default-feature differential protocol without changing its native instrumentation, public driver, seven-field comparator, strict JSON schema or Lean numeric program. It generates every number-entry string of length 1–4 over `019.+-eEx%`, plus selected long decimal/exponent and integer boundary strings. Each input is tested once from the beginning and once after a UTF-8 comment with cold/cache/reset/suffix history. The history form appends a whitespace/semicolon sentinel so a following token exists.
+
+There are 4,398 exhaustive short strings and 73 additional boundary strings, giving 8,942 cases. Two distinct fresh Cargo target directories compile the pinned default-feature tokenizer with and without trace instrumentation. Lean modules are compiled cold from the authenticated bridge capsule. The actual JSON numeric document is executed on every tail, and its output is strictly type-checked before comparison.
+
+The proof-backed observation covers consumed numeric text, remainder, integer/fraction/exponent digit runs, sign presence and integer classification. Full public token observations must agree between instrumented and ordinary native builds and across parser resets. Floating-point payload bits are recorded but have no mathematical rounding oracle. This is bounded differential testing of real native code, not a proof that all Rust executions refine the model, nor a claim about full Gecko build equivalence.
+
+`run.py` refuses modified prerequisite manifests/toolchains, keeps all compilation in an owned temporary directory, records each command and binary hash, and removes compiled scratch on termination. The run does not change the Firefox source, browser, canonical library or Git state. Actual status is in `execution/RESULT.json` when the run completes; absence of that receipt is not success.
