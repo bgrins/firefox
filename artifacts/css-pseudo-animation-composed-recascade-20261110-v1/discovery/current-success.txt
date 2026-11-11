@@ -1,0 +1,31 @@
+>>>   49: bool AnimationEffect::IsCurrent() const {
+      50:   if (!mAnimation) {
+      51:     return false;
+      52:   }
+      53: 
+      54:   const AnimationTimeline* timeline = mAnimation->GetTimeline();
+      55:   // An animation effect is current if it is associated with an animation not
+      56:   // in the idle play state with a non-null associated timeline that is not
+      57:   // monotonically increasing.
+      58:   // https://drafts.csswg.org/web-animations-1/#current (fourth bullet)
+      59:   if (timeline && !timeline->IsMonotonicallyIncreasing() &&
+      60:       mAnimation->PlayState() != AnimationPlayState::Idle) {
+      61:     return true;
+      62:   }
+      63: 
+      64:   if (mAnimation->PlayState() == AnimationPlayState::Finished) {
+      65:     return false;
+      66:   }
+      67: 
+      68:   ComputedTiming computedTiming = GetComputedTiming();
+      69:   if (computedTiming.mPhase == ComputedTiming::AnimationPhase::Active) {
+      70:     return true;
+      71:   }
+      72: 
+      73:   return (mAnimation->PlaybackRateInternal() > 0 &&
+      74:           computedTiming.mPhase == ComputedTiming::AnimationPhase::Before) ||
+      75:          (mAnimation->PlaybackRateInternal() < 0 &&
+      76:           computedTiming.mPhase == ComputedTiming::AnimationPhase::After);
+      77: }
+Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)
+      Run: cargo binstall searchfox-cli

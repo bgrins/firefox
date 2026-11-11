@@ -1,0 +1,30 @@
+>>>  974: void KeyframeEffect::UpdateTargetRegistration() {
+     975:   if (!mTarget) {
+     976:     return;
+     977:   }
+     978: 
+     979:   bool isRelevant = mAnimation && mAnimation->IsRelevant();
+     980: 
+     981:   // Animation::IsRelevant() returns a cached value. It only updates when
+     982:   // something calls Animation::UpdateRelevance. Whenever our timing changes,
+     983:   // we should be notifying our Animation before calling this, so
+     984:   // Animation::IsRelevant() should be up-to-date by the time we get here.
+     985:   MOZ_ASSERT(isRelevant ==
+     986:                  ((IsCurrent() || IsInEffect()) && mAnimation &&
+     987:                   mAnimation->ReplaceState() != AnimationReplaceState::Removed),
+     988:              "Out of date Animation::IsRelevant value");
+     989: 
+     990:   if (isRelevant && !mInEffectSet) {
+     991:     EffectSet* effectSet = EffectSet::GetOrCreate(mTarget);
+     992:     effectSet->AddEffect(*this);
+     993:     mInEffectSet = true;
+     994:     UpdateEffectSet(effectSet);
+     995:     nsIFrame* frame = GetPrimaryFrame();
+     996:     EnumerateContinuationsOrIBSplitSiblings(
+     997:         frame, [](nsIFrame* aFrame) { aFrame->MarkNeedsDisplayItemRebuild(); });
+     998:   } else if (!isRelevant && mInEffectSet) {
+     999:     UnregisterTarget();
+    1000:   }
+    1001: }
+Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)
+      Run: cargo binstall searchfox-cli

@@ -1,0 +1,97 @@
+--- accepted-query-driver.cpp
++++ combined-driver.cpp
+@@ -1,5 +1,5 @@
+ NS_IMETHODIMP
+-nsDOMWindowUtils::GetMissingPseudoAnimationValuesForTesting(
++nsDOMWindowUtils::GetMissingPseudoCompositedStyleForTesting(
+     Element* aElement, const nsAString& aPseudoElement,
+     const nsAString& aProperty, int32_t aFlushType, nsAString& aResult) {
+   RefPtr<Document> document = GetDocument();
+@@ -52,6 +52,8 @@
+   uint32_t animations = 0;
+   uint32_t transitions = 0;
+   uint32_t cssAnimations = 0;
++  uint32_t inEffectAnimations = 0;
++  uint32_t inEffectTransitions = 0;
+   uint32_t unresolved = 0;
+   uint32_t wallclockPending = 0;
+   {
+@@ -74,8 +76,10 @@
+         if (animation->CascadeLevel() ==
+             EffectCompositor::CascadeLevel::Transitions) {
+           ++transitions;
++          inEffectTransitions += effect->IsInEffect();
+         } else {
+           ++animations;
++          inEffectAnimations += effect->IsInEffect();
+         }
+         cssAnimations += animation->AsCSSAnimation() != nullptr;
+         unresolved += animation->mTimeline &&
+@@ -88,9 +92,11 @@
+     }
+   }
+ 
++  RefPtr<ComputedStyle> primaryStyle =
++      presShell->StyleSet()->ResolveStyleLazily(*element);
+   RefPtr<ComputedStyle> rawStyle = presShell->StyleSet()->ResolveStyleLazily(
+       *element, *pseudo, StyleRuleInclusion::All);
+-  if (!rawStyle) {
++  if (!primaryStyle || !rawStyle) {
+     return NS_ERROR_FAILURE;
+   }
+   auto sameEffects = [&] {
+@@ -137,6 +143,12 @@
+   UniquePtr<StyleAnimationValueMap> transitionValues;
+   const bool admitted = compositor->ComposeServoAnimationRulesForMissingPseudo(
+       target, rawStyle, rawStyle, animationValues, transitionValues);
++  RefPtr<ComputedStyle> cascadedStyle;
++  if (admitted) {
++    cascadedStyle = presShell->StyleSet()->RecascadeStyleForMissingPseudo(
++        *element, *pseudo, *rawStyle, *primaryStyle, *animationValues,
++        *transitionValues);
++  }
+   unchanged &= sameEffects();
+   for (const State& state : states) {
+     const mozilla::dom::Animation& animation = *state.mAnimation;
+@@ -162,6 +174,15 @@
+   JSONWriter writer(output, JSONWriter::SingleLineStyle);
+   writer.Start();
+   writer.BoolProperty("admitted", admitted);
++  writer.BoolProperty("recascadeAdmitted", !!cascadedStyle);
++  writer.BoolProperty("originUnchanged", Servo_Element_GetMaybeOutOfDateStyle(
++                                             element) == primaryStyle);
++  writer.BoolProperty(
++      "pseudoMatches",
++      cascadedStyle && cascadedStyle->GetPseudoType() == pseudo->mType);
++  writer.BoolProperty("noPseudoCreated", !element->GetPseudoElement(*pseudo));
++  writer.IntProperty("inEffectAnimations", inEffectAnimations);
++  writer.IntProperty("inEffectTransitions", inEffectTransitions);
+   writer.BoolProperty("guardedAlias", guardedAlias);
+   writer.BoolProperty("guardedNonempty", guardedNonempty);
+   writer.BoolProperty("separateMaps", animationValues && transitionValues &&
+@@ -188,8 +209,24 @@
+   };
+   writeValue("animationValue", animationValues);
+   writeValue("transitionValue", transitionValues);
++  auto writeStyleValue = [&](const Span<const char>& name,
++                             const ComputedStyle* style) {
++    RefPtr<StyleAnimationValue> value =
++        style ? Servo_ComputedValues_ExtractAnimationValue(style, &property)
++                    .Consume()
++              : nullptr;
++    if (!value) {
++      writer.NullProperty(name);
++      return;
++    }
++    nsAutoCString text;
++    Servo_AnimationValue_Serialize(value, &property,
++                                   presShell->StyleSet()->RawData(), &text);
++    writer.StringProperty(name, Span<const char>(text.Data(), text.Length()));
++  };
++  writeStyleValue("baseValue", rawStyle);
++  writeStyleValue("cascadedValue", cascadedStyle);
+   writer.End();
+   CopyUTF8toUTF16(output.StringCRef(), aResult);
+   return NS_OK;
+ }
+-
