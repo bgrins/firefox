@@ -1,0 +1,30 @@
+--- v1/proposal/getkeyframes-computed-property-values.html
++++ v2/proposal/getkeyframes-computed-property-values.html
+@@ -19,10 +19,6 @@
+   @keyframes variable-values {
+     from { --stored: var(--source); }
+     to { --stored: var(--source); }
+-  }
+-  @keyframes changing-font {
+-    from { font-size: 10px; margin-left: 1em; }
+-    to { font-size: 20px; margin-left: 2em; }
+   }
+ </style>
+ <body>
+@@ -82,11 +78,12 @@
+ 
+ test(t => {
+   const target = targetFor(t);
+-  const animation = cssAnimationFor(t, target, "changing-font");
+-  assert_equals(getComputedStyle(target).fontSize, "15px");
++  const animation = cssAnimationFor(t, target, "relative-values");
++  target.style.fontSize = "20px";
++  assert_equals(getComputedStyle(target).fontSize, "20px");
+   assert_array_equals(animation.effect.getKeyframes().map(frame => frame.marginLeft),
+-                      ["15px", "30px"]);
+-}, "CSS getKeyframes resolves relative units against the current animated font");
++                      ["20px", "40px"]);
++}, "CSS getKeyframes observes a changed font dependency");
+ 
+ for (const css of [false, true]) {
+   test(t => {

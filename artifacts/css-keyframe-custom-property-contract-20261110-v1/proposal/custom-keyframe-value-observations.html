@@ -1,0 +1,102 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Custom keyframe value observations</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#dom-keyframeeffect-getkeyframes">
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#keyframe-processing">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  :root { color: black; --end-color: rgb(255, 0, 0); }
+  .target { font-size: 16px; }
+  @keyframes original-variable {
+    to { --end-color: rgb(0, 255, 0); color: var(--end-color); }
+  }
+  @keyframes original-custom-only {
+    from { transform: translate(100px, 0); }
+    to { --not-used: 200px; }
+  }
+  @keyframes custom-reference {
+    to { --stored: var(--source); }
+  }
+  @keyframes registered-relative {
+    to { --kc-length: 2em; --kc-tokens: 2em; }
+  }
+</style>
+<body>
+<script>
+window.keyframeCustomObservations = [];
+const names = ["--end-color", "--not-used", "--source", "--stored",
+               "--kc-length", "--kc-tokens"];
+
+function values(target) {
+  const style = getComputedStyle(target);
+  return Object.fromEntries(["color", "transform", "font-size", ...names]
+    .map(name => [name, style.getPropertyValue(name)]));
+}
+
+function record(id, phase, animation, target, baseline) {
+  const frames = animation.effect.getKeyframes().map(frame =>
+    Object.fromEntries(Object.keys(frame).sort().map(key => [key, frame[key]])));
+  const row = {
+    id, phase, frames, baseline, computed: values(target),
+    animationType: animation.constructor.name,
+    currentTime: animation.currentTime,
+    progress: animation.effect.getComputedTiming().progress,
+    effectComposite: animation.effect.composite,
+  };
+  window.keyframeCustomObservations.push(row);
+  const line = "KCUSTOM-V1 " + JSON.stringify(row);
+  if (typeof dump === "function") {
+    dump(line + "\n");
+  } else {
+    console.log(line);
+  }
+}
+
+test(() => {
+  CSS.registerProperty({name: "--kc-length", syntax: "<length>",
+                        inherits: false, initialValue: "4px"});
+}, "Register the typed length diagnostic property");
+
+for (const [id, keyframes, easing, composition, waapi] of [
+  ["original-variable", "original-variable", "steps(2, start)", "replace", false],
+  ["original-custom-only", "original-custom-only", "ease", "replace", false],
+  ["unregistered-reference", "custom-reference", "linear", "replace", false],
+  ["registered-relative", "registered-relative", "linear", "replace", false],
+  ["registered-add", "registered-relative", "linear", "add", false],
+  ["waapi-specified-control", null, "linear", "replace", true],
+]) {
+  test(t => {
+    const target = document.createElement("div");
+    target.className = "target";
+    target.style.setProperty("--source", "12px");
+    document.body.append(target);
+    t.add_cleanup(() => target.remove());
+    if (id.startsWith("registered") || waapi) {
+      target.style.setProperty("--kc-length", "2em");
+      assert_equals(getComputedStyle(target).getPropertyValue("--kc-length"),
+                    "32px", "Typed static control computes relative units");
+      target.style.setProperty("--kc-length", "10px");
+    }
+    const baseline = values(target);
+    let animation;
+    if (waapi) {
+      animation = target.animate({"--kc-length": "2em", "--kc-tokens": "2em"},
+                                 {duration: 100000, easing});
+    } else {
+      target.style.animation = `${keyframes} 100s ${easing}`;
+      target.style.animationComposition = composition;
+      const animations = target.getAnimations();
+      assert_equals(animations.length, 1, "One CSS animation exists");
+      animation = animations[0];
+    }
+    t.add_cleanup(() => animation.cancel());
+    record(id, "created", animation, target, baseline);
+    animation.pause();
+    for (const [phase, time] of [["quarter", 25000], ["three-quarters", 75000]]) {
+      animation.currentTime = time;
+      record(id, phase, animation, target, baseline);
+    }
+  }, `${id}: capture complete keyframes and value context`);
+}
+</script>

@@ -1,0 +1,97 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CSS keyframe font sampling observations</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#dom-keyframeeffect-getkeyframes">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .target { font-size: 16px; }
+  @keyframes font-and-margin {
+    from { font-size: 10px; margin-left: 1em; }
+    to { font-size: 20px; margin-left: 2em; }
+  }
+  @keyframes font-only {
+    from { font-size: 10px; }
+    to { font-size: 20px; }
+  }
+</style>
+<body>
+<script>
+function values(target) {
+  const style = getComputedStyle(target);
+  const fontSize = style.fontSize;
+  return {fontSize, marginLeft: style.marginLeft, color: style.color};
+}
+
+function state(animation) {
+  const timing = animation.effect.getComputedTiming();
+  return {
+    currentTime: animation.currentTime,
+    startTime: animation.startTime,
+    playState: animation.playState,
+    pending: animation.pending,
+    playbackRate: animation.playbackRate,
+    progress: timing.progress,
+    localTime: timing.localTime,
+    currentIteration: timing.currentIteration,
+    duration: timing.duration,
+    activeDuration: timing.activeDuration,
+    endTime: timing.endTime,
+  };
+}
+
+function record(id, phase, animation, target, readySettled) {
+  const before = values(target);
+  const stateBefore = state(animation);
+  const frames = animation.effect.getKeyframes();
+  const after = values(target);
+  const stateAfter = state(animation);
+  dump("KFONT-V1 " + JSON.stringify({
+    id, phase, before, stateBefore, frames, after, stateAfter, readySettled,
+    animationType: animation.constructor.name,
+  }) + "\n");
+}
+
+for (const [id, keyframes] of [
+  ["css-font-and-margin", "font-and-margin"],
+  ["css-font-only", "font-only"],
+  ["waapi-font-and-margin", null],
+]) {
+  promise_test(async t => {
+    assert_equals(typeof dump, "function", "Firefox test profile exposes dump");
+    const target = document.createElement("div");
+    target.className = "target";
+    document.body.append(target);
+    t.add_cleanup(() => target.remove());
+    let animation;
+    if (keyframes) {
+      target.style.animation = `${keyframes} 100s linear paused both`;
+      const animations = target.getAnimations();
+      assert_equals(animations.length, 1, "One CSS animation exists");
+      animation = animations[0];
+    } else {
+      animation = target.animate([
+        {fontSize: "10px", marginLeft: "1em"},
+        {fontSize: "20px", marginLeft: "2em"},
+      ], {duration: 100000, easing: "linear", fill: "both"});
+      animation.pause();
+    }
+    t.add_cleanup(() => animation.cancel());
+    let readySettled = false;
+    animation.currentTime = 50000;
+    record(id, "sync-seek", animation, target, readySettled);
+    const ready = animation.ready;
+    ready.then(() => { readySettled = true; });
+    await ready;
+    record(id, "ready", animation, target, readySettled);
+    animation.currentTime = 25000;
+    animation.currentTime = 50000;
+    record(id, "reseek", animation, target, readySettled);
+    target.style.color = "rgb(1, 2, 3)";
+    record(id, "style-invalidation", animation, target, readySettled);
+    await new Promise(requestAnimationFrame);
+    await new Promise(requestAnimationFrame);
+    record(id, "frames", animation, target, readySettled);
+  }, `${id}: capture timing and font sampling`);
+}
+</script>

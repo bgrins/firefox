@@ -1,0 +1,114 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CSS animation keyframes expose computed property values</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#dom-keyframeeffect-getkeyframes">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#computing-property-values">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .target { font-size: 16px; --source: 12px; }
+  @property --computed-frame-length {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+  }
+  @keyframes relative-values {
+    from { margin-left: 1em; --computed-frame-length: 1em; --tokens: 1em; }
+    to { margin-left: 2em; --computed-frame-length: 2em; --tokens: 2em; }
+  }
+  @keyframes variable-values {
+    from { --stored: var(--source); }
+    to { --stored: var(--source); }
+  }
+  @keyframes changing-font {
+    from { font-size: 10px; margin-left: 1em; }
+    to { font-size: 20px; margin-left: 2em; }
+  }
+</style>
+<body>
+<script>
+function targetFor(t) {
+  const target = document.createElement("div");
+  target.className = "target";
+  document.body.append(target);
+  t.add_cleanup(() => target.remove());
+  return target;
+}
+
+function cssAnimationFor(t, target, name) {
+  target.style.animation = `${name} 100s linear paused both`;
+  const animations = target.getAnimations();
+  assert_equals(animations.length, 1, "One CSS animation exists");
+  const animation = animations[0];
+  assert_true(animation instanceof CSSAnimation);
+  animation.currentTime = 50000;
+  t.add_cleanup(() => animation.cancel());
+  return animation;
+}
+
+for (const [property, expected] of [
+  ["marginLeft", ["16px", "32px"]],
+  ["--computed-frame-length", ["16px", "32px"]],
+  ["--tokens", ["1em", "2em"]],
+]) {
+  test(t => {
+    const target = targetFor(t);
+    if (property === "--computed-frame-length") {
+      target.style.setProperty(property, "2em");
+      assert_equals(getComputedStyle(target).getPropertyValue(property), "32px",
+                    "The custom property is registered as a length");
+      target.style.removeProperty(property);
+    }
+    const animation = cssAnimationFor(t, target, "relative-values");
+    assert_array_equals(animation.effect.getKeyframes().map(frame => frame[property]),
+                        expected);
+  }, `CSS getKeyframes computes ${property} according to its value type`);
+}
+
+test(t => {
+  const target = targetFor(t);
+  const animation = cssAnimationFor(t, target, "variable-values");
+  assert_array_equals(animation.effect.getKeyframes().map(frame => frame["--stored"]),
+                      ["12px", "12px"]);
+}, "CSS getKeyframes substitutes unregistered custom-property references");
+
+test(t => {
+  const target = targetFor(t);
+  const animation = cssAnimationFor(t, target, "variable-values");
+  target.style.setProperty("--source", "24px");
+  assert_array_equals(animation.effect.getKeyframes().map(frame => frame["--stored"]),
+                      ["24px", "24px"]);
+}, "CSS getKeyframes observes a changed custom-property dependency");
+
+test(t => {
+  const target = targetFor(t);
+  const animation = cssAnimationFor(t, target, "changing-font");
+  assert_equals(getComputedStyle(target).fontSize, "15px");
+  assert_array_equals(animation.effect.getKeyframes().map(frame => frame.marginLeft),
+                      ["15px", "30px"]);
+}, "CSS getKeyframes resolves relative units against the current animated font");
+
+for (const css of [false, true]) {
+  test(t => {
+    const target = targetFor(t);
+    const frames = [
+      { marginLeft: "1em", "--computed-frame-length": "1em", "--tokens": "1em" },
+      { marginLeft: "2em", "--computed-frame-length": "2em", "--tokens": "2em" },
+    ];
+    let animation;
+    if (css) {
+      animation = cssAnimationFor(t, target, "relative-values");
+      animation.effect.setKeyframes(frames);
+    } else {
+      animation = target.animate(frames, 100000);
+      animation.pause();
+      animation.currentTime = 50000;
+      t.add_cleanup(() => animation.cancel());
+    }
+    for (const property of ["marginLeft", "--computed-frame-length", "--tokens"]) {
+      assert_array_equals(animation.effect.getKeyframes().map(frame => frame[property]),
+                          ["1em", "2em"], property);
+    }
+  }, `${css ? "Replaced CSS" : "WAAPI"} keyframes retain specified values`);
+}
+</script>

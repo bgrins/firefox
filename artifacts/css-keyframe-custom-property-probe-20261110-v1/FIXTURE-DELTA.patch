@@ -1,0 +1,40 @@
+--- frozen-proposal/v1.html
++++ runtime-proposal/v2.html
+@@ -19,7 +19,7 @@
+     to { --stored: var(--source); }
+   }
+   @keyframes registered-relative {
+-    to { --kc-length: 2em; --kc-tokens: 2em; }
++    to { --kc-length: 2em; --kc-tokens: 2em; margin-left: 2em; }
+   }
+ </style>
+ <body>
+@@ -30,7 +30,7 @@
+ 
+ function values(target) {
+   const style = getComputedStyle(target);
+-  return Object.fromEntries(["color", "transform", "font-size", ...names]
++  return Object.fromEntries(["color", "transform", "font-size", "margin-left", ...names]
+     .map(name => [name, style.getPropertyValue(name)]));
+ }
+ 
+@@ -73,6 +73,10 @@
+     document.body.append(target);
+     t.add_cleanup(() => target.remove());
+     if (id.startsWith("registered") || waapi) {
++      target.style.marginLeft = "2em";
++      assert_equals(getComputedStyle(target).marginLeft, "32px",
++                    "Ordinary static control computes relative units");
++      target.style.marginLeft = "10px";
+       target.style.setProperty("--kc-length", "2em");
+       assert_equals(getComputedStyle(target).getPropertyValue("--kc-length"),
+                     "32px", "Typed static control computes relative units");
+@@ -81,7 +85,7 @@
+     const baseline = values(target);
+     let animation;
+     if (waapi) {
+-      animation = target.animate({"--kc-length": "2em", "--kc-tokens": "2em"},
++      animation = target.animate({"--kc-length": "2em", "--kc-tokens": "2em", marginLeft: "2em"},
+                                  {duration: 100000, easing});
+     } else {
+       target.style.animation = `${keyframes} 100s ${easing}`;

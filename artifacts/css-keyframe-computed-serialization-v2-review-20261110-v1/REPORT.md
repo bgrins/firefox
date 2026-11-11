@@ -1,0 +1,7 @@
+# V2 conformance delta review
+
+Accepted for the next baseline-only run. The only fixture change replaces the animated-font scenario with an explicit 20px target font under the existing relative-values animation, expects 20px/40px margins, renames that callback, and removes the unused animated-font rule. The current-element dependency contract directly supports this oracle. CSS no longer animates font-size in that case, so its setup does not depend on the unresolved v1 same-target font-sampling behavior. The 20px setup assertion must still be inspected separately from the getter failure after runtime.
+
+V1 evidence and the separate animated-font diagnostic are preserved. The other seven callbacks and all native/browser transaction logic remain unchanged. All seven Python executables are byte-identical to the frozen v1 run; the prior execution manifest and current 20-file preparation manifest were independently authenticated. check.py replay passes twenty rejection controls. HEAD remains unset; no browser, build or Git mutation occurred in review.
+
+Preparation manifest: 543e5cdd72b35fa7ef3391cf8d6785134fcaaa19e8c54db5c0067aea28c09286. Previous execution manifest: 617320dd8248f252a83144341486649e5d53ec603a1ecd82fd79ca017363f068. The provisional vector remains five FAIL/three PASS/one OK, with actual messages preserved and no guessed diagnostic strings. This source/oracle review does not substitute for terminal failure-stage and full-restoration verification.

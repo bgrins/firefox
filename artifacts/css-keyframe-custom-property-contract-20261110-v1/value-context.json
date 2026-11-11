@@ -1,0 +1,61 @@
+{
+  "anchor": "computing-property-values",
+  "content": "To **compute a property value** given a property *property*, a value *value*, and an [`Element`](DOM#element) *element*: resolve *value* according to the “Computed Value” line of the *property*’s definition table, using the [computed values](CSS-CASCADE-5#computed-value) of *element* as the context for resolving dependencies, and return the result.\n\n> **Note:** Note: The [computed values](CSS-CASCADE-5#computed-value) on *element* are not affected by this algorithm.\n\nThis algorithm implies that property values specified in keyframes can establish order dependencies. When [computing a property value](WEB-ANIMATIONS-1#compute-a-property-value), the [computed values](CSS-CASCADE-5#computed-value) of dependencies held by *value* must be calculated *first*.\n\n> **Example:** ```\n> var animation = elem.animate([{ fontSize: '10px', width: '10em' },\n>                               { fontSize: '20px', width: '20em' }], 1000);\n> animation.currentTime = 500;\n> console.log(getComputedStyle(elem).fontSize); // Should be 15px\n> console.log(getComputedStyle(elem).width); // Should be 225px\n> ```\n>\n> In this example, in order to [compute a property value](https://drafts.csswg.org/web-animations-1#compute-a-property-value) for `10em`, we need to know the [computed value](https://drafts.csswg.org/css-cascade-5/#computed-value) of [font-size](https://drafts.csswg.org/css-fonts-4/#propdef-font-size) on the [target element](https://drafts.csswg.org/web-animations-1#effect-target-target-element), which in turn is determined by the [effect value](https://drafts.csswg.org/web-animations-1#effect-value) for font-size, which in turn depends on computing property values for font-size. Hence, computing property values are subject to ordering constraints.",
+  "effects": [],
+  "effects_status": {
+    "analysis_id": "an_5b9fca29b4e5e94f",
+    "coverage": "partial",
+    "issues": [
+      "unsupported_structure"
+    ],
+    "omitted": 0,
+    "semantics": "may",
+    "state": "ready"
+  },
+  "incoming_refs": {
+    "items": [
+      {
+        "anchor": "calculating-computed-keyframes",
+        "spec": "WEB-ANIMATIONS-1"
+      },
+      {
+        "anchor": "contents",
+        "spec": "WEB-ANIMATIONS-1"
+      }
+    ],
+    "total": 2
+  },
+  "navigation": {
+    "children": [
+      {
+        "anchor": "compute-a-property-value",
+        "title": "compute a property value"
+      }
+    ],
+    "next": {
+      "anchor": "calculating-computed-keyframes",
+      "number": "5.3.3",
+      "title": "Calculating computed keyframes"
+    },
+    "parent": {
+      "anchor": "keyframe-effects",
+      "number": "5.3",
+      "title": "Keyframe effects"
+    },
+    "prev": {
+      "anchor": "keyframes-section",
+      "number": "5.3.1",
+      "title": "Keyframes"
+    }
+  },
+  "number": "5.3.2",
+  "outgoing_refs": {
+    "items": [],
+    "total": 0
+  },
+  "sha": "hash:cd72b5821823c7cfde12f892b8f0725078b841004b5824f4701afffaafdf5649",
+  "spec": "WEB-ANIMATIONS-1",
+  "title": "Computing property values",
+  "type": "heading",
+  "url": "https://drafts.csswg.org/web-animations-1/#computing-property-values"
+}

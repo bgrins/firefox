@@ -1,0 +1,46 @@
+--- frozen-probe-v2/run.py
++++ conformance-probe/run.py
+@@ -24,7 +24,7 @@
+     return value
+ 
+ 
+-bundle, process, analyze, observe = module('bundle'), module('process'), module('analyze'), module('observe')
++bundle, process, analyze = module('bundle'), module('process'), module('analyze')
+ process.ROOT = ROOT
+ sha = bundle.sha
+ 
+@@ -103,7 +103,7 @@
+     touched, installed, results = {}, {}, {}
+     failure = None
+     restore_errors = []
+-    binaries = comparison = observations = None
++    binaries = comparison = None
+ 
+     def cancel(*_):
+         raise KeyboardInterrupt('Diagnostic cancelled')
+@@ -128,15 +128,13 @@
+         command = [PYTHON, './mach', 'wpt', '--headless', '--processes=1', '--manifest-update', '--no-manifest-download', '--no-install-fonts', '--no-enable-webtransport-h3', f'--binary={APP / "Contents/MacOS/firefox"}', f'--log-raw={output / "wpt-raw.jsonl"}', *plan['suites']]
+         results['wpt'] = process.run(command, output / 'wpt.log', dict(env, STYLO_THREADS='1', MOZ_CRASHREPORTER_DISABLE='1'), 1800)
+         save(output / 'WPT.json', results['wpt'])
+-        assert results['wpt']['exit_code'] == 0
++        assert results['wpt']['exit_code'] == 1, 'Baseline has five unannotated conformance failures'
+         assert {p: sha(ROOT / p) for p in binaries} == binaries
+         parsed = analyze.parse(output / 'wpt-raw.jsonl')
+         save(output / 'TEST-RESULTS.json', parsed)
+         if mode == 'baseline':
+             expected_baseline = json.loads((HERE / 'EXPECTED-BASELINE.json').read_text())
+             assert analyze.rows(expected_baseline) == analyze.rows(parsed), 'baseline status vector changed'
+-        observations = observe.parse(output / 'wpt-raw.jsonl')
+-        save(output / 'OBSERVATIONS.json', observations)
+     except BaseException:
+         failure = traceback.format_exc()
+         save(output / 'FAILURE.json', {'traceback': failure})
+@@ -144,7 +142,7 @@
+         signal.signal(signal.SIGTERM, signal.SIG_IGN)
+         signal.signal(signal.SIGINT, signal.SIG_IGN)
+         restore(mode, output, plan, roles, retained, fixtures, metadata, touched, installed, app_before, extras, backups, app_map, extra_map, index, backup_size, restore_errors)
+-    save(output / 'RESULT.json', {'mode': mode, 'head': plan['head'], 'runner_inputs_sha256': sha(HERE / 'RUN-INPUTS.json'), 'sampled_binaries': binaries, 'commands': results, 'error': failure, 'restoration_verified': not restore_errors, 'restoration_errors': restore_errors, 'comparison': comparison, 'native_fix_acceptance': False, 'observation_count': len(observations) if observations is not None else None, 'debug_gate': plan['debug_gate']})
++    save(output / 'RESULT.json', {'mode': mode, 'head': plan['head'], 'runner_inputs_sha256': sha(HERE / 'RUN-INPUTS.json'), 'sampled_binaries': binaries, 'commands': results, 'error': failure, 'restoration_verified': not restore_errors, 'restoration_errors': restore_errors, 'comparison': comparison, 'native_fix_acceptance': False, 'debug_gate': plan['debug_gate']})
+     if failure or restore_errors:
+         raise RuntimeError('Diagnostic incomplete; inspect failure/restoration receipts')
+ 

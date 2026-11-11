@@ -1,0 +1,7 @@
+# Specified-branch baseline wrapper preparation review
+
+Accepted for root freeze/baseline execution. This is an independent review of root's wrapper delta; reviewer authored the earlier baseline framework and exact four-case proposal. No browser/native/Git mutation occurred.
+
+Preparation manifest 5e8e188ae00d0087ec3434d6a11dcd00a66ee86328e6b45ac5929a06798dcda4 and every entry were authenticated. Exact RUNNER-DELTA matches all three changed Python files. The runtime change is only descriptive text on its unchanged WPT exit-1 assertion; check selects the four-row provisional PASS/FAIL/FAIL/FAIL vector; parser controls now choose actual failing/passing rows dynamically and preserve real diagnostic messages. analyze/bundle/process/freeze are unchanged from authenticated conformance v2. Independent check replay passes twenty rejection controls.
+
+The installed fixture exactly matches reviewed proposal e8c2e7aab1293c6506cc98d404311c6985246bc4b807818deba847ada105d1c0. One temporary test and absent metadata, empty native roles, no candidate/build path, full restoration/process boundaries and source/app/index checks remain. HEAD is unset until root freeze. No test failure messages are guessed. The expected vector is a source hypothesis: terminal review must distinguish variable-substitution assertions and detached/transferred endpoint-count assertions from ownership/setup failures. Any differing vector fails for inspection rather than establishing a repair.

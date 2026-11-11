@@ -1,0 +1,77 @@
+{
+  "anchor": "calculating-computed-keyframes",
+  "content": "Before calculating the [effect value](WEB-ANIMATIONS-1#effect-value) of a [keyframe effect](WEB-ANIMATIONS-1#keyframe-effect), the property values on its [keyframes](WEB-ANIMATIONS-1#keyframe) are [computed](WEB-ANIMATIONS-1#computing-property-values), and the offset to use for any keyframes with a null [keyframe offset](WEB-ANIMATIONS-1#keyframe-offset) is computed. The result of resolving these values is a set of **computed keyframes**.\n\nThe calculated [keyframe offsets](WEB-ANIMATIONS-1#keyframe-offset) of a set of [keyframe](WEB-ANIMATIONS-1#keyframe) that includes suitable values for each null keyframe offset are referred to as the **computed keyframe offsets**.\n\nTo produce [computed keyframe offsets](WEB-ANIMATIONS-1#computed-keyframe-offsets), we define a procedure to **compute missing keyframe offsets** that takes a sequence of [keyframes](WEB-ANIMATIONS-1#keyframe), *keyframes*, and has the following steps:\n\n1.  For each [keyframe](WEB-ANIMATIONS-1#keyframe) in *keyframes*, let the [computed keyframe offset](WEB-ANIMATIONS-1#computed-keyframe-offsets) of the keyframe be equal to its [keyframe offset](WEB-ANIMATIONS-1#keyframe-offset) value.\n\n2.  If *keyframes* contains more than one [keyframe](WEB-ANIMATIONS-1#keyframe) and the [computed keyframe offset](WEB-ANIMATIONS-1#computed-keyframe-offsets) of the first keyframe in *keyframes* is null, set the computed keyframe offset of the first keyframe to 0.\n\n3.  If the [computed keyframe offset](WEB-ANIMATIONS-1#computed-keyframe-offsets) of the last [keyframe](WEB-ANIMATIONS-1#keyframe) in *keyframes* is null, set its computed keyframe offset to 1.\n\n4.  For each pair of [keyframes](WEB-ANIMATIONS-1#keyframe) *A* and *B* where:\n\n    *   *A* appears before *B* in *keyframes*, and\n\n    *   *A* and *B* have a [computed keyframe offset](WEB-ANIMATIONS-1#computed-keyframe-offsets) that is not null, and\n\n    *   all [keyframes](WEB-ANIMATIONS-1#keyframe) between *A* and *B* have a null [computed keyframe offset](WEB-ANIMATIONS-1#computed-keyframe-offsets),\n    calculate the [computed keyframe offset](WEB-ANIMATIONS-1#computed-keyframe-offsets) of each [keyframe](WEB-ANIMATIONS-1#keyframe) between *A* and *B* as follows:\n\n    1.  Let **offset*k*** be the [computed keyframe offset](WEB-ANIMATIONS-1#computed-keyframe-offsets) of a [keyframe](WEB-ANIMATIONS-1#keyframe) *k*.\n\n    2.  Let *n* be the number of keyframes *between* and including *A* and *B* minus 1.\n\n    3.  Let *index* refer to the position of *keyframe* in the sequence of keyframes between *A* and *B* such that the first keyframe after *A* has an *index* of 1.\n\n    4.  Set the [computed keyframe offset](WEB-ANIMATIONS-1#computed-keyframe-offsets) of *keyframe* to [offset](WEB-ANIMATIONS-1#offsetk)*A* + (offset*B* − offset*A*) × *index* / *n*.\n\nTests\n\n*   [background-shorthand.html](https://wpt.fyi/results/web-animations/animation-model/keyframe-effects/background-shorthand.html) [(live test)](http://wpt.live/web-animations/animation-model/keyframe-effects/background-shorthand.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/web-animations/animation-model/keyframe-effects/background-shorthand.html)\n*   [computed-keyframes-shorthands.html](https://wpt.fyi/results/web-animations/animation-model/keyframe-effects/computed-keyframes-shorthands.html) [(live test)](http://wpt.live/web-animations/animation-model/keyframe-effects/computed-keyframes-shorthands.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/web-animations/animation-model/keyframe-effects/computed-keyframes-shorthands.html)\n*   [effect-value-context-filling.html](https://wpt.fyi/results/web-animations/animation-model/keyframe-effects/effect-value-context-filling.html) [(live test)](http://wpt.live/web-animations/animation-model/keyframe-effects/effect-value-context-filling.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/web-animations/animation-model/keyframe-effects/effect-value-context-filling.html)\n*   [effect-value-context.html](https://wpt.fyi/results/web-animations/animation-model/keyframe-effects/effect-value-context.html) [(live test)](http://wpt.live/web-animations/animation-model/keyframe-effects/effect-value-context.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/web-animations/animation-model/keyframe-effects/effect-value-context.html)\n\n[Computed keyframes](WEB-ANIMATIONS-1#computed-keyframes) are produced using the following procedure. Note that this procedure is only performed on a [keyframe effect](WEB-ANIMATIONS-1#keyframe-effect) having an [effect target](WEB-ANIMATIONS-1#keyframe-effect-effect-target) for which computed property values can be calculated.\n\n1.  Let *computed keyframes* be an empty list of [keyframes](WEB-ANIMATIONS-1#keyframe).\n\n2.  For each *keyframe* in the list of [keyframes](WEB-ANIMATIONS-1#keyframe) specified on this [keyframe effect](WEB-ANIMATIONS-1#keyframe-effect), perform the following steps:\n\n    1.  Add a new empty [keyframe](WEB-ANIMATIONS-1#keyframe), *computed keyframe*, to *computed keyframes*.\n\n    2.  For each property specified in *keyframe*:\n\n        *   [Compute a property value](WEB-ANIMATIONS-1#compute-a-property-value) using the value specified on *keyframe* as the value, and the [target element](WEB-ANIMATIONS-1#effect-target-target-element) as the element; then add the property and resulting value to *computed keyframe*.\n\n        *   For shorthand properties, add the equivalent longhand properties.\n\n        *   For logical properties \\[CSS-LOGICAL-1\\], add the [equivalent physical properties](CSS-WRITING-MODES-4#logical-to-physical) \\[CSS-WRITING-MODES-4\\] based on the computed value of [writing-mode](CSS-WRITING-MODES-4#propdef-writing-mode) and/or [direction](CSS-WRITING-MODES-3#propdef-direction) for the [effect target](WEB-ANIMATIONS-1#keyframe-effect-effect-target).\n        For example, if *keyframe* has a value of 12pt for the [border-width](CSS-BACKGROUNDS-3#propdef-border-width) [shorthand property](CSS-CASCADE-5#shorthand-property), the user agent will [compute a property value](WEB-ANIMATIONS-1#compute-a-property-value) of 16px for each of the [longhand properties](CSS-CASCADE-5#longhand): [border-bottom-width](CSS-BACKGROUNDS-3#propdef-border-bottom-width), [border-left-width](CSS-BACKGROUNDS-3#propdef-border-left-width), [border-right-width](CSS-BACKGROUNDS-3#propdef-border-right-width), and [border-top-width](CSS-BACKGROUNDS-3#propdef-border-top-width). As a result, *computed keyframe* would *not* have a value for the border-width property, but would instead include each of the longhand properties, each with the value 16px.\n\n        If conflicts arise when expanding shorthand properties or replacing logical properties with physical properties, apply the following rules in order until the conflict is resolved:\n\n        1.  Longhand properties override shorthand properties (e.g. [border-top-color](CSS-BACKGROUNDS-3#propdef-border-top-color) overrides [border-top](CSS-BACKGROUNDS-3#propdef-border-top)).\n\n        2.  Shorthand properties with fewer longhand components override those with more longhand components (e.g. [border-top](CSS-BACKGROUNDS-3#propdef-border-top) overrides [border-color](CSS-BACKGROUNDS-3#propdef-border-color)).\n\n        3.  Physical properties override logical properties.\n\n        4.  For shorthand properties with an equal number of longhand components, properties whose IDL name (see the [CSS property to IDL attribute](CSSOM#css-property-to-idl-attribute) algorithm \\[CSSOM\\]) appears earlier when sorted in ascending order by the Unicode codepoints that make up each IDL name, override those who appear later.\n3.  Apply the procedure to [compute missing keyframe offsets](WEB-ANIMATIONS-1#compute-missing-keyframe-offsets) to *computed keyframes*.\n\n4.  Return *computed keyframes*.",
+  "effects": [],
+  "effects_status": {
+    "analysis_id": "an_5b9fca29b4e5e94f",
+    "coverage": "partial",
+    "issues": [
+      "unsupported_structure"
+    ],
+    "omitted": 0,
+    "semantics": "may",
+    "state": "ready"
+  },
+  "incoming_refs": {
+    "items": [
+      {
+        "anchor": "issues-index",
+        "spec": "CSS-ANIMATIONS-2"
+      },
+      {
+        "anchor": "keyframe-processing",
+        "spec": "CSS-ANIMATIONS-2"
+      },
+      {
+        "anchor": "contents",
+        "spec": "WEB-ANIMATIONS-1"
+      },
+      {
+        "anchor": "the-effect-value-of-a-keyframe-animation-effect",
+        "spec": "WEB-ANIMATIONS-1"
+      }
+    ],
+    "total": 4
+  },
+  "navigation": {
+    "children": [
+      {
+        "anchor": "computed-keyframes",
+        "title": "computed keyframes"
+      },
+      {
+        "anchor": "computed-keyframe-offsets",
+        "title": "computed keyframe offsets"
+      },
+      {
+        "anchor": "compute-missing-keyframe-offsets",
+        "title": "compute missing keyframe offsets"
+      }
+    ],
+    "next": {
+      "anchor": "the-effect-value-of-a-keyframe-animation-effect",
+      "number": "5.3.4",
+      "title": "The effect value of a keyframe effect"
+    },
+    "parent": {
+      "anchor": "keyframe-effects",
+      "number": "5.3",
+      "title": "Keyframe effects"
+    },
+    "prev": {
+      "anchor": "computing-property-values",
+      "number": "5.3.2",
+      "title": "Computing property values"
+    }
+  },
+  "number": "5.3.3",
+  "outgoing_refs": {
+    "command": "webspec-index refs WEB-ANIMATIONS-1#calculating-computed-keyframes -d outgoing -l 25",
+    "total": 25
+  },
+  "sha": "hash:cd72b5821823c7cfde12f892b8f0725078b841004b5824f4701afffaafdf5649",
+  "spec": "WEB-ANIMATIONS-1",
+  "title": "Calculating computed keyframes",
+  "type": "heading",
+  "url": "https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes"
+}

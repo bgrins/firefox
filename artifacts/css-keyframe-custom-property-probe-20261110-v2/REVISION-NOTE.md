@@ -1,0 +1,5 @@
+# V2 preparation
+
+V1 ended at WPT lint because its console fallback violated CONSOLE; no browser ran. Full independent restoration passed in the separate probe-review capsule. V1 files and raw evidence remain unchanged.
+
+V2 copies the frozen v1 execution inputs. It keeps run/analyze/observe/bundle/process/freeze/parser-controls byte-identical, resets execution HEAD to null, and changes only the fixture to require and use dump without a console fallback. The new preparation checker authenticates those origins and the common profile's dump preference, now also pinned as a live test input. The old generator is disabled rather than allowing it to silently restore the rejected fallback. The original custom proposal and ordinary-relative v2 delta remain provenance; a new v3 delta records the output-only fix. There is still one temporary WPT, no metadata, no source role, no build/candidate branch, seven PASS callbacks plus one OK expected, and eighteen typed observations with no inferred value oracle.

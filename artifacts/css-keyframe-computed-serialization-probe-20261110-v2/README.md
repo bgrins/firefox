@@ -1,0 +1,5 @@
+# Changed-font getter conformance baseline
+
+This baseline-only runner is copied from the reviewed v1 execution inputs. V2-PROVENANCE authenticates that execution manifest and every unchanged Python executable. The sole fixture change is the reviewed replacement of the animated-font sampling prerequisite with an explicit 20px font change; investigation v2 retains the exact delta and original evidence. The corresponding callback name and proposal pins are updated. No metadata, native role, build path or observation-marker parser is introduced.
+
+Preparation and execution follow v1: isolated check, root freeze against the retained combined build, then `run.py baseline baseline1`. Execution HEAD is unset until freeze. Provisional inventory is eight callbacks (five FAIL, three PASS) and one OK harness, but root must also inspect failure stages and messages. All five expected failures must reach their getter array assertions before being interpreted as getter coverage. Browser restoration and independent raw-result review remain mandatory. This runner has not yet executed.

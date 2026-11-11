@@ -1,0 +1,48 @@
+--- conformance-v2/check.py
++++ branch/check.py
+@@ -75,7 +75,7 @@
+         assert result.returncode!=0 if digest is None else result.returncode==0 and hashlib.sha256(result.stdout).hexdigest()==digest
+     for name in plan['fixtures']:assert pins[name] is None and pins[name.replace('/tests/','/meta/',1)+'.ini'] is None
+     expected=load(HERE/'EXPECTED-BASELINE.json');derivation=load(HERE/'EXPECTED-DERIVATION.json')
+-    assert len(expected['subtests'])==8 and [r['status'] for r in expected['subtests']]==['FAIL','FAIL','PASS','FAIL','FAIL','FAIL','PASS','PASS']
++    assert len(expected['subtests'])==4 and [r['status'] for r in expected['subtests']]==['PASS','FAIL','FAIL','FAIL']
+     assert expected['harness']==[{'test':expected['subtests'][0]['test'],'status':'OK'}]
+     assert derivation['names']==[r['subtest'] for r in expected['subtests']]
+     import re
+@@ -96,7 +96,7 @@
+     else:
+         assert plan['head'] is None and not (HERE/'RUN-INPUTS.json').exists() and not (HERE/'FREEZE-READY.json').exists()
+         validate_retained(load(retained_path),origins['source_test_pin_revision'],plan,origins,roles)
+-    print(json.dumps({'status':'PASS','frozen':args.frozen,'execution_head':plan['head'],'native_roles':0,'temporary_fixtures':1,'callbacks':{'PASS':3,'FAIL':5},'harness_OK':1,'parser_rejection_controls':len(controls['rejected_controls']),'browser_executed':False},indent=2))
++    print(json.dumps({'status':'PASS','frozen':args.frozen,'execution_head':plan['head'],'native_roles':0,'temporary_fixtures':1,'callbacks':{'PASS':1,'FAIL':3},'harness_OK':1,'parser_rejection_controls':len(controls['rejected_controls']),'browser_executed':False},indent=2))
+ 
+ 
+ if __name__=='__main__':main()
+--- conformance-v2/run.py
++++ branch/run.py
+@@ -128,7 +128,7 @@
+         command = [PYTHON, './mach', 'wpt', '--headless', '--processes=1', '--manifest-update', '--no-manifest-download', '--no-install-fonts', '--no-enable-webtransport-h3', f'--binary={APP / "Contents/MacOS/firefox"}', f'--log-raw={output / "wpt-raw.jsonl"}', *plan['suites']]
+         results['wpt'] = process.run(command, output / 'wpt.log', dict(env, STYLO_THREADS='1', MOZ_CRASHREPORTER_DISABLE='1'), 1800)
+         save(output / 'WPT.json', results['wpt'])
+-        assert results['wpt']['exit_code'] == 1, 'Baseline has five unannotated conformance failures'
++        assert results['wpt']['exit_code'] == 1, 'Baseline has three predicted unannotated branch failures'
+         assert {p: sha(ROOT / p) for p in binaries} == binaries
+         parsed = analyze.parse(output / 'wpt-raw.jsonl')
+         save(output / 'TEST-RESULTS.json', parsed)
+--- conformance-v2/parser-controls.py
++++ branch/parser-controls.py
+@@ -35,9 +35,11 @@
+         reject('error-log',rows+[{'action':'log','level':'ERROR'}])
+         reject('critical-log',rows+[{'action':'log','level':'CRITICAL'}])
+         reject('assertion-count',rows+[{'action':'assertion_count','count':1,'min_expected':0,'max_expected':0}])
+-        for name,index,field,value in [('unexpected-improvement',2,'status','PASS'),('control-regression',4,'status','FAIL'),('callback-timeout',2,'status','TIMEOUT'),('unknown-name',2,'subtest','x'),('harness-timeout',-2,'status','TIMEOUT'),('wrong-test',-2,'test','/wrong')]:
++        first_fail=next(i for i,row in enumerate(rows) if row.get('status')=='FAIL')
++        first_pass=next(i for i,row in enumerate(rows) if row.get('status')=='PASS')
++        for name,index,field,value in [('unexpected-improvement',first_fail,'status','PASS'),('control-regression',first_pass,'status','FAIL'),('callback-timeout',2,'status','TIMEOUT'),('unknown-name',2,'subtest','x'),('harness-timeout',-2,'status','TIMEOUT'),('wrong-test',-2,'test','/wrong')]:
+             changed=copy.deepcopy(rows);changed[index][field]=value;reject(name,changed)
+         write(rows);raw=path.read_text();reject('truncation',raw=raw[:-5]);reject('duplicate-json-key',raw=raw.replace('{"action": "suite_start"}','{"action":"suite_start","action":"suite_start"}',1))
+-        changed=copy.deepcopy(rows);changed[2]['message']='different real failure detail';write(changed);assert accept()['subtests']!=result['subtests']
+-    print(json.dumps({'status':'PASS','rejected_controls':rejected,'positive_controls':['exact-five-fail-three-pass-vector','actual-messages-preserved-not-guessed']},indent=2))
++        changed=copy.deepcopy(rows);changed[first_fail]['message']='different real failure detail';write(changed);assert accept()['subtests']!=result['subtests']
++    print(json.dumps({'status':'PASS','rejected_controls':rejected,'positive_controls':['exact-three-fail-one-pass-vector','actual-messages-preserved-not-guessed']},indent=2))
+ if __name__=='__main__':main()
