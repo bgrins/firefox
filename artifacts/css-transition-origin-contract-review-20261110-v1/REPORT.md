@@ -1,0 +1,25 @@
+# Independent transition-origin model review
+
+Independent review finds no blocker for the explicitly parameterized policy model. Source authentication and cold replay results are recorded in REVIEW.json; this report does not accept a native change or establish the proposed policy as normative.
+
+The core result is a universal insertion law, not a restatement of thirteen examples. It quantifies arbitrary property/value types, a binary combination function, underlying values and arbitrary list prefixes/suffixes. An excluded effect with absent sample cannot change either origin selection or the fold result. No associativity, commutativity or identity law is assumed; inserting a no-op preserves the existing order. This deliberately says nothing about reorderings.
+
+The proposed in-effect policy is an explicit model input. The core law separately requires eligibility exclusion and sample absence. Coherent supplies absence only when inEffect is false; its registration/current clause does not derive native registration or timing correctness. The concrete delayed_joint_premises theorem provides a registered/current/not-in-effect effect satisfying both premises, so the conditional law is not vacuous. The unchanged-composited-value and changed-origin-only cases distinguish routing from arithmetic. Conversely, emptyInEffect proves that missing property sample alone is insufficient under this policy: the model does not silently strengthen the rule to sampled-value membership.
+
+selectOrigin abstracts the fixed transition-before-animation class ordering and two relevant cascade origins. It does not prove native effect sorting, CSS ownership, composite-order behavior inside a class, or applicability of that ordering to every Web Animations context. composite folds the supplied list and treats individual samples/combine as inputs. The small cascade function encodes transition priority and important-over-animation explicitly; it is not a formalization of the entire CSS cascade, layers, rollback or custom-property processing.
+
+compositorGuardMask intentionally uses registered-policy property membership even while composition eligibility can use inEffectPolicy. The guard theorem and mutant separately protect this distinction. The model has no compositor thread, synchronization, restyle invalidation or conservative-admission implementation; it cannot prove a native replacement safe merely because the masks are distinct here.
+
+Timing coherence is a caller/model premise, not a theorem about IsInEffect and ComposeStyle using the same sample. forwardNoFill is a small positive-rate natural-number fixture, not the Web Animations timing algorithm. Pending/wallclock hold substitution, boundary endpoint inclusion, commitStyles, unresolved/progress timelines and timing changes during composition remain outside the proof. A future native candidate needs direct checks of those seams.
+
+Neither source-shaped counterexamples nor finite browser observations establish that the proposed policy is normatively required. The native excerpts motivate the abstraction, while the spec excerpts leave the origin-membership question open. No spec derivation, native refinement, general renderer correctness or new bug discovery is claimed.
+
+## Verification and trust boundary
+
+The source-only manifest contains fourteen inputs. The review authenticates those inputs, the copied evidence against its origin artifacts, and all four native excerpts against their two exact pinned Git objects. The excerpts are source provenance, not translated code or proof premises. The copied model/checker run independently in a fresh temporary directory; compiled outputs are removed afterward.
+
+The checker compiles all five modules and audits thirty named theorem declarations. Permitted standard Lean axioms are propext, Quot.sound and Classical.choice; no custom axioms, sorry, unsafe, partial or native_decide occur in the five modules. Thirteen symbolic observations execute successfully. Three altered models compile, unchanged laws reject them at the intended theorem, and separate kernel-checked witnesses characterize their changed behavior. The reviewer additionally verifies each altered-behavior witness fails on the unmodified model. This protects against witnesses accidentally passing both implementations; it does not establish completeness of the three selected mutations.
+
+An initial review-only diagnostic matcher expected a different Lean error phrase. Lean had correctly rejected the false baseline witness. The failed matcher receipt and review-first.py are preserved; the final run checks the actual decide-proved-false diagnostic. No model or theorem was changed to obtain acceptance.
+
+The source-only checker needs the pinned Lean executable, Python and the fourteen copied inputs. It does not require Firefox sources or a browser to compile the model. The independent reviewer additionally uses Git only to authenticate the claimed native provenance. No live source, browser, canonical library or Git mutation was performed.

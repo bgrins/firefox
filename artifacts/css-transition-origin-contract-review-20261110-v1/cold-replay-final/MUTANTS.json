@@ -1,0 +1,29 @@
+[
+  {
+    "name": "registered-origin-mask",
+    "old": "fun effect => effect.inEffect",
+    "new": "fun _ => true",
+    "target": "off_excluded",
+    "witness": "style inEffectPolicy [transition, delayed] = .important",
+    "altered_model_sha256": "bed6f6e9057f90809a0de297393e0a7df1346be20c2cf95c20ae5c6e87e2a4ca",
+    "witness_source": "import Fixtures\nopen TransitionOrigin TransitionOrigin.Cases\ntheorem witness : style inEffectPolicy [transition, delayed] = .important := by decide\n#print axioms witness\n"
+  },
+  {
+    "name": "filtered-compositor-guard",
+    "old": "hasClass registeredPolicy property .animation effects",
+    "new": "hasClass inEffectPolicy property .animation effects",
+    "target": "compositorGuardMask_spec",
+    "witness": "compositorGuardMask .opacity [transition, delayed] = false \u2227 delayed.registered = true \u2227 delayed.current = true",
+    "altered_model_sha256": "4ae512000fd072aacbcf95c9ee42f32481a9fd91fa7f90c433918c9b7110629b",
+    "witness_source": "import Fixtures\nopen TransitionOrigin TransitionOrigin.Cases\ntheorem witness : compositorGuardMask .opacity [transition, delayed] = false \u2227 delayed.registered = true \u2227 delayed.current = true := by decide\n#print axioms witness\n"
+  },
+  {
+    "name": "transition-loses-priority",
+    "old": "| some (.transition, value) => value",
+    "new": "| some (.transition, value) => important.getD value",
+    "target": "transition_over_important",
+    "witness": "style registeredPolicy [transition] = .important",
+    "altered_model_sha256": "b7587b8a117044b49540bd437d488ae4112dd51e18bbbb00e39d52094a693bb9",
+    "witness_source": "import Fixtures\nopen TransitionOrigin TransitionOrigin.Cases\ntheorem witness : style registeredPolicy [transition] = .important := by decide\n#print axioms witness\n"
+  }
+]
