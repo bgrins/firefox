@@ -1,0 +1,128 @@
+--- a/dom/animation/KeyframeEffect.cpp
++++ b/dom/animation/KeyframeEffect.cpp
+@@ -650,32 +650,20 @@
+       computedTiming.mCurrentIterationForAccumulation;
+ }
+ 
+-void KeyframeEffect::ComposeStyleRule(StyleAnimationValueMap& aAnimationValues,
+-                                      const AnimationProperty& aProperty,
+-                                      const AnimationPropertySegment& aSegment,
+-                                      const ComputedTiming& aComputedTiming) {
+-  auto* opaqueTable =
+-      reinterpret_cast<RawServoAnimationValueTable*>(&mBaseValues);
+-  Servo_AnimationCompose(&aAnimationValues, opaqueTable, &aProperty.mProperty,
+-                         &aSegment, &aProperty.mSegments.LastElement(),
+-                         &aComputedTiming, mEffectOptions.mIterationComposite);
+-}
+-
+-void KeyframeEffect::ComposeStyle(
++/* static */
++void KeyframeEffect::ComposeProperties(
+     StyleAnimationValueMap& aComposeResult,
+-    const InvertibleAnimatedPropertyIDSet& aPropertiesToSkip,
+-    EndpointBehavior aEndpointBehavior) {
+-  ComputedTiming computedTiming = GetComputedTiming(nullptr, aEndpointBehavior);
+-
+-  // If the progress is null, we don't have fill data for the current
+-  // time so we shouldn't animate.
+-  if (computedTiming.mProgress.IsNull()) {
+-    return;
+-  }
+-
+-  for (size_t propIdx = 0, propEnd = mProperties.Length(); propIdx != propEnd;
++    const nsTArray<AnimationProperty>& aProperties,
++    const BaseValuesHashmap& aBaseValues, const ComputedTiming& aComputedTiming,
++    IterationCompositeOperation aIterationComposite,
++    const InvertibleAnimatedPropertyIDSet& aPropertiesToSkip) {
++  MOZ_ASSERT(!aComputedTiming.mProgress.IsNull());
++  const auto* opaqueTable =
++      reinterpret_cast<const RawServoAnimationValueTable*>(&aBaseValues);
++
++  for (size_t propIdx = 0, propEnd = aProperties.Length(); propIdx != propEnd;
+        ++propIdx) {
+-    const AnimationProperty& prop = mProperties[propIdx];
++    const AnimationProperty& prop = aProperties[propIdx];
+ 
+     MOZ_ASSERT(prop.mSegments[0].mFromKey <= 0.0, "incorrect first from key");
+     MOZ_ASSERT(prop.mSegments[prop.mSegments.Length() - 1].mToKey >= 1.0,
+@@ -692,7 +680,7 @@
+     const AnimationPropertySegment *segment = prop.mSegments.Elements(),
+                                    *segmentEnd =
+                                        segment + prop.mSegments.Length();
+-    while (segment->mToKey <= computedTiming.mProgress.Value()) {
++    while (segment->mToKey <= aComputedTiming.mProgress.Value()) {
+       MOZ_ASSERT(segment->mFromKey <= segment->mToKey, "incorrect keys");
+       if ((segment + 1) == segmentEnd) {
+         break;
+@@ -706,8 +694,26 @@
+                        prop.mSegments.Length(),
+                "out of array bounds");
+ 
+-    ComposeStyleRule(aComposeResult, prop, *segment, computedTiming);
+-  }
++    Servo_AnimationCompose(&aComposeResult, opaqueTable, &prop.mProperty,
++                           segment, &prop.mSegments.LastElement(),
++                           &aComputedTiming, aIterationComposite);
++  }
++}
++
++void KeyframeEffect::ComposeStyle(
++    StyleAnimationValueMap& aComposeResult,
++    const InvertibleAnimatedPropertyIDSet& aPropertiesToSkip,
++    EndpointBehavior aEndpointBehavior) {
++  ComputedTiming computedTiming = GetComputedTiming(nullptr, aEndpointBehavior);
++
++  // If the progress is null, we don't have fill data for the current
++  // time so we shouldn't animate.
++  if (computedTiming.mProgress.IsNull()) {
++    return;
++  }
++
++  ComposeProperties(aComposeResult, mProperties, mBaseValues, computedTiming,
++                    mEffectOptions.mIterationComposite, aPropertiesToSkip);
+ 
+   // If the animation produces a change hint that affects the overflow region,
+   // we need to record the current time to unthrottle the animation
+--- a/dom/animation/KeyframeEffect.h
++++ b/dom/animation/KeyframeEffect.h
+@@ -278,6 +278,19 @@
+   // parallel traversal.
+   void WillComposeStyle();
+ 
++  using BaseValuesHashmap =
++      nsRefPtrHashtable<nsGenericHashKey<CSSPropertyId>, StyleAnimationValue>;
++
++  // Requires non-null progress and valid, non-empty segment arrays.
++  // Does not update effect bookkeeping.
++  static void ComposeProperties(
++      StyleAnimationValueMap& aComposeResult,
++      const nsTArray<AnimationProperty>& aProperties,
++      const BaseValuesHashmap& aBaseValues,
++      const ComputedTiming& aComputedTiming,
++      IterationCompositeOperation aIterationComposite,
++      const InvertibleAnimatedPropertyIDSet& aPropertiesToSkip);
++
+   // Updates |aComposeResult| with the animation values produced by this
+   // AnimationEffect for the current time except any properties contained
+   // in |aPropertiesToSkip|.
+@@ -480,8 +493,6 @@
+   // The non-animated values for properties in this effect that contain at
+   // least one animation value that is composited with the underlying value
+   // (i.e. it uses the additive or accumulate composite mode).
+-  using BaseValuesHashmap =
+-      nsRefPtrHashtable<nsGenericHashKey<CSSPropertyId>, StyleAnimationValue>;
+   BaseValuesHashmap mBaseValues;
+ 
+  private:
+@@ -510,11 +521,6 @@
+   };
+   CumulativeChanges mCumulativeChanges;
+ 
+-  void ComposeStyleRule(StyleAnimationValueMap& aAnimationValues,
+-                        const AnimationProperty& aProperty,
+-                        const AnimationPropertySegment& aSegment,
+-                        const ComputedTiming& aComputedTiming);
+-
+   already_AddRefed<const ComputedStyle> CreateComputedStyleForAnimationValue(
+       NonCustomCSSPropertyId aProperty, const AnimationValue& aValue,
+       nsPresContext* aPresContext, const ComputedStyle* aBaseComputedStyle);
