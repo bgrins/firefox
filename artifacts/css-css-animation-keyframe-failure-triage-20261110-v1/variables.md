@@ -1,0 +1,268 @@
+# CSS-VARIABLES-1#defining-variables
+
+**Defining Custom Properties: the --* family of properties** (heading)
+
+**SHA**: hash:72c4b00afaa33f30ded58f4b1e4595c7155bb410d01e0d24b8157cdbdf101e40
+
+## Content
+
+This specification defines an open-ended set of properties called [custom properties](CSS-VARIABLES-1#custom-property), which, among other things, are used to define the [substitution value](CSS-VALUES-5#substitute-arbitrary-substitution-function) of [var()](CSS-VARIABLES-1#funcdef-var) functions.
+
+| Name:                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [\<declaration-value>](CSS-SYNTAX-3#typedef-declaration-value)[?](CSS-VALUES-4#mult-opt)     |
+| the [guaranteed-invalid value](CSS-VARIABLES-1#guaranteed-invalid-value)                                                |
+| all elements and all pseudo-elements (including those with restricted property lists)                                                            |
+| yes                                                                                                                                              |
+| n/a                                                                                                                                              |
+| specified value with variables substituted, or the [guaranteed-invalid value](CSS-VARIABLES-1#guaranteed-invalid-value) |
+| per grammar                                                                                                                                      |
+| discrete                                                                                                                                         |
+
+*User agents are expected to support this property on all media, including non-visual ones.*
+
+A **custom property** is any property whose name starts with two dashes (U+002D HYPHEN-MINUS), like --foo. The **\<custom-property-name>** production corresponds to this: it’s defined as any [\<dashed-ident>](CSS-VALUES-4#typedef-dashed-ident) (a valid [identifier](CSS-VALUES-4#css-css-identifier) that starts with two dashes), except -- itself, which is reserved for future use by CSS. [Custom properties](CSS-VARIABLES-1#custom-property) are solely for use by authors and users; CSS will never give them a meaning beyond what is presented here.
+
+Tests
+
+*   [variable-declaration-29.html](https://wpt.fyi/results/css/css-variables/variable-declaration-29.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-29.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-29.html)
+*   [variable-declaration-31.html](https://wpt.fyi/results/css/css-variables/variable-declaration-31.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-31.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-31.html)
+*   [variable-declaration-32.html](https://wpt.fyi/results/css/css-variables/variable-declaration-32.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-32.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-32.html)
+*   [variable-declaration-33.html](https://wpt.fyi/results/css/css-variables/variable-declaration-33.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-33.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-33.html)
+*   [variable-declaration-34.html](https://wpt.fyi/results/css/css-variables/variable-declaration-34.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-34.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-34.html)
+*   [variable-declaration-35.html](https://wpt.fyi/results/css/css-variables/variable-declaration-35.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-35.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-35.html)
+*   [variable-declaration-36.html](https://wpt.fyi/results/css/css-variables/variable-declaration-36.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-36.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-36.html)
+*   [variable-declaration-40.html](https://wpt.fyi/results/css/css-variables/variable-declaration-40.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-40.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-40.html)
+*   [variable-declaration-41.html](https://wpt.fyi/results/css/css-variables/variable-declaration-41.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-41.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-41.html)
+*   [variable-declaration-42.html](https://wpt.fyi/results/css/css-variables/variable-declaration-42.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-42.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-42.html)
+*   [variable-empty-name-reserved.html](https://wpt.fyi/results/css/css-variables/variable-empty-name-reserved.html) [(live test)](http://wpt.live/css/css-variables/variable-empty-name-reserved.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-empty-name-reserved.html)
+
+> **Example:** Custom properties define variables, referenced with the [var()](CSS-VARIABLES-1#funcdef-var) notation, which can be used for many purposes. For example, a page that consistently uses a small set of colors in its design can store the colors in custom properties and use them with variables:
+>
+> ```
+> :root {
+>   --main-color: #06c;
+>   --accent-color: #006;
+> }
+> /* The rest of the CSS file */
+> #foo h1 {
+>   color: var(--main-color);
+> }
+> ```
+>
+> The naming provides a mnemonic for the colors, prevents difficult-to-spot typos in the color codes, and if the theme colors are ever changed, focuses the change on one simple spot (the custom property value) rather than requiring many edits across all stylesheets in the webpage.
+
+Unlike other CSS properties, custom property names are *not* [ASCII case-insensitive](INFRA#ascii-case-insensitive). Instead, custom property names are only equal to each other if they are [identical to](INFRA#is) each other.
+
+Tests
+
+*   [css-vars-custom-property-case-sensitive-001.html](https://wpt.fyi/results/css/css-variables/css-vars-custom-property-case-sensitive-001.html) [(live test)](http://wpt.live/css/css-variables/css-vars-custom-property-case-sensitive-001.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/css-vars-custom-property-case-sensitive-001.html)
+
+> **Example:** While both --foo and --FOO are valid, they are distinct properties —​using var(--foo) will refer to the first one, while using var(--FOO) will refer to the second.Perhaps more surprisingly, --foó and --foó are distinct properties. The first is spelled with U+00F3 (LATIN SMALL LETTER O WITH ACUTE) while the second is spelled with an ASCII "o" followed by U+0301 (COMBINING ACUTE ACCENT), and the "[identical to](INFRA#is)" relation uses direct codepoint-by-codepoint comparison to determine if two strings are equal, to avoid the complexities and pitfalls of unicode normalization and locale-specific collation.
+
+Operating systems, keyboards, or input methods sometimes encode visually-identical text using different codepoint sequences. Authors are advised to choose variable names that avoid potential confusion or to use escapes and other means to ensure that similar appearing sequences are identical. See Section 2.3 in \[CHARMOD-NORM\] for examples.
+
+> **Example:** Developers maintaining the following CSS might be confused why the test patch is red:
+>
+> ```
+> --fijord: red;
+> --fĳord: green;
+> --ﬁjord: blue;
+>
+> .test {
+>   background-color: var(--fijord);
+> }
+> ```
+>
+> The reason is that the first custom property uses the character sequence LATIN SMALL LETTER F + LATIN SMALL LETTER I + LATIN SMALL LETTER J; the second, identical-looking one uses the character sequence LATIN SMALL LETTER F + LATIN SMALL LIGATURE IJ while the third uses the character sequence LATIN SMALL LIGATURE FI + LATIN SMALL LETTER J.
+>
+> So the CSS contains three distinct custom properties, two of which are unused.
+
+Custom properties are **not** reset by the [all](CSS-CASCADE-5#propdef-all) property.
+
+The [CSS-wide keywords](CSS-VALUES-4#css-wide-keywords) can be used in custom properties, with the same meaning as in any another property.
+
+Tests
+
+*   [variable-declaration-43.html](https://wpt.fyi/results/css/css-variables/variable-declaration-43.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-43.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-43.html)
+*   [variable-declaration-44.html](https://wpt.fyi/results/css/css-variables/variable-declaration-44.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-44.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-44.html)
+*   [variable-declaration-45.html](https://wpt.fyi/results/css/css-variables/variable-declaration-45.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-45.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-45.html)
+*   [variable-declaration-46.html](https://wpt.fyi/results/css/css-variables/variable-declaration-46.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-46.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-46.html)
+*   [variable-declaration-47.html](https://wpt.fyi/results/css/css-variables/variable-declaration-47.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-47.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-47.html)
+*   [variable-declaration-56.html](https://wpt.fyi/results/css/css-variables/variable-declaration-56.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-56.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-56.html)
+*   [variable-declaration-57.html](https://wpt.fyi/results/css/css-variables/variable-declaration-57.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-57.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-57.html)
+*   [variable-declaration-58.html](https://wpt.fyi/results/css/css-variables/variable-declaration-58.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-58.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-58.html)
+*   [variable-declaration-60.html](https://wpt.fyi/results/css/css-variables/variable-declaration-60.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-60.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-60.html)
+*   [variable-definition-keywords.html](https://wpt.fyi/results/css/css-variables/variable-definition-keywords.html) [(live test)](http://wpt.live/css/css-variables/variable-definition-keywords.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-definition-keywords.html)
+*   [variable-css-wide-keywords.html](https://wpt.fyi/results/css/css-variables/variable-css-wide-keywords.html) [(live test)](http://wpt.live/css/css-variables/variable-css-wide-keywords.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-css-wide-keywords.html)
+
+> **Note:** Note: That is, they’re interpreted at cascaded-value time as normal, and are not preserved as the custom property’s value, and thus are not substituted in by the corresponding variable.
+
+> **Note:** Note: While this module focuses on the use of [custom properties](CSS-VARIABLES-1#custom-property) with the [var()](CSS-VARIABLES-1#funcdef-var) function to create “variables”, they can also be used as actual custom properties, parsed by and acted on by script. It’s expected that the CSS Extensions spec \[CSS-EXTENSIONS\] will expand on these use-cases and make them easier to do.
+
+Custom properties are ordinary properties, so they can be declared on any element, are resolved with the normal inheritance and cascade rules, can be made conditional with [@media](CSS-CONDITIONAL-3#at-ruledef-media) and other conditional rules, can be used in HTML’s `style` attribute, can be read or set using the CSSOM, etc.
+
+Tests
+
+*   [css-vars-custom-property-inheritance.html](https://wpt.fyi/results/css/css-variables/css-vars-custom-property-inheritance.html) [(live test)](http://wpt.live/css/css-variables/css-vars-custom-property-inheritance.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/css-vars-custom-property-inheritance.html)
+*   [variable-created-document.html](https://wpt.fyi/results/css/css-variables/variable-created-document.html) [(live test)](http://wpt.live/css/css-variables/variable-created-document.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-created-document.html)
+*   [variable-created-element.html](https://wpt.fyi/results/css/css-variables/variable-created-element.html) [(live test)](http://wpt.live/css/css-variables/variable-created-element.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-created-element.html)
+*   [variable-cssText.html](https://wpt.fyi/results/css/css-variables/variable-cssText.html) [(live test)](http://wpt.live/css/css-variables/variable-cssText.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-cssText.html)
+*   [variable-declaration-06.html](https://wpt.fyi/results/css/css-variables/variable-declaration-06.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-06.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-06.html)
+*   [variable-definition-cascading.html](https://wpt.fyi/results/css/css-variables/variable-definition-cascading.html) [(live test)](http://wpt.live/css/css-variables/variable-definition-cascading.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-definition-cascading.html)
+*   [variable-external-declaration-01.html](https://wpt.fyi/results/css/css-variables/variable-external-declaration-01.html) [(live test)](http://wpt.live/css/css-variables/variable-external-declaration-01.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-external-declaration-01.html)
+*   [variable-external-reference-01.html](https://wpt.fyi/results/css/css-variables/variable-external-reference-01.html) [(live test)](http://wpt.live/css/css-variables/variable-external-reference-01.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-external-reference-01.html)
+*   [variable-external-supports-01.html](https://wpt.fyi/results/css/css-variables/variable-external-supports-01.html) [(live test)](http://wpt.live/css/css-variables/variable-external-supports-01.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-external-supports-01.html)
+*   [variable-first-letter.html](https://wpt.fyi/results/css/css-variables/variable-first-letter.html) [(live test)](http://wpt.live/css/css-variables/variable-first-letter.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-first-letter.html)
+*   [variable-first-line.html](https://wpt.fyi/results/css/css-variables/variable-first-line.html) [(live test)](http://wpt.live/css/css-variables/variable-first-line.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-first-line.html)
+*   [variable-pseudo-element.html](https://wpt.fyi/results/css/css-variables/variable-pseudo-element.html) [(live test)](http://wpt.live/css/css-variables/variable-pseudo-element.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-pseudo-element.html)
+*   [variable-reference-13.html](https://wpt.fyi/results/css/css-variables/variable-reference-13.html) [(live test)](http://wpt.live/css/css-variables/variable-reference-13.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-reference-13.html)
+*   [variable-reference-14.html](https://wpt.fyi/results/css/css-variables/variable-reference-14.html) [(live test)](http://wpt.live/css/css-variables/variable-reference-14.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-reference-14.html)
+*   [variable-reference-shorthands.html](https://wpt.fyi/results/css/css-variables/variable-reference-shorthands.html) [(live test)](http://wpt.live/css/css-variables/variable-reference-shorthands.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-reference-shorthands.html)
+*   [variable-reference-visited.html](https://wpt.fyi/results/css/css-variables/variable-reference-visited.html) [(live test)](http://wpt.live/css/css-variables/variable-reference-visited.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-reference-visited.html)
+
+Notably, they can even be animated, but since the UA has no way to interpret their contents, they always use the "flips at 50%" behavior that is used for any other pair of values that can’t be intelligently interpolated. However, any [custom property](CSS-VARIABLES-1#custom-property) used in a [@keyframes](CSS-ANIMATIONS-1#at-ruledef-keyframes) rule becomes **animation-tainted**, which affects how it is treated when referred to via the [var()](CSS-VARIABLES-1#funcdef-var) function in an animation property.
+
+Tests
+
+*   [variable-animation-from-to.html](https://wpt.fyi/results/css/css-variables/variable-animation-from-to.html) [(live test)](http://wpt.live/css/css-variables/variable-animation-from-to.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-animation-from-to.html)
+*   [variable-animation-over-transition.html](https://wpt.fyi/results/css/css-variables/variable-animation-over-transition.html) [(live test)](http://wpt.live/css/css-variables/variable-animation-over-transition.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-animation-over-transition.html)
+*   [variable-animation-substitute-into-keyframe-shorthand.html](https://wpt.fyi/results/css/css-variables/variable-animation-substitute-into-keyframe-shorthand.html) [(live test)](http://wpt.live/css/css-variables/variable-animation-substitute-into-keyframe-shorthand.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-animation-substitute-into-keyframe-shorthand.html)
+*   [variable-animation-substitute-into-keyframe-transform.html](https://wpt.fyi/results/css/css-variables/variable-animation-substitute-into-keyframe-transform.html) [(live test)](http://wpt.live/css/css-variables/variable-animation-substitute-into-keyframe-transform.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-animation-substitute-into-keyframe-transform.html)
+*   [variable-animation-substitute-into-keyframe.html](https://wpt.fyi/results/css/css-variables/variable-animation-substitute-into-keyframe.html) [(live test)](http://wpt.live/css/css-variables/variable-animation-substitute-into-keyframe.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-animation-substitute-into-keyframe.html)
+*   [variable-animation-substitute-within-keyframe-fallback.html](https://wpt.fyi/results/css/css-variables/variable-animation-substitute-within-keyframe-fallback.html) [(live test)](http://wpt.live/css/css-variables/variable-animation-substitute-within-keyframe-fallback.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-animation-substitute-within-keyframe-fallback.html)
+*   [variable-animation-substitute-within-keyframe-multiple.html](https://wpt.fyi/results/css/css-variables/variable-animation-substitute-within-keyframe-multiple.html) [(live test)](http://wpt.live/css/css-variables/variable-animation-substitute-within-keyframe-multiple.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-animation-substitute-within-keyframe-multiple.html)
+*   [variable-animation-substitute-within-keyframe.html](https://wpt.fyi/results/css/css-variables/variable-animation-substitute-within-keyframe.html) [(live test)](http://wpt.live/css/css-variables/variable-animation-substitute-within-keyframe.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-animation-substitute-within-keyframe.html)
+*   [variable-animation-to-only.html](https://wpt.fyi/results/css/css-variables/variable-animation-to-only.html) [(live test)](http://wpt.live/css/css-variables/variable-animation-to-only.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-animation-to-only.html)
+
+> **Note:** Note: Like any other property that animates discretely, custom properties can’t be transitioned. [Registered custom properties](https://drafts.css-houdini.org/css-properties-values-api-1/#registered-custom-property) can, however, if given a syntax that has non-discrete animation behavior.
+
+[Animation-tainted](CSS-VARIABLES-1#animation-tainted) is "infectious": custom properties which reference animation-tainted properties also become animation-tainted.
+
+> **Example:** This style rule:
+>
+> ```
+> :root {
+>   --header-color: #06c;
+> }
+> ```
+>
+> declares a [custom property](CSS-VARIABLES-1#custom-property) named --header-color on the root element, and assigns to it the value "#06c". This property is then inherited to the elements in the rest of the document. Its value can be referenced with the [var()](CSS-VARIABLES-1#funcdef-var) function:
+>
+> ```
+> h1 { background-color: var(--header-color); }
+> ```
+>
+> The preceding rule is equivalent to writing [background-color: #06c;](CSS-BACKGROUNDS-3#propdef-background-color), except that the variable name makes the origin of the color clearer, and if var(--header-color) is used on other elements in the document, all of the uses can be updated at once by changing the --header-color property on the root element.
+
+> **Example:** If a [custom property](CSS-VARIABLES-1#custom-property) is declared multiple times, the standard cascade rules help resolve it. Variables always draw from the computed value of the associated custom property on the same element:
+>
+> ```
+> :root { --color: blue; }
+> div { --color: green; }
+> #alert { --color: red; }
+> * { color: var(--color); }
+>
+> <p>I inherited blue from the root element!</p>
+> <div>I got green set directly on me!</div>
+> <div id='alert'>
+>   While I got red set directly on me!
+>   <p>I'm red too, because of inheritance!</p>
+> </div>
+> ```
+
+> **Example:** A real-world example of [custom property](CSS-VARIABLES-1#custom-property) usage is easily separating out strings from where they’re used, to aid in maintenance of internationalization:
+>
+> ```
+> :root,
+> :root:lang(en) {--external-link: "external link";}
+> :root:lang(el) {--external-link: "εξωτερικός σύνδεσμος";}
+>
+> a[href^="http"]::after {content: " (" var(--external-link) ")"}
+> ```
+>
+> The variable declarations can even be kept in a separate file, to make maintaining the translations simpler.
+
+### Custom Property Value Syntax
+
+The allowed syntax for [custom properties](CSS-VARIABLES-1#custom-property) is extremely permissive. The [\<declaration-value>](CSS-SYNTAX-3#typedef-declaration-value) production matches *any* sequence of one or more tokens, so long as the sequence does not contain [\<bad-string-token>](CSS-SYNTAX-3#typedef-bad-string-token), [\<bad-url-token>](CSS-SYNTAX-3#typedef-bad-url-token), unmatched [<)-token>](CSS-SYNTAX-3#tokendef-close-paren), [<\]-token>](CSS-SYNTAX-3#tokendef-close-square), or [<}-token>](CSS-SYNTAX-3#tokendef-close-curly), or top-level [\<semicolon-token>](CSS-SYNTAX-3#typedef-semicolon-token) tokens or [\<delim-token>](CSS-SYNTAX-3#typedef-delim-token) tokens with a value of "!".
+
+Tests
+
+*   [long-variable-reference-crash.html](https://wpt.fyi/results/css/css-variables/long-variable-reference-crash.html) [(live test)](http://wpt.live/css/css-variables/long-variable-reference-crash.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/long-variable-reference-crash.html)
+*   [test\_variable\_legal\_values.html](https://wpt.fyi/results/css/css-variables/test_variable_legal_values.html) [(live test)](http://wpt.live/css/css-variables/test_variable_legal_values.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/test_variable_legal_values.html)
+*   [variable-declaration-15.html](https://wpt.fyi/results/css/css-variables/variable-declaration-15.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-15.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-15.html)
+*   [variable-declaration-24.html](https://wpt.fyi/results/css/css-variables/variable-declaration-24.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-24.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-24.html)
+*   [variable-declaration-25.html](https://wpt.fyi/results/css/css-variables/variable-declaration-25.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-25.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-25.html)
+*   [variable-declaration-26.html](https://wpt.fyi/results/css/css-variables/variable-declaration-26.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-26.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-26.html)
+*   [variable-declaration-59.html](https://wpt.fyi/results/css/css-variables/variable-declaration-59.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-59.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-59.html)
+
+In addition, if the value of a [custom property](CSS-VARIABLES-1#custom-property) contains a [var()](CSS-VARIABLES-1#funcdef-var) reference, the var() reference must be valid according to the specified var() grammar. If not, the custom property is invalid and must be ignored.
+
+> **Note:** Note: This definition, along with the general CSS syntax rules, implies that a custom property value never includes an unmatched quote or bracket, and so cannot have any effect on larger syntax constructs, like the enclosing style rule, when reserialized.
+
+> **Note:** Note: Custom properties can contain a trailing !important, but this is automatically removed from the property’s value by the CSS parser, and makes the custom property "important" in the CSS cascade. In other words, the prohibition on top-level "!" characters does not prevent !important from being used, as the !important is removed before syntax checking happens.
+
+Tests
+
+*   [variable-declaration-20.html](https://wpt.fyi/results/css/css-variables/variable-declaration-20.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-20.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-20.html)
+*   [variable-declaration-23.html](https://wpt.fyi/results/css/css-variables/variable-declaration-23.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-23.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-23.html)
+
+> **Example:** For example, the following is a valid custom property:
+>
+> ```
+> --foo: if(x > 5) this.width = 10;
+> ```
+>
+> While this value is obviously useless as a *variable*, as it would be invalid in any normal property, it might be read and acted on by JavaScript.
+
+The values of custom properties, and the values of [var()](CSS-VARIABLES-1#funcdef-var) functions substituted into custom properties, are *case-sensitive*, and must be preserved in their original author-given casing. (Many CSS values are [ASCII case-insensitive](INFRA#ascii-case-insensitive), which user agents can take advantage of by "canonicalizing" them into a single casing, but that isn’t allowed for custom properties.)
+
+Tests
+
+*   [variable-declaration-38.html](https://wpt.fyi/results/css/css-variables/variable-declaration-38.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-38.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-38.html)
+*   [variable-declaration-39.html](https://wpt.fyi/results/css/css-variables/variable-declaration-39.html) [(live test)](http://wpt.live/css/css-variables/variable-declaration-39.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-variables/variable-declaration-39.html)
+
+> **Note:** Because custom properties can contain *anything*, there is no general way to know how to interpret what’s inside of them (until they’re substituted into a known property with [var()](CSS-VARIABLES-1#funcdef-var)). Rather than have them *partially* resolve in some cases but not others, they’re left completely unresolved; they’re a bare stream of [CSS tokens](CSS-SYNTAX-3#tokenization) interspersed with var() functions.This has some knock-on implications. For example, relative URLs in CSS are resolved against the base URL of the stylesheet the value appears in. However, if a custom property like --my-image: url(foo.jpg); shows up in an `"/a/style.css"` stylesheet, it will not resolve into an absolute URL immediately; if that variable is later used in a *different* `"/b/style.css"` stylesheet like [background: var(--my-image);](CSS-BACKGROUNDS-3#propdef-background), it will resolve *at that point* to `"/b/foo.jpg"`.
+
+### Guaranteed-Invalid Values
+
+The initial value of a [custom property](CSS-VARIABLES-1#custom-property) is a **guaranteed-invalid value**.
+
+The [guaranteed-invalid value](CSS-VARIABLES-1#guaranteed-invalid-value) is, well, guaranteed to be invalid. If it ever appears in a property value, then at [computed value](CSS-CASCADE-5#computed-value) time that property becomes [invalid at computed-value time](CSS-VALUES-5#invalid-at-computed-value-time).
+
+Non-property contexts will define their own behavior for the [guaranteed-invalid value](CSS-VARIABLES-1#guaranteed-invalid-value), but it will always be "invalid" in some sense.
+
+The [guaranteed-invalid value](CSS-VARIABLES-1#guaranteed-invalid-value) serializes as the empty string, but actually writing an empty value into a custom property, like --foo:;, is a valid (empty) value, not the guaranteed-invalid value. If, for whatever reason, one wants to manually reset a [custom property](CSS-VARIABLES-1#custom-property) to the guaranteed-invalid value, using the keyword [initial](CSS-CASCADE-5#valdef-all-initial) will do this.
+
+> **Note:** Note: Other than invoking the [initial value](CSS-CASCADE-5#initial-value) of a non-registered [custom property](CSS-VARIABLES-1#custom-property), the only way to create the [guaranteed-invalid value](CSS-VARIABLES-1#guaranteed-invalid-value) is by having an invalid [arbitrary substitution function](CSS-VALUES-5#arbitrary-substitution-function).
+
+## Navigation
+
+- Prev: `intro` — Introduction
+- Next: `using-variables` — Using Cascading Variables: the var() notation
+- Children: 6
+  - `propdef-` — --*
+  - `custom-property` — custom property
+  - `typedef-custom-property-name` — <custom-property-name>
+  - `animation-tainted` — animation-tainted
+  - `syntax` — Custom Property Value Syntax
+  - `guaranteed-invalid` — Guaranteed-Invalid Values
+
+## Outgoing refs (24)
+
+`webspec-index refs CSS-VARIABLES-1#defining-variables -d outgoing -l 24`
+
+## Incoming refs (1)
+
+- CSS-VARIABLES-1#contents
+
+### Possible effects
+
+CSS-VARIABLES-1#defining-variables
+
+Partial analysis: additional effects may exist.
+
+No effects detected by this analysis.
+
+Traces and conditions (bounded): `webspec-index effects "CSS-VARIABLES-1#defining-variables" --format markdown`

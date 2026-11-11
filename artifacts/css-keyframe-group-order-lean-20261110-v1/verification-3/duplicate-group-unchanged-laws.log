@@ -1,0 +1,64 @@
+GroupOrder.lean:14:8: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  (List.filter ?m.21 ?m.22).reverse
+in the target expression
+  key :: (assembleReverse rest).reverse = key :: List.filter (fun x => x != key) (earliest rest)
+
+case cons
+α : Type
+inst✝ : DecidableEq α
+key : α
+rest : List α
+ih : (assembleReverse rest).reverse = earliest rest
+⊢ key :: (assembleReverse rest).reverse = key :: List.filter (fun x => x != key) (earliest rest)
+GroupOrder.lean:47:0: warning: automatically included section variable(s) unused in theorem `KeyframeGroupOrder.assemble_is_reverse_loop`:
+  [DecidableEq α]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [DecidableEq α] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+GroupOrder.lean:83:74: error: unsolved goals
+α : Type
+inst✝ : DecidableEq α
+before after : List α
+key : α
+hb : ¬key ∈ before
+ha : ¬key ∈ after
+⊢ False
+GroupOrder.lean:84:18: warning: This simp argument is unused:
+  List.filter_append
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [moveLast, filter_absent before key hb, filter_absent after key ha]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+GroupOrder.lean:84:38: warning: This simp argument is unused:
+  filter_absent before key hb
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [moveLast, List.filter_append, filter_absent after key ha]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+GroupOrder.lean:85:4: warning: This simp argument is unused:
+  filter_absent after key ha
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [moveLast, List.filter_append, filter_absent before key hb]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+GroupOrder.lean:89:16: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  List.filter (fun x => x != key) groups
+in the target expression
+  groups ++ [key] = groups ++ [key]
+
+α : Type
+inst✝ : DecidableEq α
+groups : List α
+key : α
+h : ¬key ∈ groups
+⊢ groups ++ [key] = groups ++ [key]
+GroupOrder.lean:95:61: error: Tactic `decide` proved that the proposition
+  (assembleReverse [0, 1, 2, 1]).reverse = [0, 1, 2]
+is false
+GroupOrder.lean:99:45: error: Tactic `decide` proved that the proposition
+  (assembleReverse [(0, 0), (0, 1), (0, 2), (0, 1), (1, 0)]).reverse = [(0, 0), (0, 1), (0, 2), (1, 0)]
+is false
