@@ -1,0 +1,69 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Named-range keyframe groups retain their earliest position</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#keyframe-processing">
+<link rel="help" href="https://drafts.csswg.org/scroll-animations-1/#named-range-keyframes">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .scroller { overflow: auto; width: 200px; height: 100px; }
+  .target {
+    width: 100px;
+    height: 100px;
+    margin-top: 100px;
+    margin-bottom: 100px;
+    animation-duration: auto;
+    animation-fill-mode: both;
+    animation-timeline: view();
+  }
+  @keyframes unique-groups {
+    cover 50% { opacity: .2; animation-timing-function: linear; }
+    cover 50% { margin-left: 10px; animation-timing-function: ease-in; }
+    cover 50% { padding-left: 20px; animation-timing-function: ease-out; }
+  }
+  @keyframes repeated-group {
+    cover 50% { opacity: .2; animation-timing-function: linear; }
+    cover 50% { margin-left: 10px; animation-timing-function: ease-in; }
+    cover 50% { padding-left: 20px; animation-timing-function: ease-out; }
+    cover 50% { margin-left: 30px; animation-timing-function: ease-in; }
+  }
+</style>
+<body>
+<script>
+for (const [name, margin] of [
+  ['unique-groups', '10px'],
+  ['repeated-group', '30px'],
+]) {
+  promise_test(async t => {
+    const scroller = document.createElement('div');
+    scroller.className = 'scroller';
+    const target = document.createElement('div');
+    target.className = 'target';
+    target.style.animationName = name;
+    scroller.append(target);
+    document.body.append(scroller);
+    t.add_cleanup(() => scroller.remove());
+    scroller.scrollTop = 100;
+    const animations = target.getAnimations();
+    assert_equals(animations.length, 1, 'One CSS animation exists');
+    await animations[0].ready;
+    const frames = animations[0].effect.getKeyframes().filter(frame =>
+      frame.offset && typeof frame.offset === 'object');
+    assert_equals(frames.length, 3, 'Three named-range groups remain');
+    for (const frame of frames) {
+      assert_equals(frame.offset.rangeName, 'cover');
+      assert_equals(frame.offset.offset.unit, 'percent');
+      assert_equals(frame.offset.offset.value, 50);
+      assert_approx_equals(frame.computedOffset, .5, 1e-7,
+                           'Every group resolves to the same offset');
+    }
+    assert_equals(frames.find(frame => frame.easing === 'ease-in').marginLeft,
+                  margin, 'The later declaration in a group wins');
+    assert_array_equals(frames.map(frame => frame.easing),
+                        ['linear', 'ease-in', 'ease-out'],
+                        'Groups retain earliest source order');
+    assert_equals(frames[0].opacity, '0.2');
+    assert_equals(frames[2].paddingLeft, '20px');
+  }, `${name}: equal-offset named-range group order and declaration precedence`);
+}
+</script>

@@ -1,0 +1,15 @@
+# Independent named-range probe review
+
+The baseline-only probe is accepted as evidence of the specific ordering discrepancy, not a native repair or a new bug count. I did not author this probe or wrapper. The separate range candidate remains subject to its own review and runtime gate.
+
+`review.py` independently authenticated the preserved analyzer/process/bundle scripts against commit `3d55e8e0d364b92dde0110553202aacbb0983dfb` and verified the exact runner diff: baseline-only admission and linting the selected probe page before execution. Native source roles are empty. Candidate/build branches retained from the earlier wrapper are unreachable through this entry point. The sole temporary fixture and absent metadata are explicitly admitted and removed under the original restoration transaction.
+
+The exact fixture matches proposal SHA `801565fcdf90075029e93f61e32ed86d2dac64d8dffca46a005a0612a8eb75ea`. Its view-timeline setup resolves all three groups to finite computed offset 0.5. The repeated `ease-in` group's later 30px declaration is asserted before the order assertion. Consequently the failure is not merely an inactive-timeline or losing-declaration symptom. Unique A,B,C passes; repeated A,B,C,B returns A,C,B and fails the earliest-position assertion. Assertions after that failure (opacity and padding) are not reached for the failing callback; their success is not inferred.
+
+An independent raw-log parser found exactly two callbacks and one OK harness end, with the expected named unique PASS and repeated FAIL. WPT exit 1 corresponds to the sole expected-for-this-experiment unannotated failure; lint exits 0. No raw harness crash/error event appears. Full text logs contain the familiar headless SWGL framebuffer diagnostic and unsynced Nimbus database console error; they are recorded without treating them as test success or as a new native crash.
+
+The live read-only audit verified all 9,378 application entries and three extras against the pre-run inventory, retained sampled binary hashes, all 17 source/test/metadata pins, mozconfig, HEAD `33b02650a474a0a4c2d9f6421283ba89f9a18b1c`, index hash and clean tracked files. Temporary fixture/metadata, backup directory, and runtime lock are absent. A separately authorized read-only `ps` snapshot shows both owned groups 75623 and 75702 absent. The first sandboxed attempt reached this process query after passing file checks and was denied by the sandbox; the completed check reads the captured process snapshot and repeats the file checks. Root was notified that the live hold could be released.
+
+The process snapshot is a point-in-time receipt, not a permanent assertion about future PID reuse. Full application checks use the authenticated restoration helper's semantic fields (bytes, paths, mode, symlink target), deliberately excluding inode/link-count identity. Existing unrelated untracked files are not modified by this review.
+
+`REVIEW.json` records the completed checks; `INPUTS.json` binds the runtime evidence. This review neither runs a browser/build nor mutates native files, tests, index or Git history.
