@@ -1,0 +1,155 @@
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -8111,9 +8111,7 @@
+     // into ascending offset order.
+     keyframes.reverse();
+ 
+-    // After appending the missing initial and final keyframes, we start to append the Keyframes
+-    // with timeline range names. We create the Keyframes in a temporary array because we need to
+-    // reverse it later.
++    // Keep range group indices stable until property deduplication is complete.
+     let mut keyframes_with_range_names = nsTArray::new();
+     // The indexes of keyframes_with_range_names that correspond to the grouped keyframes.
+     // e.g. If there are 4 keyframes:
+@@ -8133,7 +8131,8 @@
+     // [1] cover 20% {...}
+     // Only the last property value of `width` is kept.
+     let mut grouped_keyframes_indexes = HashSet::new();
+-    for step in animation.steps_with_range_name.iter().rev() {
++    let mut keyframe_source_positions = Vec::new();
++    for (source_position, step) in animation.steps_with_range_name.iter().enumerate().rev() {
+         debug_assert!(!step.start_offset.range_name.is_none());
+         let (timing_function, composition) = get_timing_func_and_composition(step);
+         let mut matched_idx = 0;
+@@ -8150,6 +8149,9 @@
+         // Check if we may have to de-duplicate this keyframe's mPropertyValues.
+         if matched_idx != keyframes_with_range_names.len() {
+             grouped_keyframes_indexes.insert(matched_idx);
++            keyframe_source_positions[matched_idx] = source_position;
++        } else {
++            keyframe_source_positions.push(source_position);
+         }
+ 
+         match step.value {
+@@ -8178,8 +8180,17 @@
+         &mut keyframes_with_range_names,
+         grouped_keyframes_indexes,
+     );
+-    // Reverse the keyframes order because we reversed them in the loop above.
+-    keyframes.extend(&mut keyframes_with_range_names.drain(..).rev());
++    // Reorder only after the saved group indices have been consumed.
++    debug_assert_eq!(
++        keyframes_with_range_names.len(),
++        keyframe_source_positions.len()
++    );
++    let mut ordered_keyframes: Vec<_> = keyframes_with_range_names
++        .drain(..)
++        .zip(keyframe_source_positions)
++        .collect();
++    ordered_keyframes.sort_unstable_by_key(|(_, position)| *position);
++    keyframes.extend(ordered_keyframes.into_iter().map(|(keyframe, _)| keyframe));
+     true
+ }
+ 
+--- a/testing/web-platform/tests/scroll-animations/css/merge-timeline-offset-keyframes.html
++++ b/testing/web-platform/tests/scroll-animations/css/merge-timeline-offset-keyframes.html
+@@ -78,14 +78,14 @@
+           computedOffset: 0
+         },
+         {
++          offset: { rangeName: "entry", offset: CSS.percent(100) },
++          easing: "linear", composite: "auto", opacity: "0.5",
++          computedOffset : 1/3
++        },
++        {
+           offset: { rangeName: "contain", offset: CSS.percent(0) },
+           easing: "linear", composite: "auto", opacity: "0.8",
+           computedOffset: 1/3
+-        },
+-        {
+-          offset: { rangeName: "entry", offset: CSS.percent(100) },
+-          easing: "linear", composite: "auto", opacity: "0.5",
+-          computedOffset : 1/3
+         }];
+       assert_frame_lists_equal(keyframes, expected);
+     }, 'Keyframes with same easing and timeline offset are merged.');
+--- /dev/null
++++ b/testing/web-platform/tests/scroll-animations/css/named-range-group-earliest-order.html
+@@ -0,0 +1,77 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Named-range keyframe groups retain their earliest position</title>
++<link rel="help" href="https://drafts.csswg.org/css-animations-2/#keyframe-processing">
++<link rel="help" href="https://drafts.csswg.org/scroll-animations-1/#named-range-keyframes">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++  .scroller { overflow: auto; width: 200px; height: 100px; }
++  .target {
++    width: 100px;
++    height: 100px;
++    margin-top: 100px;
++    margin-bottom: 100px;
++    animation-duration: auto;
++    animation-fill-mode: both;
++    animation-timeline: view();
++  }
++  @keyframes unique-groups {
++    cover 50% { opacity: .2; animation-timing-function: linear; }
++    cover 50% { margin-left: 10px; animation-timing-function: ease-in; }
++    cover 50% { padding-left: 20px; animation-timing-function: ease-out; }
++  }
++  @keyframes repeated-group {
++    cover 50% { opacity: .2; animation-timing-function: linear; }
++    cover 50% { margin-left: 10px; animation-timing-function: ease-in; }
++    cover 50% { padding-left: 20px; animation-timing-function: ease-out; }
++    cover 50% { margin-left: 30px; animation-timing-function: ease-in; }
++  }
++  @keyframes repeated-groups {
++    cover 50% { opacity: .2; animation-timing-function: linear; }
++    cover 50% { margin-left: 10px; animation-timing-function: ease-in; }
++    cover 50% { padding-left: 20px; animation-timing-function: ease-out; }
++    cover 50% { margin-left: 30px; animation-timing-function: ease-in; }
++    cover 50% { opacity: .7; animation-timing-function: linear; }
++  }
++</style>
++<body>
++<script>
++for (const [name, margin, opacity] of [
++  ['unique-groups', '10px', '0.2'],
++  ['repeated-group', '30px', '0.2'],
++  ['repeated-groups', '30px', '0.7'],
++]) {
++  promise_test(async t => {
++    const scroller = document.createElement('div');
++    scroller.className = 'scroller';
++    const target = document.createElement('div');
++    target.className = 'target';
++    target.style.animationName = name;
++    scroller.append(target);
++    document.body.append(scroller);
++    t.add_cleanup(() => scroller.remove());
++    scroller.scrollTop = 100;
++    const animations = target.getAnimations();
++    assert_equals(animations.length, 1, 'One CSS animation exists');
++    await animations[0].ready;
++    const frames = animations[0].effect.getKeyframes().filter(frame =>
++      frame.offset && typeof frame.offset === 'object');
++    assert_equals(frames.length, 3, 'Three named-range groups remain');
++    for (const frame of frames) {
++      assert_equals(frame.offset.rangeName, 'cover');
++      assert_equals(frame.offset.offset.unit, 'percent');
++      assert_equals(frame.offset.offset.value, 50);
++      assert_approx_equals(frame.computedOffset, .5, 1e-7,
++                           'Every group resolves to the same offset');
++    }
++    assert_equals(frames.find(frame => frame.easing === 'ease-in').marginLeft,
++                  margin, 'The later declaration in a group wins');
++    assert_array_equals(frames.map(frame => frame.easing),
++                        ['linear', 'ease-in', 'ease-out'],
++                        'Groups retain earliest source order');
++    assert_equals(frames[0].opacity, opacity);
++    assert_equals(frames[2].paddingLeft, '20px');
++  }, `${name}: equal-offset named-range group order and declaration precedence`);
++}
++</script>

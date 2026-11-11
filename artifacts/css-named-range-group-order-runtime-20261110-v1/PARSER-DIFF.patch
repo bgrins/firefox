@@ -1,0 +1,35 @@
+--- signed/parser-controls.py
++++ range/parser-controls.py
+@@ -16,13 +16,15 @@
+     expected = json.loads((HERE / 'EXPECTED-CALLBACKS.json').read_text())
+     changes = json.loads((HERE / 'EXPECTED-CHANGES.json').read_text())
+     improving = {(r['test'], r['subtest']) for r in changes}
++    expected_baseline = json.loads((HERE / 'EXPECTED-BASELINE.json').read_text())
++    baseline_statuses = {(r['test'], r['subtest']): r['status'] for r in expected_baseline['subtests']}
+     events = [{'action': 'suite_start'}]
+     for test in sorted({r[0] for r in expected}):
+         events.append({'action': 'test_start', 'test': test})
+         for url, name in expected:
+             if url == test:
+                 events.append({'action': 'test_status', 'test': test, 'subtest': name,
+-                               'status': 'FAIL' if (test, name) in improving else 'PASS'})
++                               'status': baseline_statuses[(test, name)]})
+         events.append({'action': 'test_end', 'test': test, 'status': 'OK'})
+     events.append({'action': 'suite_end'})
+     rejected = []
+@@ -42,9 +44,14 @@
+             return a.parse(path)
+ 
+         baseline = parse(events)
++        assert a.rows(baseline) == a.rows(expected_baseline)
++        wrong_baseline = copy.deepcopy(baseline)
++        next(r for r in wrong_baseline['subtests'] if r['status'] == 'FAIL' and (r['test'], r['subtest']) not in improving)['status'] = 'PASS'
++        assert a.rows(wrong_baseline) != a.rows(expected_baseline)
++        rejected.append('changed-known-baseline-failure')
+         candidate_events = copy.deepcopy(events)
+         for row in candidate_events:
+-            if row['action'] == 'test_status':
++            if row['action'] == 'test_status' and (row['test'], row['subtest']) in improving:
+                 row['status'] = 'PASS'
+         candidate = parse(candidate_events)
+         assert a.compare(baseline, candidate)['accepted_changes_only']

@@ -1,0 +1,24 @@
+--- signed/run.py
++++ range/run.py
+@@ -58,6 +58,7 @@
+         assert sha(HERE / path) == expected, ('changed runner input', path)
+     plan = json.loads((HERE / 'RUN-PLAN.json').read_text())
+     roles = json.loads((HERE / 'SOURCE-ROLES.json').read_text())
++    assert isinstance(plan['head'], str) and len(plan['head']) == 40, 'Execution HEAD is not frozen'
+     assert git('rev-parse', 'HEAD').decode().strip() == plan['head'], 'HEAD changed; review/re-pin'
+     assert not git('diff', '--name-only').strip() and not git('diff', '--cached', '--name-only').strip()
+     assert sha(ROOT / 'mozconfig') == plan['mozconfig_sha256']
+@@ -129,10 +130,10 @@
+             finally:
+                 if exists(path):
+                     installed[path] = sha(path)
++        results['lint'] = process.run([PYTHON, './mach', 'lint', '--linter', 'wpt', *plan['lint_paths']], output / 'lint.log', env, 600)
++        save(output / 'LINT.json', results['lint'])
++        assert results['lint']['exit_code'] == 0, 'WPT lint failed'
+         if mode == 'candidate':
+-            results['lint'] = process.run([PYTHON, './mach', 'lint', '--linter', 'wpt', 'testing/web-platform/tests/css/css-animations/KeyframeEffect-getKeyframes.tentative.html'], output / 'lint.log', env, 600)
+-            save(output / 'LINT.json', results['lint'])
+-            assert results['lint']['exit_code'] == 0, 'WPT lint failed'
+             try:
+                 results['build'] = process.run([PYTHON, './mach', 'build', 'binaries', '-j6'], output / 'build.log', env, 2400)
+             finally:
