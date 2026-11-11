@@ -1,0 +1,24 @@
+--- a/dom/animation/KeyframeEffect.cpp
++++ b/dom/animation/KeyframeEffect.cpp
+@@ -1328,11 +1328,18 @@
+   const StylePerDocumentStyleData* rawData =
+       mDocument->EnsureStyleSet().RawData();
+ 
+-  // We generate the missing 0%/100% keyframes and append the missing
+-  // properties to 0%/100% only if the keyframes come from CSS Keyframes rule.
++  // Step 2: only associated CSS animations without replaced keyframes use
++  // computed keyframes.
++  // https://drafts.csswg.org/web-animations-1/#dom-keyframeeffect-getkeyframes
+   nsTArray<Keyframe> computedKeyframes;
++  const bool useComputedKeyframes = mAnimation &&
++                                    mAnimation->AsCSSAnimation() &&
++                                    GetComputedKeyframes(computedKeyframes);
+   const nsTArray<Keyframe>& keyframes =
+-      GetComputedKeyframes(computedKeyframes) ? computedKeyframes : mKeyframes;
++      useComputedKeyframes ? computedKeyframes : mKeyframes;
++  if (!useComputedKeyframes) {
++    computedStyle = nullptr;
++  }
+ 
+   for (const Keyframe& keyframe : keyframes) {
+     // Set up a dictionary object for the explicit members

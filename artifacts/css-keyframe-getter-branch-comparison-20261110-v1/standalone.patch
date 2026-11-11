@@ -1,0 +1,106 @@
+--- a/dom/animation/KeyframeEffect.cpp
++++ b/dom/animation/KeyframeEffect.cpp
+@@ -1328,11 +1328,18 @@
+   const StylePerDocumentStyleData* rawData =
+       mDocument->EnsureStyleSet().RawData();
+ 
+-  // We generate the missing 0%/100% keyframes and append the missing
+-  // properties to 0%/100% only if the keyframes come from CSS Keyframes rule.
++  // Step 2: only associated CSS animations without replaced keyframes use
++  // computed keyframes.
++  // https://drafts.csswg.org/web-animations-1/#dom-keyframeeffect-getkeyframes
+   nsTArray<Keyframe> computedKeyframes;
++  const bool useComputedKeyframes = mAnimation &&
++                                    mAnimation->AsCSSAnimation() &&
++                                    GetComputedKeyframes(computedKeyframes);
+   const nsTArray<Keyframe>& keyframes =
+-      GetComputedKeyframes(computedKeyframes) ? computedKeyframes : mKeyframes;
++      useComputedKeyframes ? computedKeyframes : mKeyframes;
++  if (!useComputedKeyframes) {
++    computedStyle = nullptr;
++  }
+ 
+   for (const Keyframe& keyframe : keyframes) {
+     // Set up a dictionary object for the explicit members
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-animations/getkeyframes-specified-branch.html
+@@ -0,0 +1,79 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Keyframe getters select the specified-value branch</title>
++<link rel="help" href="https://drafts.csswg.org/web-animations-1/#dom-keyframeeffect-getkeyframes">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++  .target { --source: 12px; --other: 24px; }
++  @keyframes initial-values {
++    from { margin-left: 0px; }
++    to { margin-left: 1px; }
++  }
++  @keyframes single-endpoint {
++    to { margin-left: 1em; }
++  }
++</style>
++<body>
++<script>
++function targetFor(t) {
++  const target = document.createElement("div");
++  target.className = "target";
++  document.body.append(target);
++  t.add_cleanup(() => target.remove());
++  return target;
++}
++
++function cssAnimationFor(t, target, name) {
++  target.style.animation = `${name} 100s linear paused both`;
++  const animations = target.getAnimations();
++  assert_equals(animations.length, 1, "One CSS animation exists");
++  const animation = animations[0];
++  assert_true(animation instanceof CSSAnimation);
++  t.add_cleanup(() => animation.cancel());
++  return animation;
++}
++
++for (const css of [false, true]) {
++  test(t => {
++    const target = targetFor(t);
++    const frames = [
++      {marginLeft: "var(--source)"},
++      {marginLeft: "var(--other)"},
++    ];
++    let animation;
++    if (css) {
++      animation = cssAnimationFor(t, target, "initial-values");
++      animation.effect.setKeyframes(frames);
++    } else {
++      animation = target.animate(frames, 100000);
++      animation.pause();
++      t.add_cleanup(() => animation.cancel());
++    }
++    assert_array_equals(animation.effect.getKeyframes().map(frame => frame.marginLeft),
++                        ["var(--source)", "var(--other)"]);
++  }, `${css ? "Replaced CSS" : "WAAPI"} keyframes preserve specified variable expressions`);
++}
++
++for (const transfer of [false, true]) {
++  test(t => {
++    const target = targetFor(t);
++    const cssAnimation = cssAnimationFor(t, target, "single-endpoint");
++    const effect = cssAnimation.effect;
++    if (transfer) {
++      const animation = new Animation(effect, document.timeline);
++      assert_false(animation instanceof CSSAnimation);
++      assert_equals(animation.effect, effect);
++      t.add_cleanup(() => animation.cancel());
++    } else {
++      cssAnimation.effect = null;
++    }
++    assert_equals(cssAnimation.effect, null, "Effect is no longer associated with CSSAnimation");
++    const frames = effect.getKeyframes();
++    assert_equals(frames.length, 1, "No generated CSS endpoint in the specified branch");
++    assert_equals(frames[0].offset, 1);
++    assert_equals(frames[0].computedOffset, 1);
++    assert_equals(frames[0].marginLeft, "1em");
++  }, `${transfer ? "Transferred" : "Detached"} CSS effect returns only its specified endpoint`);
++}
++</script>

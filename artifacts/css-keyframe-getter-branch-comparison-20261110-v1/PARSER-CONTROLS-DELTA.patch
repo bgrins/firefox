@@ -1,0 +1,46 @@
+--- a/parser-controls.py
++++ b/parser-controls.py
+@@ -28,7 +28,7 @@
+             rejected.append(label)
+         else:
+             raise ValueError('Malformed control accepted: ' + label)
+-    with tempfile.TemporaryDirectory(prefix='owned-generation-parser-') as directory:
++    with tempfile.TemporaryDirectory(prefix='getter-branch-parser-') as directory:
+         def parse(rows):
+             path = Path(directory) / 'raw.jsonl'
+             path.write_text(''.join((r if isinstance(r, str) else json.dumps(r)) + '\n' for r in rows))
+@@ -82,6 +82,34 @@
+                 mutated[group][0][field] = value
+                 assert not a.compare(parsed, mutated)['accepted_changes_only']
+                 rejected.append(group + '-' + field + '-change')
++        predicted = json.loads((HERE / 'EXPECTED-CANDIDATE.json').read_text())
++        assert a.compare(baseline, predicted, improvements=True)['accepted_changes_only']
++        assert not a.compare(baseline, predicted)['accepted_changes_only']
++        rejected.append('improvements-in-baseline-mode')
++        assert not a.compare(baseline, baseline, improvements=True)['accepted_changes_only']
++        rejected.append('missing-all-required-improvements')
++        changes = json.loads((HERE / 'EXPECTED-CHANGES.json').read_text())
++        keys = {(r['test'], r['subtest']) for r in changes}
++        original = {(r['test'], r['subtest']): r for r in baseline['subtests']}
++        for label, mutation in [('partial-improvement', 'partial'), ('extra-improvement', 'extra'), ('waapi-regression', 'waapi')]:
++            mutated = copy.deepcopy(predicted)
++            if mutation == 'partial':
++                index = next(i for i, r in enumerate(mutated['subtests']) if (r['test'], r['subtest']) in keys)
++                row = mutated['subtests'][index]
++                mutated['subtests'][index] = copy.deepcopy(original[(row['test'], row['subtest'])])
++            elif mutation == 'extra':
++                next(r for r in mutated['subtests'] if r['status'] == 'FAIL')['status'] = 'PASS'
++            else:
++                next(r for r in mutated['subtests'] if r['subtest'] == 'WAAPI keyframes preserve specified variable expressions')['status'] = 'FAIL'
++            assert not a.compare(baseline, mutated, improvements=True)['accepted_changes_only']
++            rejected.append(label)
++        for which in ['baseline', 'candidate']:
++            for field, value in [('message', 'changed diagnostic'), ('expected', 'FAIL'), ('known_intermittent', ['FAIL'])]:
++                left, right = copy.deepcopy(baseline), copy.deepcopy(predicted)
++                changed = left if which == 'baseline' else right
++                next(r for r in changed['subtests'] if (r['test'], r['subtest']) in keys)[field] = value
++                assert not a.compare(left, right, improvements=True)['accepted_changes_only']
++                rejected.append('improved-' + which + '-' + field)
+         collision = {'subtests': [{'test': '/collision', 'subtest': None, 'status': 'PASS'}], 'harness': [{'test': '/collision', 'status': 'OK'}]}
+         assert len(a.rows(collision)) == 2 and a.compare(collision, collision)['accepted_changes_only']
+         changed = copy.deepcopy(collision)

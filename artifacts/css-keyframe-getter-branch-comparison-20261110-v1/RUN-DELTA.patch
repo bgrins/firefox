@@ -1,0 +1,11 @@
+--- a/run.py
++++ b/run.py
+@@ -158,7 +158,7 @@
+             expected_baseline = json.loads((HERE / 'EXPECTED-BASELINE.json').read_text())
+             assert analyze.compare(expected_baseline, parsed)['accepted_changes_only'], 'baseline vector or diagnostics/classification changed'
+         if baseline is not None:
+-            comparison = analyze.compare(baseline, parsed)
++            comparison = analyze.compare(baseline, parsed, improvements=True)
+             save(output / 'COMPARISON.json', comparison)
+             assert comparison['accepted_changes_only'], 'unexpected baseline/candidate changes'
+     except BaseException:

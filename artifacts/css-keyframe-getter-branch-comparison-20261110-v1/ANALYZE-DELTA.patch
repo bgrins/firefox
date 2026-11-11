@@ -1,0 +1,43 @@
+--- a/analyze.py
++++ b/analyze.py
+@@ -74,13 +74,15 @@
+     return output
+ 
+ 
+-def compare(base, candidate):
++def compare(base, candidate, *, improvements=False):
+     left, right = rows(base), rows(candidate)
+     changes = [{'kind': key[0], 'test': key[1], 'subtest': key[2],
+                 'baseline': left.get(key), 'candidate': right.get(key)}
+                for key in sorted(left.keys() | right.keys(), key=repr)
+                if left.get(key) != right.get(key)]
+-    assert json.loads((HERE / 'EXPECTED-CHANGES.json').read_text()) == []
++    expected_changes = json.loads((HERE / 'EXPECTED-CHANGES.json').read_text()) if improvements else []
++    allowed = {(row['kind'], row['test'], row['subtest']) for row in expected_changes}
++
+     def details(result):
+         return {(kind, row['test'], row.get('subtest')):
+                 {field: row[field] for field in ['message', 'expected', 'known_intermittent'] if field in row}
+@@ -89,9 +91,19 @@
+     ld, rd = details(base), details(candidate)
+     detail_changes = [key for key in sorted(ld.keys() | rd.keys(), key=repr)
+                       if ld.get(key) != rd.get(key)]
+-    return {'accepted_changes_only': set(left) == set(right) and not changes and not detail_changes,
+-            'policy': 'zero changes', 'baseline_rows': len(left), 'candidate_rows': len(right),
++    unexpected = [key for key in detail_changes if key not in allowed]
++    allowed_details_match = True
++    if improvements:
++        expected_base = details(json.loads((HERE / 'EXPECTED-BASELINE.json').read_text()))
++        expected_candidate = details(json.loads((HERE / 'EXPECTED-CANDIDATE.json').read_text()))
++        allowed_details_match = all(ld.get(key) == expected_base[key] and rd.get(key) == expected_candidate[key]
++                                    for key in allowed)
++    return {'accepted_changes_only': set(left) == set(right) and changes == expected_changes
++                and not unexpected and allowed_details_match,
++            'policy': 'exact three specified FAIL-to-PASS changes' if improvements else 'zero baseline changes',
++            'baseline_rows': len(left), 'candidate_rows': len(right),
+             'identical_callback_statuses_and_inventory': set(left) == set(right) and not changes,
+             'assertion_and_harness_kinds_distinct': True, 'changes': changes,
+             'messages_and_expected_classifications_compared': True,
+-            'unexpected_detail_changes': detail_changes}
++            'improved_row_details_match_predicted_pass_shape': allowed_details_match,
++            'unexpected_detail_changes': unexpected}
