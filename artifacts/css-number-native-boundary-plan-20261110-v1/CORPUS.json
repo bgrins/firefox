@@ -1,0 +1,21 @@
+{
+  "status": "proposed; not executed",
+  "reuse": {
+    "native_numeric_baseline": "artifacts/css-tokenizer-numeric-admission-v1/native/CASES.json",
+    "numeric_cases": 81,
+    "scanner_controls": 9,
+    "exact_capture_baseline": "artifacts/css-tokenizer-numeric-repair-integration-v2/native_replay.py"
+  },
+  "families": [
+    {"name": "ready type and sign", "seeds": ["0", "-0", "+0", "00", "01", ".5", "-.5", "+1", "1.0", "1e0", "1E+0", "1e-0"], "compare": "core prefix, exact remainder, has_sign, syntactic integer flag"},
+    {"name": "guard truncation and recovery", "seeds": ["1.", "1.e2", "1e", "1e+", "1e-", "1e++2", "1e--2", "1ee2", "1e.2"], "compare": "core and full-token suffixes separately"},
+    {"name": "suffix dispatch", "numeric_prefixes": ["1", "1.0", "1e2", "-.5"], "suffixes": [";", " ", "/**/", "%", "px", "em", "\\65 m", "-\\\n"], "compare": "kind, decoded unit, numeric end, token end, subsequent token"},
+    {"name": "caller rejection", "seeds": ["", "+", "-", ".", "+.", "-.", "e2", "NaN", "Infinity", "١", "²", "\\31"], "compare": "entry predicate/public token class only; do not compare off-domain consume-number output"},
+    {"name": "length boundaries", "lengths": [254, 255, 256, 257, 308, 309, 310, 768, 4096], "recipes": ["digit run plus semicolon", "zero run then dot and one", "signed exponent digit run", "existing compensated-exponent cases"], "compare": "lexical projection; payload bits logged separately"},
+    {"name": "nonzero origin and replay", "prefix": "\"é𐀀\" ", "histories": ["fresh numeric read", "save then read then reset then reread", "read numeric then read suffix token"], "compare": "byte-relative offsets and subsequent-token agreement", "tier": "UTF-8 provider relation required"},
+    {"name": "preprocessing and name boundary", "suffixes": ["é", "\u0000", "\r\n", "\f", "\\\r\n"], "compare": "only after raw/filtered stream and offset relation is explicit", "tier": "deferred adapter composition"}
+  ],
+  "generation": "Bounded deterministic products of signs, digit runs, optional guarded fraction/exponent and labeled suffixes; retain caller-readiness and core/token boundaries during shrinking.",
+  "numeric_projection_limit": "Do not compute enormous powers of ten for lexical comparison. Exact significand and scale can remain symbolic integers.",
+  "no_new_bug_claim": true
+}
