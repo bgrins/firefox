@@ -1,0 +1,437 @@
+diff --git a/dom/base/nsDOMWindowUtils.cpp b/dom/base/nsDOMWindowUtils.cpp
+--- a/dom/base/nsDOMWindowUtils.cpp
++++ b/dom/base/nsDOMWindowUtils.cpp
+@@ -3343,6 +3343,238 @@
+ }
+ 
+ NS_IMETHODIMP
++nsDOMWindowUtils::GetMissingPseudoCompositedStyleForTesting(
++    Element* aElement, const nsAString& aPseudoElement,
++    const nsAString& aProperty, int32_t aFlushType, nsAString& aResult) {
++  RefPtr<Document> document = GetDocument();
++  RefPtr<PresShell> presShell = GetPresShell();
++  RefPtr<Element> element = aElement;
++  if (!document || !presShell || !element || element->OwnerDoc() != document ||
++      !element->IsInComposedDoc()) {
++    return NS_ERROR_INVALID_ARG;
++  }
++  const NS_ConvertUTF16toUTF8 propertyName(aProperty);
++  const auto propertyId = nsCSSProps::LookupProperty(propertyName);
++  if (propertyId == eCSSProperty_UNKNOWN ||
++      propertyId == eCSSPropertyExtra_variable ||
++      nsCSSProps::IsShorthand(propertyId)) {
++    return NS_ERROR_INVALID_ARG;
++  }
++  const auto property =
++      CSSPropertyId::FromIdOrCustomProperty(propertyId, propertyName);
++  const auto pseudo = PseudoStyleRequest::Parse(
++      aPseudoElement, document->DefaultStyleAttrURLData());
++  if (!pseudo) {
++    return NS_ERROR_INVALID_ARG;
++  }
++  if (aFlushType == FLUSH_STYLE) {
++    document->FlushPendingNotifications(FlushType::Style);
++  } else if (aFlushType != FLUSH_NONE) {
++    return NS_ERROR_INVALID_ARG;
++  }
++  if (document->GetPresShell() != presShell ||
++      element->GetComposedDoc() != document) {
++    return NS_ERROR_FAILURE;
++  }
++
++  struct State {
++    RefPtr<mozilla::dom::Animation> mAnimation;
++    RefPtr<KeyframeEffect> mEffect;
++    OwningAnimationTarget mTarget;
++    RefPtr<AnimationTimeline> mTimeline;
++    AnimationRange mRange;
++    Nullable<TimeDuration> mHold;
++    Nullable<TimeDuration> mStart;
++    mozilla::dom::Animation::PendingState mPending;
++    double mRate;
++    Maybe<double> mPendingRate;
++    TimeStamp mReady;
++    bool mAutoAlign;
++    EffectCompositor::CascadeLevel mLevel;
++  };
++  nsTArray<State> states;
++  uint32_t animations = 0;
++  uint32_t transitions = 0;
++  uint32_t cssAnimations = 0;
++  uint32_t inEffectAnimations = 0;
++  uint32_t inEffectTransitions = 0;
++  uint32_t unresolved = 0;
++  uint32_t wallclockPending = 0;
++  {
++    EffectSet* effects = EffectSet::Get(element, *pseudo);
++    if (effects) {
++      for (KeyframeEffect* effect : *effects) {
++        RefPtr<mozilla::dom::Animation> animation = effect->GetAnimation();
++        if (!animation) {
++          return NS_ERROR_FAILURE;
++        }
++        const auto target = effect->GetAnimationTarget();
++        states.AppendElement(
++            State{animation, effect,
++                  OwningAnimationTarget(target.mElement, target.mPseudoRequest),
++                  animation->mTimeline, animation->mTimelineRange,
++                  animation->mHoldTime, animation->mStartTime,
++                  animation->mPendingState, animation->mPlaybackRate,
++                  animation->mPendingPlaybackRate, animation->mPendingReadyTime,
++                  animation->mAutoAlignStartTime, animation->CascadeLevel()});
++        if (animation->CascadeLevel() ==
++            EffectCompositor::CascadeLevel::Transitions) {
++          ++transitions;
++          inEffectTransitions += effect->IsInEffect();
++        } else {
++          ++animations;
++          inEffectAnimations += effect->IsInEffect();
++        }
++        cssAnimations += animation->AsCSSAnimation() != nullptr;
++        unresolved += animation->mTimeline &&
++                      animation->mTimeline->IsUnresolvedTimeline();
++        wallclockPending +=
++            animation->Pending() && animation->mHoldTime.IsNull() &&
++            !animation->mStartTime.IsNull() && animation->mTimeline &&
++            animation->mTimeline->TracksWallclockTime();
++      }
++    }
++  }
++
++  RefPtr<ComputedStyle> primaryStyle =
++      presShell->StyleSet()->ResolveStyleLazily(*element);
++  RefPtr<ComputedStyle> rawStyle = presShell->StyleSet()->ResolveStyleLazily(
++      *element, *pseudo, StyleRuleInclusion::All);
++  if (!primaryStyle || !rawStyle) {
++    return NS_ERROR_FAILURE;
++  }
++  auto sameEffects = [&] {
++    EffectSet* effects = EffectSet::Get(element, *pseudo);
++    if (!effects) {
++      return states.IsEmpty();
++    }
++    if (effects->Count() != states.Length()) {
++      return false;
++    }
++    for (KeyframeEffect* effect : *effects) {
++      bool found = false;
++      for (const State& state : states) {
++        if (state.mEffect == effect &&
++            state.mAnimation == effect->GetAnimation()) {
++          found = true;
++          break;
++        }
++      }
++      if (!found) {
++        return false;
++      }
++    }
++    return true;
++  };
++  bool unchanged = sameEffects();
++  const OwningAnimationTarget target(element, *pseudo);
++  EffectCompositor* compositor =
++      presShell->GetPresContext()->EffectCompositor();
++  UniquePtr<StyleAnimationValueMap> aliased;
++  const bool guardedAlias =
++      !compositor->ComposeServoAnimationRulesForMissingPseudo(
++          target, rawStyle, rawStyle, aliased, aliased) &&
++      !aliased;
++  UniquePtr<StyleAnimationValueMap> occupied(Servo_AnimationValueMap_Create());
++  UniquePtr<StyleAnimationValueMap> other(Servo_AnimationValueMap_Create());
++  const auto* occupiedPointer = occupied.get();
++  const auto* otherPointer = other.get();
++  const bool guardedNonempty =
++      !compositor->ComposeServoAnimationRulesForMissingPseudo(
++          target, rawStyle, rawStyle, occupied, other) &&
++      occupied.get() == occupiedPointer && other.get() == otherPointer;
++  UniquePtr<StyleAnimationValueMap> animationValues;
++  UniquePtr<StyleAnimationValueMap> transitionValues;
++  const bool admitted = compositor->ComposeServoAnimationRulesForMissingPseudo(
++      target, rawStyle, rawStyle, animationValues, transitionValues);
++  RefPtr<ComputedStyle> cascadedStyle;
++  if (admitted) {
++    cascadedStyle = presShell->StyleSet()->RecascadeStyleForMissingPseudo(
++        *element, *pseudo, *rawStyle, *primaryStyle, *animationValues,
++        *transitionValues);
++  }
++  unchanged &= sameEffects();
++  for (const State& state : states) {
++    const mozilla::dom::Animation& animation = *state.mAnimation;
++    unchanged &= animation.mEffect == state.mEffect &&
++                 state.mEffect->GetAnimationTarget().mElement ==
++                     state.mTarget.mElement &&
++                 state.mEffect->GetAnimationTarget().mPseudoRequest ==
++                     state.mTarget.mPseudoRequest &&
++                 state.mEffect->GetAnimation() == &animation &&
++                 animation.mTimeline == state.mTimeline &&
++                 animation.mTimelineRange == state.mRange &&
++                 animation.mHoldTime == state.mHold &&
++                 animation.mStartTime == state.mStart &&
++                 animation.mPendingState == state.mPending &&
++                 animation.mPlaybackRate == state.mRate &&
++                 animation.mPendingPlaybackRate == state.mPendingRate &&
++                 animation.mPendingReadyTime == state.mReady &&
++                 animation.mAutoAlignStartTime == state.mAutoAlign &&
++                 animation.CascadeLevel() == state.mLevel;
++  }
++
++  JSONStringWriteFunc<nsCString> output;
++  JSONWriter writer(output, JSONWriter::SingleLineStyle);
++  writer.Start();
++  writer.BoolProperty("admitted", admitted);
++  writer.BoolProperty("recascadeAdmitted", !!cascadedStyle);
++  writer.BoolProperty("originUnchanged", Servo_Element_GetMaybeOutOfDateStyle(
++                                             element) == primaryStyle);
++  writer.BoolProperty(
++      "pseudoMatches",
++      cascadedStyle && cascadedStyle->GetPseudoType() == pseudo->mType);
++  writer.BoolProperty("noPseudoCreated", !element->GetPseudoElement(*pseudo));
++  writer.IntProperty("inEffectAnimations", inEffectAnimations);
++  writer.IntProperty("inEffectTransitions", inEffectTransitions);
++  writer.BoolProperty("guardedAlias", guardedAlias);
++  writer.BoolProperty("guardedNonempty", guardedNonempty);
++  writer.BoolProperty("separateMaps", animationValues && transitionValues &&
++                                          animationValues != transitionValues);
++  writer.BoolProperty("stateUnchanged", unchanged);
++  writer.IntProperty("animations", animations);
++  writer.IntProperty("transitions", transitions);
++  writer.IntProperty("cssAnimations", cssAnimations);
++  writer.IntProperty("unresolved", unresolved);
++  writer.IntProperty("wallclockPending", wallclockPending);
++  auto writeValue = [&](const Span<const char>& name,
++                        const UniquePtr<StyleAnimationValueMap>& map) {
++    RefPtr<StyleAnimationValue> value =
++        map ? Servo_AnimationValueMap_GetValue(map.get(), &property).Consume()
++            : nullptr;
++    if (!value) {
++      writer.NullProperty(name);
++      return;
++    }
++    nsAutoCString text;
++    Servo_AnimationValue_Serialize(value, &property,
++                                   presShell->StyleSet()->RawData(), &text);
++    writer.StringProperty(name, Span<const char>(text.Data(), text.Length()));
++  };
++  writeValue("animationValue", animationValues);
++  writeValue("transitionValue", transitionValues);
++  auto writeStyleValue = [&](const Span<const char>& name,
++                             const ComputedStyle* style) {
++    RefPtr<StyleAnimationValue> value =
++        style ? Servo_ComputedValues_ExtractAnimationValue(style, &property)
++                    .Consume()
++              : nullptr;
++    if (!value) {
++      writer.NullProperty(name);
++      return;
++    }
++    nsAutoCString text;
++    Servo_AnimationValue_Serialize(value, &property,
++                                   presShell->StyleSet()->RawData(), &text);
++    writer.StringProperty(name, Span<const char>(text.Data(), text.Length()));
++  };
++  writeStyleValue("baseValue", rawStyle);
++  writeStyleValue("cascadedValue", cascadedStyle);
++  writer.End();
++  CopyUTF8toUTF16(output.StringCRef(), aResult);
++  return NS_OK;
++}
++NS_IMETHODIMP
+ nsDOMWindowUtils::GetMissingPseudoRecascadeForTesting(
+     Element* aElement, const nsAString& aPseudoElement,
+     Element* aAnimationDonor, const nsAString& aAnimationProperty,
+diff --git a/dom/base/test/mochitest.toml b/dom/base/test/mochitest.toml
+--- a/dom/base/test/mochitest.toml
++++ b/dom/base/test/mochitest.toml
+@@ -551,6 +551,8 @@
+   "http3",
+ ]
+ 
++["test_missing_pseudo_animation_composed.html"]
++
+ ["test_missing_pseudo_animation_query.html"]
+ 
+ ["test_missing_pseudo_animation_recascade.html"]
+diff --git a/dom/base/test/test_missing_pseudo_animation_composed.html b/dom/base/test/test_missing_pseudo_animation_composed.html
+new file mode 100644
+--- /dev/null
++++ b/dom/base/test/test_missing_pseudo_animation_composed.html
+@@ -0,0 +1,163 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Composed missing-pseudo style with stable providers</title>
++<script src="/tests/SimpleTest/SimpleTest.js"></script>
++<link rel="stylesheet" href="/tests/SimpleTest/test.css">
++<link rel="help" href="https://drafts.csswg.org/web-animations-1/#applying-the-composited-result">
++<style>
++.subject::before { content: none; margin-left: 10px; }
++.subject.important::before { margin-left: 30px !important; }
++.transition-owner { margin-left: 0; transition: margin-left 1000s linear; }
++.transition-owner.to { margin-left: 100px; }
++</style>
++<script>
++"use strict";
++const utils = SpecialPowers.getDOMWindowUtils(window);
++const keys = ["admitted", "animationValue", "animations", "baseValue",
++  "cascadedValue", "cssAnimations", "guardedAlias", "guardedNonempty",
++  "inEffectAnimations", "inEffectTransitions", "noPseudoCreated",
++  "originUnchanged", "pseudoMatches", "recascadeAdmitted", "separateMaps",
++  "stateUnchanged", "transitionValue", "transitions", "unresolved", "wallclockPending"];
++let root, animations;
++
++function makeTarget(label, important = false) {
++  const target = document.createElement("div");
++  target.className = important ? "subject important" : "subject";
++  root.append(target);
++  is(getComputedStyle(target, "::before").marginLeft, important ? "30px" : "10px", `${label}: setup authored base`);
++  return target;
++}
++
++function held(target, keyframes, options = {}, time = 500) {
++  const animation = target.animate(keyframes, {duration: 1000, fill: "both", pseudoElement: "::before", ...options});
++  animations.push(animation);
++  animation.pause();
++  animation.currentTime = time;
++  return animation;
++}
++
++function transition(label, target) {
++  const owner = document.createElement("div");
++  owner.className = "transition-owner";
++  root.append(owner);
++  getComputedStyle(owner).marginLeft;
++  owner.classList.add("to");
++  const found = owner.getAnimations().filter(a => a instanceof CSSTransition);
++  is(found.length, 1, `${label}: setup one generated transition`);
++  const animation = found[0];
++  ok(animation instanceof CSSTransition, `${label}: setup genuine transition`);
++  animations.push(animation);
++  animation.pause();
++  animation.currentTime = 500000;
++  is(animation.currentTime, 500000, `${label}: setup held transition sample`);
++  animation.effect.target = target;
++  animation.effect.pseudoElement = "::before";
++  return animation;
++}
++
++function query(label, target) {
++  const result = JSON.parse(utils.getMissingPseudoCompositedStyleForTesting(target, "::before", "margin-left", utils.FLUSH_NONE));
++  is(Object.keys(result).sort().join(), keys.join(), `${label}: diagnostic schema`);
++  ok(result.guardedAlias, `${label}: aliased outputs rejected`);
++  ok(result.guardedNonempty, `${label}: occupied outputs rejected`);
++  ok(result.stateUnchanged, `${label}: captured effect state unchanged`);
++  ok(result.separateMaps, `${label}: owned separate maps`);
++  ok(result.admitted, `${label}: composer admitted`);
++  ok(result.recascadeAdmitted, `${label}: recascade admitted`);
++  ok(result.originUnchanged, `${label}: origin style not replaced`);
++  ok(result.pseudoMatches, `${label}: returned pseudo identity`);
++  ok(result.noPseudoCreated, `${label}: pseudo remains absent`);
++  return result;
++}
++
++async function fixture(body) {
++  root = document.createElement("div");
++  animations = [];
++  document.body.append(root);
++  try { await body(); }
++  finally { animations.forEach(a => a.cancel()); root.remove(); }
++}
++
++add_task(async function fixed_implicit_additive() {
++  await fixture(async () => {
++    const fixed = makeTarget("fixed");
++    held(fixed, {marginLeft: ["0px", "100px"]});
++    let result = query("fixed", fixed);
++    is(result.baseValue, "10px", "Fixed: raw base remains unanimated");
++    is(result.cascadedValue, "50px", "Fixed: half sample reaches returned style");
++    const implicit = makeTarget("implicit");
++    held(implicit, {marginLeft: "100px"});
++    result = query("implicit", implicit);
++    is(result.baseValue, "10px", "Implicit: raw base remains unanimated");
++    is(result.cascadedValue, "55px", "Implicit: target base supplies missing endpoint");
++    const additive = makeTarget("additive");
++    held(additive, {marginLeft: ["0px", "100px"]});
++    held(additive, {marginLeft: ["10px", "30px"]}, {composite: "add"});
++    result = query("additive", additive);
++    is(result.cascadedValue, "70px", "Additive: replace then add reaches returned style");
++  });
++});
++
++add_task(async function transition_only_important() {
++  await fixture(async () => {
++    const target = makeTarget("transition only", true);
++    transition("transition only", target);
++    const result = query("transition only", target);
++    is(result.transitions, 1, "Setup: transition-only retains native transition level");
++    is(result.inEffectTransitions, 1, "Setup: transition-only is in effect");
++    is(result.animations, 0, "Transition-only has no animation-level effect");
++    is(result.baseValue, "30px", "Transition-only has important base");
++    is(result.animationValue, null, "Transition-only has no animation-origin result");
++    is(result.transitionValue, "50px", "Transition-only result stays at transition origin");
++    is(result.cascadedValue, "50px", "Transition-only overrides important author declaration");
++  });
++});
++
++add_task(async function active_overlap_important() {
++  await fixture(async () => {
++    const target = makeTarget("active overlap", true);
++    transition("active overlap", target);
++    const animation = held(target, {marginLeft: ["10px", "30px"]});
++    is(animation.effect.getComputedTiming().progress, 0.5, "Setup: overlapping animation has active half progress");
++    const result = query("active overlap", target);
++    is(result.transitions, 1, "Setup: active overlap retains native transition level");
++    is(result.inEffectTransitions, 1, "Setup: active overlap transition is in effect");
++    is(result.inEffectAnimations, 1, "Setup: active overlap animation is in effect");
++    is(result.animationValue, "20px", "Active highest-order replace effect supplies stack value");
++    is(result.transitionValue, null, "Active animation stack is inserted once at animation origin");
++    is(result.cascadedValue, "30px", "Important author overrides active animation stack result");
++  });
++});
++
++add_task(async function active_additive_overlap() {
++  await fixture(async () => {
++    const target = makeTarget("active additive");
++    transition("active additive", target);
++    held(target, {marginLeft: ["10px", "30px"]}, {composite: "add"});
++    const result = query("active additive", target);
++    is(result.transitions, 1, "Setup: additive overlap retains native transition level");
++    is(result.inEffectAnimations, 1, "Setup: additive overlap animation is in effect");
++    is(result.animationValue, "70px", "Transition underlying 50px plus additive contribution 20px");
++    is(result.transitionValue, null, "Additive stack is inserted once at animation origin");
++    is(result.cascadedValue, "70px", "Normal author does not override additive stack result");
++  });
++});
++
++add_task(async function current_before_without_fill() {
++  await fixture(async () => {
++    const target = makeTarget("before no fill", true);
++    transition("before no fill", target);
++    const animation = held(target, {marginLeft: ["10px", "30px"]}, {delay: 1000, fill: "none"}, 0);
++    is(animation.playbackRate, 1, "Setup: before-phase animation has positive playback rate");
++    is(animation.effect.getComputedTiming().progress, null, "Setup: before-phase animation has no sample without fill");
++    const result = query("before no fill", target);
++    is(result.transitions, 1, "Setup: before no-fill transition retains native transition level");
++    is(result.inEffectTransitions, 1, "Setup: before no-fill transition is in effect");
++    is(result.animations, 1, "Setup: current before-phase animation remains registered");
++    is(result.inEffectAnimations, 0, "Setup: registered before-phase animation is not in effect");
++    is(result.animationValue, null, "Probe: Non-sampling animation does not select animation origin");
++    is(result.transitionValue, "50px", "Probe: Transition remains the highest sampled effect");
++    is(result.cascadedValue, "50px", "Probe: Before no-fill animation does not demote transition below important author");
++  });
++});
++</script>
+diff --git a/dom/interfaces/base/nsIDOMWindowUtils.idl b/dom/interfaces/base/nsIDOMWindowUtils.idl
+--- a/dom/interfaces/base/nsIDOMWindowUtils.idl
++++ b/dom/interfaces/base/nsIDOMWindowUtils.idl
+@@ -1596,6 +1596,11 @@
+                                   in AString value1,
+                                   in AString value2);
+ 
++  AString getMissingPseudoCompositedStyleForTesting(in Element aElement,
++                                                  in AString aPseudoElement,
++                                                  in AString aProperty,
++                                                  in long aFlushType);
++
+   AString getMissingPseudoRecascadeForTesting(in Element aElement,
+                                               in AString aPseudoElement,
+                                               in Element aAnimationDonor,

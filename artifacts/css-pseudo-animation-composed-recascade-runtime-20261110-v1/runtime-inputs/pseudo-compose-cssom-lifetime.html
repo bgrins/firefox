@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Live computed styles for animated pseudo-elements</title>
+<link rel="help" href="https://drafts.csswg.org/cssom/#dom-window-getcomputedstyle">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#applying-the-composited-result">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="../../testcommon.js"></script>
+<style>
+  .subject { font-size: 10px; }
+  .subject::before { margin-left: 10px; }
+  .subject.generated::before { content: "x"; display: inline-block; }
+  .subject.larger { font-size: 20px; }
+</style>
+<body>
+<script>
+function subject(t, generated) {
+  const element = createDiv(t);
+  element.className = generated ? "subject generated" : "subject";
+  return element;
+}
+
+function animatePseudo(t, element, keyframes, composite = "replace") {
+  const animation = element.animate(keyframes, {
+    duration: 1000,
+    pseudoElement: "::before",
+    composite,
+  });
+  t.add_cleanup(() => animation.cancel());
+  animation.pause();
+  animation.currentTime = 500;
+  assert_equals(animation.effect.target, element);
+  assert_equals(animation.effect.pseudoElement, "::before");
+  assert_equals(animation.effect.getComputedTiming().progress, 0.5);
+  return animation;
+}
+
+for (const generated of [true, false]) {
+  const label = generated ? "generated" : "non-generated";
+  for (const [phase, expected] of [
+    ["before", "10px"], ["half", "50px"], ["seek", "75px"],
+    ["cancel", "10px"], ["restart", "90px"],
+  ]) {
+    test(t => {
+      const element = subject(t, generated);
+      const computed = getComputedStyle(element, "::before");
+      const values = { before: computed.marginLeft };
+      const animation = animatePseudo(t, element, { marginLeft: ["0px", "100px"] });
+      values.half = computed.marginLeft;
+      animation.currentTime = 750;
+      values.seek = computed.marginLeft;
+      animation.cancel();
+      values.cancel = computed.marginLeft;
+      animatePseudo(t, element, { marginLeft: ["80px", "100px"] });
+      values.restart = computed.marginLeft;
+      assert_equals(values[phase], expected);
+    }, `Retained ${label} pseudo computed style: ${phase}`);
+  }
+
+  for (const [property, expected] of [["marginLeft", "10px"], ["opacity", "0.5"]]) {
+    test(t => {
+      const element = subject(t, generated);
+      const computed = getComputedStyle(element, "::before");
+      const animation = animatePseudo(t, element, { marginLeft: ["0px", "100px"] });
+      computed.marginLeft;
+      animation.effect.setKeyframes({ opacity: [0, 1] });
+      assert_equals(computed[property], expected);
+    }, `Retained ${label} pseudo computed style after setKeyframes: ${property}`);
+  }
+
+  test(t => {
+    const oldTarget = subject(t, generated);
+    const newTarget = subject(t, generated);
+    const oldStyle = getComputedStyle(oldTarget, "::before");
+    const newStyle = getComputedStyle(newTarget, "::before");
+    const animation = animatePseudo(t, oldTarget, { opacity: [0, 1] });
+    oldStyle.opacity;
+    newStyle.opacity;
+    animation.effect.target = newTarget;
+    const oldOpacity = oldStyle.opacity;
+    const newOpacity = newStyle.opacity;
+    assert_equals(oldOpacity, "1");
+    assert_equals(newOpacity, "0.5");
+  }, `Retained ${label} pseudo computed styles follow retargeting`);
+
+  test(t => {
+    const element = subject(t, generated);
+    const computed = getComputedStyle(element, "::before");
+    animatePseudo(t, element, { marginLeft: ["1em", "3em"] });
+    const before = computed.marginLeft;
+    element.classList.add("larger");
+    const after = computed.marginLeft;
+    assert_equals(after, "40px", "Current font computes the endpoints");
+    assert_equals(before, "20px", "Initial font computes the endpoints");
+  }, `Relative endpoints update in retained ${label} pseudo computed style`);
+
+  test(t => {
+    const element = subject(t, generated);
+    animatePseudo(t, element, { marginLeft: ["0px", "100px"] });
+    animatePseudo(t, element, { marginLeft: ["10px", "30px"] }, "add");
+    assert_equals(getComputedStyle(element, "::before").marginLeft, "70px");
+  }, `Ordered replace and add effects compose for a ${label} pseudo`);
+}
+</script>

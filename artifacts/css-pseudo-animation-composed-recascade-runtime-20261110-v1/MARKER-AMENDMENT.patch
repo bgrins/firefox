@@ -1,0 +1,23 @@
+diff --git a/servo/ports/geckolib/glue.rs b/servo/ports/geckolib/glue.rs
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -7536,6 +7536,19 @@
+         }
+     }
+ 
++    if matches!(pseudo, PseudoElement::Marker) {
++        return data
++            .stylist
++            .compute_pseudo_element_style_with_inputs(
++                inputs,
++                &pseudo,
++                &guards,
++                Some(primary),
++                Some(element),
++            )
++            .into();
++    }
++
+     let shared = create_shared_context(
+         global,
+         &guard,
