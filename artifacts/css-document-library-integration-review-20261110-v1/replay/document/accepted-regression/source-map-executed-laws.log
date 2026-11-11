@@ -1,0 +1,42 @@
+DocumentLaws.lean:37:30: error: Application type mismatch: The argument
+  sourceField
+has type
+  field j "source_map" = some source
+but is expected to have type
+  field j "program" = some source
+in the application
+  (field_spec j "program" source).mp sourceField
+DocumentLaws.lean:47:56: error: unsolved goals
+j : Json
+⊢ (if fieldsExactly j ["schema", "definitions", "program", "source_map"] = false then none
+    else
+      (field j "schema").bind fun schema =>
+        if schema.getNat?.toOption = some 1 then
+          (field j "definitions").bind fun definitions =>
+            if fieldsExactly definitions ["hexExpr", "whitespaceExpr", "magnitudeExpr", "decodeExpr"] = false then none
+            else
+              (readDefinition definitions "hexExpr" Ty.scalar Ty.bool).bind fun y =>
+                (readDefinition definitions "whitespaceExpr" Ty.scalar Ty.bool).bind fun y_1 =>
+                  (readDefinition definitions "magnitudeExpr" Ty.chars Ty.nat).bind fun y_2 =>
+                    (readDefinition definitions "decodeExpr" Ty.nat Ty.scalar).bind fun y_3 =>
+                      (field j "source_map").bind fun sourceMap =>
+                        sourceMap.getObj?.toOption.bind fun __x =>
+                          (field j "source_map").bind fun program =>
+                            checkStmtJson [y, y_1, y_2, y_3] [] Ty.scalar program
+        else none) =
+    if fieldsExactly j ["schema", "definitions", "program", "source_map"] = false then none
+    else
+      (field j "schema").bind fun schema =>
+        if schema.getNat?.toOption = some 1 then
+          (field j "definitions").bind fun definitions =>
+            if fieldsExactly definitions ["hexExpr", "whitespaceExpr", "magnitudeExpr", "decodeExpr"] = false then none
+            else
+              (readDefinition definitions "hexExpr" Ty.scalar Ty.bool).bind fun hex =>
+                (readDefinition definitions "whitespaceExpr" Ty.scalar Ty.bool).bind fun whitespace =>
+                  (readDefinition definitions "magnitudeExpr" Ty.chars Ty.nat).bind fun magnitude =>
+                    (readDefinition definitions "decodeExpr" Ty.nat Ty.scalar).bind fun decode =>
+                      (field j "source_map").bind fun sourceMap =>
+                        sourceMap.getObj?.toOption.bind fun __x =>
+                          (field j "program").bind fun program =>
+                            checkStmtJson [hex, whitespace, magnitude, decode] [] Ty.scalar program
+        else none

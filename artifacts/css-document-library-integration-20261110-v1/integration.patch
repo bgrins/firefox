@@ -1,0 +1,2367 @@
+--- /dev/null
++++ b/CssDerivation/Codec/Document/AliasLaws.lean
+@@ -0,0 +1,55 @@
++import CssDerivation.Codec.Document.DefinitionLaws
++import CssDerivation.FirstOrder.WeakeningLaws
++
++namespace CssDerivation.DocumentSchema
++open Lean FirstOrder TypedCodec JsonSchema DocumentDesign
++
++theorem definition_member {definitions signatures aliases}
++    (relation : DefinitionListSchema definitions signatures aliases)
++    {alias} (member : alias ∈ aliases) :
++    ∃ signature ∈ signatures, DefinitionSchema signature definitions alias := by
++  induction relation generalizing alias with
++  | nil => simp at member
++  | cons one later ih =>
++    rcases List.mem_cons.mp member with same | member
++    · subst alias
++      exact ⟨_, by simp, one⟩
++    · obtain ⟨signature, member, definition⟩ := ih member
++      exact ⟨signature, by simp [member], definition⟩
++
++theorem definition_data_normalized (signature : Signature) (definitions : Json) (data : DataExpr)
++    (accepted : readDefinition definitions signature.name signature.head signature.result =
++      some (signature.name, signature.head, data)) : normalizeExpr data = data := by
++  obtain ⟨source, e, field, schema, same⟩ := (definition_spec _ _ _).mp accepted
++  have encoded : data = encodeExpr e := congrArg (fun entry => entry.2.2) same
++  rw [encoded]
++  exact normalize_encodeExpr e
++
++theorem selected_alias_semantics {signatures definitions aliases name alias}
++    (accepted : readDefinitions signatures definitions = some aliases)
++    (selected : aliases.find? (fun entry => entry.1 == name) = some alias) :
++    ∃ signature ∈ signatures, ∃ e : Expr [signature.head] signature.result,
++      alias = (signature.name, signature.head, encodeExpr e) ∧ signature.name = name ∧
++      ∀ (Δ : List Ty) (value : signature.head.Value) (tail : Env Δ),
++        (checkExprJson aliases (signature.head :: Δ) signature.result
++          (nodeJson "use" [.str name])).map (fun decoded => eval decoded (.cons value tail)) =
++          some (eval e (.cons value .nil)) := by
++  have aligned := ((definitions_spec _ _ _).mp accepted).2.2
++  obtain ⟨signature, member, source, e, field, schema, same⟩ :=
++    definition_member aligned (List.mem_of_find?_eq_some selected)
++  have sameName : signature.name = name := by
++    have found := List.find?_some selected
++    simpa [same] using found
++  refine ⟨signature, member, e, same, sameName, ?_⟩
++  intro Δ value tail
++  have chosen : aliases.find? (fun entry => entry.1 == signature.name) =
++      some (signature.name, signature.head, encodeExpr e) := by
++    simpa [sameName, same] using selected
++  have useSchema : ExprSchema aliases (nodeJson "use" [.str signature.name])
++      (.scope signature.head (encodeExpr e)) :=
++    .node (.rightArgs 2 1 _ _) (.use chosen)
++  rw [← sameName, checkExprJson, (readExprData_spec _ _ _).mpr useSchema]
++  simp only [Option.bind_some, scoped_alias_rechecks, Option.map_some]
++  rw [scoped_alias_independent]
++
++end CssDerivation.DocumentSchema
+--- /dev/null
++++ b/CssDerivation/Codec/Document/DefinitionLaws.lean
+@@ -0,0 +1,99 @@
++import CssDerivation.Codec.Document.KeyLaws
++
++namespace CssDerivation.DocumentSchema
++open Lean FirstOrder TypedCodec JsonSchema
++
++theorem definition_spec (signature : Signature) (definitions : Json)
++    (alias : String × Ty × DataExpr) :
++    readDefinition definitions signature.name signature.head signature.result = some alias ↔
++      DefinitionSchema signature definitions alias := by
++  constructor
++  · intro accepted
++    cases sourceRead : field definitions signature.name with
++    | none => simp [readDefinition, sourceRead] at accepted
++    | some source =>
++      cases dataRead : readExprData [] source with
++      | none => simp [readDefinition, sourceRead, dataRead] at accepted
++      | some data =>
++        cases checked : checkExpr [signature.head] signature.result data with
++        | none => simp [readDefinition, sourceRead, dataRead, checked] at accepted
++        | some e =>
++          have schema := (readExprData_spec _ _ _).mp dataRead
++          have encoded := checkExpr_faithful data e checked
++          rw [alias_free_expression_normalized schema] at encoded
++          have same : (signature.name, signature.head, data) = alias := by
++            simpa [readDefinition, sourceRead, dataRead, checked] using accepted
++          refine ⟨source, e, (field_spec _ _ _).mp sourceRead, ?_, ?_⟩
++          · simpa [encoded] using schema
++          · simpa [encoded] using same.symm
++  · rintro ⟨source, e, sourceField, schema, rfl⟩
++    have sourceRead := (field_spec _ _ _).mpr sourceField
++    have dataRead := (readExprData_spec _ _ _).mpr schema
++    simp [readDefinition, sourceRead, dataRead, checkExpr_roundtrip]
++
++theorem definition_list_spec (signatures : List Signature) (definitions : Json)
++    (aliases : Aliases) :
++    readDefinitionList signatures definitions = some aliases ↔
++      DefinitionListSchema definitions signatures aliases := by
++  induction signatures generalizing aliases with
++  | nil =>
++    constructor
++    · intro accepted
++      have same : aliases = [] := by simpa [readDefinitionList] using accepted.symm
++      subst aliases
++      exact .nil
++    · intro relation
++      cases relation
++      rfl
++  | cons signature rest ih =>
++    constructor
++    · intro accepted
++      cases one : readDefinition definitions signature.name signature.head signature.result with
++      | none => simp [readDefinitionList, one] at accepted
++      | some alias =>
++        cases later : readDefinitionList rest definitions with
++        | none => simp [readDefinitionList, one, later] at accepted
++        | some tail =>
++          have same : alias :: tail = aliases := by
++            simpa [readDefinitionList, one, later] using accepted
++          subst aliases
++          exact .cons ((definition_spec _ _ _).mp one) ((ih _).mp later)
++    · intro relation
++      cases relation with
++      | cons one later =>
++        simp [readDefinitionList, (definition_spec _ _ _).mpr one, (ih _).mpr later]
++
++theorem definitions_spec (signatures : List Signature) (definitions : Json)
++    (aliases : Aliases) :
++    readDefinitions signatures definitions = some aliases ↔
++      DefinitionsSchema signatures definitions aliases := by
++  constructor
++  · intro accepted
++    by_cases unique : (signatures.map Signature.name).Nodup
++    · by_cases keys : fieldsExactly definitions (signatures.map Signature.name) = true
++      · refine ⟨unique, (exact_keys_spec _ _ unique).mp keys, ?_⟩
++        apply (definition_list_spec _ _ _).mp
++        simpa [readDefinitions, unique, keys] using accepted
++      · simp [readDefinitions, unique, keys] at accepted
++    · simp [readDefinitions, unique] at accepted
++  · rintro ⟨unique, keys, aligned⟩
++    simp [readDefinitions, unique, (exact_keys_spec _ _ unique).mpr keys,
++      (definition_list_spec _ _ _).mpr aligned]
++
++theorem definition_names {definitions signatures aliases}
++    (relation : DefinitionListSchema definitions signatures aliases) :
++    aliases.map Prod.fst = signatures.map Signature.name := by
++  induction relation with
++  | nil => rfl
++  | cons one _ ih =>
++    obtain ⟨source, e, field, schema, rfl⟩ := one
++    simp only [List.map_cons, ih]
++
++theorem admitted_alias_names {signatures definitions aliases}
++    (accepted : readDefinitions signatures definitions = some aliases) :
++    aliases.map Prod.fst = signatures.map Signature.name ∧ (aliases.map Prod.fst).Nodup := by
++  obtain ⟨unique, _, relation⟩ := (definitions_spec _ _ _).mp accepted
++  have names := definition_names relation
++  exact ⟨names, names.symm ▸ unique⟩
++
++end CssDerivation.DocumentSchema
+--- /dev/null
++++ b/CssDerivation/Codec/Document/KeyLaws.lean
+@@ -0,0 +1,53 @@
++import CssDerivation.Codec.Document.Profile
++
++namespace CssDerivation.DocumentSchema
++open Lean FirstOrder TypedCodec JsonSchema
++
++theorem field_spec (j : Json) (name : String) (value : Json) :
++    field j name = some value ↔ Field j name value := by
++  unfold field Field
++  cases j.getObjVal? name <;> simp [Except.toOption]
++
++theorem permutation_of_counts (names keys : List String) (unique : names.Nodup)
++    (lengths : keys.length = names.length)
++    (counts : ∀ name ∈ names, keys.count name = 1) : keys.Perm names := by
++  induction names generalizing keys with
++  | nil => simpa using lengths
++  | cons name rest ih =>
++    obtain ⟨absent, unique⟩ := List.nodup_cons.mp unique
++    have member : name ∈ keys := List.count_pos_iff.mp (by rw [counts name (by simp)]; decide)
++    have split := List.perm_cons_erase member
++    have lengthTail : (keys.erase name).length = rest.length := by
++      have h := split.length_eq
++      simp only [List.length_cons] at h lengths
++      omega
++    have countsTail : ∀ x ∈ rest, (keys.erase name).count x = 1 := by
++      intro x hx
++      have ne : x ≠ name := by intro equal; subst x; exact absent hx
++      rw [List.count_erase_of_ne ne]
++      exact counts x (by simp [hx])
++    exact split.trans ((ih (keys.erase name) unique lengthTail countsTail).cons name)
++
++theorem exactFields_spec {α : Type} (names : List String) (fields : List (String × α))
++    (unique : names.Nodup) :
++    exactFields names fields = true ↔ (fields.map Prod.fst).Perm names := by
++  simp only [exactFields, Bool.and_eq_true, beq_iff_eq, List.all_eq_true]
++  constructor
++  · rintro ⟨lengths, counts⟩
++    apply permutation_of_counts names _ unique
++    · simpa using lengths
++    · intro name member
++      simpa [List.count_eq_countP, List.countP_map, Function.comp_def] using counts name member
++  · intro permutation
++    refine ⟨?_, ?_⟩
++    · simpa using permutation.length_eq
++    · intro name member
++      have count := permutation.count_eq name
++      have one := unique.count (a := name)
++      simpa [List.count_eq_countP, List.countP_map, Function.comp_def, member] using count.trans one
++
++theorem exact_keys_spec (j : Json) (names : List String) (unique : names.Nodup) :
++    fieldsExactly j names = true ↔ ExactKeys j names := by
++  cases j <;> simp [fieldsExactly, ExactKeys, exactFields_spec, unique]
++
++end CssDerivation.DocumentSchema
+--- /dev/null
++++ b/CssDerivation/Codec/Document/Laws.lean
+@@ -0,0 +1,51 @@
++import CssDerivation.Codec.Document.DefinitionLaws
++
++namespace CssDerivation.DocumentSchema
++open Lean FirstOrder TypedCodec JsonSchema
++
++theorem natural_option_spec (j : Json) (n : Nat) :
++    j.getNat?.toOption = some n ↔ j.getNat? = .ok n := by
++  cases j.getNat? <;> simp [Except.toOption]
++
++theorem object_option_sound (j : Json) (value)
++    (accepted : j.getObj?.toOption = some value) : ObjectValue j := by
++  cases j <;> simp [Json.getObj?, Except.toOption] at accepted
++  exact ⟨_, rfl⟩
++
++theorem outer_keys_unique : outerKeys.Nodup := by decide
++
++theorem document_sound (signatures : List Signature) (result : Ty)
++    (j : Json) (p : Stmt [] result)
++    (accepted : readDocumentWith signatures result j = some p) :
++    DocumentSchema signatures result j p := by
++  by_cases keys : fieldsExactly j outerKeys = true
++  · simp only [readDocumentWith, keys, Bool.not_true, Bool.false_eq_true, ite_false,
++      Option.bind_eq_bind, Option.bind_eq_some_iff] at accepted
++    obtain ⟨version, versionField, accepted⟩ := accepted
++    by_cases versionOk : version.getNat?.toOption = some 1
++    · simp only [versionOk] at accepted
++      change (field j "definitions").bind _ = some p at accepted
++      simp only [Option.bind_eq_some_iff] at accepted
++      obtain ⟨definitions, definitionField, aliases, aliasesRead, sourceMap, sourceMapField,
++        map, sourceMapRead, source, sourceField, programRead⟩ := accepted
++      obtain ⟨raw, schema, encoded⟩ := accepted_statement_schema aliases source p programRead
++      exact ⟨version, definitions, sourceMap, source, aliases, raw,
++        (exact_keys_spec _ _ outer_keys_unique).mp keys,
++        (field_spec _ _ _).mp versionField, (natural_option_spec _ _).mp versionOk,
++        (field_spec _ _ _).mp definitionField, (definitions_spec _ _ _).mp aliasesRead,
++        (field_spec _ _ _).mp sourceMapField, object_option_sound _ _ sourceMapRead,
++        (field_spec _ _ _).mp sourceField, schema, encoded⟩
++    · simp [versionOk] at accepted
++  · simp [readDocumentWith, keys] at accepted
++
++theorem option_guard_bind (test : Bool) (action : Option α) (next : α → Option β) :
++    (if test then action else none).bind next =
++      (if !test then none else action.bind next) := by
++  cases test <;> rfl
++
++theorem escape_wrapper_equivalent (j : Json) :
++    readEscapeDocument j = JsonSchema.readDocument j := by
++  simp [readEscapeDocument, readDocumentWith, escapeSignatures, readDefinitions,
++    readDefinitionList, outerKeys, JsonSchema.readDocument, option_guard_bind, Option.bind_assoc]
++
++end CssDerivation.DocumentSchema
+--- /dev/null
++++ b/CssDerivation/Codec/Document/Profile.lean
+@@ -0,0 +1,86 @@
++import CssDerivation.Codec.Json.TypedSchemaLaws
++import CssDerivation.Codec.Json.Document
++
++namespace CssDerivation.DocumentSchema
++open Lean FirstOrder TypedCodec JsonSchema
++
++structure Signature where
++  name : String
++  head : Ty
++  result : Ty
++  deriving DecidableEq, Repr
++
++def Field (j : Json) (name : String) (value : Json) : Prop :=
++  j.getObjVal? name = .ok value
++
++def ExactKeys (j : Json) (names : List String) : Prop :=
++  match j with
++  | .obj fields => (fields.toList.map Prod.fst).Perm names
++  | _ => False
++
++def DefinitionSchema (signature : Signature) (definitions : Json)
++    (alias : String × Ty × DataExpr) : Prop :=
++  ∃ source, ∃ e : Expr [signature.head] signature.result,
++    Field definitions signature.name source ∧
++    ExprSchema [] source (encodeExpr e) ∧
++    alias = (signature.name, signature.head, encodeExpr e)
++
++inductive DefinitionListSchema (definitions : Json) : List Signature → Aliases → Prop where
++  | nil : DefinitionListSchema definitions [] []
++  | cons {signature rest alias aliases} : DefinitionSchema signature definitions alias →
++      DefinitionListSchema definitions rest aliases →
++      DefinitionListSchema definitions (signature :: rest) (alias :: aliases)
++
++def DefinitionsSchema (signatures : List Signature) (definitions : Json)
++    (aliases : Aliases) : Prop :=
++  (signatures.map Signature.name).Nodup ∧
++  ExactKeys definitions (signatures.map Signature.name) ∧
++  DefinitionListSchema definitions signatures aliases
++
++def readDefinitionList : List Signature → Json → Option Aliases
++  | [], _ => some []
++  | signature :: rest, definitions => do
++      let alias ← readDefinition definitions signature.name signature.head signature.result
++      let aliases ← readDefinitionList rest definitions
++      some (alias :: aliases)
++
++def readDefinitions (signatures : List Signature) (definitions : Json) : Option Aliases :=
++  if (signatures.map Signature.name).Nodup then
++    if fieldsExactly definitions (signatures.map Signature.name) then
++      readDefinitionList signatures definitions
++    else none
++  else none
++
++def outerKeys : List String := ["schema", "definitions", "program", "source_map"]
++
++def readDocumentWith (signatures : List Signature) (result : Ty)
++    (j : Json) : Option (Stmt [] result) := do
++  if !fieldsExactly j outerKeys then none else do
++    let schema ← field j "schema"
++    if schema.getNat?.toOption != some 1 then none else do
++      let definitions ← field j "definitions"
++      let aliases ← readDefinitions signatures definitions
++      let sourceMap ← field j "source_map"
++      let _ ← sourceMap.getObj?.toOption
++      let program ← field j "program"
++      checkStmtJson aliases [] result program
++
++def ObjectValue (j : Json) : Prop := ∃ fields, j = .obj fields
++
++def DocumentSchema (signatures : List Signature) (result : Ty)
++    (j : Json) (program : Stmt [] result) : Prop :=
++  ∃ version definitions sourceMap source aliases raw,
++    ExactKeys j outerKeys ∧
++    Field j "schema" version ∧ version.getNat? = .ok 1 ∧
++    Field j "definitions" definitions ∧ DefinitionsSchema signatures definitions aliases ∧
++    Field j "source_map" sourceMap ∧ ObjectValue sourceMap ∧
++    Field j "program" source ∧ StmtSchema aliases source raw ∧
++    encodeStmt program = normalizeStmt raw
++
++def escapeSignatures : List Signature :=
++  [⟨"hexExpr", .scalar, .bool⟩, ⟨"whitespaceExpr", .scalar, .bool⟩,
++   ⟨"magnitudeExpr", .chars, .nat⟩, ⟨"decodeExpr", .nat, .scalar⟩]
++
++def readEscapeDocument := readDocumentWith escapeSignatures .scalar
++
++end CssDerivation.DocumentSchema
+--- /dev/null
++++ b/CssDerivation/Examples/GenericEscapeDocument.lean
+@@ -0,0 +1,25 @@
++import CssDerivation.Codec.Document.Laws
++import CssDerivation.Examples.EscapeDocument
++
++namespace CssDerivation.DocumentSchema
++open FirstOrder JsonSchema
++
++theorem escape_fixture_decodes :
++    readEscapeDocument TypedCodec.fixture = some escapeTree := by
++  rw [escape_wrapper_equivalent]
++  exact fixture_decodes
++
++def runEscape (j : Lean.Json) (input : List Char) : Option Result :=
++  (readEscapeDocument j).map (fun p => FirstOrder.execute p input)
++
++theorem escape_fixture_execution (input : List Char) :
++    runEscape TypedCodec.fixture input = some (FirstOrder.execute escapeTree input) := by
++  simp [runEscape, escape_fixture_decodes]
++
++theorem escape_fixture_relation (input : List Char) (result : Result) :
++    runEscape TypedCodec.fixture input = some result ↔
++      CssSemantics.CssEscape.Escaped input (toReference result) := by
++  rw [escape_fixture_execution, Option.some.injEq]
++  exact escape_relation input result
++
++end CssDerivation.DocumentSchema
+--- /dev/null
++++ b/CssDerivation/FirstOrder/Weakening.lean
+@@ -0,0 +1,37 @@
++import CssDerivation.Codec.DataLaws
++
++namespace CssDerivation.DocumentDesign
++open FirstOrder TypedCodec
++
++def appendEnv : Env Γ → Env Δ → Env (Γ ++ Δ)
++  | .nil, tail => tail
++  | .cons value rest, tail => .cons value (appendEnv rest tail)
++
++def weakenVar (Δ : List Ty) : Var Γ t → Var (Γ ++ Δ) t
++  | .here => .here
++  | .there v => .there (weakenVar Δ v)
++
++def weakenExpr (Δ : List Ty) : Expr Γ t → Expr (Γ ++ Δ) t
++  | .nat n => .nat n
++  | .scalar c => .scalar c
++  | .bool b => .bool b
++  | .nil => .nil
++  | .unit => .unit
++  | .var v => .var (weakenVar Δ v)
++  | .code a => .code (weakenExpr Δ a)
++  | .scalarOf a => .scalarOf (weakenExpr Δ a)
++  | .add a b => .add (weakenExpr Δ a) (weakenExpr Δ b)
++  | .sub a b => .sub (weakenExpr Δ a) (weakenExpr Δ b)
++  | .mul a b => .mul (weakenExpr Δ a) (weakenExpr Δ b)
++  | .leNat a b => .leNat (weakenExpr Δ a) (weakenExpr Δ b)
++  | .ltNat a b => .ltNat (weakenExpr Δ a) (weakenExpr Δ b)
++  | .eqNat a b => .eqNat (weakenExpr Δ a) (weakenExpr Δ b)
++  | .leChar a b => .leChar (weakenExpr Δ a) (weakenExpr Δ b)
++  | .eqChar a b => .eqChar (weakenExpr Δ a) (weakenExpr Δ b)
++  | .and a b => .and (weakenExpr Δ a) (weakenExpr Δ b)
++  | .or a b => .or (weakenExpr Δ a) (weakenExpr Δ b)
++  | .cons a b => .cons (weakenExpr Δ a) (weakenExpr Δ b)
++  | .ite a b c => .ite (weakenExpr Δ a) (weakenExpr Δ b) (weakenExpr Δ c)
++  | .foldNat xs z f => .foldNat (weakenExpr Δ xs) (weakenExpr Δ z) (weakenExpr Δ f)
++
++end CssDerivation.DocumentDesign
+--- /dev/null
++++ b/CssDerivation/FirstOrder/WeakeningLaws.lean
+@@ -0,0 +1,54 @@
++import CssDerivation.FirstOrder.Weakening
++
++namespace CssDerivation.DocumentDesign
++open FirstOrder TypedCodec
++
++theorem variable_erasure (v : Var Γ t) (Δ : List Ty) :
++    encodeVar (weakenVar Δ v) = encodeVar v := by
++  induction v <;> simp_all [weakenVar, encodeVar]
++
++theorem expression_erasure (e : Expr Γ t) (Δ : List Ty) :
++    encodeExpr (weakenExpr Δ e) = encodeExpr e := by
++  induction e <;> simp_all [weakenExpr, encodeExpr, variable_erasure]
++
++theorem lookup_weakening (v : Var Γ t) (env : Env Γ) (tail : Env Δ) :
++    lookup (weakenVar Δ v) (appendEnv env tail) = lookup v env := by
++  induction v with
++  | here => cases env; rfl
++  | there v ih => cases env; simpa [weakenVar, appendEnv, lookup] using ih _
++
++theorem evaluation_weakening (e : Expr Γ t) (env : Env Γ) (tail : Env Δ) :
++    eval (weakenExpr Δ e) (appendEnv env tail) = eval e env := by
++  induction e with
++  | foldNat xs z step ihxs ihz ihstep =>
++    simp only [weakenExpr, eval, ihxs, ihz]
++    have same : (fun acc c => eval (weakenExpr Δ step)
++        (.cons c (.cons acc (appendEnv env tail)))) =
++        (fun acc c => eval step (.cons c (.cons acc env))) := by
++      funext acc c
++      exact ihstep (.cons c (.cons acc env))
++    rw [same]
++  | _ => simp_all [weakenExpr, eval, lookup_weakening]
++
++theorem scoped_alias_rechecks (e : Expr [head] result) (Δ : List Ty) :
++    checkExpr (head :: Δ) result (.scope head (encodeExpr e)) =
++      some (weakenExpr Δ e) := by
++  have encoded := expression_erasure e Δ
++  rw [← encoded]
++  simp [checkExpr, decodeExpr, inferExpr, normalizeExpr]
++
++theorem scoped_alias_independent (e : Expr [head] result) (value : head.Value)
++    (tail : Env Δ) :
++    eval (weakenExpr Δ e) (.cons value tail) = eval e (.cons value .nil) := by
++  exact evaluation_weakening e (.cons value .nil) tail
++
++theorem validated_data_rechecks (data : DataExpr) (e : Expr [head] result)
++    (normalized : normalizeExpr data = data)
++    (accepted : checkExpr [head] result data = some e) (Δ : List Ty) :
++    checkExpr (head :: Δ) result (.scope head data) = some (weakenExpr Δ e) := by
++  have equal := checkExpr_faithful data e accepted
++  rw [normalized] at equal
++  rw [← equal]
++  exact scoped_alias_rechecks e Δ
++
++end CssDerivation.DocumentDesign
+--- /dev/null
++++ b/CssDerivation/Tests/DocumentBoundary.lean
+@@ -0,0 +1,50 @@
++import CssDerivation.Codec.Document.Laws
++import CssDerivation.Codec.Document.AliasLaws
++import CssDerivation.Tests.DocumentInputs
++
++namespace CssDerivation.DocumentReview
++open Lean FirstOrder TypedCodec JsonSchema DocumentSchema
++set_option cbv.warning false
++set_option maxRecDepth 30000
++
++theorem accepted_definition_count_is_signature_count
++    (accepted : readDefinitions signatures definitions = some aliases) :
++    aliases.length = signatures.length := by
++  have names := (admitted_alias_names accepted).1
++  simpa using congrArg List.length names
++
++def signature : Signature := ⟨"seven", .nat, .nat⟩
++def definitions : Json := .mkObj [("seven", nodeJson "nat" [7])]
++def useProgram : Json := nodeJson "ret" [nodeJson "use" [.str "seven"]]
++def document : Json := Examples.document definitions useProgram
++def aliases : Aliases := [("seven", .nat, .nat 7)]
++
++theorem constant_alias_without_input_is_refused :
++    readDocumentWith [signature] .nat document = none := by cbv
++
++theorem normalized_document_relation_still_holds :
++    DocumentSchema [signature] .nat document (.ret (.nat 7)) := by
++  refine ⟨1, definitions, .mkObj [], useProgram, aliases,
++    .ret (.scope .nat (.nat 7)), ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
++  · exact (exact_keys_spec _ _ outer_keys_unique).mp (by cbv)
++  · cbv
++  · cbv
++  · cbv
++  · exact (definitions_spec _ _ _).mp (by cbv)
++  · cbv
++  · exact ⟨_, rfl⟩
++  · cbv
++  · exact (readStmtData_spec _ _ _).mp (by cbv)
++  · rfl
++
++theorem document_relation_does_not_imply_acceptance :
++    ¬ (∀ signatures result j (p : Stmt [] result),
++      DocumentSchema signatures result j p →
++      readDocumentWith signatures result j = some p) := by
++  intro converse
++  have accepted := converse [signature] .nat document (.ret (.nat 7))
++    normalized_document_relation_still_holds
++  rw [constant_alias_without_input_is_refused] at accepted
++  cases accepted
++
++end CssDerivation.DocumentReview
+--- /dev/null
++++ b/CssDerivation/Tests/DocumentCases.lean
+@@ -0,0 +1,76 @@
++import CssDerivation.Examples.GenericEscapeDocument
++import CssDerivation.Codec.Document.AliasLaws
++import CssDerivation.Tests.DocumentInputs
++
++namespace CssDerivation.DocumentSchema.Cases
++open Lean FirstOrder TypedCodec JsonSchema Examples
++set_option cbv.warning false
++set_option maxRecDepth 30000
++set_option maxHeartbeats 4000000
++
++theorem empty_profile_accepted : valueOf [] emptyDocument = some 65 := by cbv
++
++theorem arbitrary_name_profile_accepted : valueOf [nextSignature] nextDocument = some 65 := by cbv
++
++theorem fold_binders_preserved : valueOf [⟨"sum", .nat, .nat⟩] foldDocument = some 10 := by cbv
++
++theorem duplicate_signature_guard_required :
++    (readDefinitions duplicateProfile duplicateExploit).isNone = true := by cbv
++
++theorem duplicate_keys_rejected :
++    (readDefinitions [nextSignature] (rightObject 2 1 "next" nextBody "next" nextBody)).isNone = true := by cbv
++
++theorem missing_definition_rejected :
++    (readDefinitions [nextSignature] (.mkObj [])).isNone = true := by cbv
++
++theorem extra_definition_rejected :
++    (readDefinitions [nextSignature] duplicateExploit).isNone = true := by cbv
++
++theorem wrong_declared_result_rejected :
++    (readDefinitions wrongResultProfile nextDefinitions).isNone = true := by cbv
++
++theorem wrong_declared_input_rejected :
++    (readDefinitions [⟨"next", .scalar, .scalar⟩] nextDefinitions).isNone = true := by cbv
++
++theorem singleton_capture_rejected :
++    (readDefinitions [nextSignature] (.mkObj [("next", nodeJson "scalarOf" [nodeJson "var" [1]])])).isNone = true := by cbv
++
++theorem singleton_head_accepted :
++    (readDefinitions [nextSignature] (.mkObj [("next", nodeJson "scalarOf" [nodeJson "var" [0]])])).isSome = true := by cbv
++
++theorem self_reference_rejected :
++    (readDefinitions [nextSignature] (.mkObj [("next", nodeJson "use" [.str "next"])])).isNone = true := by cbv
++
++theorem forward_reference_rejected :
++    (readDefinitions [nextSignature, ⟨"later", .nat, .scalar⟩]
++      (.mkObj [("next", nodeJson "use" [.str "later"]), ("later", nextBody)])).isNone = true := by cbv
++
++theorem unknown_use_rejected :
++    (readDocumentWith [] .scalar (document (.mkObj []) (nodeJson "ret" [nodeJson "use" [.str "absent"]]))).isNone = true := by cbv
++
++theorem wrong_use_head_rejected :
++    (readDocumentWith [nextSignature] .scalar (document nextDefinitions
++      (nodeJson "letE" [nodeJson "scalar" [65], nodeJson "ret" [nodeJson "use" [.str "next"]]]))).isNone = true := by cbv
++
++theorem source_map_is_inert :
++    valueOf [] (document (.mkObj []) (nodeJson "ret" [nodeJson "scalar" [65]])
++      (nodeJson "ret" [nodeJson "scalar" [66]])) = some 65 := by cbv
++
++theorem source_map_must_be_object :
++    (readDocumentWith [] .scalar (document (.mkObj []) (nodeJson "ret" [nodeJson "scalar" [65]]) .null)).isNone = true := by cbv
++
++theorem extra_outer_field_rejected :
++    (readDocumentWith [] .scalar (.mkObj [("schema", 1), ("definitions", .mkObj []),
++      ("program", nodeJson "ret" [nodeJson "scalar" [65]]), ("source_map", .mkObj []),
++      ("extra", .null)])).isNone = true := by cbv
++
++theorem raw_membership_is_not_lookup :
++    fieldsExactly (rightObject 2 1 "z" .null "a" .null) ["a", "z"] = true ∧
++    field (rightObject 2 1 "z" .null "a" .null) "a" = none := by cbv
++
++theorem alias_order_preserved :
++    ((readDefinitions [nextSignature, ⟨"second", .nat, .scalar⟩]
++      (.mkObj [("second", nextBody), ("next", nextBody)])).map (fun aliases => aliases.map Prod.fst)) =
++      some ["next", "second"] := by cbv
++
++end CssDerivation.DocumentSchema.Cases
+--- /dev/null
++++ b/CssDerivation/Tests/DocumentInputs.lean
+@@ -0,0 +1,29 @@
++import CssDerivation.Codec.Document.Profile
++
++namespace CssDerivation.DocumentSchema.Examples
++open Lean FirstOrder TypedCodec JsonSchema
++
++def document (definitions program : Json) (sourceMap : Json := .mkObj []) : Json :=
++  .mkObj [("schema", 1), ("definitions", definitions), ("program", program), ("source_map", sourceMap)]
++
++def nextSignature : Signature := ⟨"next", .nat, .scalar⟩
++def nextBody : Json := nodeJson "scalarOf" [nodeJson "add" [nodeJson "var" [0], nodeJson "nat" [1]]]
++def nextDefinitions : Json := .mkObj [("next", nextBody)]
++def nextProgram : Json := nodeJson "letE" [nodeJson "nat" [64], nodeJson "ret" [nodeJson "use" [.str "next"]]]
++def nextDocument : Json := document nextDefinitions nextProgram
++
++def emptyDocument : Json := document (.mkObj []) (nodeJson "ret" [nodeJson "scalar" [65]])
++def duplicateProfile : List Signature := [nextSignature, nextSignature]
++def duplicateExploit : Json := .mkObj [("next", nextBody), ("spare", nextBody)]
++def wrongResultProfile : List Signature := [⟨"next", .nat, .nat⟩]
++
++def foldBody : Json := nodeJson "foldNat" [
++  nodeJson "cons" [nodeJson "scalar" [120], nodeJson "nil" []], nodeJson "nat" [3],
++  nodeJson "add" [nodeJson "var" [1], nodeJson "var" [2]]]
++def foldDocument : Json := document (.mkObj [("sum", foldBody)])
++  (nodeJson "letE" [nodeJson "nat" [7], nodeJson "ret" [nodeJson "scalarOf" [nodeJson "use" [.str "sum"]]]])
++
++def valueOf (signatures : List Signature) (j : Json) : Option Nat :=
++  (readDocumentWith signatures .scalar j).map (fun p => (FirstOrder.execute p []).value.toNat)
++
++end CssDerivation.DocumentSchema.Examples
+--- /dev/null
++++ b/CssDerivation/Tools/DocumentRunner.lean
+@@ -0,0 +1,19 @@
++import CssDerivation.Codec.Document.Profile
++
++open Lean CssDerivation CssDerivation.DocumentSchema
++
++def main (args : List String) : IO Unit := do
++  let profile :: path :: inputs := args | throw (IO.userError "usage: Runner.lean profile file input ...")
++  let signatures ← match profile with
++    | "escape" => pure escapeSignatures
++    | "next" => pure [⟨"next", .nat, .scalar⟩]
++    | "empty" => pure []
++    | "fold" => pure [⟨"sum", .nat, .nat⟩]
++    | _ => throw (IO.userError "profile refused")
++  let text ← IO.FS.readFile path
++  let some document := (Json.parse text).toOption | throw (IO.userError "JSON refused")
++  let some program := readDocumentWith signatures .scalar document | throw (IO.userError "document refused")
++  for input in inputs do
++    let result := FirstOrder.execute program input.toList
++    IO.println (Json.mkObj [("input", toJson input), ("value", toJson result.value.toNat),
++      ("rest", toJson (String.ofList result.rest)), ("error", toJson result.error)]).compress
+--- a/CssDerivation.lean
++++ b/CssDerivation.lean
+@@ -3,3 +3,6 @@
+ import CssDerivation.Codec.Json.TypedSchemaLaws
+ import CssDerivation.Codec.Json.Document
+ import CssDerivation.Examples.EscapeDocument
++import CssDerivation.Codec.Document.Laws
++import CssDerivation.Codec.Document.AliasLaws
++import CssDerivation.Examples.GenericEscapeDocument
+--- a/README.md
++++ b/README.md
+@@ -31,6 +31,13 @@
+ reproduction, and the remaining prose/JSON-text/legacy-document boundaries.
+ The main `check.py` and `coverage.json` continue to account for CSS semantics;
+ the separate checker reports tooling results without increasing CSS coverage.
++
++The document layer now accepts a caller-supplied finite signature profile, proves
++flat definition admission and accepted-document soundness, and preserves the
++existing fixed escape reader. Its source-only checks are separate:
++`python3 document_check.py --lean /path/to/lean/bin/lean --out /new/report/path`.
++See [the document tooling contract](research/derivation/document/README.md).
++These tooling and transported review results add no CSS feature coverage.
+ 
+ ## Current checked pipeline
+ 
+--- a/derivation_check.py
++++ b/derivation_check.py
+@@ -27,6 +27,49 @@
+     ).encode()
+ 
+ 
++def facade_sources(root):
++    expected = json.loads((root / "research/derivation/FACADE.json").read_text())
++    visiting, visited, ordered = set(), set(), []
++
++    def visit(module):
++        name = module.replace(".", "/") + ".lean"
++        if module in visiting:
++            raise ValueError("Cyclic facade dependency: " + module)
++        if module in visited:
++            return
++        path = root / name
++        if not path.is_file():
++            raise ValueError("Missing facade dependency: " + name)
++        data = path.read_bytes()
++        if name not in expected or digest(data) != expected[name]:
++            raise ValueError("Changed or unregistered facade dependency: " + name)
++        visiting.add(module)
++        for raw in data.decode().splitlines():
++            line = raw.strip()
++            if line.startswith("--"):
++                continue
++            if re.search(r"\bimport\b", line):
++                match = re.fullmatch(r"import ([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)", line)
++                if not match:
++                    raise ValueError("Unsupported facade import form: " + name + ": " + line)
++                dependency = match[1]
++                prefix = dependency.split(".")[0]
++                if prefix in {"CssDerivation", "CssSemantics"}:
++                    visit(dependency)
++                elif prefix not in {"Lean", "Init", "Std"}:
++                    raise ValueError("Unsupported facade import module: " + dependency)
++            elif line == "prelude" or line == "module" or line.startswith("module "):
++                raise ValueError("Unsupported facade module header: " + name)
++        visiting.remove(module)
++        visited.add(module)
++        ordered.append(name)
++
++    visit("CssDerivation")
++    if set(ordered) != set(expected):
++        raise ValueError("Facade registry is not the exact dependency closure")
++    return ordered
++
++
+ def main():
+     parser = argparse.ArgumentParser()
+     parser.add_argument("--lean", required=True, type=Path)
+@@ -42,6 +85,7 @@
+     inverse = {new: old for old, new in transport["module_map"].items()}
+     if len(inverse) != len(transport["module_map"]):
+         raise ValueError("Noninjective module relocation")
++    facade = facade_sources(ROOT)
+     inputs = {}
+     restored = {}
+     for record in records:
+@@ -55,7 +99,8 @@
+             raise ValueError("Relocation changed more than module imports: " + name)
+         restored[record["source"]] = raw
+     for name in ["derivation_check.py", "CssDerivation.lean", "lakefile.lean", "lean-toolchain",
+-                 "research/derivation/TRANSPORT.json", "research/derivation/origin/SOURCE-ONLY.json"]:
++                 "research/derivation/TRANSPORT.json", "research/derivation/origin/SOURCE-ONLY.json",
++                 "research/derivation/FACADE.json"] + facade:
+         inputs[name] = digest((ROOT / name).read_bytes())
+     commands = {}
+ 
+@@ -89,7 +134,7 @@
+         work = temp / "relocated"
+         work.mkdir()
+         for name in [r["installed"] for r in records if r["installed"].endswith(".lean")] + [
+-                "CssDerivation.lean", "lakefile.lean", "lean-toolchain"]:
++                "CssDerivation.lean", "lakefile.lean", "lean-toolchain"] + facade:
+             destination = work / name
+             destination.parent.mkdir(parents=True, exist_ok=True)
+             shutil.copyfile(ROOT / name, destination)
+@@ -98,7 +143,10 @@
+             path = module.replace(".", "/")
+             run("build-" + module, [lean, "-o", path + ".olean", path + ".lean"], work)
+             names += helper.declarations(work / (path + ".lean"))
+-        run("build-facade", [lean, "-o", "CssDerivation.olean", "CssDerivation.lean"], work)
++        compiled = {m.replace(".", "/") + ".lean" for m in modules}
++        for name in facade:
++            if name not in compiled:
++                run("build-facade-" + name.replace("/", "-"), [lean, "-o", name[:-5] + ".olean", name], work)
+         (work / "Audit.lean").write_text("import CssDerivation.Tests.JsonCases\n" + "".join(
+             "#print axioms " + name + "\n" for name in names))
+         output = run("axioms", [lean, "Audit.lean"], work)
+@@ -125,6 +173,7 @@
+     if inputs != {name: digest((ROOT / name).read_bytes()) for name in inputs}:
+         raise ValueError("Integration sources changed during verification")
+     report = {"status": "pass", "source_sha256": inputs, "transported_inputs": len(records),
++              "facade_sources": {name: inputs[name] for name in facade},
+               "declaration_axioms": audits, "execution_rows_per_runner": len(expected),
+               "semantic_controls": regression["controls"], "commands": commands,
+               "import_only_transport_authenticated": True, "temporary_builds_removed": True,
+--- /dev/null
++++ b/document_check.py
+@@ -0,0 +1,203 @@
++import argparse
++import hashlib
++import importlib.util
++import json
++import os
++from pathlib import Path
++import re
++import shutil
++import subprocess
++import sys
++import tempfile
++
++sys.dont_write_bytecode = True
++ROOT = Path(__file__).resolve().parent
++RESEARCH = ROOT / "research/derivation/document"
++
++
++def digest(data):
++    return hashlib.sha256(data).hexdigest()
++
++
++def restore_imports(data, inverse):
++    return "".join("import " + inverse.get(line[7:].strip(), line[7:].strip()) + "\n"
++                   if line.startswith("import ") else line
++                   for line in data.decode().splitlines(keepends=True)).encode()
++
++
++def load_helper(path, name):
++    spec = importlib.util.spec_from_file_location(name, path)
++    helper = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(helper)
++    return helper
++
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--lean", required=True, type=Path)
++    parser.add_argument("--out", required=True, type=Path)
++    args = parser.parse_args()
++    lean, out = args.lean.resolve(), args.out.resolve()
++    out.mkdir(parents=True, exist_ok=False)
++    transport = json.loads((RESEARCH / "TRANSPORT.json").read_text())
++    original = json.loads((RESEARCH / "origin/SOURCE-ONLY.json").read_text())
++    records = transport["records"]
++    if {r["source"]: r["source_sha256"] for r in records} != original:
++        raise ValueError("Transport does not cover the exact accepted source roster")
++    inverse = {new: old for old, new in transport["module_map"].items()}
++    if len(inverse) != len(transport["module_map"]):
++        raise ValueError("Noninjective module relocation")
++    legacy = load_helper(ROOT / "derivation_check.py", "installed_derivation_check")
++    facade = legacy.facade_sources(ROOT)
++    if any("/Tools/" in name or "/Tests/" in name for name in facade):
++        raise ValueError("CLI or tests entered the public facade")
++    inputs, restored = {}, {}
++    for record in records:
++        data = (ROOT / record["installed"]).read_bytes()
++        inputs[record["installed"]] = digest(data)
++        if digest(data) != record["installed_sha256"]:
++            raise ValueError("Installed source changed: " + record["installed"])
++        raw = restore_imports(data, inverse) if record["installed"].endswith(".lean") else data
++        if digest(raw) != record["source_sha256"]:
++            raise ValueError("Relocation changed more than imports: " + record["installed"])
++        restored[record["source"]] = raw
++    review = transport["review_boundary"]
++    review_data = (ROOT / review["installed"]).read_bytes()
++    if digest(review_data) != review["installed_sha256"] or digest(restore_imports(review_data, inverse)) != review["source_sha256"]:
++        raise ValueError("Independent review source transport changed")
++    inputs[review["installed"]] = digest(review_data)
++    if digest((RESEARCH / "origin/REVIEW-REPORT.md").read_bytes()) != review["report_sha256"]:
++        raise ValueError("Independent review attribution changed")
++    for name in facade + ["document_check.py", "derivation_check.py", "lakefile.lean", "lean-toolchain",
++                         "research/derivation/FACADE.json", "research/derivation/document/TRANSPORT.json",
++                         "research/derivation/document/origin/SOURCE-ONLY.json",
++                         "research/derivation/document/origin/REVIEW-REPORT.md"]:
++        inputs[name] = digest((ROOT / name).read_bytes())
++    commands = {}
++
++    def run(label, argv, work):
++        p = subprocess.run([str(x) for x in argv], cwd=work,
++                           env=dict(os.environ, LEAN_PATH=str(work), PYTHONDONTWRITEBYTECODE="1"),
++                           capture_output=True, text=True)
++        output = p.stdout + p.stderr
++        (out / (label + ".log")).write_text(output)
++        commands[label] = {"exit": p.returncode, "sha256": digest(output.encode())}
++        if p.returncode or re.search(r"(?m)^(?:[^\n]*:\d+:\d+: )?(?:warning:|error:|error\()", output):
++            raise ValueError(label + "\n" + output)
++        return output
++
++    with tempfile.TemporaryDirectory(prefix="installed-document-", dir=out) as directory:
++        temp = Path(directory)
++        accepted = temp / "accepted"
++        accepted.mkdir()
++        for name, data in restored.items():
++            target = accepted / name
++            target.parent.mkdir(parents=True, exist_ok=True)
++            target.write_bytes(data)
++        (accepted / "SOURCE-ONLY.json").write_text(json.dumps(original, indent=2) + "\n")
++        run("accepted-regression", [sys.executable, "-B", accepted / "check.py", "--lean", lean,
++                                    "--out", out / "accepted-regression"], accepted)
++        helper = load_helper(accepted / "check.py", "accepted_document_check")
++        preserved = json.loads((accepted / "PRESERVED.json").read_text())
++        originals = preserved["canonical_modules"] + ["Model.lean", "Prototype.lean"] + [n + ".lean" for n in helper.OWN]
++        mapped = {r["source"]: r["installed"] for r in records}
++        modules = [mapped[n] for n in originals]
++        work = temp / "relocated"
++        work.mkdir()
++        for name in modules + [review["installed"], "lakefile.lean", "lean-toolchain",
++                              "research/derivation/FACADE.json"] + facade:
++            target = work / name
++            target.parent.mkdir(parents=True, exist_ok=True)
++            shutil.copyfile(ROOT / name, target)
++        names, review_names = [], helper.declarations(work / review["installed"])
++        if len(review_names) != 4:
++            raise ValueError("Independent review theorem roster changed")
++        for name in modules + [review["installed"]]:
++            run("build-" + name.replace("/", "-"), [lean, "-o", name[:-5] + ".olean", name], work)
++            names += helper.declarations(work / name)
++        compiled = set(modules + [review["installed"]])
++        for name in facade:
++            if name not in compiled:
++                run("facade-" + name.replace("/", "-"), [lean, "-o", name[:-5] + ".olean", name], work)
++        (work / "Audit.lean").write_text("import CssDerivation.Tests.DocumentCases\n"
++                                        "import CssDerivation.Tests.DocumentBoundary\n" +
++                                        "".join("#print axioms " + n + "\n" for n in names))
++        output = run("axioms", [lean, "Audit.lean"], work)
++        audits = {}
++        for line in re.sub(r",\n\s*", ", ", output).splitlines():
++            match = re.fullmatch(r"'([^']+)' (does not depend on any axioms|depends on axioms: \[(.*)\])", line)
++            if not match:
++                raise ValueError("Unexpected axiom record: " + line)
++            axioms = set(match[3].split(", ")) if match[3] else set()
++            if not axioms <= {"propext", "Classical.choice", "Quot.sound"} or match[1] in audits:
++                raise ValueError("Invalid axiom inventory")
++            audits[match[1]] = sorted(axioms)
++        regression = json.loads((out / "accepted-regression/report.json").read_text())
++        if len(names) != len(set(names)) or set(audits) != set(names):
++            raise ValueError("Incomplete relocated axiom inventory")
++        if {n: a for n, a in audits.items() if n not in review_names} != regression["audits"]:
++            raise ValueError("Relocation altered accepted theorem axioms")
++        for name, profile in regression["runtime_profiles"].items():
++            rows = profile["rows"]
++            output = run("runtime-" + name, [lean, "--run", mapped["Runner.lean"], profile["profile"],
++                         accepted / (name + ".json")] + [row["input"] for row in rows], work)
++            if [json.loads(line) for line in output.splitlines()] != rows:
++                raise ValueError("Relocated actual-file execution changed")
++        run("lake-target", [lean.parent / "lake", "build", "CssDerivation"], work)
++        controls = {}
++        dependency = "CssDerivation/FirstOrder/Weakening.lean"
++        original_data = (work / dependency).read_bytes()
++        registry_path = work / "research/derivation/FACADE.json"
++        original_registry = registry_path.read_bytes()
++        facade_data = (work / "CssDerivation.lean").read_bytes()
++        for label in ["missing-dependency", "changed-dependency", "unsupported-import", "extra-registry-entry"]:
++            if label == "missing-dependency":
++                (work / dependency).unlink()
++                expected = "Missing facade dependency: " + dependency
++            elif label == "changed-dependency":
++                (work / dependency).write_bytes(original_data + b"\n")
++                expected = "Changed or unregistered facade dependency: " + dependency
++            elif label == "unsupported-import":
++                bad = facade_data + b"import CssDerivation.FirstOrder CssDerivation.Lowering\n"
++                (work / "CssDerivation.lean").write_bytes(bad)
++                registry = json.loads(original_registry)
++                registry["CssDerivation.lean"] = digest(bad)
++                registry_path.write_text(json.dumps(registry))
++                expected = "Unsupported facade import form: CssDerivation.lean: import CssDerivation.FirstOrder CssDerivation.Lowering"
++            else:
++                registry = json.loads(original_registry)
++                registry["CssDerivation/Unreachable.lean"] = "0" * 64
++                registry_path.write_text(json.dumps(registry))
++                expected = "Facade registry is not the exact dependency closure"
++            try:
++                legacy.facade_sources(work)
++            except ValueError as error:
++                if str(error) != expected:
++                    raise
++                controls[label] = expected
++            else:
++                raise ValueError("Facade control did not reject: " + label)
++            (work / dependency).write_bytes(original_data)
++            (work / "CssDerivation.lean").write_bytes(facade_data)
++            registry_path.write_bytes(original_registry)
++        if legacy.facade_sources(work) != facade:
++            raise ValueError("Facade was not restored after controls")
++    if inputs != {name: digest((ROOT / name).read_bytes()) for name in inputs}:
++        raise ValueError("Sources changed during verification")
++    report = {"status": "pass", "source_sha256": inputs, "declaration_axioms": audits,
++              "accepted_declaration_count": len(regression["audits"]),
++              "transferred_review_declarations": review_names,
++              "facade_sources": {name: inputs[name] for name in facade},
++              "facade_controls": controls, "accepted_controls": regression["controls"],
++              "runtime_profiles": regression["runtime_profiles"], "commands": commands,
++              "import_only_lean_transport": True, "checker_adjustment_is_new_code": True,
++              "temporary_builds_removed": True, "default_css_target_built": False,
++              "css_feature_coverage_added": False, "json_text_parser_proved": False,
++              "arbitrary_alias_document_converse": False}
++    (out / "report.json").write_text(json.dumps(report, indent=2) + "\n")
++    print(f"PASS: {len(audits)} relocated audits ({len(review_names)} transferred review), "
++          f"{len(facade)} facade sources, {len(controls)} facade controls, and actual-file/Lake checks")
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/research/derivation/FACADE.json
+@@ -0,0 +1,32 @@
++{
++  "CssDerivation.lean": "b83c311cff07c134a418b881d5ba8af38f21bcf5f3d745066987c90b9802afaa",
++  "CssDerivation/Backend.lean": "965f20d380a9c705fffede7056078a5f0e6971a6693b536d67f48b380a9f701a",
++  "CssDerivation/Codec/Data.lean": "6cb3ce6d459ff7501631f8e85761957864393035bcac19360a0462140e98bff5",
++  "CssDerivation/Codec/DataLaws.lean": "ff5312125be2cab5b6eafdfbb2064f63bfde54dc202b89843868eb252e3a7f09",
++  "CssDerivation/Codec/Document/AliasLaws.lean": "2b3180314adf41c531a4126e83a528c8828d853a8b004e6b9607cbc70e338e35",
++  "CssDerivation/Codec/Document/DefinitionLaws.lean": "fb374a1e8ae426f9655527f65fe97001434afe7da0691328c1b5fec8d459eab7",
++  "CssDerivation/Codec/Document/KeyLaws.lean": "d29221da8430bd22d0bf4233bb61a903ea9a5f152f55b9d2d84f140410bb8df9",
++  "CssDerivation/Codec/Document/Laws.lean": "edf9467a514d11d83a29986e49c83982f3629346ef9c0bfd5dfabf84010596eb",
++  "CssDerivation/Codec/Document/Profile.lean": "02b298401c5ffc2ac5fd0d4e5b0054af5a6f46fe099aca12b3a52a25a120430f",
++  "CssDerivation/Codec/Json/Document.lean": "03521ef95cb768ab58cff67364202cf05aa7899a0d6c4b560965b349e97295d4",
++  "CssDerivation/Codec/Json/Encoder.lean": "d83e7185477e89f9131983f9a2e7a915d3f80561faffdeb8fe1374c203037a2c",
++  "CssDerivation/Codec/Json/EncoderLaws.lean": "e63b0bfa24ae439c71521e01157f24ac377623981dc67974ae0714fcae77ca4c",
++  "CssDerivation/Codec/Json/Reader.lean": "65b459c72a65981c6508c23e9f7c707d2b169a60c80c2af3a3e9a7d21ef3b6c6",
++  "CssDerivation/Codec/Json/Schema.lean": "ff0653ba8f3f08e7e02f347638921837215b109834888bff6229e6a7efaf787f",
++  "CssDerivation/Codec/Json/SchemaLaws.lean": "f17e54725d1d4b3612ec83c632b2fd9628f6c7d29713f4b9ee3ec7babd85eb94",
++  "CssDerivation/Codec/Json/TypedSchemaLaws.lean": "169cfc4c273d65244a55d4af4f59ba4a099a3de8810db31b32e05402bff5284e",
++  "CssDerivation/Codec/LegacyJson.lean": "50b31c869a9b1159fb5547b26f2b43ec3af01f0d8de003739a979b5ed17ac1ee",
++  "CssDerivation/Examples/EscapeBackend.lean": "a20ef7ac58c23033ae546ec4a6b566f8e21138b1b15bd3a06673d5398223a6de",
++  "CssDerivation/Examples/EscapeBackendCorrespondence.lean": "f94e8e14d6ec41054c3abc31a6c35741aead8c60de87696f29833106b614b6ac",
++  "CssDerivation/Examples/EscapeCorrespondence.lean": "84ca2119adfe645deac8c3cba06002b6d33a55179756b4f732bad5e16dc01bab",
++  "CssDerivation/Examples/EscapeDocument.lean": "bbcc4aa6c3f1350c3946ae3a9b2898870bf42d47ca436e35fe3038543f08034d",
++  "CssDerivation/Examples/EscapeJson.lean": "1af3b52c3b7edbf5c1e3c4623706472abbfb641ef415044369ede768dc651095",
++  "CssDerivation/Examples/EscapeTree.lean": "ac84e9278b9e62566f88a039bb9ba4c2bb8c3753716f45809394887ae7cb47fb",
++  "CssDerivation/Examples/GenericEscapeDocument.lean": "d702fb0e55ac7e2bc6234bb4c2349fcf102e9ef3187176305805bb1c5bd45652",
++  "CssDerivation/FirstOrder.lean": "fa7ebe89eb2e959b573703747b85955342fa0ee7e37cd8b15c52af8fe62af6c6",
++  "CssDerivation/FirstOrder/Weakening.lean": "8f41c5a6726822e4c1576843dd153a4e02af9e7899726ef00a9c8510da691fdd",
++  "CssDerivation/FirstOrder/WeakeningLaws.lean": "4ab654c7c6bfddc16390285d6f7e16d43948173b7428e5f53097471dbddcd283",
++  "CssDerivation/Lowering.lean": "4acdb71f5146992397609dc22006d80c938cb98dee967498fea43c7670f0f7da",
++  "CssSemantics/CssEscape.lean": "c24a72b82f59420429d53be90244e1e684742bb5083b2fd8c9dbf6eec5766d90",
++  "CssSemantics/CssInput.lean": "a7a21f4a211d8e593dd5b9261e046aeace7c9d67b3c0524019acaf3739a709e9"
++}
+--- a/research/derivation/README.md
++++ b/research/derivation/README.md
+@@ -76,3 +76,19 @@
+ interpretation and caller assumptions remain manually reviewed. No browser,
+ Stylo/native refinement, new CSS coverage, ParserIR number extension, bytes,
+ CSSOM coercion, or new DOMString theorem is implied by this tooling integration.
++
++## Generic document profiles
++
++The [document module](document/README.md) adds caller-supplied profiles while
++preserving the fixed `Codec.Json.Document` API. Its checker has a separate theorem
++inventory and transferred review credit. Neither checker adds normative CSS
++coverage. Both build the same public `CssDerivation` facade.
++
++`FACADE.json` pins the exact local dependency closure of that facade. The checker
++collects supported single-module import lines, authenticates every dependency,
++and rejects missing, changed, unregistered, cyclic, or unsupported imports.
++The parser is deliberately restricted to the current source import style; it is
++not a general Lean parser. External imports are limited to Lean/Init/Std. Additional
++facade modules are copied and compiled, but the original 143-theorem audit and
++semantic-control inventory stay unchanged. Document-specific audits are reported
++by `document_check.py`. CLI and test modules are excluded from facade closure.
+--- /dev/null
++++ b/research/derivation/document/README.md
+@@ -0,0 +1,75 @@
++# Generic document profiles
++
++This module integrates the accepted flat-definition document reader and its
++proofs into the opt-in `CssDerivation` library. It does not change existing scalar,
++input, fixed escape-reader APIs, or CSS feature coverage.
++
++## Public modules
++
++| Module | Purpose |
++| --- | --- |
++| `CssDerivation.FirstOrder.Weakening`, `WeakeningLaws` | Append unused context tails; preserve typed erasure and evaluation, including fold binders. |
++| `CssDerivation.Codec.Document.Profile` | Caller-supplied signatures, independent schema relations, generic document reader and escape wrapper. |
++| `CssDerivation.Codec.Document.KeyLaws`, `DefinitionLaws` | Exact keys, definition-list iff, ordered names and uniqueness. |
++| `CssDerivation.Codec.Document.Laws` | Accepted-document soundness and all-JSON equality with the existing escape reader. |
++| `CssDerivation.Codec.Document.AliasLaws` | Actual definition normalization and selected canonical-use evaluation without ambient capture. |
++| `CssDerivation.Examples.GenericEscapeDocument` | Preserve the old escaped-code-point fixture relation for every scalar input. |
++
++Only module import paths change in transferred Lean files. Existing declaration
++namespaces, including historical `CssDerivation.DocumentDesign`, remain intact.
++Renaming that namespace would be a separate API/refactoring change. The fixed
++`CssDerivation.Codec.Json.Document` source and API are preserved byte-for-byte.
++The new escape wrapper's all-JSON equivalence is retained as a theorem.
++
++`Tests.DocumentInputs`, `Tests.DocumentCases`, `Tests.DocumentBoundary`, and
++`Tools.DocumentRunner` are outside the public facade closure. The runner reads
++actual files and executes the decoded generic-reader result; it does not import
++a generated escape reference. The four boundary theorems in `DocumentBoundary`
++are transferred independent-review results, not new author proofs. Their source
++and report attribution are pinned in `TRANSPORT.json` and `origin/REVIEW-REPORT.md`.
++One proves a concrete counterexample to the unclaimed document converse.
++
++## Reproduction
++
++```sh
++lake build CssDerivation
++python3 document_check.py --lean /path/to/lean/bin/lean --out /new/report/path
++lake env lean --run CssDerivation/Tools/DocumentRunner.lean next research/derivation/document/fixtures/next.json abc
++```
++
++`document_check.py` authenticates 45 accepted inputs, reverses exact import-line
++relocation, and runs the unchanged accepted harness in a fresh temporary source
++tree. It separately compiles relocated modules and the four review proofs,
++checks the exact 160-theorem axiom inventory (156 accepted plus four review),
++runs the five actual files, and builds the public Lake target. The accepted four
++semantic mutants and three provenance controls run on exactly restored paths;
++positive compilation/audits/runtime checks separately validate relocation.
++
++The existing `derivation_check.py` remains a separate first-order/JSON milestone
++gate with its original 143-theorem audit. Its necessary integration adjustment
++collects and authenticates the current facade dependencies through `FACADE.json`.
++Missing/changed dependencies, unsupported import syntax, and excess registry
++entries are checked by separate controls. Those are registration controls, not
++new formal semantic proofs.
++
++The main `check.py`, default `CssSemantics` target, and `coverage.json` retain their
++CSS accounting. Root integration should execute the actual default build after
++applying the patch; source-only tooling checks do not claim that unchanged large
++CSS target was rebuilt. No native-library link check is claimed.
++
++## Limits
++
++The caller supplies trusted signature names/input/result types. Definitions are
++flat and alias-free; cycles and forward references are rejected. Source maps are
++inert object-valued metadata. `ExactKeys` is a key-list permutation relation;
++`Field` retains shared Lean map lookup. Arbitrary raw objects need not be ordered
++maps, and enumeration is not silently identified with successful lookup.
++
++Definition admission has a full iff. The whole-document relation has soundness
++only: normalized erasure loses scope guards required by a converse. Selected alias
++semantics covers canonical `nodeJson "use" [name]` under arbitrary admitted
++definitions and ambient tails; it is not whole-program alias semantics or an
++all-raw-layout use-node theorem. JSON text parsing, duplicate text-key handling,
++numeric lexical forms, and CSS prose interpretation remain outside the proofs.
++`origin/MAPPING.md` retains the original claim boundaries and historical source
++names; resolve those names through `TRANSPORT.json`.
+--- /dev/null
++++ b/research/derivation/document/TRANSPORT.json
+@@ -0,0 +1,345 @@
++{
++  "origin_commit": "f3949d2992abdc02536b9a61e51dc7d603ce0868",
++  "origin_artifact": "artifacts/css-document-schema-20261110-v1",
++  "canonical_base": "898fb45815c115362093116d81c09715ba94fcab",
++  "module_map": {
++    "Model": "CssDerivation.FirstOrder.Weakening",
++    "Prototype": "CssDerivation.FirstOrder.WeakeningLaws",
++    "DocumentModel": "CssDerivation.Codec.Document.Profile",
++    "KeyLaws": "CssDerivation.Codec.Document.KeyLaws",
++    "DefinitionLaws": "CssDerivation.Codec.Document.DefinitionLaws",
++    "DocumentLaws": "CssDerivation.Codec.Document.Laws",
++    "AliasBridge": "CssDerivation.Codec.Document.AliasLaws",
++    "Fixture": "CssDerivation.Examples.GenericEscapeDocument",
++    "Examples": "CssDerivation.Tests.DocumentInputs",
++    "Cases": "CssDerivation.Tests.DocumentCases",
++    "Runner": "CssDerivation.Tools.DocumentRunner",
++    "Boundary": "CssDerivation.Tests.DocumentBoundary"
++  },
++  "records": [
++    {
++      "source": "CssDerivation/Backend.lean",
++      "source_sha256": "965f20d380a9c705fffede7056078a5f0e6971a6693b536d67f48b380a9f701a",
++      "installed": "CssDerivation/Backend.lean",
++      "installed_sha256": "965f20d380a9c705fffede7056078a5f0e6971a6693b536d67f48b380a9f701a",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/FirstOrder.lean",
++      "source_sha256": "fa7ebe89eb2e959b573703747b85955342fa0ee7e37cd8b15c52af8fe62af6c6",
++      "installed": "CssDerivation/FirstOrder.lean",
++      "installed_sha256": "fa7ebe89eb2e959b573703747b85955342fa0ee7e37cd8b15c52af8fe62af6c6",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Codec/Data.lean",
++      "source_sha256": "6cb3ce6d459ff7501631f8e85761957864393035bcac19360a0462140e98bff5",
++      "installed": "CssDerivation/Codec/Data.lean",
++      "installed_sha256": "6cb3ce6d459ff7501631f8e85761957864393035bcac19360a0462140e98bff5",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Codec/DataLaws.lean",
++      "source_sha256": "ff5312125be2cab5b6eafdfbb2064f63bfde54dc202b89843868eb252e3a7f09",
++      "installed": "CssDerivation/Codec/DataLaws.lean",
++      "installed_sha256": "ff5312125be2cab5b6eafdfbb2064f63bfde54dc202b89843868eb252e3a7f09",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Codec/LegacyJson.lean",
++      "source_sha256": "50b31c869a9b1159fb5547b26f2b43ec3af01f0d8de003739a979b5ed17ac1ee",
++      "installed": "CssDerivation/Codec/LegacyJson.lean",
++      "installed_sha256": "50b31c869a9b1159fb5547b26f2b43ec3af01f0d8de003739a979b5ed17ac1ee",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Codec/Json/Schema.lean",
++      "source_sha256": "ff0653ba8f3f08e7e02f347638921837215b109834888bff6229e6a7efaf787f",
++      "installed": "CssDerivation/Codec/Json/Schema.lean",
++      "installed_sha256": "ff0653ba8f3f08e7e02f347638921837215b109834888bff6229e6a7efaf787f",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Codec/Json/Reader.lean",
++      "source_sha256": "65b459c72a65981c6508c23e9f7c707d2b169a60c80c2af3a3e9a7d21ef3b6c6",
++      "installed": "CssDerivation/Codec/Json/Reader.lean",
++      "installed_sha256": "65b459c72a65981c6508c23e9f7c707d2b169a60c80c2af3a3e9a7d21ef3b6c6",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Codec/Json/Encoder.lean",
++      "source_sha256": "d83e7185477e89f9131983f9a2e7a915d3f80561faffdeb8fe1374c203037a2c",
++      "installed": "CssDerivation/Codec/Json/Encoder.lean",
++      "installed_sha256": "d83e7185477e89f9131983f9a2e7a915d3f80561faffdeb8fe1374c203037a2c",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Codec/Json/Document.lean",
++      "source_sha256": "03521ef95cb768ab58cff67364202cf05aa7899a0d6c4b560965b349e97295d4",
++      "installed": "CssDerivation/Codec/Json/Document.lean",
++      "installed_sha256": "03521ef95cb768ab58cff67364202cf05aa7899a0d6c4b560965b349e97295d4",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Codec/Json/SchemaLaws.lean",
++      "source_sha256": "f17e54725d1d4b3612ec83c632b2fd9628f6c7d29713f4b9ee3ec7babd85eb94",
++      "installed": "CssDerivation/Codec/Json/SchemaLaws.lean",
++      "installed_sha256": "f17e54725d1d4b3612ec83c632b2fd9628f6c7d29713f4b9ee3ec7babd85eb94",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Codec/Json/EncoderLaws.lean",
++      "source_sha256": "e63b0bfa24ae439c71521e01157f24ac377623981dc67974ae0714fcae77ca4c",
++      "installed": "CssDerivation/Codec/Json/EncoderLaws.lean",
++      "installed_sha256": "e63b0bfa24ae439c71521e01157f24ac377623981dc67974ae0714fcae77ca4c",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Codec/Json/TypedSchemaLaws.lean",
++      "source_sha256": "169cfc4c273d65244a55d4af4f59ba4a099a3de8810db31b32e05402bff5284e",
++      "installed": "CssDerivation/Codec/Json/TypedSchemaLaws.lean",
++      "installed_sha256": "169cfc4c273d65244a55d4af4f59ba4a099a3de8810db31b32e05402bff5284e",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Examples/EscapeJson.lean",
++      "source_sha256": "1af3b52c3b7edbf5c1e3c4623706472abbfb641ef415044369ede768dc651095",
++      "installed": "CssDerivation/Examples/EscapeJson.lean",
++      "installed_sha256": "1af3b52c3b7edbf5c1e3c4623706472abbfb641ef415044369ede768dc651095",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Lowering.lean",
++      "source_sha256": "4acdb71f5146992397609dc22006d80c938cb98dee967498fea43c7670f0f7da",
++      "installed": "CssDerivation/Lowering.lean",
++      "installed_sha256": "4acdb71f5146992397609dc22006d80c938cb98dee967498fea43c7670f0f7da",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Examples/EscapeTree.lean",
++      "source_sha256": "ac84e9278b9e62566f88a039bb9ba4c2bb8c3753716f45809394887ae7cb47fb",
++      "installed": "CssDerivation/Examples/EscapeTree.lean",
++      "installed_sha256": "ac84e9278b9e62566f88a039bb9ba4c2bb8c3753716f45809394887ae7cb47fb",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Examples/EscapeBackend.lean",
++      "source_sha256": "a20ef7ac58c23033ae546ec4a6b566f8e21138b1b15bd3a06673d5398223a6de",
++      "installed": "CssDerivation/Examples/EscapeBackend.lean",
++      "installed_sha256": "a20ef7ac58c23033ae546ec4a6b566f8e21138b1b15bd3a06673d5398223a6de",
++      "shared": true
++    },
++    {
++      "source": "CssSemantics/CssEscape.lean",
++      "source_sha256": "c24a72b82f59420429d53be90244e1e684742bb5083b2fd8c9dbf6eec5766d90",
++      "installed": "CssSemantics/CssEscape.lean",
++      "installed_sha256": "c24a72b82f59420429d53be90244e1e684742bb5083b2fd8c9dbf6eec5766d90",
++      "shared": true
++    },
++    {
++      "source": "CssSemantics/CssInput.lean",
++      "source_sha256": "a7a21f4a211d8e593dd5b9261e046aeace7c9d67b3c0524019acaf3739a709e9",
++      "installed": "CssSemantics/CssInput.lean",
++      "installed_sha256": "a7a21f4a211d8e593dd5b9261e046aeace7c9d67b3c0524019acaf3739a709e9",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Examples/EscapeBackendCorrespondence.lean",
++      "source_sha256": "f94e8e14d6ec41054c3abc31a6c35741aead8c60de87696f29833106b614b6ac",
++      "installed": "CssDerivation/Examples/EscapeBackendCorrespondence.lean",
++      "installed_sha256": "f94e8e14d6ec41054c3abc31a6c35741aead8c60de87696f29833106b614b6ac",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Examples/EscapeCorrespondence.lean",
++      "source_sha256": "84ca2119adfe645deac8c3cba06002b6d33a55179756b4f732bad5e16dc01bab",
++      "installed": "CssDerivation/Examples/EscapeCorrespondence.lean",
++      "installed_sha256": "84ca2119adfe645deac8c3cba06002b6d33a55179756b4f732bad5e16dc01bab",
++      "shared": true
++    },
++    {
++      "source": "CssDerivation/Examples/EscapeDocument.lean",
++      "source_sha256": "bbcc4aa6c3f1350c3946ae3a9b2898870bf42d47ca436e35fe3038543f08034d",
++      "installed": "CssDerivation/Examples/EscapeDocument.lean",
++      "installed_sha256": "bbcc4aa6c3f1350c3946ae3a9b2898870bf42d47ca436e35fe3038543f08034d",
++      "shared": true
++    },
++    {
++      "source": "Model.lean",
++      "source_sha256": "8f41c5a6726822e4c1576843dd153a4e02af9e7899726ef00a9c8510da691fdd",
++      "installed": "CssDerivation/FirstOrder/Weakening.lean",
++      "installed_sha256": "8f41c5a6726822e4c1576843dd153a4e02af9e7899726ef00a9c8510da691fdd",
++      "shared": false
++    },
++    {
++      "source": "Prototype.lean",
++      "source_sha256": "feb972828931902f00b7a8f76fd167961f83c6e114cc20da124f249b87aae47b",
++      "installed": "CssDerivation/FirstOrder/WeakeningLaws.lean",
++      "installed_sha256": "4ab654c7c6bfddc16390285d6f7e16d43948173b7428e5f53097471dbddcd283",
++      "shared": false
++    },
++    {
++      "source": "DocumentModel.lean",
++      "source_sha256": "02b298401c5ffc2ac5fd0d4e5b0054af5a6f46fe099aca12b3a52a25a120430f",
++      "installed": "CssDerivation/Codec/Document/Profile.lean",
++      "installed_sha256": "02b298401c5ffc2ac5fd0d4e5b0054af5a6f46fe099aca12b3a52a25a120430f",
++      "shared": false
++    },
++    {
++      "source": "KeyLaws.lean",
++      "source_sha256": "dab275994213ab1cef3317e199fb48c024ca70a81e634673b0170836ddd6b03b",
++      "installed": "CssDerivation/Codec/Document/KeyLaws.lean",
++      "installed_sha256": "d29221da8430bd22d0bf4233bb61a903ea9a5f152f55b9d2d84f140410bb8df9",
++      "shared": false
++    },
++    {
++      "source": "DefinitionLaws.lean",
++      "source_sha256": "819d233b75bd55dbb84cb1405bf947d89219541d65bcd2f1800f055383e5ba3f",
++      "installed": "CssDerivation/Codec/Document/DefinitionLaws.lean",
++      "installed_sha256": "fb374a1e8ae426f9655527f65fe97001434afe7da0691328c1b5fec8d459eab7",
++      "shared": false
++    },
++    {
++      "source": "DocumentLaws.lean",
++      "source_sha256": "583138dfd57a42ec6ef766fcdaf81264e694e7246bbe4a53b990b19f8c3c3baf",
++      "installed": "CssDerivation/Codec/Document/Laws.lean",
++      "installed_sha256": "edf9467a514d11d83a29986e49c83982f3629346ef9c0bfd5dfabf84010596eb",
++      "shared": false
++    },
++    {
++      "source": "AliasBridge.lean",
++      "source_sha256": "dde5d92539a2777f544d6f350547961297590746d2c37ccdff9ff3bde4255aae",
++      "installed": "CssDerivation/Codec/Document/AliasLaws.lean",
++      "installed_sha256": "2b3180314adf41c531a4126e83a528c8828d853a8b004e6b9607cbc70e338e35",
++      "shared": false
++    },
++    {
++      "source": "Fixture.lean",
++      "source_sha256": "10f238308bb489faf55075c52b7a9d52e0cb7c40dcd3ed35765bdf1696cf5a53",
++      "installed": "CssDerivation/Examples/GenericEscapeDocument.lean",
++      "installed_sha256": "d702fb0e55ac7e2bc6234bb4c2349fcf102e9ef3187176305805bb1c5bd45652",
++      "shared": false
++    },
++    {
++      "source": "Examples.lean",
++      "source_sha256": "937212a86e4dac1671ff74a0f14eff5a2351130354d13e68d066adf97e59b928",
++      "installed": "CssDerivation/Tests/DocumentInputs.lean",
++      "installed_sha256": "3c1e2c36c1fd8fbb1725238059e7d39107979bae2d69c5202ce3252fd8e0a187",
++      "shared": false
++    },
++    {
++      "source": "Cases.lean",
++      "source_sha256": "5efbc3de96d4e82958b51cdadbd10d7ce2a38b91bd28d0125aae591880148ffd",
++      "installed": "CssDerivation/Tests/DocumentCases.lean",
++      "installed_sha256": "c59741bb883e8f24de5d72ece97f89c21b68c6826ad4e36cc690eec843d2c674",
++      "shared": false
++    },
++    {
++      "source": "Runner.lean",
++      "source_sha256": "1eb50f1f7e6110f2ec7f2bd12b5a5988dfcd707bb26df0a2319d5fa4f1fbc6d5",
++      "installed": "CssDerivation/Tools/DocumentRunner.lean",
++      "installed_sha256": "68e48f35780f4533ffe9717ed05ee5fa945b7d15b58ea737ae9823cb67b842cd",
++      "shared": false
++    },
++    {
++      "source": "PRESERVED.json",
++      "source_sha256": "a440e4b753c4ee32b39bc389fc153b23a41b961a49b89ad7ca90aa63cf759307",
++      "installed": "research/derivation/document/origin/PRESERVED.json",
++      "installed_sha256": "a440e4b753c4ee32b39bc389fc153b23a41b961a49b89ad7ca90aa63cf759307",
++      "shared": false
++    },
++    {
++      "source": "ORIGINS.json",
++      "source_sha256": "7926a85cdd753538eb30794a6c353292a438506f440c290844bc8b2834f2d228",
++      "installed": "research/derivation/document/origin/ORIGINS.json",
++      "installed_sha256": "7926a85cdd753538eb30794a6c353292a438506f440c290844bc8b2834f2d228",
++      "shared": false
++    },
++    {
++      "source": "check.py",
++      "source_sha256": "2d03b1fa433d527d1bd82cb13313048afd910bd0954c39e472079189a1e44561",
++      "installed": "research/derivation/document/origin/check.py",
++      "installed_sha256": "2d03b1fa433d527d1bd82cb13313048afd910bd0954c39e472079189a1e44561",
++      "shared": false
++    },
++    {
++      "source": "replay.py",
++      "source_sha256": "9da67cce41e701261611d1d9d66068bb2d07a9d879e9a379b39d20ad0324eedc",
++      "installed": "research/derivation/document/origin/replay.py",
++      "installed_sha256": "9da67cce41e701261611d1d9d66068bb2d07a9d879e9a379b39d20ad0324eedc",
++      "shared": false
++    },
++    {
++      "source": "escape.json",
++      "source_sha256": "691e30134a4357a2ab96c3fff6871f5d831645a1a9903f17fffd81711a74acf6",
++      "installed": "research/derivation/origin/escape.json",
++      "installed_sha256": "691e30134a4357a2ab96c3fff6871f5d831645a1a9903f17fffd81711a74acf6",
++      "shared": true
++    },
++    {
++      "source": "CLAUSES.json",
++      "source_sha256": "b2926897b43524f22f2004a36380e37e01e9cdee7748e7d861d38d9e9f08b0c0",
++      "installed": "research/derivation/origin/CLAUSES.json",
++      "installed_sha256": "b2926897b43524f22f2004a36380e37e01e9cdee7748e7d861d38d9e9f08b0c0",
++      "shared": true
++    },
++    {
++      "source": "EXPECTED.json",
++      "source_sha256": "f85d568e5614bb5746b82c616f32c5e5e7b41f2034d4e00785467c8eaf76f99c",
++      "installed": "research/derivation/origin/EXPECTED.json",
++      "installed_sha256": "f85d568e5614bb5746b82c616f32c5e5e7b41f2034d4e00785467c8eaf76f99c",
++      "shared": true
++    },
++    {
++      "source": "PROFILE-EXPECTED.json",
++      "source_sha256": "6e089b0776f6ebb64f30718c84988cd985b9f3748ad7ed7389fcd6434e6771e1",
++      "installed": "research/derivation/document/origin/PROFILE-EXPECTED.json",
++      "installed_sha256": "6e089b0776f6ebb64f30718c84988cd985b9f3748ad7ed7389fcd6434e6771e1",
++      "shared": false
++    },
++    {
++      "source": "next.json",
++      "source_sha256": "73b5b19e22b6512afe614a5af2b7da30605e0d78472b5af7e8ab036b591cae65",
++      "installed": "research/derivation/document/fixtures/next.json",
++      "installed_sha256": "73b5b19e22b6512afe614a5af2b7da30605e0d78472b5af7e8ab036b591cae65",
++      "shared": false
++    },
++    {
++      "source": "empty.json",
++      "source_sha256": "acc7964acbfc5a3eb4b3545da88656fc9a5c9ef4c55dd07acf61bc20a48918ec",
++      "installed": "research/derivation/document/fixtures/empty.json",
++      "installed_sha256": "acc7964acbfc5a3eb4b3545da88656fc9a5c9ef4c55dd07acf61bc20a48918ec",
++      "shared": false
++    },
++    {
++      "source": "fold.json",
++      "source_sha256": "8982975f036c584f5b2b43f6bb8ab3d4ca452f1a12a425fa5eeb46771841008c",
++      "installed": "research/derivation/document/fixtures/fold.json",
++      "installed_sha256": "8982975f036c584f5b2b43f6bb8ab3d4ca452f1a12a425fa5eeb46771841008c",
++      "shared": false
++    },
++    {
++      "source": "inert.json",
++      "source_sha256": "ac15a2d17339921cc8e0612353fb5811add76101d976fae6e370b2855dfb936d",
++      "installed": "research/derivation/document/fixtures/inert.json",
++      "installed_sha256": "ac15a2d17339921cc8e0612353fb5811add76101d976fae6e370b2855dfb936d",
++      "shared": false
++    },
++    {
++      "source": "MAPPING.md",
++      "source_sha256": "6c3733692833ca8c22c653060653ef7647a101ff4596675b3c03709b9924c3cc",
++      "installed": "research/derivation/document/origin/MAPPING.md",
++      "installed_sha256": "6c3733692833ca8c22c653060653ef7647a101ff4596675b3c03709b9924c3cc",
++      "shared": false
++    }
++  ],
++  "review_boundary": {
++    "source": "artifacts/css-document-schema-review-20261110-v1/Boundary.lean",
++    "source_sha256": "7a7a94fd66775ebf930c3c6cf8c475c8cb692c2ab35c12a7d4c42af9fbe5d56e",
++    "installed": "CssDerivation/Tests/DocumentBoundary.lean",
++    "installed_sha256": "7f1b7528b3ca54e60c488f71543a7f1526d246fdd5072d9920cad8a2f598a2f1",
++    "report_sha256": "1bd8df9eb23262eb19e8a56ee58dc6cee9c340bd1f51931acd3472d65c5260fb",
++    "credit": "Four independent boundary proofs transferred without changing declarations; not new author results."
++  },
++  "transform": "Replace exact import lines only; preserve namespaces, declarations, and all non-import bytes."
++}
+--- /dev/null
++++ b/research/derivation/document/fixtures/empty.json
+@@ -0,0 +1,16 @@
++{
++  "schema": 1,
++  "definitions": {},
++  "program": {
++    "op": "ret",
++    "args": [
++      {
++        "op": "scalar",
++        "args": [
++          65
++        ]
++      }
++    ]
++  },
++  "source_map": {}
++}
+--- /dev/null
++++ b/research/derivation/document/fixtures/fold.json
+@@ -0,0 +1,76 @@
++{
++  "schema": 1,
++  "definitions": {
++    "sum": {
++      "op": "foldNat",
++      "args": [
++        {
++          "op": "cons",
++          "args": [
++            {
++              "op": "scalar",
++              "args": [
++                120
++              ]
++            },
++            {
++              "op": "nil",
++              "args": []
++            }
++          ]
++        },
++        {
++          "op": "nat",
++          "args": [
++            3
++          ]
++        },
++        {
++          "op": "add",
++          "args": [
++            {
++              "op": "var",
++              "args": [
++                1
++              ]
++            },
++            {
++              "op": "var",
++              "args": [
++                2
++              ]
++            }
++          ]
++        }
++      ]
++    }
++  },
++  "program": {
++    "op": "letE",
++    "args": [
++      {
++        "op": "nat",
++        "args": [
++          7
++        ]
++      },
++      {
++        "op": "ret",
++        "args": [
++          {
++            "op": "scalarOf",
++            "args": [
++              {
++                "op": "use",
++                "args": [
++                  "sum"
++                ]
++              }
++            ]
++          }
++        ]
++      }
++    ]
++  },
++  "source_map": {}
++}
+--- /dev/null
++++ b/research/derivation/document/fixtures/inert.json
+@@ -0,0 +1,26 @@
++{
++  "schema": 1,
++  "definitions": {},
++  "program": {
++    "op": "ret",
++    "args": [
++      {
++        "op": "scalar",
++        "args": [
++          65
++        ]
++      }
++    ]
++  },
++  "source_map": {
++    "op": "ret",
++    "args": [
++      {
++        "op": "scalar",
++        "args": [
++          66
++        ]
++      }
++    ]
++  }
++}
+--- /dev/null
++++ b/research/derivation/document/fixtures/next.json
+@@ -0,0 +1,50 @@
++{
++  "schema": 1,
++  "definitions": {
++    "next": {
++      "op": "scalarOf",
++      "args": [
++        {
++          "op": "add",
++          "args": [
++            {
++              "op": "var",
++              "args": [
++                0
++              ]
++            },
++            {
++              "op": "nat",
++              "args": [
++                1
++              ]
++            }
++          ]
++        }
++      ]
++    }
++  },
++  "program": {
++    "op": "letE",
++    "args": [
++      {
++        "op": "nat",
++        "args": [
++          64
++        ]
++      },
++      {
++        "op": "ret",
++        "args": [
++          {
++            "op": "use",
++            "args": [
++              "next"
++            ]
++          }
++        ]
++      }
++    ]
++  },
++  "source_map": {}
++}
+--- /dev/null
++++ b/research/derivation/document/origin/MAPPING.md
+@@ -0,0 +1,54 @@
++# Document and alias mapping
++
++This is the research IR document format, not a CSS normative grammar. The new
++reader keeps schema version 1 and fields `schema`, `definitions`, `program`, and
++`source_map`. A trusted Lean caller supplies a finite signature list and program
++result type. JSON cannot select its own typing assumptions. Definitions are flat,
++alias-free expressions; forward references and cycles are refused. Source maps
++are object-valued inert metadata. No new CSS feature coverage is claimed.
++
++`ExactKeys` is an independent key-list permutation relation, proved equivalent
++to the existing Boolean field check for unique expected names. `DefinitionSchema`
++uses the actual empty-alias JSON expression schema and an existential typed
++expression with exact encoding; it calls no decoder or checker. The ordered
++nil/cons `DefinitionListSchema` is the explicit pairwise list relation.
++`definitions_spec` is a full soundness/completeness iff for arbitrary finite
++profiles and raw JSON values, including refusal of duplicate signature names.
++
++`Field` deliberately uses the existing `Json.getObjVal?` primitive. Raw object
++key enumeration and ordered-map lookup are distinct operations. The relation
++requires both exact keys and successful named lookup and never assumes every
++raw Json object has valid ordering or cached sizes. One case supplies correct
++cached sizes but a misplaced key: enumeration has the expected keys while lookup
++fails. Primitive map lookup correctness and JSON text parsing are shared Lean
++library boundaries; they are not independently verified here.
++
++`document_sound` gives the exact outer fields, admitted definitions, actual
++program JSON schema, and normalized typed erasure. It does not prove a converse
++for arbitrary alias-using programs. Removing scope wrappers during normalization
++loses information needed by that converse. `escape_wrapper_equivalent` equates
++all JSON values, successes and refusals, with the prior fixed escape reader.
++The fixture bridge reuses the existing escape relation for every scalar input.
++
++`definition_data_normalized` connects actual readDefinition acceptance to the
++normalized-data premise from the prior prototype. `selected_alias_semantics`
++starts with actual readDefinitions acceptance and actual first-match lookup,
++finds the aligned declared singleton expression, and proves actual JSON `use`
++decoding of canonical `nodeJson "use" [name]` returns its singleton meaning under
++arbitrary ambient context tails. This is not a whole-program alias semantics
++theorem or a theorem over every raw-object representation of a use node.
++The proof retains fold binders and never assumes matching head type alone prevents
++capture. Generic signature name alignment and admitted-name uniqueness are proved.
++
++The CLI imports only DocumentModel, uses explicit caller-selected profiles,
++parses the actual input file, and executes readDocumentWith's returned program.
++It has no generated escape reference in its import closure. Actual-file results
++are finite observations; the JSON text parser, duplicate text-key collapse,
++numeric lexical spelling, and serialization are outside the value theorems.
++
++All 21 canonical modules match signed 898fb45815c115362093116d81c09715ba94fcab.
++The two prototype modules match signed Firefox artifact commit
++713bb6d320ece5371c107794b10180b91a82fef8. ORIGINS.json records direct read-only Git
++object authentication. The inherited CLAUSES.json keeps the existing escaped
++code-point spec excerpts and URLs; this artifact adds no new normative CSS
++interpretation. The specification-to-IR interpretation remains manually reviewed.
+--- /dev/null
++++ b/research/derivation/document/origin/ORIGINS.json
+@@ -0,0 +1,36 @@
++{
++  "canonical_commit": "898fb45815c115362093116d81c09715ba94fcab",
++  "canonical_git_objects": {
++    "CssDerivation/Backend.lean": "965f20d380a9c705fffede7056078a5f0e6971a6693b536d67f48b380a9f701a",
++    "CssDerivation/FirstOrder.lean": "fa7ebe89eb2e959b573703747b85955342fa0ee7e37cd8b15c52af8fe62af6c6",
++    "CssDerivation/Codec/Data.lean": "6cb3ce6d459ff7501631f8e85761957864393035bcac19360a0462140e98bff5",
++    "CssDerivation/Codec/DataLaws.lean": "ff5312125be2cab5b6eafdfbb2064f63bfde54dc202b89843868eb252e3a7f09",
++    "CssDerivation/Codec/LegacyJson.lean": "50b31c869a9b1159fb5547b26f2b43ec3af01f0d8de003739a979b5ed17ac1ee",
++    "CssDerivation/Codec/Json/Schema.lean": "ff0653ba8f3f08e7e02f347638921837215b109834888bff6229e6a7efaf787f",
++    "CssDerivation/Codec/Json/Reader.lean": "65b459c72a65981c6508c23e9f7c707d2b169a60c80c2af3a3e9a7d21ef3b6c6",
++    "CssDerivation/Codec/Json/Encoder.lean": "d83e7185477e89f9131983f9a2e7a915d3f80561faffdeb8fe1374c203037a2c",
++    "CssDerivation/Codec/Json/Document.lean": "03521ef95cb768ab58cff67364202cf05aa7899a0d6c4b560965b349e97295d4",
++    "CssDerivation/Codec/Json/SchemaLaws.lean": "f17e54725d1d4b3612ec83c632b2fd9628f6c7d29713f4b9ee3ec7babd85eb94",
++    "CssDerivation/Codec/Json/EncoderLaws.lean": "e63b0bfa24ae439c71521e01157f24ac377623981dc67974ae0714fcae77ca4c",
++    "CssDerivation/Codec/Json/TypedSchemaLaws.lean": "169cfc4c273d65244a55d4af4f59ba4a099a3de8810db31b32e05402bff5284e",
++    "CssDerivation/Examples/EscapeJson.lean": "1af3b52c3b7edbf5c1e3c4623706472abbfb641ef415044369ede768dc651095",
++    "CssDerivation/Lowering.lean": "4acdb71f5146992397609dc22006d80c938cb98dee967498fea43c7670f0f7da",
++    "CssDerivation/Examples/EscapeTree.lean": "ac84e9278b9e62566f88a039bb9ba4c2bb8c3753716f45809394887ae7cb47fb",
++    "CssDerivation/Examples/EscapeBackend.lean": "a20ef7ac58c23033ae546ec4a6b566f8e21138b1b15bd3a06673d5398223a6de",
++    "CssSemantics/CssEscape.lean": "c24a72b82f59420429d53be90244e1e684742bb5083b2fd8c9dbf6eec5766d90",
++    "CssSemantics/CssInput.lean": "a7a21f4a211d8e593dd5b9261e046aeace7c9d67b3c0524019acaf3739a709e9",
++    "CssDerivation/Examples/EscapeBackendCorrespondence.lean": "f94e8e14d6ec41054c3abc31a6c35741aead8c60de87696f29833106b614b6ac",
++    "CssDerivation/Examples/EscapeCorrespondence.lean": "84ca2119adfe645deac8c3cba06002b6d33a55179756b4f732bad5e16dc01bab",
++    "CssDerivation/Examples/EscapeDocument.lean": "bbcc4aa6c3f1350c3946ae3a9b2898870bf42d47ca436e35fe3038543f08034d"
++  },
++  "prototype_commit": "713bb6d320ece5371c107794b10180b91a82fef8",
++  "prototype_git_objects": {
++    "Model.lean": "8f41c5a6726822e4c1576843dd153a4e02af9e7899726ef00a9c8510da691fdd",
++    "Prototype.lean": "feb972828931902f00b7a8f76fd167961f83c6e114cc20da124f249b87aae47b"
++  },
++  "fixture_git_objects": {
++    "research/derivation/origin/escape.json": "691e30134a4357a2ab96c3fff6871f5d831645a1a9903f17fffd81711a74acf6",
++    "research/derivation/origin/CLAUSES.json": "b2926897b43524f22f2004a36380e37e01e9cdee7748e7d861d38d9e9f08b0c0",
++    "research/derivation/origin/EXPECTED.json": "f85d568e5614bb5746b82c616f32c5e5e7b41f2034d4e00785467c8eaf76f99c"
++  }
++}
+--- /dev/null
++++ b/research/derivation/document/origin/PRESERVED.json
+@@ -0,0 +1,59 @@
++{
++  "canonical_commit": "898fb45815c115362093116d81c09715ba94fcab",
++  "canonical_modules": [
++    "CssDerivation/Backend.lean",
++    "CssDerivation/FirstOrder.lean",
++    "CssDerivation/Codec/Data.lean",
++    "CssDerivation/Codec/DataLaws.lean",
++    "CssDerivation/Codec/LegacyJson.lean",
++    "CssDerivation/Codec/Json/Schema.lean",
++    "CssDerivation/Codec/Json/Reader.lean",
++    "CssDerivation/Codec/Json/Encoder.lean",
++    "CssDerivation/Codec/Json/Document.lean",
++    "CssDerivation/Codec/Json/SchemaLaws.lean",
++    "CssDerivation/Codec/Json/EncoderLaws.lean",
++    "CssDerivation/Codec/Json/TypedSchemaLaws.lean",
++    "CssDerivation/Examples/EscapeJson.lean",
++    "CssDerivation/Lowering.lean",
++    "CssDerivation/Examples/EscapeTree.lean",
++    "CssDerivation/Examples/EscapeBackend.lean",
++    "CssSemantics/CssEscape.lean",
++    "CssSemantics/CssInput.lean",
++    "CssDerivation/Examples/EscapeBackendCorrespondence.lean",
++    "CssDerivation/Examples/EscapeCorrespondence.lean",
++    "CssDerivation/Examples/EscapeDocument.lean"
++  ],
++  "canonical_sha256": {
++    "CssDerivation/Backend.lean": "965f20d380a9c705fffede7056078a5f0e6971a6693b536d67f48b380a9f701a",
++    "CssDerivation/FirstOrder.lean": "fa7ebe89eb2e959b573703747b85955342fa0ee7e37cd8b15c52af8fe62af6c6",
++    "CssDerivation/Codec/Data.lean": "6cb3ce6d459ff7501631f8e85761957864393035bcac19360a0462140e98bff5",
++    "CssDerivation/Codec/DataLaws.lean": "ff5312125be2cab5b6eafdfbb2064f63bfde54dc202b89843868eb252e3a7f09",
++    "CssDerivation/Codec/LegacyJson.lean": "50b31c869a9b1159fb5547b26f2b43ec3af01f0d8de003739a979b5ed17ac1ee",
++    "CssDerivation/Codec/Json/Schema.lean": "ff0653ba8f3f08e7e02f347638921837215b109834888bff6229e6a7efaf787f",
++    "CssDerivation/Codec/Json/Reader.lean": "65b459c72a65981c6508c23e9f7c707d2b169a60c80c2af3a3e9a7d21ef3b6c6",
++    "CssDerivation/Codec/Json/Encoder.lean": "d83e7185477e89f9131983f9a2e7a915d3f80561faffdeb8fe1374c203037a2c",
++    "CssDerivation/Codec/Json/Document.lean": "03521ef95cb768ab58cff67364202cf05aa7899a0d6c4b560965b349e97295d4",
++    "CssDerivation/Codec/Json/SchemaLaws.lean": "f17e54725d1d4b3612ec83c632b2fd9628f6c7d29713f4b9ee3ec7babd85eb94",
++    "CssDerivation/Codec/Json/EncoderLaws.lean": "e63b0bfa24ae439c71521e01157f24ac377623981dc67974ae0714fcae77ca4c",
++    "CssDerivation/Codec/Json/TypedSchemaLaws.lean": "169cfc4c273d65244a55d4af4f59ba4a099a3de8810db31b32e05402bff5284e",
++    "CssDerivation/Examples/EscapeJson.lean": "1af3b52c3b7edbf5c1e3c4623706472abbfb641ef415044369ede768dc651095",
++    "CssDerivation/Lowering.lean": "4acdb71f5146992397609dc22006d80c938cb98dee967498fea43c7670f0f7da",
++    "CssDerivation/Examples/EscapeTree.lean": "ac84e9278b9e62566f88a039bb9ba4c2bb8c3753716f45809394887ae7cb47fb",
++    "CssDerivation/Examples/EscapeBackend.lean": "a20ef7ac58c23033ae546ec4a6b566f8e21138b1b15bd3a06673d5398223a6de",
++    "CssSemantics/CssEscape.lean": "c24a72b82f59420429d53be90244e1e684742bb5083b2fd8c9dbf6eec5766d90",
++    "CssSemantics/CssInput.lean": "a7a21f4a211d8e593dd5b9261e046aeace7c9d67b3c0524019acaf3739a709e9",
++    "CssDerivation/Examples/EscapeBackendCorrespondence.lean": "f94e8e14d6ec41054c3abc31a6c35741aead8c60de87696f29833106b614b6ac",
++    "CssDerivation/Examples/EscapeCorrespondence.lean": "84ca2119adfe645deac8c3cba06002b6d33a55179756b4f732bad5e16dc01bab",
++    "CssDerivation/Examples/EscapeDocument.lean": "bbcc4aa6c3f1350c3946ae3a9b2898870bf42d47ca436e35fe3038543f08034d"
++  },
++  "prototype_origin": "artifacts/css-document-schema-design-20261110-v1",
++  "prototype_sha256": {
++    "Model.lean": "8f41c5a6726822e4c1576843dd153a4e02af9e7899726ef00a9c8510da691fdd",
++    "Prototype.lean": "feb972828931902f00b7a8f76fd167961f83c6e114cc20da124f249b87aae47b"
++  },
++  "fixture_sha256": {
++    "escape.json": "691e30134a4357a2ab96c3fff6871f5d831645a1a9903f17fffd81711a74acf6",
++    "CLAUSES.json": "b2926897b43524f22f2004a36380e37e01e9cdee7748e7d861d38d9e9f08b0c0",
++    "EXPECTED.json": "f85d568e5614bb5746b82c616f32c5e5e7b41f2034d4e00785467c8eaf76f99c"
++  }
++}
+--- /dev/null
++++ b/research/derivation/document/origin/PROFILE-EXPECTED.json
+@@ -0,0 +1,94 @@
++{
++  "next": {
++    "profile": "next",
++    "rows": [
++      {
++        "input": "",
++        "value": 65,
++        "rest": "",
++        "error": false
++      },
++      {
++        "input": "abc",
++        "value": 65,
++        "rest": "abc",
++        "error": false
++      },
++      {
++        "input": "41!",
++        "value": 65,
++        "rest": "41!",
++        "error": false
++      }
++    ]
++  },
++  "empty": {
++    "profile": "empty",
++    "rows": [
++      {
++        "input": "",
++        "value": 65,
++        "rest": "",
++        "error": false
++      },
++      {
++        "input": "abc",
++        "value": 65,
++        "rest": "abc",
++        "error": false
++      },
++      {
++        "input": "41!",
++        "value": 65,
++        "rest": "41!",
++        "error": false
++      }
++    ]
++  },
++  "fold": {
++    "profile": "fold",
++    "rows": [
++      {
++        "input": "",
++        "value": 10,
++        "rest": "",
++        "error": false
++      },
++      {
++        "input": "abc",
++        "value": 10,
++        "rest": "abc",
++        "error": false
++      },
++      {
++        "input": "41!",
++        "value": 10,
++        "rest": "41!",
++        "error": false
++      }
++    ]
++  },
++  "inert": {
++    "profile": "empty",
++    "rows": [
++      {
++        "input": "",
++        "value": 65,
++        "rest": "",
++        "error": false
++      },
++      {
++        "input": "abc",
++        "value": 65,
++        "rest": "abc",
++        "error": false
++      },
++      {
++        "input": "41!",
++        "value": 65,
++        "rest": "41!",
++        "error": false
++      }
++    ]
++  }
++}
+--- /dev/null
++++ b/research/derivation/document/origin/REVIEW-REPORT.md
+@@ -0,0 +1,125 @@
++# Generic document schema implementation review
++
++Accepted as the bounded document-schema milestone described below. No blocking
++finding remains after independent source review and a complete fresh source-only
++replay, including semantic controls and actual-file execution.
++
++Reviewed capsule: `css-document-schema-20261110-v1`. The frozen 45-input
++`SOURCE-ONLY.json` SHA256 is
++`f1edabfc7536fcd774189f89fd18fd9972b672296465a2a0e976bd2740071029`.
++The author's final report SHA256 is
++`7170d4f79ab6a73fe4a0de99fd179caf686e33de19278034bac5a026eb3943f5`.
++
++## Independent relations and executable correspondence
++
++`ExactKeys` is a permutation of the object's enumerated key list and the
++expected names, rather than a renamed Boolean check. `exactFields_spec` proves
++the count/length implementation equivalent when expected names are unique.
++The uniqueness premise is material: repeated expected names can otherwise let
++an unrelated extra key through the old count-based test. The duplicate-profile
++semantic mutation specifically exercises that case.
++
++`DefinitionSchema` requires an actual empty-alias `ExprSchema` derivation and
++an existential expression typed at the signature's singleton context, with
++exact encoded data and alias identity. It does not call a reader or checker.
++The explicit ordered nil/cons `DefinitionListSchema` preserves pairwise
++signature/alias alignment. `DefinitionsSchema` adds distinct signature names
++and exact definition keys. The three admission iff theorems cover arbitrary
++finite profiles and actual `Lean.Json` values, rather than only the escape
++fixture. Name order and uniqueness are separately proved.
++
++`Field` intentionally shares `Json.getObjVal?`. This is a primitive boundary,
++not a separately verified map-lookup implementation. Key enumeration and lookup
++are not equated: the raw-map case has correct cached sizes and all expected
++keys, yet a misplaced key is not found by lookup. Numeric version extraction
++and object classification likewise retain their Lean primitives. No valid
++ordering or cache-size invariant is silently imposed on arbitrary raw objects.
++
++The new document relation has no high-level reader/checker-success predicate.
++It records exact outer fields, admitted definitions, actual program JSON schema,
++and normalized typed erasure. `document_sound` proves accepted documents satisfy
++it. `escape_wrapper_equivalent` proves equality with the old fixed escape reader
++for every JSON value, including refusal paths, not merely selected fixtures.
++The fixture bridge transfers the existing CSS escape relation for every scalar
++input. No new CSS semantics is inferred from generic document admission.
++
++## Alias noncapture and the deliberately absent converse
++
++The implementation closes the prior prototype's normalization premise:
++`definition_data_normalized` derives it from actual definition acceptance via
++alias-free schema normalization and typed encoding. `selected_alias_semantics`
++starts with accepted definitions and actual first-match lookup, finds an aligned
++declared singleton expression, and proves that decoding canonical
++`nodeJson "use" [name]` at a matching head returns its singleton meaning under
++any tail types and values. Fold binders preserve their local scalar/accumulator
++prefix. The head marker alone is not treated as sufficient validation.
++
++This is a conditional selected-use theorem over the canonical use-node shape.
++It is not a whole-program alias-evaluation theorem, a theorem for every raw use
++object layout, or a recursive-module model. Definition bodies remain alias-free;
++forward and self references are refused. Trusted Lean callers supply profile
++names and types; JSON cannot select the typing assumptions against which it
++will be admitted. The CLI offers four concrete profiles, while the reader and
++theorems quantify over arbitrary finite profiles and result types.
++
++The independent `Boundary.lean` proves four additional facts. Besides admitted
++definition-count alignment, it constructs a document whose constant natural
++alias is used directly at an empty context. `DocumentSchema` holds for the
++normalized constant program, but `readDocumentWith` rejects the missing scope
++head. A final theorem refutes the general relation-to-reader converse. This
++kernel-checked counterexample confirms why normalized erasure cannot replace
++scoped typing. It is an advertised contract boundary, not an implementation
++bug or a request to add the excluded general converse.
++
++## Independent validation and harness review
++
++The final independent replay passed 156 audits (108 canonical, seven prototype,
++and 41 new declarations including 20 cases), 25 actual-file rows, eight precise
++malformed-file refusals, four compiling semantic mutations, and three provenance
++controls. `full-replay/report.json` is this review's actual fresh result.
++`CHECK.json` binds it, the final 45 inputs, and the independent core receipt.
++
++`core-check.py` authenticated 21 canonical module objects at standalone commit
++`898fb45815c115362093116d81c09715ba94fcab` and two prior prototype objects at
++Firefox commit `713bb6d320ece5371c107794b10180b91a82fef8`. Its fresh 21-module
++closure compiled and all four independent boundary theorem audits passed.
++Three inherited fixture/provenance Git objects were also independently
++authenticated during finalization, for 26 total origin objects. These exact
++core hashes match the final source manifest. Object contents were
++authenticated; this review does not independently verify commit signatures.
++
++The first review proof attempt used `decide` directly on the opaque ExactKeys
++predicate and lacked a synthesized decision instance. It was corrected by
++applying the proved Boolean reflection theorem. The failed attempt is retained
++in `core-replay1`; the accepted result is `core-replay2`. No author source changed.
++
++The frozen harness copies its complete source allowlist into a fresh temporary
++tree and rejects source changes before/after execution. Its audit scanner
++includes annotated declarations and compares the exact theorem roster with
++strict printed axiom records, allowing only the established standard axioms.
++Actual-file execution goes through `Runner` to `readDocumentWith` and executes
++the returned program. The runner imports no generated escape fixture/reference.
++Five files exercise four profiles, including executable-looking but inert
++source-map content. Eight malformed-file controls require the exact document
++refusal diagnostic.
++
++Four implementation mutations remove duplicate-signature rejection, ignore a
++declared result type, select the wrong definition name, or execute source-map
++data. Each must compile before an unchanged theorem fails, and its unchanged
++positive witness must fail with the exact false-proposition diagnostic. The
++initial duplicate-guard mutation's extra diagnostic was rejected by the strict
++checker, then replaced structurally; the implementation and acceptance rule
++were not weakened. Three additional controls detect preserved-input drift.
++
++Temporary compilation trees are removed. No canonical library, native source,
++browser, Git index, or commit is changed by these replays.
++
++## Scope of acceptance
++
++The milestone is research-format value-level admission, compatibility and
++selected-use meaning. It does not prove JSON text parsing, duplicate text-key
++collapse, numeric lexical spelling, arbitrary source-map meaning, recursive
++aliases, mechanical CSS prose derivation, new normative CSS feature coverage,
++or Stylo/browser refinement. Finite CLI observations are kept separate from
++the universal Lean theorems. The generic reader exists in this capsule; canonical
++library integration remains a separate action.
+--- /dev/null
++++ b/research/derivation/document/origin/SOURCE-ONLY.json
+@@ -0,0 +1,47 @@
++{
++  "CssDerivation/Backend.lean": "965f20d380a9c705fffede7056078a5f0e6971a6693b536d67f48b380a9f701a",
++  "CssDerivation/FirstOrder.lean": "fa7ebe89eb2e959b573703747b85955342fa0ee7e37cd8b15c52af8fe62af6c6",
++  "CssDerivation/Codec/Data.lean": "6cb3ce6d459ff7501631f8e85761957864393035bcac19360a0462140e98bff5",
++  "CssDerivation/Codec/DataLaws.lean": "ff5312125be2cab5b6eafdfbb2064f63bfde54dc202b89843868eb252e3a7f09",
++  "CssDerivation/Codec/LegacyJson.lean": "50b31c869a9b1159fb5547b26f2b43ec3af01f0d8de003739a979b5ed17ac1ee",
++  "CssDerivation/Codec/Json/Schema.lean": "ff0653ba8f3f08e7e02f347638921837215b109834888bff6229e6a7efaf787f",
++  "CssDerivation/Codec/Json/Reader.lean": "65b459c72a65981c6508c23e9f7c707d2b169a60c80c2af3a3e9a7d21ef3b6c6",
++  "CssDerivation/Codec/Json/Encoder.lean": "d83e7185477e89f9131983f9a2e7a915d3f80561faffdeb8fe1374c203037a2c",
++  "CssDerivation/Codec/Json/Document.lean": "03521ef95cb768ab58cff67364202cf05aa7899a0d6c4b560965b349e97295d4",
++  "CssDerivation/Codec/Json/SchemaLaws.lean": "f17e54725d1d4b3612ec83c632b2fd9628f6c7d29713f4b9ee3ec7babd85eb94",
++  "CssDerivation/Codec/Json/EncoderLaws.lean": "e63b0bfa24ae439c71521e01157f24ac377623981dc67974ae0714fcae77ca4c",
++  "CssDerivation/Codec/Json/TypedSchemaLaws.lean": "169cfc4c273d65244a55d4af4f59ba4a099a3de8810db31b32e05402bff5284e",
++  "CssDerivation/Examples/EscapeJson.lean": "1af3b52c3b7edbf5c1e3c4623706472abbfb641ef415044369ede768dc651095",
++  "CssDerivation/Lowering.lean": "4acdb71f5146992397609dc22006d80c938cb98dee967498fea43c7670f0f7da",
++  "CssDerivation/Examples/EscapeTree.lean": "ac84e9278b9e62566f88a039bb9ba4c2bb8c3753716f45809394887ae7cb47fb",
++  "CssDerivation/Examples/EscapeBackend.lean": "a20ef7ac58c23033ae546ec4a6b566f8e21138b1b15bd3a06673d5398223a6de",
++  "CssSemantics/CssEscape.lean": "c24a72b82f59420429d53be90244e1e684742bb5083b2fd8c9dbf6eec5766d90",
++  "CssSemantics/CssInput.lean": "a7a21f4a211d8e593dd5b9261e046aeace7c9d67b3c0524019acaf3739a709e9",
++  "CssDerivation/Examples/EscapeBackendCorrespondence.lean": "f94e8e14d6ec41054c3abc31a6c35741aead8c60de87696f29833106b614b6ac",
++  "CssDerivation/Examples/EscapeCorrespondence.lean": "84ca2119adfe645deac8c3cba06002b6d33a55179756b4f732bad5e16dc01bab",
++  "CssDerivation/Examples/EscapeDocument.lean": "bbcc4aa6c3f1350c3946ae3a9b2898870bf42d47ca436e35fe3038543f08034d",
++  "Model.lean": "8f41c5a6726822e4c1576843dd153a4e02af9e7899726ef00a9c8510da691fdd",
++  "Prototype.lean": "feb972828931902f00b7a8f76fd167961f83c6e114cc20da124f249b87aae47b",
++  "DocumentModel.lean": "02b298401c5ffc2ac5fd0d4e5b0054af5a6f46fe099aca12b3a52a25a120430f",
++  "KeyLaws.lean": "dab275994213ab1cef3317e199fb48c024ca70a81e634673b0170836ddd6b03b",
++  "DefinitionLaws.lean": "819d233b75bd55dbb84cb1405bf947d89219541d65bcd2f1800f055383e5ba3f",
++  "DocumentLaws.lean": "583138dfd57a42ec6ef766fcdaf81264e694e7246bbe4a53b990b19f8c3c3baf",
++  "AliasBridge.lean": "dde5d92539a2777f544d6f350547961297590746d2c37ccdff9ff3bde4255aae",
++  "Fixture.lean": "10f238308bb489faf55075c52b7a9d52e0cb7c40dcd3ed35765bdf1696cf5a53",
++  "Examples.lean": "937212a86e4dac1671ff74a0f14eff5a2351130354d13e68d066adf97e59b928",
++  "Cases.lean": "5efbc3de96d4e82958b51cdadbd10d7ce2a38b91bd28d0125aae591880148ffd",
++  "Runner.lean": "1eb50f1f7e6110f2ec7f2bd12b5a5988dfcd707bb26df0a2319d5fa4f1fbc6d5",
++  "PRESERVED.json": "a440e4b753c4ee32b39bc389fc153b23a41b961a49b89ad7ca90aa63cf759307",
++  "ORIGINS.json": "7926a85cdd753538eb30794a6c353292a438506f440c290844bc8b2834f2d228",
++  "check.py": "2d03b1fa433d527d1bd82cb13313048afd910bd0954c39e472079189a1e44561",
++  "replay.py": "9da67cce41e701261611d1d9d66068bb2d07a9d879e9a379b39d20ad0324eedc",
++  "escape.json": "691e30134a4357a2ab96c3fff6871f5d831645a1a9903f17fffd81711a74acf6",
++  "CLAUSES.json": "b2926897b43524f22f2004a36380e37e01e9cdee7748e7d861d38d9e9f08b0c0",
++  "EXPECTED.json": "f85d568e5614bb5746b82c616f32c5e5e7b41f2034d4e00785467c8eaf76f99c",
++  "PROFILE-EXPECTED.json": "6e089b0776f6ebb64f30718c84988cd985b9f3748ad7ed7389fcd6434e6771e1",
++  "next.json": "73b5b19e22b6512afe614a5af2b7da30605e0d78472b5af7e8ab036b591cae65",
++  "empty.json": "acc7964acbfc5a3eb4b3545da88656fc9a5c9ef4c55dd07acf61bc20a48918ec",
++  "fold.json": "8982975f036c584f5b2b43f6bb8ab3d4ca452f1a12a425fa5eeb46771841008c",
++  "inert.json": "ac15a2d17339921cc8e0612353fb5811add76101d976fae6e370b2855dfb936d",
++  "MAPPING.md": "6c3733692833ca8c22c653060653ef7647a101ff4596675b3c03709b9924c3cc"
++}
+--- /dev/null
++++ b/research/derivation/document/origin/check.py
+@@ -0,0 +1,230 @@
++import argparse
++import hashlib
++import json
++import os
++from pathlib import Path
++import re
++import shutil
++import subprocess
++import tempfile
++
++ROOT = Path(__file__).resolve().parent
++OWN = ["DocumentModel", "KeyLaws", "DefinitionLaws", "DocumentLaws", "AliasBridge",
++       "Fixture", "Examples", "Cases", "Runner"]
++
++
++def sha(data):
++    return hashlib.sha256(data).hexdigest()
++
++
++def authenticate(root):
++    preserved = json.loads((root / "PRESERVED.json").read_text())
++    for category in ["canonical_sha256", "prototype_sha256", "fixture_sha256"]:
++        for name, digest in preserved[category].items():
++            if sha((root / name).read_bytes()) != digest:
++                raise ValueError("Preserved source changed: " + name)
++
++
++def declarations(path):
++    scopes, names = [], []
++    for raw in path.read_text().splitlines():
++        line = raw.strip()
++        opening = re.fullmatch(r"namespace (\S+)", line)
++        ending = re.fullmatch(r"end(?: (\S+))?", line)
++        theorem = re.match(r"(?:@\[[^]]+\] )?theorem (\S+)", line)
++        if opening:
++            scopes.append(opening[1])
++        elif ending and ending[1] is not None:
++            if not scopes or scopes[-1] != ending[1]:
++                raise ValueError("Unexpected namespace")
++            scopes.pop()
++        elif theorem:
++            names.append(".".join(scopes + [theorem[1]]))
++    if scopes:
++        raise ValueError("Unclosed namespace")
++    return names
++
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--lean", required=True, type=Path)
++    parser.add_argument("--out", required=True, type=Path)
++    args = parser.parse_args()
++    lean, out = args.lean.resolve(), args.out.resolve()
++    out.mkdir(parents=True, exist_ok=False)
++    sources = json.loads((ROOT / "SOURCE-ONLY.json").read_text())
++    for name, expected in sources.items():
++        if sha((ROOT / name).read_bytes()) != expected:
++            raise ValueError("Source changed: " + name)
++    authenticate(ROOT)
++    preserved = json.loads((ROOT / "PRESERVED.json").read_text())
++    modules = preserved["canonical_modules"] + ["Model.lean", "Prototype.lean"] + [n + ".lean" for n in OWN]
++    names, new_names = [], []
++    for module in modules:
++        p = ROOT / module
++        if re.search(r"\bsorry\b|\badmit\b|\bnative_decide\b|^axiom |^partial |^unsafe ", p.read_text(), re.M):
++            raise ValueError("Unapproved proof escape")
++        found = declarations(p)
++        names += found
++        if module[:-5] in OWN:
++            new_names += found
++    if len(names) != len(set(names)):
++        raise ValueError("Duplicate theorem")
++    commands = {}
++
++    def run(label, argv, work, reject=False):
++        p = subprocess.run([str(x) for x in argv], cwd=work,
++                           env=dict(os.environ, LEAN_PATH=str(work)), capture_output=True, text=True)
++        output = p.stdout + p.stderr
++        (out / (label + ".log")).write_text(output)
++        commands[label] = {"exit": p.returncode, "output_sha256": sha(output.encode())}
++        if reject:
++            if p.returncode != 1 or "error:" not in output:
++                raise ValueError("Unexpected rejection: " + label + "\n" + output)
++        elif p.returncode or re.search(r"(?m)^(?:[^\n]*:\d+:\d+: )?(?:warning:|error:|error\()", output):
++            raise ValueError("Unexpected result: " + label + "\n" + output)
++        return output
++
++    controls = {}
++    with tempfile.TemporaryDirectory(prefix="document-schema-", dir=out) as directory:
++        base = Path(directory)
++        work = base / "positive"
++        work.mkdir()
++        version = run("version", [lean, "--version"], work)
++        if "version 4.35.0-rc4," not in version:
++            raise ValueError("Wrong toolchain")
++        for module in modules:
++            path = work / module
++            path.parent.mkdir(parents=True, exist_ok=True)
++            shutil.copyfile(ROOT / module, path)
++            run("build-" + module.replace("/", "-"), [lean, "-o", module[:-5] + ".olean", module], work)
++        (work / "Audit.lean").write_text("import Cases\n" + "".join("#print axioms " + n + "\n" for n in names))
++        output = run("audits", [lean, "Audit.lean"], work)
++        audits = {}
++        for line in re.sub(r",\n\s*", ", ", output).splitlines():
++            match = re.fullmatch(r"'([^']+)' (does not depend on any axioms|depends on axioms: \[(.*)\])", line)
++            if not match:
++                raise ValueError("Unexpected axiom record: " + line)
++            axioms = set(match[3].split(", ")) if match[3] else set()
++            if not axioms <= {"propext", "Classical.choice", "Quot.sound"} or match[1] in audits:
++                raise ValueError("Unapproved axiom record")
++            audits[match[1]] = sorted(axioms)
++        if set(audits) != set(names):
++            raise ValueError("Incomplete axiom inventory")
++        profiles = json.loads((ROOT / "PROFILE-EXPECTED.json").read_text())
++        profiles["escape"] = {"profile": "escape", "rows": json.loads((ROOT / "EXPECTED.json").read_text())}
++        for name, fixture in profiles.items():
++            rows = fixture["rows"]
++            output = run("runtime-" + name, [lean, "--run", "Runner.lean", fixture["profile"],
++                         ROOT / (name + ".json")] + [row["input"] for row in rows], work)
++            if [json.loads(line) for line in output.splitlines()] != rows:
++                raise ValueError("Runtime result mismatch: " + name)
++        malformed = {}
++        original = json.loads((ROOT / "next.json").read_text())
++        for label in ["extra-field", "wrong-version", "missing-definition", "extra-definition",
++                      "wrong-result", "tail-capture", "self-use", "nonobject-source-map"]:
++            bad = json.loads(json.dumps(original))
++            if label == "extra-field":
++                bad["extra"] = 0
++            elif label == "wrong-version":
++                bad["schema"] = 2
++            elif label == "missing-definition":
++                bad["definitions"] = {}
++            elif label == "extra-definition":
++                bad["definitions"]["extra"] = bad["definitions"]["next"]
++            elif label == "wrong-result":
++                bad["definitions"]["next"] = {"op": "nat", "args": [0]}
++            elif label == "tail-capture":
++                bad["definitions"]["next"] = {"op": "scalarOf", "args": [{"op": "var", "args": [1]}]}
++            elif label == "self-use":
++                bad["definitions"]["next"] = {"op": "use", "args": ["next"]}
++            else:
++                bad["source_map"] = None
++            path = work / (label + ".json")
++            path.write_text(json.dumps(bad))
++            p = subprocess.run([str(lean), "--run", "Runner.lean", "next", str(path)], cwd=work,
++                               env=dict(os.environ, LEAN_PATH=str(work)), capture_output=True, text=True)
++            output = p.stdout + p.stderr
++            (out / (label + ".log")).write_text(output)
++            if p.returncode != 1 or output.strip() != "uncaught exception: document refused":
++                raise ValueError("Wrong actual-file rejection " + label + "\n" + output)
++            malformed[label] = {"exit": p.returncode, "output_sha256": sha(output.encode())}
++        mutants = [
++            ("duplicate-signature-guard", "DefinitionLaws", ["KeyLaws"],
++             "if (signatures.map Signature.name).Nodup then\n"
++             "    if fieldsExactly definitions (signatures.map Signature.name) then\n"
++             "      readDefinitionList signatures definitions\n    else none\n  else none",
++             "if fieldsExactly definitions (signatures.map Signature.name) then\n"
++             "    readDefinitionList signatures definitions\n  else none",
++             "(readDefinitions duplicateProfile duplicateExploit).isNone = true"),
++            ("declared-result-ignored", "DefinitionLaws", ["KeyLaws"],
++             "readDefinition definitions signature.name signature.head signature.result",
++             "readDefinition definitions signature.name signature.head .scalar",
++             "(readDefinitions wrongResultProfile nextDefinitions).isNone = true"),
++            ("definition-name-swapped", "DefinitionLaws", ["KeyLaws"],
++             "readDefinition definitions signature.name signature.head signature.result",
++             'readDefinition definitions "next" signature.head signature.result',
++             '((readDefinitions [nextSignature, ⟨"second", .nat, .scalar⟩] '
++             '(.mkObj [("second", nextBody), ("next", nextBody)])).map (fun aliases => aliases.map Prod.fst)) '
++             '= some ["next", "second"]'),
++            ("source-map-executed", "DocumentLaws", ["KeyLaws", "DefinitionLaws"],
++             'let program ← field j "program"', 'let program ← field j "source_map"',
++             'valueOf [] (document (.mkObj []) (nodeJson "ret" [nodeJson "scalar" [65]]) '
++             '(nodeJson "ret" [nodeJson "scalar" [66]])) = some 65'),
++        ]
++        for name, law, downstream, old, new, proposition in mutants:
++            witness = ("import Examples\nopen Lean CssDerivation CssDerivation.FirstOrder "
++                       "CssDerivation.JsonSchema CssDerivation.DocumentSchema CssDerivation.DocumentSchema.Examples\n"
++                       "set_option cbv.warning false\nset_option maxRecDepth 30000\nset_option maxHeartbeats 4000000\n"
++                       "example : " + proposition + " := by\n  conv => lhs; cbv\n  all_goals decide\n")
++            (work / "Witness.lean").write_text(witness)
++            run(name + "-positive", [lean, "Witness.lean"], work)
++            mutant = base / name
++            shutil.copytree(work, mutant)
++            source = (ROOT / "DocumentModel.lean").read_text()
++            if source.count(old) != 1:
++                raise ValueError("Mutation anchor changed " + name)
++            (mutant / "DocumentModel.lean").write_text(source.replace(old, new))
++            run(name + "-compiles", [lean, "-o", "DocumentModel.olean", "DocumentModel.lean"], mutant)
++            for module in downstream + ["Examples"]:
++                run(name + "-rebuild-" + module, [lean, "-o", module + ".olean", module + ".lean"], mutant)
++            run(name + "-laws", [lean, law + ".lean"], mutant, reject=True)
++            failure = run(name + "-witness", [lean, "Witness.lean"], mutant, reject=True)
++            if not re.fullmatch(r"Witness\.lean:\d+:\d+: error: Tactic `decide` proved that the proposition\n(?:  [^\n]*\n)+is false\n", failure):
++                raise ValueError("Not the exact semantic false witness: " + name + "\n" + failure)
++            controls[name] = "implementation compiles; unchanged theorem and concrete false witness reject"
++        drift = base / "drift"
++        drift.mkdir()
++        for name in ["PRESERVED.json"] + list(preserved["canonical_sha256"]) + list(preserved["prototype_sha256"]) + list(preserved["fixture_sha256"]):
++            path = drift / name
++            path.parent.mkdir(parents=True, exist_ok=True)
++            shutil.copyfile(ROOT / name, path)
++        for name in ["CssDerivation/Codec/Json/Reader.lean", "Prototype.lean", "escape.json"]:
++            original = (drift / name).read_bytes()
++            (drift / name).write_bytes(original + b"changed")
++            try:
++                authenticate(drift)
++            except ValueError as error:
++                if str(error) != "Preserved source changed: " + name:
++                    raise
++                controls["drift:" + name] = str(error)
++            else:
++                raise ValueError("Drift was not rejected")
++            (drift / name).write_bytes(original)
++    if sources != {name: sha((ROOT / name).read_bytes()) for name in sources}:
++        raise ValueError("Sources changed during validation")
++    report = {"status": "pass", "audits": audits, "new_declarations": new_names,
++              "kernel_cases": declarations(ROOT / "Cases.lean"), "runtime_profiles": profiles,
++              "malformed_documents": malformed, "controls": controls, "commands": commands,
++              "source_sha256": sources, "temporary_builds_removed": True,
++              "definition_list_sound_and_complete": True, "document_sound": True,
++              "escape_wrapper_all_json_equivalent": True, "selected_alias_noncapture": True,
++              "arbitrary_alias_document_converse": False, "json_text_parser_proved": False,
++              "mechanical_prose_derivation": False}
++    (out / "report.json").write_text(json.dumps(report, indent=2) + "\n")
++    print(f"PASS: {len(audits)} audits ({len(new_names)} new), {len(report['kernel_cases'])} cases, "
++          f"{sum(len(p['rows']) for p in profiles.values())} runtime rows, {len(malformed)} refusals, {len(controls)} controls")
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/research/derivation/document/origin/replay.py
+@@ -0,0 +1,35 @@
++import argparse
++import hashlib
++import json
++from pathlib import Path
++import shutil
++import subprocess
++import sys
++import tempfile
++
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--lean", required=True, type=Path)
++    parser.add_argument("--out", required=True, type=Path)
++    args = parser.parse_args()
++    root = Path(__file__).resolve().parent
++    manifest = json.loads((root / "SOURCE-ONLY.json").read_text())
++    for name, expected in manifest.items():
++        if hashlib.sha256((root / name).read_bytes()).hexdigest() != expected:
++            raise ValueError("Source changed: " + name)
++    with tempfile.TemporaryDirectory(prefix="document-schema-source-only-") as directory:
++        work = Path(directory)
++        for name in list(manifest) + ["SOURCE-ONLY.json"]:
++            destination = work / name
++            destination.parent.mkdir(parents=True, exist_ok=True)
++            shutil.copyfile(root / name, destination)
++        subprocess.run([sys.executable, "-B", str(work / "check.py"),
++                        "--lean", str(args.lean.resolve()), "--out", str(args.out.resolve())], check=True)
++    for name, expected in manifest.items():
++        if hashlib.sha256((root / name).read_bytes()).hexdigest() != expected:
++            raise ValueError("Source changed during replay: " + name)
++
++
++if __name__ == "__main__":
++    main()
