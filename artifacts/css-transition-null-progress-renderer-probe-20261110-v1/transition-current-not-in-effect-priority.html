@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>
+  Transition cascade priority with an active or current non-filling effect
+</title>
+<link
+  rel="help"
+  href="https://drafts.csswg.org/web-animations-1/#applying-the-composited-result"
+/>
+<link
+  rel="help"
+  href="https://drafts.csswg.org/css-transitions-2/#animation-cascade-level"
+/>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="resources/transition-routing-probe.js"></script>
+<div id="log"></div>
+<script>
+  "use strict";
+  window.transitionRoutingResults = [];
+  for (const [mode, name] of [
+    [
+      "transition-only",
+      "Transition-only: important author is overridden by the held transition",
+    ],
+    [
+      "active-overlap",
+      "Active overlap: important author overrides the animation-origin stack",
+    ],
+    [
+      "current-no-fill",
+      "Probe: a current non-filling effect does not demote the transition origin",
+    ],
+  ]) {
+    promise_test(async () => {
+      const result = await runTransitionRoutingCase(mode);
+      window.transitionRoutingResults.push(result);
+      assert_equals(
+        result.error,
+        null,
+        "Fixture must complete without exception"
+      );
+      for (const check of result.checks) {
+        assert_true(
+          check.passed,
+          "Setup: " + check.name + " " + JSON.stringify(check.actual)
+        );
+      }
+      assert_true(
+        result.setupPassed,
+        "All setup and identity checks must complete"
+      );
+      assert_equals(
+        result.observations.length,
+        4,
+        "All phases must be recorded before evaluating the prediction"
+      );
+      for (const row of result.observations) {
+        for (const [index, value] of row.values.entries()) {
+          assert_approx_equals(
+            Number(value),
+            result.expectedValues[row.phase],
+            1e-6,
+            row.phase + " read " + index + " " + JSON.stringify(result)
+          );
+        }
+      }
+    }, name);
+  }
+</script>

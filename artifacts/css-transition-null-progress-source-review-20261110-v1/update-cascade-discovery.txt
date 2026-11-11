@@ -1,0 +1,111 @@
+>>>  664: void EffectCompositor::UpdateCascadeResults(
+     665:     EffectSet& aEffectSet, Element* aElement,
+     666:     const PseudoStyleRequest& aPseudoRequest) {
+     667:   MOZ_ASSERT(EffectSet::Get(aElement, aPseudoRequest) == &aEffectSet,
+     668:              "Effect set should correspond to the specified (pseudo-)element");
+     669:   if (aEffectSet.IsEmpty()) {
+     670:     aEffectSet.MarkCascadeUpdated();
+     671:     return;
+     672:   }
+     673: 
+     674:   // Get a list of effects sorted by composite order.
+     675:   nsTArray<KeyframeEffect*> sortedEffectList(aEffectSet.Count());
+     676:   for (KeyframeEffect* effect : aEffectSet) {
+     677:     sortedEffectList.AppendElement(effect);
+     678:   }
+     679:   sortedEffectList.Sort(EffectCompositeOrderComparator());
+     680: 
+     681:   // Get properties that override the *animations* level of the cascade.
+     682:   //
+     683:   // We only do this for properties that we can animate on the compositor
+     684:   // since we will apply other properties on the main thread where the usual
+     685:   // cascade applies.
+     686:   nsCSSPropertyIDSet overriddenProperties =
+     687:       GetOverriddenProperties(aEffectSet, aElement, aPseudoRequest);
+     688: 
+     689:   nsCSSPropertyIDSet& propertiesWithImportantRules =
+     690:       aEffectSet.PropertiesWithImportantRules();
+     691: 
+     692:   static constexpr nsCSSPropertyIDSet compositorAnimatables =
+     693:       nsCSSPropertyIDSet::CompositorAnimatables();
+     694:   // Record which compositor-animatable properties were originally set so we can
+     695:   // compare for changes later.
+     696:   nsCSSPropertyIDSet prevCompositorPropertiesWithImportantRules =
+     697:       propertiesWithImportantRules.Intersect(compositorAnimatables);
+     698: 
+     699:   propertiesWithImportantRules.Empty();
+     700: 
+     701:   AnimatedPropertyIDSet propertiesForAnimationsLevel;
+     702:   AnimatedPropertyIDSet propertiesForTransitionsLevel;
+     703: 
+     704:   for (const KeyframeEffect* effect : sortedEffectList) {
+     705:     MOZ_ASSERT(effect->GetAnimation(),
+     706:                "Effects on a target element should have an Animation");
+     707:     CascadeLevel cascadeLevel = effect->GetAnimation()->CascadeLevel();
+     708: 
+     709:     for (const AnimationProperty& prop : effect->Properties()) {
+     710:       // Note that nsCSSPropertyIDSet::HasProperty() returns false for custom
+     711:       // properties. We don't support custom properties for compositor
+     712:       // animations, so we are still using nsCSSPropertyIDSet to handle these
+     713:       // properties.
+     714:       // TODO: Bug 1869475. Support custom properties for compositor animations.
+     715:       if (overriddenProperties.HasProperty(prop.mProperty)) {
+     716:         propertiesWithImportantRules.AddProperty(prop.mProperty.mId);
+     717:       }
+     718: 
+     719:       switch (cascadeLevel) {
+     720:         case EffectCompositor::CascadeLevel::Animations:
+     721:           propertiesForAnimationsLevel.AddProperty(prop.mProperty);
+     722:           break;
+     723:         case EffectCompositor::CascadeLevel::Transitions:
+     724:           propertiesForTransitionsLevel.AddProperty(prop.mProperty);
+     725:           break;
+     726:       }
+     727:     }
+     728:   }
+     729: 
+     730:   aEffectSet.MarkCascadeUpdated();
+     731: 
+     732:   // Update EffectSet::mPropertiesForAnimationsLevel to the new set, after
+     733:   // exiting this scope.
+     734:   auto scopeExit = MakeScopeExit([&] {
+     735:     aEffectSet.PropertiesForAnimationsLevel() =
+     736:         std::move(propertiesForAnimationsLevel);
+     737:   });
+     738: 
+     739:   nsPresContext* presContext = nsContentUtils::GetContextForContent(aElement);
+     740:   if (!presContext) {
+     741:     return;
+     742:   }
+     743: 
+     744:   // If properties for compositor are newly overridden by !important rules, or
+     745:   // released from being overridden by !important rules, we need to update
+     746:   // layers for animations level because it's a trigger to send animations to
+     747:   // the compositor or pull animations back from the compositor.
+     748:   if (!prevCompositorPropertiesWithImportantRules.Equals(
+     749:           propertiesWithImportantRules.Intersect(compositorAnimatables))) {
+     750:     presContext->EffectCompositor()->RequestRestyle(
+     751:         aElement, aPseudoRequest, EffectCompositor::RestyleType::Layer,
+     752:         EffectCompositor::CascadeLevel::Animations);
+     753:   }
+     754: 
+     755:   // If we have transition properties and if the same propery for animations
+     756:   // level is newly added or removed, we need to update the transition level
+     757:   // rule since the it will be added/removed from the rule tree.
+     758:   const AnimatedPropertyIDSet& prevPropertiesForAnimationsLevel =
+     759:       aEffectSet.PropertiesForAnimationsLevel();
+     760:   const AnimatedPropertyIDSet& changedPropertiesForAnimationLevel =
+     761:       prevPropertiesForAnimationsLevel.Xor(propertiesForAnimationsLevel);
+     762:   const AnimatedPropertyIDSet& commonProperties =
+     763:       propertiesForTransitionsLevel.Intersect(
+     764:           changedPropertiesForAnimationLevel);
+     765:   if (!commonProperties.IsEmpty()) {
+     766:     EffectCompositor::RestyleType restyleType =
+     767:         changedPropertiesForAnimationLevel.Intersects(compositorAnimatables)
+     768:             ? EffectCompositor::RestyleType::Standard
+     769:             : EffectCompositor::RestyleType::Layer;
+     770:     presContext->EffectCompositor()->RequestRestyle(
+     771:         aElement, aPseudoRequest, restyleType,
+     772:         EffectCompositor::CascadeLevel::Transitions);
+     773:   }
+     774: }

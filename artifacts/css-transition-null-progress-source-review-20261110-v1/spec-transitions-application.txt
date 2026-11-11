@@ -1,0 +1,57 @@
+# CSS-TRANSITIONS-1#application
+
+**Application of transitions** (heading)
+
+**SHA**: hash:089fecf47ad82dae1f1a5106984f11b24a6d5f24ade1d4f920919cbf7daa5791
+
+## Content
+
+When a property on an element is undergoing a transition (that is, when or after the transition has started and before the [end time](CSS-TRANSITIONS-1#transition-end-time) of the transition) the transition adds a style called the **current value** to the CSS cascade at the level defined for CSS Transitions in \[CSS3CASCADE\].
+
+Tests
+
+*   [transition-important.html](https://wpt.fyi/results/css/css-transitions/transition-important.html) [(live test)](http://wpt.live/css/css-transitions/transition-important.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-transitions/transition-important.html)
+
+> **Note:** Note that this means that computed values resulting from CSS transitions can inherit to descendants just like any other computed values. In the normal case, this means that a transition of an inherited property applies to descendant elements just as an author would expect.
+
+Implementations must add this value to the cascade if and only if that property is not currently undergoing a CSS Animation (\[CSS3-ANIMATIONS\]) on the same element.
+
+> **Note:** Note that this behavior of transitions not applying to the cascade when an animation on the same element and property is running does not affect whether the transition has started or ended. APIs that expose whether transitions are running (such as [transition events](CSS-TRANSITIONS-1#transition-events)) still report that a transition is running.
+
+If the current time is at or before the [start time](CSS-TRANSITIONS-1#transition-start-time) of the transition (that is, during the delay phase of the transition), the [current value](CSS-TRANSITIONS-1#current-value) is a specified style that will compute to the [start value](CSS-TRANSITIONS-1#transition-start-value) of the transition.
+
+If the current time is after the [start time](CSS-TRANSITIONS-1#transition-start-time) of the transition (that is, during the duration phase of the transition), the [current value](CSS-TRANSITIONS-1#current-value) is a specified style that will compute to the result of [interpolating](CSS-VALUES-4#interpolation) the property using the following values:
+
+*   *Va*: [start value](CSS-TRANSITIONS-1#transition-start-value) of the transition
+
+*   *Vb*: [end value](CSS-TRANSITIONS-1#transition-end-value) of the transition
+
+*   *p*: the output of the [timing function](CSS-TRANSITIONS-1#transition-timing-function-property) for input (current time - start time) / (end time - start time)
+
+The specific [interpolation](CSS-VALUES-4#interpolation) procedure to be used is defined by the property’s [animation type](WEB-ANIMATIONS-1#animation-type).
+
+## Navigation
+
+- Prev: `starting` — Starting of transitions
+- Next: `complete` — Completion of transitions
+- Children: 1
+  - `current-value` — current value
+
+## Outgoing refs (9)
+
+`webspec-index refs CSS-TRANSITIONS-1#application -d outgoing -l 9`
+
+## Incoming refs (2)
+
+- CSS-TRANSITIONS-1#contents
+- CSS-TRANSITIONS-1#transition-timing-function-property
+
+### Possible effects
+
+CSS-TRANSITIONS-1#application
+
+Partial analysis: additional effects may exist.
+
+No effects detected by this analysis.
+
+Traces and conditions (bounded): `webspec-index effects "CSS-TRANSITIONS-1#application" --format markdown`

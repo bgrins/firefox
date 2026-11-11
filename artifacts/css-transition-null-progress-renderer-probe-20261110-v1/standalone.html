@@ -1,0 +1,27 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Transition routing probe</title>
+<h1>Transition routing probe</h1>
+<button id="run">Run</button>
+<pre id="output"></pre>
+<script src="resources/transition-routing-probe.js"></script>
+<script>
+  "use strict";
+  document.getElementById("run").addEventListener("click", async event => {
+    event.currentTarget.disabled = true;
+    const output = document.getElementById("output");
+    output.textContent = "";
+    try {
+      for (const mode of [
+        "transition-only",
+        "active-overlap",
+        "current-no-fill",
+      ]) {
+        const result = await runTransitionRoutingCase(mode);
+        output.textContent += JSON.stringify(result, null, 2) + "\n\n";
+      }
+    } finally {
+      document.getElementById("run").disabled = false;
+    }
+  });
+</script>

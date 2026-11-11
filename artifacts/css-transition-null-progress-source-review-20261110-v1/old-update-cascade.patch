@@ -1,0 +1,309 @@
+# HG changeset patch
+# User Brian Birtles <birtles@gmail.com>
+# Date 1449773274 18000
+#      Thu Dec 10 13:47:54 2015 -0500
+# Node ID d01e9adcbd5fba1d94a1c71e168dd5ce326da248
+# Parent  f34f5ea2da6988f69ee701d8fe61875d904eeee2
+Bug 1228229 part 8 - Add EffectCompositor::(Maybe)UpdateCascadeResults
+
+diff --git a/dom/animation/EffectCompositor.cpp b/dom/animation/EffectCompositor.cpp
+--- a/dom/animation/EffectCompositor.cpp
++++ b/dom/animation/EffectCompositor.cpp
+@@ -7,20 +7,25 @@
+ #include "EffectCompositor.h"
+ 
+ #include "mozilla/dom/Animation.h"
+ #include "mozilla/dom/Element.h"
+ #include "mozilla/dom/KeyframeEffect.h" // For KeyframeEffectReadOnly
+ #include "mozilla/AnimationUtils.h"
+ #include "mozilla/EffectSet.h"
+ #include "mozilla/LayerAnimationInfo.h"
++#include "AnimationCommon.h" // For AnimationCollection
++#include "nsAnimationManager.h"
++#include "nsComputedDOMStyle.h" // nsComputedDOMStyle::GetPresShellForContent
+ #include "nsCSSPropertySet.h"
++#include "nsIPresShell.h"
+ #include "nsLayoutUtils.h"
+ #include "nsRuleNode.h" // For nsRuleNode::ComputePropertiesOverridingAnimation
+ #include "nsTArray.h"
++#include "nsTransitionManager.h" // For nsTransitionManager
+ 
+ using mozilla::dom::Animation;
+ using mozilla::dom::Element;
+ using mozilla::dom::KeyframeEffectReadOnly;
+ 
+ namespace mozilla {
+ 
+ // Helper function to factor out the common logic from
+@@ -105,16 +110,152 @@ EffectCompositor::GetAnimationsForCompos
+ #endif
+     FindAnimationsForCompositor(aFrame, aProperty, &result);
+   MOZ_ASSERT(!foundSome || !result.IsEmpty(),
+              "If return value is true, matches array should be non-empty");
+ 
+   return result;
+ }
+ 
++/* static */ void
++EffectCompositor::MaybeUpdateCascadeResults(Element& aElement,
++                                            nsCSSPseudoElements::Type
++                                              aPseudoType,
++                                            nsStyleContext* aStyleContext)
++{
++  EffectSet* effects = EffectSet::GetEffectSet(&aElement, aPseudoType);
++  if (!effects || !effects->CascadeNeedsUpdate()) {
++    return;
++  }
++
++  UpdateCascadeResults(aElement, aPseudoType, aStyleContext);
++
++  MOZ_ASSERT(!effects->CascadeNeedsUpdate(), "Failed to update cascade state");
++}
++
++namespace {
++  class EffectCompositorOrderComparator {
++  public:
++    bool Equals(const KeyframeEffectReadOnly* a,
++                const KeyframeEffectReadOnly* b) const
++    {
++      return a == b;
++    }
++
++    bool LessThan(const KeyframeEffectReadOnly* a,
++                  const KeyframeEffectReadOnly* b) const
++    {
++      MOZ_ASSERT(a->GetAnimation() && b->GetAnimation());
++      return a->GetAnimation()->HasLowerCompositeOrderThan(*b->GetAnimation());
++    }
++  };
++}
++
++/* static */ void
++EffectCompositor::UpdateCascadeResults(Element& aElement,
++                                       nsCSSPseudoElements::Type aPseudoType,
++                                       nsStyleContext* aStyleContext)
++{
++  EffectSet* effects = EffectSet::GetEffectSet(&aElement, aPseudoType);
++  if (!effects) {
++    return;
++  }
++
++  if (effects->IsEmpty()) {
++    effects->MarkCascadeUpdated();
++    return;
++  }
++
++  // Get a list of effects sorted by composite order.
++  nsTArray<KeyframeEffectReadOnly*> sortedEffectList;
++  for (KeyframeEffectReadOnly* effect : *effects) {
++    sortedEffectList.AppendElement(effect);
++  }
++  sortedEffectList.Sort(EffectCompositorOrderComparator());
++
++  // Get properties that override the *animations* level of the cascade.
++  //
++  // We only do this for properties that we can animate on the compositor
++  // since we will apply other properties on the main thread where the usual
++  // cascade applies.
++  nsCSSPropertySet overriddenProperties;
++  if (aStyleContext) {
++    GetOverriddenProperties(aStyleContext, overriddenProperties);
++  }
++
++  bool changed = false;
++  nsCSSPropertySet animatedProperties;
++
++  // Iterate from highest to lowest composite order.
++  for (KeyframeEffectReadOnly* effect : Reversed(sortedEffectList)) {
++    MOZ_ASSERT(effect->GetAnimation(),
++               "Effects on a target element should have an Animation");
++    bool inEffect = effect->IsInEffect();
++    for (AnimationProperty& prop : effect->Properties()) {
++
++      bool winsInCascade = !animatedProperties.HasProperty(prop.mProperty) &&
++                           inEffect;
++
++      // For effects that will be applied to the animations level of the
++      // cascade, we need to check that the property isn't being set by
++      // something with higher priority in the cascade.
++      //
++      // We only do this, however, for properties that can be animated on
++      // the compositor. For properties animated on the main thread the usual
++      // cascade ensures these animations will be correctly overridden.
++      if (winsInCascade &&
++          !effect->GetAnimation()->AppliesToTransitionsLevel() &&
++          overriddenProperties.HasProperty(prop.mProperty)) {
++        winsInCascade = false;
++        // We need to update animatedProperties so that transitions will
++        // not fire on these properties.
++        animatedProperties.AddProperty(prop.mProperty);
++      }
++
++      if (winsInCascade != prop.mWinsInCascade) {
++        changed = true;
++      }
++      prop.mWinsInCascade = winsInCascade;
++
++      if (winsInCascade) {
++        animatedProperties.AddProperty(prop.mProperty);
++      }
++    }
++  }
++
++  effects->MarkCascadeUpdated();
++
++  // If there is any change in the cascade result, update animations on
++  // layers with the winning animations.
++  nsPresContext* presContext = GetPresContext(aElement);
++  if (changed && presContext) {
++    // We currently unconditionally update both animations and transitions
++    // even if we could, for example, get away with only updating animations.
++    // This is a temporary measure until we unify all animation style updating
++    // under EffectCompositor.
++    AnimationCollection* animations =
++      presContext->AnimationManager()->GetAnimationCollection(&aElement,
++                                                              aPseudoType,
++                                                              false);
++                                                             /* don't create */
++    if (animations) {
++      animations->RequestRestyle(AnimationCollection::RestyleType::Layer);
++    }
++
++    AnimationCollection* transitions =
++      presContext->TransitionManager()->GetAnimationCollection(&aElement,
++                                                               aPseudoType,
++                                                               false);
++                                                             /* don't create */
++    if (transitions) {
++      transitions->RequestRestyle(AnimationCollection::RestyleType::Layer);
++    }
++  }
++}
++
+ /* static */ Maybe<Pair<Element*, nsCSSPseudoElements::Type>>
+ EffectCompositor::GetAnimationElementAndPseudoForFrame(const nsIFrame* aFrame)
+ {
+   // Always return the same object to benefit from return-value optimization.
+   Maybe<Pair<Element*, nsCSSPseudoElements::Type>> result;
+ 
+   nsIContent* content = aFrame->GetContent();
+   if (!content) {
+@@ -162,9 +303,19 @@ EffectCompositor::GetOverriddenPropertie
+          LayerAnimationInfo::sRecords) {
+     propertiesToTrack.AppendElement(record.mProperty);
+   }
+   nsRuleNode::ComputePropertiesOverridingAnimation(propertiesToTrack,
+                                                    aStyleContext,
+                                                    aPropertiesOverridden);
+ }
+ 
++/* static */ nsPresContext*
++EffectCompositor::GetPresContext(Element& aElement)
++{
++  nsIPresShell* shell = nsComputedDOMStyle::GetPresShellForContent(&aElement);
++  if (!shell) {
++    return nullptr;
++  }
++  return shell->GetPresContext();
++}
++
+ } // namespace mozilla
+diff --git a/dom/animation/EffectCompositor.h b/dom/animation/EffectCompositor.h
+--- a/dom/animation/EffectCompositor.h
++++ b/dom/animation/EffectCompositor.h
+@@ -9,16 +9,18 @@
+ 
+ #include "mozilla/Maybe.h"
+ #include "mozilla/Pair.h"
+ #include "mozilla/RefPtr.h"
+ #include "nsCSSPseudoElements.h"
+ #include "nsTArray.h"
+ 
+ class nsCSSPropertySet;
++class nsPresContext;
++class nsStyleContext;
+ 
+ namespace mozilla {
+ 
+ namespace dom {
+ class Animation;
+ class Element;
+ }
+ 
+@@ -27,16 +29,40 @@ class EffectCompositor
+ public:
+   static bool HasAnimationsForCompositor(const nsIFrame* aFrame,
+                                          nsCSSProperty aProperty);
+ 
+   static nsTArray<RefPtr<dom::Animation>>
+   GetAnimationsForCompositor(const nsIFrame* aFrame,
+                              nsCSSProperty aProperty);
+ 
++
++  // Update animation cascade results for the specified (pseudo-)element
++  // but only if we have marked the cascade as needing an update due a
++  // the change in the set of effects or a change in one of the effects'
++  // "in effect" state.
++  //
++  // This method does NOT detect if other styles that apply above the
++  // animation level of the cascade have changed.
++  static void
++  MaybeUpdateCascadeResults(dom::Element& aElement,
++                            nsCSSPseudoElements::Type aPseudoType,
++                            nsStyleContext* aStyleContext);
++
++  // Update the mWinsInCascade member for each property in effects targetting
++  // the specified (pseudo-)element.
++  //
++  // This can be expensive so we should only call it if styles that apply
++  // above the animation level of the cascade might have changed. For all
++  // other cases we should call MaybeUpdateCascadeResults.
++  static void
++  UpdateCascadeResults(dom::Element& aElement,
++                       nsCSSPseudoElements::Type aPseudoType,
++                       nsStyleContext* aStyleContext);
++
+   // Helper to fetch the corresponding element and pseudo-type from a frame.
+   //
+   // For frames corresponding to pseudo-elements, the returned element is the
+   // element on which we store the animations (i.e. the EffectSet and/or
+   // AnimationCollection), *not* the generated content.
+   //
+   // Returns an empty result when a suitable element cannot be found including
+   // when the frame represents a pseudo-element on which we do not support
+@@ -45,13 +71,16 @@ public:
+   GetAnimationElementAndPseudoForFrame(const nsIFrame* aFrame);
+ 
+   // Get the properties that we are able to animate on the compositor that
+   // are specified at a higher level in the cascade than the animations
+   // level in |aStyleContext|.
+   static void
+   GetOverriddenProperties(nsStyleContext* aStyleContext,
+                           nsCSSPropertySet& aPropertiesOverridden);
++
++private:
++  static nsPresContext* GetPresContext(dom::Element& aElement);
+ };
+ 
+ } // namespace mozilla
+ 
+ #endif // mozilla_EffectCompositor_h
+diff --git a/dom/animation/moz.build b/dom/animation/moz.build
+--- a/dom/animation/moz.build
++++ b/dom/animation/moz.build
+@@ -34,14 +34,15 @@ UNIFIED_SOURCES += [
+     'EffectCompositor.cpp',
+     'EffectSet.cpp',
+     'KeyframeEffect.cpp',
+     'PendingAnimationTracker.cpp',
+ ]
+ 
+ LOCAL_INCLUDES += [
+     '/dom/base',
++    '/layout/style',
+ ]
+ 
+ FINAL_LIBRARY = 'xul'
+ 
+ if CONFIG['GNU_CXX']:
+     CXXFLAGS += ['-Wshadow']
