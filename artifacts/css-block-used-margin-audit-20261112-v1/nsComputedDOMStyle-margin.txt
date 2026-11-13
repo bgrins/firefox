@@ -1,0 +1,17 @@
+already_AddRefed<CSSValue> nsComputedDOMStyle::GetMarginFor(Side aSide) {
+  // Use raw margin here, layout-dependent margins should be stored in used
+  // margin.
+  const auto& margin = StyleMargin()->mMargin.Get(aSide);
+  if (!mInnerFrame || margin.ConvertsToLength()) {
+    auto val = MakeRefPtr<nsROCSSPrimitiveValue>();
+    SetValueToMargin(val, margin);
+    return val.forget();
+  }
+  AssertFlushedPendingReflows();
+  // For tables, GetUsedMargin always returns an empty margin, so we
+  // should read the margin from the table wrapper frame instead.
+  NS_ASSERTION(
+      mOuterFrame == mInnerFrame || mInnerFrame->GetUsedMargin() == nsMargin(),
+      "Inner tables must have zero margins");
+  return AppUnitsToCSSValue(mOuterFrame->GetUsedMargin().Side(aSide));
+}

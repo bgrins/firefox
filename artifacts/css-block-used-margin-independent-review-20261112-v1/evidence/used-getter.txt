@@ -1,0 +1,17 @@
+>>> 1611: nsMargin nsIFrame::GetUsedMargin() const {
+    1612:   nsMargin margin;
+    1613:   if (((mState & NS_FRAME_FIRST_REFLOW) && !(mState & NS_FRAME_IN_REFLOW)) ||
+    1614:       IsInSVGTextSubtree()) {
+    1615:     return margin;
+    1616:   }
+    1617: 
+    1618:   if (nsMargin* m = GetProperty(UsedMarginProperty())) {
+    1619:     margin = *m;
+    1620:   } else if (!StyleMargin()->GetMargin(margin)) {
+    1621:     // If we get here, our caller probably shouldn't be calling us...
+    1622:     NS_ERROR(
+    1623:         "Returning bogus 0-sized margin, because this margin "
+    1624:         "depends on layout & isn't cached!");
+    1625:   }
+    1626:   return margin;
+    1627: }

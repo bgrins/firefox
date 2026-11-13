@@ -1,0 +1,51 @@
+bool SizeComputationInput::ComputeMargin(WritingMode aCBWM,
+                                         nscoord aPercentBasis,
+                                         LayoutFrameType aFrameType) {
+  // SVG text frames have no margin.
+  if (mFrame->IsInSVGTextSubtree()) {
+    return false;
+  }
+
+  if (aFrameType == LayoutFrameType::Table) {
+    // Table frame's margin is inherited to the table wrapper frame via the
+    // ::-moz-table-wrapper rule in ua.css, so don't set any margins for it.
+    SetComputedLogicalMargin(mWritingMode, LogicalMargin(mWritingMode));
+    return false;
+  }
+
+  // If style style can provide us the margin directly, then use it.
+  const nsStyleMargin* styleMargin = mFrame->StyleMargin();
+  nsMargin margin;
+  const bool isLayoutDependent = !styleMargin->GetMargin(margin);
+  if (isLayoutDependent) {
+    // We have to compute the value. Note that this calculation is
+    // performed according to the writing mode of the containing block
+    // (http://dev.w3.org/csswg/css-writing-modes-3/#orthogonal-flows)
+    if (aPercentBasis == NS_UNCONSTRAINEDSIZE) {
+      aPercentBasis = 0;
+    }
+    LogicalMargin m(aCBWM);
+    const auto anchorResolutionParams =
+        AnchorPosResolutionParams::From(mFrame, mAnchorPosResolutionCache);
+    for (const LogicalSide side : LogicalSides::All) {
+      m.Side(side, aCBWM) = nsLayoutUtils::ComputeCBDependentValue(
+          aPercentBasis,
+          styleMargin->GetMargin(side, aCBWM, anchorResolutionParams));
+    }
+    SetComputedLogicalMargin(aCBWM, m);
+  } else {
+    SetComputedLogicalMargin(mWritingMode, LogicalMargin(mWritingMode, margin));
+  }
+
+  // ... but font-size-inflation-based margin adjustment uses the
+  // frame's writing mode
+  nscoord marginAdjustment = FontSizeInflationListMarginAdjustment(mFrame);
+
+  if (marginAdjustment > 0) {
+    LogicalMargin m = ComputedLogicalMargin(mWritingMode);
+    m.IStart(mWritingMode) += marginAdjustment;
+    SetComputedLogicalMargin(mWritingMode, m);
+  }
+
+  return isLayoutDependent;
+}

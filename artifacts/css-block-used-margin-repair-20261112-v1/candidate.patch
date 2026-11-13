@@ -1,0 +1,75 @@
+--- a/layout/generic/ReflowInput.cpp
++++ b/layout/generic/ReflowInput.cpp
+@@ -2542,6 +2542,9 @@
+   if (availMarginSpace < 0) {
+     margin.IEnd(cbWM) += availMarginSpace;
+     SetComputedLogicalMargin(cbWM, margin);
++    if (auto* propValue = mFrame->GetProperty(nsIFrame::UsedMarginProperty())) {
++      *propValue = margin.GetPhysicalMargin(cbWM);
++    }
+     return;
+   }
+ 
+--- /dev/null
++++ b/testing/web-platform/tests/css/cssom/resolved-margins-overconstrained-block.html
+@@ -0,0 +1,60 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Resolved margins of overconstrained blocks</title>
++<link rel="help" href="https://drafts.csswg.org/cssom/#resolved-values">
++<link rel="help" href="https://drafts.csswg.org/css2/#blockwidth">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++  .container { inline-size: 100px; block-size: 30px; }
++  .item { block-size: 10px; }
++  .horizontal-tb { writing-mode: horizontal-tb; }
++  .vertical-rl { writing-mode: vertical-rl; }
++  .vertical-lr { writing-mode: vertical-lr; }
++  .ltr { direction: ltr; }
++  .rtl { direction: rtl; }
++  .size-40 { inline-size: 40px; }
++  .size-100 { inline-size: 100px; }
++  .size-200 { inline-size: 200px; }
++  .auto { margin-inline: auto; }
++  .start-percent { margin-inline: 10% auto; }
++  .end-percent { margin-inline: auto 10%; }
++  .percent { margin-inline: 10%; }
++</style>
++<div id="cases"></div>
++<script>
++const margins = ["auto", "start-percent", "end-percent", "percent"];
++const expected = new Map([
++  [40, [[30, 30], [10, 50], [50, 10], [10, 50]]],
++  [100, [[0, 0], [10, -10], [0, 0], [10, -10]]],
++  [200, [[0, -100], [10, -110], [0, -100], [10, -110]]],
++]);
++
++function checkMargins(element, size, marginIndex) {
++  const style = getComputedStyle(element);
++  const [start, end] = expected.get(size)[marginIndex];
++  assert_equals(style.marginInlineStart, `${start}px`, "inline-start margin");
++  assert_equals(style.marginInlineEnd, `${end}px`, "inline-end margin");
++}
++
++for (const writingMode of ["horizontal-tb", "vertical-rl", "vertical-lr"]) {
++  for (const direction of ["ltr", "rtl"]) {
++    margins.forEach((margin, marginIndex) => {
++      for (const sizes of [[40], [100], [200], [40, 200, 40, 100, 200]]) {
++        test(t => {
++          const parent = document.createElement("div");
++          parent.className = `container ${writingMode} ${direction}`;
++          const child = document.createElement("div");
++          parent.append(child);
++          document.getElementById("cases").append(parent);
++          t.add_cleanup(() => parent.remove());
++          for (const size of sizes) {
++            child.className = `item ${margin} size-${size}`;
++            checkMargins(child, size, marginIndex);
++          }
++        }, `${writingMode} ${direction}, ${margin}, inline sizes ${sizes.join(" -> ")}`);
++      }
++    });
++  }
++}
++</script>

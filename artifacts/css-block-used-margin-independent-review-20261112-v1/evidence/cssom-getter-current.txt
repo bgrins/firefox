@@ -1,0 +1,69 @@
+        aSide, false, &nsComputedDOMStyle::GetCBPaddingRectWidth,
+        &nsComputedDOMStyle::GetCBPaddingRectHeight);
+  }
+  
+  nscoord nsComputedDOMStyle::GetUsedAbsoluteOffset(mozilla::Side aSide) {
+    MOZ_ASSERT(mOuterFrame, "need a frame, so we can call GetContainingBlock()");
+  
+    nsIFrame* container = mOuterFrame->GetContainingBlock();
+layout/style/nsComputedDOMStyle.cpp:2022:   nsMargin margin = mOuterFrame->GetUsedMargin();
+    nsMargin border = container->GetUsedBorder();
+    nsMargin scrollbarSizes(0, 0, 0, 0);
+    nsRect rect = mOuterFrame->GetRect();
+    nsRect containerRect = container->GetRect();
+  
+    if (container->IsViewportFrame()) {
+      // For absolutely positioned frames scrollbars are taken into
+      // account by virtue of getting a containing block that does
+    const auto& margin = StyleMargin()->mMargin.Get(aSide);
+    if (!mInnerFrame ||
+        (margin.ConvertsToLength() && !MarginMayBeTrimmed(mOuterFrame, aSide))) {
+      auto val = MakeRefPtr<nsROCSSPrimitiveValue>();
+      SetValueToMargin(val, margin);
+      return val.forget();
+    }
+    AssertFlushedPendingReflows();
+layout/style/nsComputedDOMStyle.cpp:2165:   // For tables, GetUsedMargin always returns an empty margin, so we
+    // should read the margin from the table wrapper frame instead.
+    NS_ASSERTION(
+        mOuterFrame == mInnerFrame || mInnerFrame->GetUsedMargin() == nsMargin(),
+        "Inner tables must have zero margins");
+    return AppUnitsToCSSValue(mOuterFrame->GetUsedMargin().Side(aSide));
+  }
+  
+  static void SetValueToExtremumLength(nsROCSSPrimitiveValue* aValue,
+      auto val = MakeRefPtr<nsROCSSPrimitiveValue>();
+      SetValueToMargin(val, margin);
+      return val.forget();
+    }
+    AssertFlushedPendingReflows();
+    // For tables, GetUsedMargin always returns an empty margin, so we
+    // should read the margin from the table wrapper frame instead.
+    NS_ASSERTION(
+layout/style/nsComputedDOMStyle.cpp:2168:       mOuterFrame == mInnerFrame || mInnerFrame->GetUsedMargin() == nsMargin(),
+        "Inner tables must have zero margins");
+    return AppUnitsToCSSValue(mOuterFrame->GetUsedMargin().Side(aSide));
+  }
+  
+  static void SetValueToExtremumLength(nsROCSSPrimitiveValue* aValue,
+                                       nsIFrame::ExtremumLength aSize) {
+    switch (aSize) {
+      case nsIFrame::ExtremumLength::MaxContent:
+      return val.forget();
+    }
+    AssertFlushedPendingReflows();
+    // For tables, GetUsedMargin always returns an empty margin, so we
+    // should read the margin from the table wrapper frame instead.
+    NS_ASSERTION(
+        mOuterFrame == mInnerFrame || mInnerFrame->GetUsedMargin() == nsMargin(),
+        "Inner tables must have zero margins");
+layout/style/nsComputedDOMStyle.cpp:2170:   return AppUnitsToCSSValue(mOuterFrame->GetUsedMargin().Side(aSide));
+  }
+  
+  static void SetValueToExtremumLength(nsROCSSPrimitiveValue* aValue,
+                                       nsIFrame::ExtremumLength aSize) {
+    switch (aSize) {
+      case nsIFrame::ExtremumLength::MaxContent:
+        return aValue->SetString("max-content");
+      case nsIFrame::ExtremumLength::MinContent:
+Total matches: 4

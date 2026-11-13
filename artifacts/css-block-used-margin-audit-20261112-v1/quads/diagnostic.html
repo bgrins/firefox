@@ -1,0 +1,54 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Block used margin observation</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .container { width: 100px; height: 20px; }
+  .item { height: 10px; }
+  .wide { width: 200px; }
+  .small { width: 40px; }
+  .ltr { direction: ltr; }
+  .rtl { direction: rtl; }
+  .auto { margin-inline: auto; }
+  .start-percent { margin-inline: 10% auto; }
+  .end-percent { margin-inline: auto 10%; }
+  .percent { margin-inline: 10%; }
+  .fixed { margin-inline: 10px; }
+  .calc { margin-inline: calc(10px + 0%); }
+</style>
+<div id="cases"></div>
+<script>
+for (const direction of ["ltr", "rtl"]) {
+  for (const size of ["wide", "small"]) {
+    for (const margin of ["auto", "start-percent", "end-percent", "percent", "fixed", "calc"]) {
+      const parent = document.createElement("div");
+      parent.className = `container ${direction}`;
+      const child = document.createElement("div");
+      child.className = `item ${size} ${margin}`;
+      parent.append(child);
+      document.getElementById("cases").append(parent);
+      const style = getComputedStyle(child);
+      const rect = child.getBoundingClientRect();
+      const container = parent.getBoundingClientRect();
+      const observation = {
+        direction, size, margin,
+        start: style.marginInlineStart,
+        end: style.marginInlineEnd,
+        left: rect.left - container.left,
+        right: container.right - rect.right,
+        width: rect.width,
+        quad: typeof child.getBoxQuads === "function"
+          ? child.getBoxQuads({box: "margin", relativeTo: parent}).map(q => ({
+              x: q.bounds.x, width: q.bounds.width,
+              startX: q.p1.x, endX: q.p2.x,
+            })) : null,
+      };
+      test(() => {
+        assert_true(Number.isFinite(observation.left));
+        assert_equals(observation.width, size === "wide" ? 200 : 40);
+      }, `OBS ${JSON.stringify(observation)}`);
+    }
+  }
+}
+</script>
