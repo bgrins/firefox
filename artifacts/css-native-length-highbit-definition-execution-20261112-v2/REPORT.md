@@ -1,0 +1,9 @@
+# V2 definitions elaborate; original wrapper remains failed
+
+All four authorized Lean commands exited0: Target, Controls, Types and Audit. Owner96198/732f77 ended with wrapper exit1 at its assertion that controls.log is empty. That log contains four unused-binder warnings in the deliberate Empty-context statement. The subsequent audit-equality assertion was not executed. Independently observing audit.log also reveals a mismatch with the original all-empty expectation: 17 declarations are empty, 32 use propext/Quot.sound, and one uses propext. The exact ordered50 declaration inventory contains no nonstandard axioms.
+
+All fifteen obligation and six control statements elaborated. The complete printed structures/projection types remain in definition-attempts/1794501127701962000/types.log, SHA64dfb8ed8b2afb309e6048131ea42a7269cb09934d5623281652e7baa5a3b479. No obligation/control proof implementation exists. Field projections assume a structure inhabitant; their audit is not a proof of inhabitance.
+
+Original source, runner, lifecycle, expectations and the wrapper failure remain unchanged. Each of four serial commands stayed within one worker,60 seconds and2 GiB, without cleanup signals or inspection errors. Fresh inspectionb558d7 confirms PGIDs10525/10556/10561/10566 absent. Removed396,984 owned compiler-output bytes after terminal absence and released the lane. No retry, proof work or native experiment occurred.
+
+OUTPUT-OBSERVATIONS.json records the exact warning positions,50 actual axiom records and type hash. Root reviewed these retained outputs in b742c0 and requested a separate source-only interpretation validator. That validator must preserve this wrapper failure and reject any change outside the exact reviewed warning/audit inventory; it does not require another compiler run.

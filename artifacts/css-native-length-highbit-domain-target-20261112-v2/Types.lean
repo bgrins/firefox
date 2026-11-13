@@ -1,0 +1,25 @@
+import Controls
+
+#print CssNativeHighBit.Obligations
+#print CssNativeHighBit.Controls
+#check @CssNativeHighBit.Obligations.low_value
+#check @CssNativeHighBit.Obligations.high_value
+#check @CssNativeHighBit.Obligations.length_and_tail
+#check @CssNativeHighBit.Obligations.high_suffix
+#check @CssNativeHighBit.Obligations.image_membership
+#check @CssNativeHighBit.Obligations.fixed_on_class
+#check @CssNativeHighBit.Obligations.unique_class
+#check @CssNativeHighBit.Obligations.image_exact
+#check @CssNativeHighBit.Obligations.universal
+#check @CssNativeHighBit.Obligations.filtered
+#check @CssNativeHighBit.Obligations.cover_union
+#check @CssNativeHighBit.Obligations.nonvacuity_and_tails
+#check @CssNativeHighBit.Obligations.validity_split
+#check @CssNativeHighBit.Obligations.ascii_refinement
+#check @CssNativeHighBit.Obligations.length_feature_aggregation
+#check @CssNativeHighBit.Controls.omitted_high_class
+#check @CssNativeHighBit.Controls.fixed_remaining_high_bytes
+#check @CssNativeHighBit.Controls.zeroed_unused_tail
+#check @CssNativeHighBit.Controls.omitted_ascii_complement
+#check @CssNativeHighBit.Controls.restricted_mode_page
+#check @CssNativeHighBit.Controls.empty_context

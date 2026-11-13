@@ -1,0 +1,33 @@
+--- v2/Proof.lean
++++ v3/Proof.lean
+@@ -245,8 +245,8 @@
+     (a : Fin 128) (raw : Backing) : isAscii n (asciiChild n a raw) := by
+   intro i hi
+   by_cases hz : i.val = 0
+-  · simp only [asciiChild, hz, if_true]
+-    rw [UInt8.toNat_ofNat_of_lt' (by have := a.isLt; omega)]
++  · simp only [asciiChild, hz, ite_true]
++    rw [UInt8.toNat_ofNat_of_lt' (by change a.val < 256; have := a.isLt; omega)]
+     exact a.isLt
+   · simpa [asciiChild, hz, ascii, hi] using (low_value (raw i)).1
+ 
+@@ -260,7 +260,7 @@
+   · have hi : i = 0 := Fin.ext hz
+     subst i
+     simp [asciiChild, a]
+-  · simp only [asciiChild, hz, if_false]
++  · simp only [asciiChild, hz, ite_false]
+     exact congrFun fixed i
+ 
+ theorem ascii_refinement (n : Nat) (hn : goodLength n)
+--- v2/ControlProof.lean
++++ v3/ControlProof.lean
+@@ -70,7 +70,7 @@
+   intro a hn raw he
+   have h := congrArg UInt8.toNat (congrFun he (0 : Fin 5))
+   change (UInt8.ofNat a.val).toNat = 0 at h
+-  rw [UInt8.toNat_ofNat_of_lt' (by have := a.isLt; omega)] at h
++  rw [UInt8.toNat_ofNat_of_lt' (by change a.val < 256; have := a.isLt; omega)] at h
+   exact hn h
+ 
+ theorem restricted_mode_page :

@@ -1,0 +1,400 @@
+structure CssNativeHighBit.Obligations : Prop
+number of parameters: 0
+fields:
+  CssNativeHighBit.Obligations.low_value : ∀ (b : UInt8),
+      (CssNativeHighBit.low b).toNat < 128 ∧ (CssNativeHighBit.low b = b ↔ b.toNat < 128)
+  CssNativeHighBit.Obligations.high_value : ∀ (b : UInt8),
+      128 ≤ (CssNativeHighBit.high b).toNat ∧ (CssNativeHighBit.high b = b ↔ 128 ≤ b.toNat)
+  CssNativeHighBit.Obligations.length_and_tail : ∀ (n : Nat) (cell : CssNativeHighBit.Cell)
+      (b : CssNativeHighBit.Backing),
+      CssNativeHighBit.goodLength n →
+        CssNativeHighBit.admissible n cell →
+          (List.ofFn (CssNativeHighBit.generate n cell b)).length = 5 ∧
+            ∀ (i : Fin 5), n ≤ ↑i → CssNativeHighBit.generate n cell b i = b i
+  CssNativeHighBit.Obligations.high_suffix : ∀ (j : Fin 5) (b : CssNativeHighBit.Backing) (i : Fin 5),
+      ↑j < ↑i → CssNativeHighBit.firstHigh j b i = b i
+  CssNativeHighBit.Obligations.image_membership : ∀ (n : Nat) (cell : CssNativeHighBit.Cell)
+      (b : CssNativeHighBit.Backing),
+      CssNativeHighBit.goodLength n →
+        CssNativeHighBit.admissible n cell → CssNativeHighBit.belongs n cell (CssNativeHighBit.generate n cell b)
+  CssNativeHighBit.Obligations.fixed_on_class : ∀ (n : Nat) (cell : CssNativeHighBit.Cell)
+      (b : CssNativeHighBit.Backing),
+      CssNativeHighBit.goodLength n →
+        CssNativeHighBit.admissible n cell → CssNativeHighBit.belongs n cell b → CssNativeHighBit.generate n cell b = b
+  CssNativeHighBit.Obligations.unique_class : ∀ (n : Nat) (b : CssNativeHighBit.Backing),
+      CssNativeHighBit.goodLength n →
+        ∃ cell,
+          (CssNativeHighBit.admissible n cell ∧ CssNativeHighBit.belongs n cell b) ∧
+            ∀ (other : CssNativeHighBit.Cell),
+              CssNativeHighBit.admissible n other ∧ CssNativeHighBit.belongs n other b → other = cell
+  CssNativeHighBit.Obligations.image_exact : ∀ (n : Nat) (cell : CssNativeHighBit.Cell) (b : CssNativeHighBit.Backing),
+      CssNativeHighBit.goodLength n →
+        CssNativeHighBit.admissible n cell →
+          (CssNativeHighBit.belongs n cell b ↔ ∃ raw, CssNativeHighBit.generate n cell raw = b)
+  CssNativeHighBit.Obligations.universal : ∀ (n : Nat),
+      CssNativeHighBit.goodLength n →
+        ∀ (C : Type) (P : CssNativeHighBit.Backing → C → Prop),
+          (∀ (b : CssNativeHighBit.Backing) (c : C), P b c) ↔
+            ∀ (cell : CssNativeHighBit.Cell),
+              CssNativeHighBit.admissible n cell →
+                ∀ (raw : CssNativeHighBit.Backing) (c : C), P (CssNativeHighBit.generate n cell raw) c
+  CssNativeHighBit.Obligations.filtered : ∀ (n : Nat),
+      CssNativeHighBit.goodLength n →
+        ∀ (C : Type) (V : CssNativeHighBit.Backing → Prop) (P : CssNativeHighBit.Backing → C → Prop),
+          (∀ (b : CssNativeHighBit.Backing) (c : C), V b → P b c) ↔
+            ∀ (cell : CssNativeHighBit.Cell),
+              CssNativeHighBit.admissible n cell →
+                ∀ (raw : CssNativeHighBit.Backing) (c : C),
+                  V (CssNativeHighBit.generate n cell raw) → P (CssNativeHighBit.generate n cell raw) c
+  CssNativeHighBit.Obligations.cover_union : ∀ (n : Nat),
+      CssNativeHighBit.goodLength n →
+        ∀ (C : Type) (E : CssNativeHighBit.Backing → C → Prop),
+          (∃ b c, E b c) ↔
+            ∃ cell, CssNativeHighBit.admissible n cell ∧ ∃ raw c, E (CssNativeHighBit.generate n cell raw) c
+  CssNativeHighBit.Obligations.nonvacuity_and_tails : (∀ (n : Nat) (cell : CssNativeHighBit.Cell),
+        CssNativeHighBit.goodLength n →
+          CssNativeHighBit.admissible n cell →
+            ∀ (C : Type) (c : C),
+              ∃ raw,
+                CssNativeHighBit.belongs n cell (CssNativeHighBit.generate n cell raw) ∧
+                  (CssNativeHighBit.onState n cell (raw, c)).snd = c) ∧
+      ∀ (n : Nat) (cell : CssNativeHighBit.Cell),
+        CssNativeHighBit.goodLength n →
+          n < 5 →
+            CssNativeHighBit.admissible n cell →
+              ∃ raw₀ raw₁,
+                (∀ (i : Fin 5),
+                    ↑i < n → CssNativeHighBit.generate n cell raw₀ i = CssNativeHighBit.generate n cell raw₁ i) ∧
+                  (∀ (i : Fin 5),
+                      n ≤ ↑i →
+                        CssNativeHighBit.generate n cell raw₀ i = 0 ∧ CssNativeHighBit.generate n cell raw₁ i = 255) ∧
+                    CssNativeHighBit.generate n cell raw₀ ≠ CssNativeHighBit.generate n cell raw₁
+  CssNativeHighBit.Obligations.validity_split : ∀ (n : Nat) (cell : CssNativeHighBit.Cell),
+      CssNativeHighBit.goodLength n →
+        CssNativeHighBit.admissible n cell →
+          ∀ (C : Type) (V : CssNativeHighBit.Backing → Prop) (P : CssNativeHighBit.Backing → C → Prop),
+            ((∀ (raw : CssNativeHighBit.Backing) (c : C), P (CssNativeHighBit.generate n cell raw) c) ↔
+                (∀ (raw : CssNativeHighBit.Backing) (c : C),
+                    V (CssNativeHighBit.generate n cell raw) → P (CssNativeHighBit.generate n cell raw) c) ∧
+                  ∀ (raw : CssNativeHighBit.Backing) (c : C),
+                    ¬V (CssNativeHighBit.generate n cell raw) → P (CssNativeHighBit.generate n cell raw) c) ∧
+              ∀ (raw : CssNativeHighBit.Backing),
+                ¬(V (CssNativeHighBit.generate n cell raw) ∧ ¬V (CssNativeHighBit.generate n cell raw))
+  CssNativeHighBit.Obligations.ascii_refinement : ∀ (n : Nat),
+      CssNativeHighBit.goodLength n →
+        ∀ (C : Type) (V : CssNativeHighBit.Backing → Prop) (P E : CssNativeHighBit.Backing → C → Prop),
+          ((∀ (b : CssNativeHighBit.Backing) (c : C), CssNativeHighBit.isAscii n b → P b c) ↔
+              ∀ (a : Fin 128) (raw : CssNativeHighBit.Backing) (c : C), P (CssNativeHighBit.asciiChild n a raw) c) ∧
+            ((∀ (b : CssNativeHighBit.Backing) (c : C), CssNativeHighBit.isAscii n b → V b → P b c) ↔
+                ∀ (a : Fin 128) (raw : CssNativeHighBit.Backing) (c : C),
+                  V (CssNativeHighBit.asciiChild n a raw) → P (CssNativeHighBit.asciiChild n a raw) c) ∧
+              ((∃ b c, CssNativeHighBit.isAscii n b ∧ E b c) ↔ ∃ a raw c, E (CssNativeHighBit.asciiChild n a raw) c)
+  CssNativeHighBit.Obligations.length_feature_aggregation : ∀ (C : Type)
+      (P : Nat → CssNativeHighBit.Feature → CssNativeHighBit.Backing → C → Prop),
+      (∀ (n : Nat),
+          CssNativeHighBit.goodLength n →
+            ∀ (feature : CssNativeHighBit.Feature) (b : CssNativeHighBit.Backing) (c : C), P n feature b c) ↔
+        ∀ (n : Nat),
+          n ∈ CssNativeHighBit.lengths →
+            ∀ (feature : CssNativeHighBit.Feature) (cell : CssNativeHighBit.Cell),
+              CssNativeHighBit.admissible n cell →
+                ∀ (raw : CssNativeHighBit.Backing) (c : C), P n feature (CssNativeHighBit.generate n cell raw) c
+constructor:
+  CssNativeHighBit.Obligations.mk
+    (low_value : ∀ (b : UInt8), (CssNativeHighBit.low b).toNat < 128 ∧ (CssNativeHighBit.low b = b ↔ b.toNat < 128))
+    (high_value : ∀ (b : UInt8), 128 ≤ (CssNativeHighBit.high b).toNat ∧ (CssNativeHighBit.high b = b ↔ 128 ≤ b.toNat))
+    (length_and_tail :
+      ∀ (n : Nat) (cell : CssNativeHighBit.Cell) (b : CssNativeHighBit.Backing),
+        CssNativeHighBit.goodLength n →
+          CssNativeHighBit.admissible n cell →
+            (List.ofFn (CssNativeHighBit.generate n cell b)).length = 5 ∧
+              ∀ (i : Fin 5), n ≤ ↑i → CssNativeHighBit.generate n cell b i = b i)
+    (high_suffix :
+      ∀ (j : Fin 5) (b : CssNativeHighBit.Backing) (i : Fin 5), ↑j < ↑i → CssNativeHighBit.firstHigh j b i = b i)
+    (image_membership :
+      ∀ (n : Nat) (cell : CssNativeHighBit.Cell) (b : CssNativeHighBit.Backing),
+        CssNativeHighBit.goodLength n →
+          CssNativeHighBit.admissible n cell → CssNativeHighBit.belongs n cell (CssNativeHighBit.generate n cell b))
+    (fixed_on_class :
+      ∀ (n : Nat) (cell : CssNativeHighBit.Cell) (b : CssNativeHighBit.Backing),
+        CssNativeHighBit.goodLength n →
+          CssNativeHighBit.admissible n cell →
+            CssNativeHighBit.belongs n cell b → CssNativeHighBit.generate n cell b = b)
+    (unique_class :
+      ∀ (n : Nat) (b : CssNativeHighBit.Backing),
+        CssNativeHighBit.goodLength n →
+          ∃ cell,
+            (CssNativeHighBit.admissible n cell ∧ CssNativeHighBit.belongs n cell b) ∧
+              ∀ (other : CssNativeHighBit.Cell),
+                CssNativeHighBit.admissible n other ∧ CssNativeHighBit.belongs n other b → other = cell)
+    (image_exact :
+      ∀ (n : Nat) (cell : CssNativeHighBit.Cell) (b : CssNativeHighBit.Backing),
+        CssNativeHighBit.goodLength n →
+          CssNativeHighBit.admissible n cell →
+            (CssNativeHighBit.belongs n cell b ↔ ∃ raw, CssNativeHighBit.generate n cell raw = b))
+    (universal :
+      ∀ (n : Nat),
+        CssNativeHighBit.goodLength n →
+          ∀ (C : Type) (P : CssNativeHighBit.Backing → C → Prop),
+            (∀ (b : CssNativeHighBit.Backing) (c : C), P b c) ↔
+              ∀ (cell : CssNativeHighBit.Cell),
+                CssNativeHighBit.admissible n cell →
+                  ∀ (raw : CssNativeHighBit.Backing) (c : C), P (CssNativeHighBit.generate n cell raw) c)
+    (filtered :
+      ∀ (n : Nat),
+        CssNativeHighBit.goodLength n →
+          ∀ (C : Type) (V : CssNativeHighBit.Backing → Prop) (P : CssNativeHighBit.Backing → C → Prop),
+            (∀ (b : CssNativeHighBit.Backing) (c : C), V b → P b c) ↔
+              ∀ (cell : CssNativeHighBit.Cell),
+                CssNativeHighBit.admissible n cell →
+                  ∀ (raw : CssNativeHighBit.Backing) (c : C),
+                    V (CssNativeHighBit.generate n cell raw) → P (CssNativeHighBit.generate n cell raw) c)
+    (cover_union :
+      ∀ (n : Nat),
+        CssNativeHighBit.goodLength n →
+          ∀ (C : Type) (E : CssNativeHighBit.Backing → C → Prop),
+            (∃ b c, E b c) ↔
+              ∃ cell, CssNativeHighBit.admissible n cell ∧ ∃ raw c, E (CssNativeHighBit.generate n cell raw) c)
+    (nonvacuity_and_tails :
+      (∀ (n : Nat) (cell : CssNativeHighBit.Cell),
+          CssNativeHighBit.goodLength n →
+            CssNativeHighBit.admissible n cell →
+              ∀ (C : Type) (c : C),
+                ∃ raw,
+                  CssNativeHighBit.belongs n cell (CssNativeHighBit.generate n cell raw) ∧
+                    (CssNativeHighBit.onState n cell (raw, c)).snd = c) ∧
+        ∀ (n : Nat) (cell : CssNativeHighBit.Cell),
+          CssNativeHighBit.goodLength n →
+            n < 5 →
+              CssNativeHighBit.admissible n cell →
+                ∃ raw₀ raw₁,
+                  (∀ (i : Fin 5),
+                      ↑i < n → CssNativeHighBit.generate n cell raw₀ i = CssNativeHighBit.generate n cell raw₁ i) ∧
+                    (∀ (i : Fin 5),
+                        n ≤ ↑i →
+                          CssNativeHighBit.generate n cell raw₀ i = 0 ∧ CssNativeHighBit.generate n cell raw₁ i = 255) ∧
+                      CssNativeHighBit.generate n cell raw₀ ≠ CssNativeHighBit.generate n cell raw₁)
+    (validity_split :
+      ∀ (n : Nat) (cell : CssNativeHighBit.Cell),
+        CssNativeHighBit.goodLength n →
+          CssNativeHighBit.admissible n cell →
+            ∀ (C : Type) (V : CssNativeHighBit.Backing → Prop) (P : CssNativeHighBit.Backing → C → Prop),
+              ((∀ (raw : CssNativeHighBit.Backing) (c : C), P (CssNativeHighBit.generate n cell raw) c) ↔
+                  (∀ (raw : CssNativeHighBit.Backing) (c : C),
+                      V (CssNativeHighBit.generate n cell raw) → P (CssNativeHighBit.generate n cell raw) c) ∧
+                    ∀ (raw : CssNativeHighBit.Backing) (c : C),
+                      ¬V (CssNativeHighBit.generate n cell raw) → P (CssNativeHighBit.generate n cell raw) c) ∧
+                ∀ (raw : CssNativeHighBit.Backing),
+                  ¬(V (CssNativeHighBit.generate n cell raw) ∧ ¬V (CssNativeHighBit.generate n cell raw)))
+    (ascii_refinement :
+      ∀ (n : Nat),
+        CssNativeHighBit.goodLength n →
+          ∀ (C : Type) (V : CssNativeHighBit.Backing → Prop) (P E : CssNativeHighBit.Backing → C → Prop),
+            ((∀ (b : CssNativeHighBit.Backing) (c : C), CssNativeHighBit.isAscii n b → P b c) ↔
+                ∀ (a : Fin 128) (raw : CssNativeHighBit.Backing) (c : C), P (CssNativeHighBit.asciiChild n a raw) c) ∧
+              ((∀ (b : CssNativeHighBit.Backing) (c : C), CssNativeHighBit.isAscii n b → V b → P b c) ↔
+                  ∀ (a : Fin 128) (raw : CssNativeHighBit.Backing) (c : C),
+                    V (CssNativeHighBit.asciiChild n a raw) → P (CssNativeHighBit.asciiChild n a raw) c) ∧
+                ((∃ b c, CssNativeHighBit.isAscii n b ∧ E b c) ↔ ∃ a raw c, E (CssNativeHighBit.asciiChild n a raw) c))
+    (length_feature_aggregation :
+      ∀ (C : Type) (P : Nat → CssNativeHighBit.Feature → CssNativeHighBit.Backing → C → Prop),
+        (∀ (n : Nat),
+            CssNativeHighBit.goodLength n →
+              ∀ (feature : CssNativeHighBit.Feature) (b : CssNativeHighBit.Backing) (c : C), P n feature b c) ↔
+          ∀ (n : Nat),
+            n ∈ CssNativeHighBit.lengths →
+              ∀ (feature : CssNativeHighBit.Feature) (cell : CssNativeHighBit.Cell),
+                CssNativeHighBit.admissible n cell →
+                  ∀ (raw : CssNativeHighBit.Backing) (c : C), P n feature (CssNativeHighBit.generate n cell raw) c) :
+    CssNativeHighBit.Obligations
+structure CssNativeHighBit.Controls : Prop
+number of parameters: 0
+fields:
+  CssNativeHighBit.Controls.omitted_high_class : CssNativeHighBit.belongs 3
+        (CssNativeHighBit.Cell.high CssNativeHighBit.firstHighOne) CssNativeHighBit.copyWitness ∧
+      ∀ (cell : CssNativeHighBit.Cell),
+        CssNativeHighBit.admissible 3 cell →
+          cell ≠ CssNativeHighBit.Cell.high CssNativeHighBit.firstHighOne →
+            ∀ (raw : CssNativeHighBit.Backing), CssNativeHighBit.generate 3 cell raw ≠ CssNativeHighBit.copyWitness
+  CssNativeHighBit.Controls.fixed_remaining_high_bytes : CssNativeHighBit.belongs 3
+        (CssNativeHighBit.Cell.high CssNativeHighBit.firstHighOne) CssNativeHighBit.otherScalarWitness ∧
+      ∀ (raw : CssNativeHighBit.Backing), CssNativeHighBit.fixedScalar raw ≠ CssNativeHighBit.otherScalarWitness
+  CssNativeHighBit.Controls.zeroed_unused_tail : CssNativeHighBit.belongs 3
+        (CssNativeHighBit.Cell.high CssNativeHighBit.firstHighOne) CssNativeHighBit.copyWitness ∧
+      ∀ (raw : CssNativeHighBit.Backing),
+        CssNativeHighBit.zeroUnused 3 (CssNativeHighBit.firstHigh CssNativeHighBit.firstHighOne raw) ≠
+          CssNativeHighBit.copyWitness
+  CssNativeHighBit.Controls.omitted_ascii_complement : CssNativeHighBit.isAscii 2
+        CssNativeHighBit.asciiComplementWitness ∧
+      ∀ (a : Fin 128),
+        ↑a ≠ 0 →
+          ∀ (raw : CssNativeHighBit.Backing),
+            CssNativeHighBit.asciiChild 2 a raw ≠ CssNativeHighBit.asciiComplementWitness
+  CssNativeHighBit.Controls.restricted_mode_page : ¬CssNativeHighBit.restrictedContext
+          CssNativeHighBit.dependentContext ∧
+      ¬CssNativeHighBit.restrictedContext CssNativeHighBit.pageContext ∧
+        ¬∀ (c : CssNativeHighBit.NativeContext), CssNativeHighBit.restrictedContext c
+  CssNativeHighBit.Controls.empty_context : (∀ (b : CssNativeHighBit.Backing) (c : Empty), False) ∧ ¬∃ b c, True
+constructor:
+  CssNativeHighBit.Controls.mk
+    (omitted_high_class :
+      CssNativeHighBit.belongs 3 (CssNativeHighBit.Cell.high CssNativeHighBit.firstHighOne)
+          CssNativeHighBit.copyWitness ∧
+        ∀ (cell : CssNativeHighBit.Cell),
+          CssNativeHighBit.admissible 3 cell →
+            cell ≠ CssNativeHighBit.Cell.high CssNativeHighBit.firstHighOne →
+              ∀ (raw : CssNativeHighBit.Backing), CssNativeHighBit.generate 3 cell raw ≠ CssNativeHighBit.copyWitness)
+    (fixed_remaining_high_bytes :
+      CssNativeHighBit.belongs 3 (CssNativeHighBit.Cell.high CssNativeHighBit.firstHighOne)
+          CssNativeHighBit.otherScalarWitness ∧
+        ∀ (raw : CssNativeHighBit.Backing), CssNativeHighBit.fixedScalar raw ≠ CssNativeHighBit.otherScalarWitness)
+    (zeroed_unused_tail :
+      CssNativeHighBit.belongs 3 (CssNativeHighBit.Cell.high CssNativeHighBit.firstHighOne)
+          CssNativeHighBit.copyWitness ∧
+        ∀ (raw : CssNativeHighBit.Backing),
+          CssNativeHighBit.zeroUnused 3 (CssNativeHighBit.firstHigh CssNativeHighBit.firstHighOne raw) ≠
+            CssNativeHighBit.copyWitness)
+    (omitted_ascii_complement :
+      CssNativeHighBit.isAscii 2 CssNativeHighBit.asciiComplementWitness ∧
+        ∀ (a : Fin 128),
+          ↑a ≠ 0 →
+            ∀ (raw : CssNativeHighBit.Backing),
+              CssNativeHighBit.asciiChild 2 a raw ≠ CssNativeHighBit.asciiComplementWitness)
+    (restricted_mode_page :
+      ¬CssNativeHighBit.restrictedContext CssNativeHighBit.dependentContext ∧
+        ¬CssNativeHighBit.restrictedContext CssNativeHighBit.pageContext ∧
+          ¬∀ (c : CssNativeHighBit.NativeContext), CssNativeHighBit.restrictedContext c)
+    (empty_context : (∀ (b : CssNativeHighBit.Backing) (c : Empty), False) ∧ ¬∃ b c, True) : CssNativeHighBit.Controls
+CssNativeHighBit.Obligations.low_value : CssNativeHighBit.Obligations →
+  ∀ (b : UInt8), (CssNativeHighBit.low b).toNat < 128 ∧ (CssNativeHighBit.low b = b ↔ b.toNat < 128)
+CssNativeHighBit.Obligations.high_value : CssNativeHighBit.Obligations →
+  ∀ (b : UInt8), 128 ≤ (CssNativeHighBit.high b).toNat ∧ (CssNativeHighBit.high b = b ↔ 128 ≤ b.toNat)
+CssNativeHighBit.Obligations.length_and_tail : CssNativeHighBit.Obligations →
+  ∀ (n : Nat) (cell : CssNativeHighBit.Cell) (b : CssNativeHighBit.Backing),
+    CssNativeHighBit.goodLength n →
+      CssNativeHighBit.admissible n cell →
+        (List.ofFn (CssNativeHighBit.generate n cell b)).length = 5 ∧
+          ∀ (i : Fin 5), n ≤ ↑i → CssNativeHighBit.generate n cell b i = b i
+CssNativeHighBit.Obligations.high_suffix : CssNativeHighBit.Obligations →
+  ∀ (j : Fin 5) (b : CssNativeHighBit.Backing) (i : Fin 5), ↑j < ↑i → CssNativeHighBit.firstHigh j b i = b i
+CssNativeHighBit.Obligations.image_membership : CssNativeHighBit.Obligations →
+  ∀ (n : Nat) (cell : CssNativeHighBit.Cell) (b : CssNativeHighBit.Backing),
+    CssNativeHighBit.goodLength n →
+      CssNativeHighBit.admissible n cell → CssNativeHighBit.belongs n cell (CssNativeHighBit.generate n cell b)
+CssNativeHighBit.Obligations.fixed_on_class : CssNativeHighBit.Obligations →
+  ∀ (n : Nat) (cell : CssNativeHighBit.Cell) (b : CssNativeHighBit.Backing),
+    CssNativeHighBit.goodLength n →
+      CssNativeHighBit.admissible n cell → CssNativeHighBit.belongs n cell b → CssNativeHighBit.generate n cell b = b
+CssNativeHighBit.Obligations.unique_class : CssNativeHighBit.Obligations →
+  ∀ (n : Nat) (b : CssNativeHighBit.Backing),
+    CssNativeHighBit.goodLength n →
+      ∃ cell,
+        (CssNativeHighBit.admissible n cell ∧ CssNativeHighBit.belongs n cell b) ∧
+          ∀ (other : CssNativeHighBit.Cell),
+            CssNativeHighBit.admissible n other ∧ CssNativeHighBit.belongs n other b → other = cell
+CssNativeHighBit.Obligations.image_exact : CssNativeHighBit.Obligations →
+  ∀ (n : Nat) (cell : CssNativeHighBit.Cell) (b : CssNativeHighBit.Backing),
+    CssNativeHighBit.goodLength n →
+      CssNativeHighBit.admissible n cell →
+        (CssNativeHighBit.belongs n cell b ↔ ∃ raw, CssNativeHighBit.generate n cell raw = b)
+CssNativeHighBit.Obligations.universal : CssNativeHighBit.Obligations →
+  ∀ (n : Nat),
+    CssNativeHighBit.goodLength n →
+      ∀ (C : Type) (P : CssNativeHighBit.Backing → C → Prop),
+        (∀ (b : CssNativeHighBit.Backing) (c : C), P b c) ↔
+          ∀ (cell : CssNativeHighBit.Cell),
+            CssNativeHighBit.admissible n cell →
+              ∀ (raw : CssNativeHighBit.Backing) (c : C), P (CssNativeHighBit.generate n cell raw) c
+CssNativeHighBit.Obligations.filtered : CssNativeHighBit.Obligations →
+  ∀ (n : Nat),
+    CssNativeHighBit.goodLength n →
+      ∀ (C : Type) (V : CssNativeHighBit.Backing → Prop) (P : CssNativeHighBit.Backing → C → Prop),
+        (∀ (b : CssNativeHighBit.Backing) (c : C), V b → P b c) ↔
+          ∀ (cell : CssNativeHighBit.Cell),
+            CssNativeHighBit.admissible n cell →
+              ∀ (raw : CssNativeHighBit.Backing) (c : C),
+                V (CssNativeHighBit.generate n cell raw) → P (CssNativeHighBit.generate n cell raw) c
+CssNativeHighBit.Obligations.cover_union : CssNativeHighBit.Obligations →
+  ∀ (n : Nat),
+    CssNativeHighBit.goodLength n →
+      ∀ (C : Type) (E : CssNativeHighBit.Backing → C → Prop),
+        (∃ b c, E b c) ↔
+          ∃ cell, CssNativeHighBit.admissible n cell ∧ ∃ raw c, E (CssNativeHighBit.generate n cell raw) c
+CssNativeHighBit.Obligations.nonvacuity_and_tails : CssNativeHighBit.Obligations →
+  (∀ (n : Nat) (cell : CssNativeHighBit.Cell),
+      CssNativeHighBit.goodLength n →
+        CssNativeHighBit.admissible n cell →
+          ∀ (C : Type) (c : C),
+            ∃ raw,
+              CssNativeHighBit.belongs n cell (CssNativeHighBit.generate n cell raw) ∧
+                (CssNativeHighBit.onState n cell (raw, c)).snd = c) ∧
+    ∀ (n : Nat) (cell : CssNativeHighBit.Cell),
+      CssNativeHighBit.goodLength n →
+        n < 5 →
+          CssNativeHighBit.admissible n cell →
+            ∃ raw₀ raw₁,
+              (∀ (i : Fin 5),
+                  ↑i < n → CssNativeHighBit.generate n cell raw₀ i = CssNativeHighBit.generate n cell raw₁ i) ∧
+                (∀ (i : Fin 5),
+                    n ≤ ↑i →
+                      CssNativeHighBit.generate n cell raw₀ i = 0 ∧ CssNativeHighBit.generate n cell raw₁ i = 255) ∧
+                  CssNativeHighBit.generate n cell raw₀ ≠ CssNativeHighBit.generate n cell raw₁
+CssNativeHighBit.Obligations.validity_split : CssNativeHighBit.Obligations →
+  ∀ (n : Nat) (cell : CssNativeHighBit.Cell),
+    CssNativeHighBit.goodLength n →
+      CssNativeHighBit.admissible n cell →
+        ∀ (C : Type) (V : CssNativeHighBit.Backing → Prop) (P : CssNativeHighBit.Backing → C → Prop),
+          ((∀ (raw : CssNativeHighBit.Backing) (c : C), P (CssNativeHighBit.generate n cell raw) c) ↔
+              (∀ (raw : CssNativeHighBit.Backing) (c : C),
+                  V (CssNativeHighBit.generate n cell raw) → P (CssNativeHighBit.generate n cell raw) c) ∧
+                ∀ (raw : CssNativeHighBit.Backing) (c : C),
+                  ¬V (CssNativeHighBit.generate n cell raw) → P (CssNativeHighBit.generate n cell raw) c) ∧
+            ∀ (raw : CssNativeHighBit.Backing),
+              ¬(V (CssNativeHighBit.generate n cell raw) ∧ ¬V (CssNativeHighBit.generate n cell raw))
+CssNativeHighBit.Obligations.ascii_refinement : CssNativeHighBit.Obligations →
+  ∀ (n : Nat),
+    CssNativeHighBit.goodLength n →
+      ∀ (C : Type) (V : CssNativeHighBit.Backing → Prop) (P E : CssNativeHighBit.Backing → C → Prop),
+        ((∀ (b : CssNativeHighBit.Backing) (c : C), CssNativeHighBit.isAscii n b → P b c) ↔
+            ∀ (a : Fin 128) (raw : CssNativeHighBit.Backing) (c : C), P (CssNativeHighBit.asciiChild n a raw) c) ∧
+          ((∀ (b : CssNativeHighBit.Backing) (c : C), CssNativeHighBit.isAscii n b → V b → P b c) ↔
+              ∀ (a : Fin 128) (raw : CssNativeHighBit.Backing) (c : C),
+                V (CssNativeHighBit.asciiChild n a raw) → P (CssNativeHighBit.asciiChild n a raw) c) ∧
+            ((∃ b c, CssNativeHighBit.isAscii n b ∧ E b c) ↔ ∃ a raw c, E (CssNativeHighBit.asciiChild n a raw) c)
+CssNativeHighBit.Obligations.length_feature_aggregation : CssNativeHighBit.Obligations →
+  ∀ (C : Type) (P : Nat → CssNativeHighBit.Feature → CssNativeHighBit.Backing → C → Prop),
+    (∀ (n : Nat),
+        CssNativeHighBit.goodLength n →
+          ∀ (feature : CssNativeHighBit.Feature) (b : CssNativeHighBit.Backing) (c : C), P n feature b c) ↔
+      ∀ (n : Nat),
+        n ∈ CssNativeHighBit.lengths →
+          ∀ (feature : CssNativeHighBit.Feature) (cell : CssNativeHighBit.Cell),
+            CssNativeHighBit.admissible n cell →
+              ∀ (raw : CssNativeHighBit.Backing) (c : C), P n feature (CssNativeHighBit.generate n cell raw) c
+CssNativeHighBit.Controls.omitted_high_class : CssNativeHighBit.Controls →
+  CssNativeHighBit.belongs 3 (CssNativeHighBit.Cell.high CssNativeHighBit.firstHighOne) CssNativeHighBit.copyWitness ∧
+    ∀ (cell : CssNativeHighBit.Cell),
+      CssNativeHighBit.admissible 3 cell →
+        cell ≠ CssNativeHighBit.Cell.high CssNativeHighBit.firstHighOne →
+          ∀ (raw : CssNativeHighBit.Backing), CssNativeHighBit.generate 3 cell raw ≠ CssNativeHighBit.copyWitness
+CssNativeHighBit.Controls.fixed_remaining_high_bytes : CssNativeHighBit.Controls →
+  CssNativeHighBit.belongs 3 (CssNativeHighBit.Cell.high CssNativeHighBit.firstHighOne)
+      CssNativeHighBit.otherScalarWitness ∧
+    ∀ (raw : CssNativeHighBit.Backing), CssNativeHighBit.fixedScalar raw ≠ CssNativeHighBit.otherScalarWitness
+CssNativeHighBit.Controls.zeroed_unused_tail : CssNativeHighBit.Controls →
+  CssNativeHighBit.belongs 3 (CssNativeHighBit.Cell.high CssNativeHighBit.firstHighOne) CssNativeHighBit.copyWitness ∧
+    ∀ (raw : CssNativeHighBit.Backing),
+      CssNativeHighBit.zeroUnused 3 (CssNativeHighBit.firstHigh CssNativeHighBit.firstHighOne raw) ≠
+        CssNativeHighBit.copyWitness
+CssNativeHighBit.Controls.omitted_ascii_complement : CssNativeHighBit.Controls →
+  CssNativeHighBit.isAscii 2 CssNativeHighBit.asciiComplementWitness ∧
+    ∀ (a : Fin 128),
+      ↑a ≠ 0 →
+        ∀ (raw : CssNativeHighBit.Backing),
+          CssNativeHighBit.asciiChild 2 a raw ≠ CssNativeHighBit.asciiComplementWitness
+CssNativeHighBit.Controls.restricted_mode_page : CssNativeHighBit.Controls →
+  ¬CssNativeHighBit.restrictedContext CssNativeHighBit.dependentContext ∧
+    ¬CssNativeHighBit.restrictedContext CssNativeHighBit.pageContext ∧
+      ¬∀ (c : CssNativeHighBit.NativeContext), CssNativeHighBit.restrictedContext c
+CssNativeHighBit.Controls.empty_context : CssNativeHighBit.Controls →
+  (∀ (b : CssNativeHighBit.Backing) (c : Empty), False) ∧ ¬∃ b c, True

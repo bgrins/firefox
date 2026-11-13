@@ -1,0 +1,7 @@
+# High-bit partition definition target review
+
+Root authenticates the six-file retained-output interpretation and independently replays its validator, including 16 parser refusal controls. The four compiler commands succeeded with the original source target. All 15 obligation fields and six control fields are reviewed against the full printed structure/projection types, including explicit uniqueness, arbitrary context, conditional unused-tail witnesses and preserved decoder abstraction.
+
+The original wrapper failure remains unchanged: it stopped at the nonempty Controls log. The four exact warnings concern intentionally unused Backing/Empty binders in the Empty-context control. The separate all-empty audit expectation also disagrees with the observed standard-library dependencies, but that later assertion was not executed. The reviewed interpretation accepts only the four exact warnings and the exact ordered 50 audit records: 17 empty, one propext-only and 32 propext/Quot.sound. No blanket warnings or extra axioms are allowed.
+
+This is approval of an elaborated definition target for proof preparation. Structure field projections take an existing structure inhabitant and do not establish that the obligations hold. All mathematical proofs, control proofs, Rust generator/decoder correspondence and additional native verification remain open. Neither the source nor compiler was rerun to change the failure record.

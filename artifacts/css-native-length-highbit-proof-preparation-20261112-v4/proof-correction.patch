@@ -1,0 +1,28 @@
+--- v3/ControlProof.lean
++++ v4/ControlProof.lean
+@@ -28,10 +28,10 @@
+         ∀ raw, generate 3 cell raw ≠ copyWitness) := by
+   refine ⟨copy_member, ?_⟩
+   intro cell hc hne raw he
+-  have hm := image_membership 3 cell raw (by decide) hc
++  have hm := image_membership 3 cell raw (by unfold goodLength; decide) hc
+   rw [he] at hm
+   exact hne (class_unique 3 copyWitness cell (.high firstHighOne)
+-    hc hm (by decide) copy_member)
++    hc hm (by unfold admissible firstHighOne; decide) copy_member)
+ 
+ theorem fixed_remaining_high_bytes :
+     belongs 3 (.high firstHighOne) otherScalarWitness ∧
+@@ -76,9 +76,10 @@
+ theorem restricted_mode_page :
+     ¬ restrictedContext dependentContext ∧ ¬ restrictedContext pageContext ∧
+       (¬ (∀ c : NativeContext, restrictedContext c)) := by
+-  refine ⟨by decide, by decide, ?_⟩
++  refine ⟨by unfold restrictedContext dependentContext; decide,
++    by unfold restrictedContext pageContext; decide, ?_⟩
+   intro h
+-  exact (by decide : ¬ restrictedContext dependentContext) (h dependentContext)
++  exact (by unfold restrictedContext dependentContext; decide : ¬ restrictedContext dependentContext) (h dependentContext)
+ 
+ theorem empty_context :
+     (∀ _b : Backing, ∀ _c : Empty, False) ∧

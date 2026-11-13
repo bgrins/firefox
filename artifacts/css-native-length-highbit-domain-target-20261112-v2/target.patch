@@ -1,0 +1,12 @@
+--- v1/Target.lean
++++ v2/Target.lean
+@@ -69,7 +69,8 @@
+   fixed_on_class : ∀ n cell b, goodLength n → admissible n cell →
+     belongs n cell b → generate n cell b = b
+   unique_class : ∀ n b, goodLength n →
+-    ∃! cell, admissible n cell ∧ belongs n cell b
++    ∃ cell, (admissible n cell ∧ belongs n cell b) ∧
++      (∀ other, (admissible n other ∧ belongs n other b) → other = cell)
+   image_exact : ∀ n cell b, goodLength n → admissible n cell →
+     (belongs n cell b ↔ ∃ raw : Backing, generate n cell raw = b)
+   universal : ∀ n, goodLength n → ∀ (C : Type) (P : Backing → C → Prop),
