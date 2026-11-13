@@ -1124,7 +1124,7 @@ class nsFlexContainerFrame::FlexLine final {
   uint32_t mNumNonCollapsedItems = 0;
 
   // Sum of margin/border/padding for the FlexItems in this FlexLine.
-  nscoord mTotalItemMBP = 0;
+  AuCoord64 mTotalItemMBP = 0;
 
   nscoord mLineCrossSize = 0;
   nscoord mFirstBaselineOffset = nscoord_MIN;
@@ -3230,7 +3230,7 @@ void FlexLine::ResolveFlexibleLengths(nscoord aFlexContainerMainSize,
   // Subtract space occupied by our items' margins/borders/padding/gaps, so
   // we can just be dealing with the space available for our flex items' content
   // boxes.
-  const AuCoord64 totalItemMBPAndGaps = mTotalItemMBP + SumOfGaps();
+  const AuCoord64 totalItemMBPAndGaps = mTotalItemMBP + AuCoord64(SumOfGaps());
   const AuCoord64 spaceAvailableForFlexItemsContentBoxes =
       flexContainerMainSize - totalItemMBPAndGaps;
 
