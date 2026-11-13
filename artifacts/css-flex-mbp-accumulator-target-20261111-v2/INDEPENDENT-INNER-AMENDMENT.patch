@@ -1,0 +1,41 @@
+--- v1/Target.lean
++++ v2/Target.lean
+@@ -41,28 +41,29 @@
+   freeSpace id (fun _ => 60000) 60000 0 ([-60000, -60000] : List Int) =
+     some 60000
+ 
+-def CompensatedCase (magnitude : Int) (count : Nat) : Prop :=
++def CompensatedCase (magnitude inner : Int) (count : Nat) : Prop :=
+   let items := List.replicate count (-magnitude)
+   Acquired id items ∧
+-  DownstreamFits id (fun _ => magnitude) magnitude 0 items ∧
++  DownstreamFits id (fun _ => magnitude) inner 0 items ∧
+   wideFold id items = some (-magnitude * (count : Int)) ∧
+-  freeSpace id (fun _ => magnitude) magnitude 0 items = some magnitude
++  freeSpace id (fun _ => magnitude) inner 0 items = some inner
+ 
+ def CompensatedFamilyTarget : Prop :=
+-  ∀ magnitude count, 0 ≤ magnitude → Fits32 magnitude → count ≤ maxCount →
+-    CompensatedCase magnitude count
++  ∀ magnitude inner count,
++    0 ≤ magnitude → Fits32 magnitude → 0 ≤ inner → Fits32 inner →
++    count ≤ maxCount → CompensatedCase magnitude inner count
+ 
+ def BoundaryCoverageTarget : Prop :=
+-  CompensatedCase 60000 35792 ∧
+-  CompensatedCase 6000000 358 ∧
+-  CompensatedCase 600000000 4
++  CompensatedCase 60000 60000 35792 ∧
++  CompensatedCase 6000000 60000 358 ∧
++  CompensatedCase 600000000 60000 4
+ 
+ def JointWitnessTarget : Prop :=
+   (Acquired id ([2147483647, -2147483648, 1] : List Int) ∧
+     wideFold id ([2147483647, -2147483648, 1] : List Int) = some 0) ∧
+   (Acquired id ([-2147483648, -2147483648] : List Int) ∧
+     wideFold id ([-2147483648, -2147483648] : List Int) = some (-4294967296)) ∧
+-  CompensatedCase 60000 2
++  CompensatedCase 60000 60000 2
+ 
+ def UniversalTarget : Prop :=
+   PrefixTarget ∧ AccumulatorTarget ∧ OldCompatibilityTarget ∧

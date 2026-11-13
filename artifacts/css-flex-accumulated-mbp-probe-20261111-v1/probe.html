@@ -1,0 +1,48 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Flex accumulated margins</title>
+<style>
+  .container {
+    display: flex;
+    width: 1000px;
+    height: 10px;
+    gap: 0;
+    align-items: flex-start;
+  }
+  .item {
+    flex: var(--grow) 1 var(--basis);
+    min-width: 0;
+    height: 10px;
+    margin-inline-end: var(--margin);
+  }
+</style>
+<body>
+<script>
+window.run = (count, basis = 1000, margin = -1000, grow = 1) => {
+  const box = document.createElement("div");
+  box.className = "container";
+  box.style.setProperty("--basis", `${basis}px`);
+  box.style.setProperty("--margin", `${margin}px`);
+  box.style.setProperty("--grow", grow);
+  const fragment = document.createDocumentFragment();
+  for (let i = 0; i < count; i++) {
+    const item = document.createElement("div");
+    item.className = "item";
+    fragment.append(item);
+  }
+  box.append(fragment);
+  document.body.append(box);
+  const rect = box.getBoundingClientRect();
+  const samples = [...new Set([0, Math.floor(count / 2), count - 1])].map(index => {
+    const item = box.children[index];
+    const r = item.getBoundingClientRect();
+    const s = getComputedStyle(item);
+    return {index, x: r.x - rect.x, y: r.y - rect.y, width: r.width,
+      height: r.height, margin: s.marginInlineEnd, flex: s.flex};
+  });
+  const result = {ua: navigator.userAgent, count, basis, margin, grow,
+    container: {width: rect.width, height: rect.height}, samples};
+  box.remove();
+  return result;
+};
+</script>

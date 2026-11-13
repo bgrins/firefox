@@ -1,0 +1,13 @@
+# Wide flex margin accumulation repair
+
+The new 56-case WPT changes from 16 FAIL / 40 PASS to 56 PASS. All signed-wrap and neighboring regressions remain passing: seventeen files, 179 subtests and 196 total checks, with no unexpected outcomes. Baseline session 53261 ended exit 1 in 14634f with exactly the expected failures. Corrected build 51686 ended exit 0 in 2c70ad. Fixed browser run 37067 ended exit 0 in b40638; build ID 20261111170006 and actual XUL/launcher/source identities are retained in AFTER-BUILD.json.
+
+FlexLine now stores mTotalItemMBP as AuCoord64 and explicitly widens the existing SumOfGaps result before adding it. Repeated individually representable negative margins can otherwise overflow the narrow sum and eliminate the free space available for growth, producing zero-sized items. The WPT covers row/column, forward/reverse, wrap/nowrap, two overflow scales, immediately preceding counts and grow-zero controls. Every item size is checked, with one-pixel CSSOM tolerance for the large coordinates.
+
+The original one-line proposal failed to compile because AuCoord64 plus nscoord selected ambiguous overloads. The failed build log and source hash remain retained. The final two-line patch resolves that ambiguity without changing gap production or any proof target. Focused formatting passes; the unchanged WPT previously passed its dedicated lint gate. The later native build and regression run passed.
+
+The standalone patch contains only nsFlexContainerFrame.cpp and the new WPT. It applies and reverses independently of the signed-wrap patch, and both patch orders produce the current native source exactly; see ../css-flex-independent-patches-20261111-v1/RESULT.json. This is transport validation against the retained branch baseline, not a clean-upstream browser build. Research and the independently accepted arithmetic proof remain separate from the native/WPT payload.
+
+Discovery came from static inspection of missing native-arithmetic assumptions and independent browser reproduction. The subsequent Lean proof establishes all nine approved checked-arithmetic obligations, including every signed64 prefix range and concrete old checked32 failure boundaries. It does not prove native compilation, memory safety, per-item acquisition or the full flexible-length algorithm. In particular, checked32 failure does not assert C++ wrapping behavior. Gap multiplication remains a separate open boundary.
+
+Tentative P3 layout correctness, with extreme accumulated sizes and no established security or measured performance impact. The repair is installed and validated locally, uncommitted pending signing. No signing bypass, push or Try run occurred.

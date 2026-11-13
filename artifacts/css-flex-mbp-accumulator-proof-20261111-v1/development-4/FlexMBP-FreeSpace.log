@@ -1,0 +1,22 @@
+FlexMBP/FreeSpace.lean:34:97: error: unsolved goals
+α : Type
+mbp usedMain : α → Int
+inner gaps : Int
+items : List α
+ha : Acquired mbp items
+left✝² : Fits32 inner
+left✝¹ : Fits32 gaps
+left✝ : ∀ (item : α), item ∈ items → Fits32 (usedMain item)
+occupiedRange : Fits64 (sum mbp items + gaps)
+prefixes : ∀ (n : Nat), n ≤ items.length → Fits64 (inner - (sum mbp items + gaps) - sum usedMain (List.take n items))
+hw : wideFold mbp items = some (sum mbp items)
+hc : checkedAdd min64 max64 (sum mbp items) gaps = some (sum mbp items + gaps)
+hzero : min64 ≤ inner - ((List.map mbp items).sum + gaps) ∧ inner - ((List.map mbp items).sum + gaps) ≤ max64
+⊢ min64 ≤ inner - (sum mbp items + gaps) ∧ inner - (sum mbp items + gaps) ≤ max64
+FlexMBP/FreeSpace.lean:35:24: error: This simp argument is unused:
+  hzero
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [checkedSub64]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

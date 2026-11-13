@@ -1,0 +1,99 @@
+--- a/layout/generic/nsFlexContainerFrame.cpp
++++ b/layout/generic/nsFlexContainerFrame.cpp
+@@ -1124,7 +1124,7 @@
+   uint32_t mNumNonCollapsedItems = 0;
+ 
+   // Sum of margin/border/padding for the FlexItems in this FlexLine.
+-  nscoord mTotalItemMBP = 0;
++  AuCoord64 mTotalItemMBP = 0;
+ 
+   nscoord mLineCrossSize = 0;
+   nscoord mFirstBaselineOffset = nscoord_MIN;
+@@ -3230,7 +3230,7 @@
+   // Subtract space occupied by our items' margins/borders/padding/gaps, so
+   // we can just be dealing with the space available for our flex items' content
+   // boxes.
+-  const AuCoord64 totalItemMBPAndGaps = mTotalItemMBP + SumOfGaps();
++  const AuCoord64 totalItemMBPAndGaps = mTotalItemMBP + AuCoord64(SumOfGaps());
+   const AuCoord64 spaceAvailableForFlexItemsContentBoxes =
+       flexContainerMainSize - totalItemMBPAndGaps;
+ 
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-flexbox/flexbox-main-axis-margin-sum-overflow.html
+@@ -0,0 +1,76 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Flex sizing with large accumulated negative margins</title>
++<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#resolve-flexible-lengths">
++<meta name="assert" content="Accumulating negative margins preserves the free space available for flex growth.">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++  .container {
++    display: flex;
++    width: 1000px;
++    height: 1000px;
++    align-items: flex-start;
++    gap: 0;
++  }
++  .item {
++    flex: var(--grow) 1 var(--basis);
++    width: 10px;
++    height: 10px;
++    min-width: 0;
++    min-height: 0;
++  }
++  .row > .item {
++    margin-right: calc(-1 * var(--basis));
++  }
++  .column > .item {
++    margin-bottom: calc(-1 * var(--basis));
++  }
++</style>
++<body>
++<script>
++const cases = [
++  {count: 32, basis: 1000, grow: 1},
++  {count: 357, basis: 100000, grow: 1},
++  {count: 358, basis: 100000, grow: 1},
++  {count: 358, basis: 100000, grow: 0},
++  {count: 3, basis: 10000000, grow: 1},
++  {count: 4, basis: 10000000, grow: 1},
++  {count: 4, basis: 10000000, grow: 0},
++];
++
++for (const direction of ["row", "row-reverse", "column", "column-reverse"]) {
++  const row = direction.startsWith("row");
++  const dimension = row ? "width" : "height";
++  for (const wrap of ["nowrap", "wrap"]) {
++    for (const {count, basis, grow} of cases) {
++      test(t => {
++        const container = document.createElement("div");
++        container.className = `container ${row ? "row" : "column"}`;
++        container.style.flexDirection = direction;
++        container.style.flexWrap = wrap;
++        container.style.setProperty("--basis", `${basis}px`);
++        container.style.setProperty("--grow", grow);
++        for (let i = 0; i < count; i++) {
++          const item = document.createElement("div");
++          item.className = "item";
++          container.append(item);
++        }
++        document.body.append(container);
++        t.add_cleanup(() => container.remove());
++
++        assert_equals(container.getBoundingClientRect()[dimension], 1000);
++        const expected = basis + (grow ? 1000 / count : 0);
++        for (let i = 0; i < count; i++) {
++          assert_approx_equals(
++            container.children[i].getBoundingClientRect()[dimension],
++            expected,
++            1,
++            `Item ${i} main size, allowing CSSOM precision at large sizes`
++          );
++        }
++      }, `${direction}, ${wrap}: ${count} items, basis ${basis}px, grow ${grow}`);
++    }
++  }
++}
++</script>

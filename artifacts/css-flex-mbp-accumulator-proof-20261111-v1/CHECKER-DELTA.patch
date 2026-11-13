@@ -1,0 +1,20 @@
+--- target/check.py
++++ proof/check.py
+@@ -79,7 +79,7 @@
+         refusals = {} if args.modules else json.loads((HERE / 'REFUSALS.json').read_text())
+         for name, refusal in refusals.items():
+             (work / ('refusal-' + name + '.lean')).write_text(
+-                'import FlexPolicy.Cases\nexample : ' + refusal['proposition'] +
++                'import FlexMBP.Controls\nexample : ' + refusal['proposition'] +
+                 ' := by rw [' + refusal['rewrite'] + ']; decide\n')
+         for module in modules + ['refusal-' + n for n in refusals]:
+             log_path = out / (module.replace('/', '-') + '.log')
+@@ -116,7 +116,7 @@
+             else:
+                 assert record['exit'] == 0, record
+         if not args.modules:
+-            audit((out / 'Audit.log').read_text(), json.loads((HERE / 'AUDIT-NAMES.json').read_text()))
++            audit((out / 'ProofAudit.log').read_text(), json.loads((HERE / 'AUDIT-NAMES.json').read_text()))
+         assert sources == {str(p.relative_to(HERE / 'proof')): sha(p) for p in (HERE / 'proof').rglob('*.lean')}
+         authenticate()
+         assert sha(lean) == 'd1d9c26a539f54fe839d2aa7760bf1ac1dd76a30b26e2c9684bebf2900038fcf'

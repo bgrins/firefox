@@ -1,0 +1,86 @@
+      // we add in any gap space as needed.
+      if (!lastItem.IsStrut()) {
+        if (mNumNonCollapsedItems) {
+          mTotalOuterHypotheticalMainSize += mMainGapSize;
+        }
+        mNumNonCollapsedItems++;
+      }
+  
+layout/generic/nsFlexContainerFrame.cpp:1031:     mTotalItemMBP += lastItem.MarginBorderPaddingSizeInMainAxis();
+      mTotalOuterHypotheticalMainSize += lastItem.OuterMainSize();
+    }
+  
+    // Computes the cross-size and baseline position of this FlexLine, based on
+    // its FlexItems.
+    void ComputeCrossSizeAndBaseline(const FlexboxAxisTracker& aAxisTracker);
+  
+    // Returns the cross-size of this line.
+    // Number of *frozen* FlexItems in this line, based on FlexItem::IsFrozen().
+    // Mostly used for optimization purposes, e.g. to bail out early from loops
+    // when we can tell they have nothing left to do.
+    uint32_t mNumFrozenItems = 0;
+    // Number of items that are not collapsed.
+    uint32_t mNumNonCollapsedItems = 0;
+  
+    // Sum of margin/border/padding for the FlexItems in this FlexLine.
+layout/generic/nsFlexContainerFrame.cpp:1127:   nscoord mTotalItemMBP = 0;
+  
+    nscoord mLineCrossSize = 0;
+    nscoord mFirstBaselineOffset = nscoord_MIN;
+    nscoord mLastBaselineOffset = nscoord_MIN;
+  
+    // Maintain size of each {row,column}-gap in the main axis
+    const nscoord mMainGapSize;
+  };
+    MOZ_ASSERT(!IsEmpty() || aLineInfo,
+               "empty lines should take the early-return above");
+  
+    FLEX_LOG("Resolving flexible lengths for items");
+  
+    // Subtract space occupied by our items' margins/borders/padding/gaps, so
+    // we can just be dealing with the space available for our flex items' content
+    // boxes.
+layout/generic/nsFlexContainerFrame.cpp:3227:   const AuCoord64 totalItemMBPAndGaps = mTotalItemMBP + SumOfGaps();
+    const AuCoord64 spaceAvailableForFlexItemsContentBoxes =
+        flexContainerMainSize - totalItemMBPAndGaps;
+  
+    Maybe<AuCoord64> origAvailableFreeSpace;
+  
+    // NOTE: I claim that this chunk of the algorithm (the looping part) needs to
+    // run the loop at MOST NumItems() times.  This claim should hold up
+    // because we'll freeze at least one item on each loop iteration, and once
+      // (grow/shrink) that we're doing. Any disagreement should've made us use
+      // the other type of flexing, or should've been resolved in
+      // FreezeItemsEarly.
+      //
+      // Note: it's possible that an individual flex item has huge
+      // margin/border/padding that makes either its
+      // MarginBorderPaddingSizeInMainAxis() or OuterMainSize() negative due to
+      // integer overflow. If that happens, the accumulated
+layout/generic/nsFlexContainerFrame.cpp:3265:     // mTotalOuterHypotheticalMainSize or mTotalItemMBP could be negative due to
+      // that one item's negative (overflowed) size. Likewise, a huge main gap
+      // size between flex items can also make our accumulated SumOfGaps()
+      // negative. In these case, we throw up our hands and don't require
+      // isUsingFlexGrow to agree with availableFreeSpace. Luckily, we won't get
+      // stuck in the algorithm below, and just distribute the wrong
+      // availableFreeSpace with the wrong grow/shrink factors.
+      MOZ_ASSERT(!(mTotalOuterHypotheticalMainSize >= 0 && mTotalItemMBP >= 0 &&
+                   totalItemMBPAndGaps >= 0) ||
+      // integer overflow. If that happens, the accumulated
+      // mTotalOuterHypotheticalMainSize or mTotalItemMBP could be negative due to
+      // that one item's negative (overflowed) size. Likewise, a huge main gap
+      // size between flex items can also make our accumulated SumOfGaps()
+      // negative. In these case, we throw up our hands and don't require
+      // isUsingFlexGrow to agree with availableFreeSpace. Luckily, we won't get
+      // stuck in the algorithm below, and just distribute the wrong
+      // availableFreeSpace with the wrong grow/shrink factors.
+layout/generic/nsFlexContainerFrame.cpp:3272:     MOZ_ASSERT(!(mTotalOuterHypotheticalMainSize >= 0 && mTotalItemMBP >= 0 &&
+                   totalItemMBPAndGaps >= 0) ||
+                     (isUsingFlexGrow && availableFreeSpace >= 0) ||
+                     (!isUsingFlexGrow && availableFreeSpace <= 0),
+                 "availableFreeSpace's sign should match isUsingFlexGrow");
+  
+      // If we have any free space available, give each flexible item a portion
+      // of availableFreeSpace.
+      if (availableFreeSpace != AuCoord64(0)) {
+Total matches: 5

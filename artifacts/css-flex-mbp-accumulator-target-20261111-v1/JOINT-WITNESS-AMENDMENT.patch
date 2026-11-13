@@ -1,0 +1,36 @@
+--- draft-1/Target.lean
++++ final/Target.lean
+@@ -41,8 +41,32 @@
+   freeSpace id (fun _ => 60000) 60000 0 ([-60000, -60000] : List Int) =
+     some 60000
+ 
++def CompensatedCase (magnitude : Int) (count : Nat) : Prop :=
++  let items := List.replicate count (-magnitude)
++  Acquired id items ∧
++  DownstreamFits id (fun _ => magnitude) magnitude 0 items ∧
++  wideFold id items = some (-magnitude * (count : Int)) ∧
++  freeSpace id (fun _ => magnitude) magnitude 0 items = some magnitude
++
++def CompensatedFamilyTarget : Prop :=
++  ∀ magnitude count, 0 ≤ magnitude → Fits32 magnitude → count ≤ maxCount →
++    CompensatedCase magnitude count
++
++def BoundaryCoverageTarget : Prop :=
++  CompensatedCase 60000 35792 ∧
++  CompensatedCase 6000000 358 ∧
++  CompensatedCase 600000000 4
++
++def JointWitnessTarget : Prop :=
++  (Acquired id ([2147483647, -2147483648, 1] : List Int) ∧
++    wideFold id ([2147483647, -2147483648, 1] : List Int) = some 0) ∧
++  (Acquired id ([-2147483648, -2147483648] : List Int) ∧
++    wideFold id ([-2147483648, -2147483648] : List Int) = some (-4294967296)) ∧
++  CompensatedCase 60000 2
++
+ def UniversalTarget : Prop :=
+   PrefixTarget ∧ AccumulatorTarget ∧ OldCompatibilityTarget ∧
+-  FreeSpaceTarget ∧ BoundaryTarget ∧ WitnessTarget
++  FreeSpaceTarget ∧ BoundaryTarget ∧ WitnessTarget ∧
++  CompensatedFamilyTarget ∧ BoundaryCoverageTarget ∧ JointWitnessTarget
+ 
+ end FlexMBP
