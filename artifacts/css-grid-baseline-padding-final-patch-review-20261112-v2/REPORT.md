@@ -1,0 +1,19 @@
+# Corrected focused WPT and separate parent diagnostic
+
+The corrected child-only WPT resolves the prior blocking harness issue. Its entire delta from the originally reviewed test is `test(t =>` to `promise_test(async t =>`. It keeps promise_setup font readiness and all 120 combinations/child-edit assertions. The four current source/test entries authenticate against INPUTS.json. The native candidate hashes match the earlier reviewed semantics. No compiler or browser was run by this review.
+
+The extended parent-change test is retained separately in reviewed-parent-diagnostic.html. Its baseline report has harness status OK, 68 PASS and 52 FAIL. Failures divide into 28 initial child-edit failures (14 layout+size, 14 strict) and 24 parent-change fresh-clone mismatches (12 no containment, 12 size-only; all first-baseline, all at parent phase edit 0). The 28 early failures prevent evaluating that test's later parent phase for those cases, so these counts do not prove that only 24 cases can exhibit parent invalidation trouble.
+
+The fresh clone has the same current classes, direction and descendant text. The comparison uses block-relative geometry, avoiding document-position dependence. No obvious invalid-oracle mismatch was found. Nevertheless, native causation for these parent-change discrepancies is not proved. They should remain a separate source/browser diagnostic rather than an unexplained required success condition for the non-root padding feedback fix. Baseline failures of grid-baseline-align-cycles-001 and grid-baseline-justify-001 are likewise retained; the selected existing align-001 baseline passes. Do not turn those preexisting failures into claimed candidate regressions or fixes without comparing exact outcomes.
+
+Removing the parent font-toggle phase from this focused bugfix WPT does not reduce the overall migration or investigation objective. The original probe, extended test, results and this classification preserve that open issue.
+
+## Useful parent/reset coverage without the font-metric trigger
+
+A parent grid track-size change, such as changing its block-axis row from 300px to 301px and back while keeping peer font metrics and baseline alignment fixed, is a reasonable first separate diagnostic. Flush after the parent change, record the new block-relative content offset and content/border sizes, then repeat child text edits and require stability at that new state. The new state should be compared with a fresh equivalent clone in the diagnostic, but a preexisting mismatch must be reported separately from child-edit drift. Row-size changes can legitimately change absolute target placement, especially last alignment; do not compare document coordinates to the old state.
+
+A target padding change can test adoption of a newly computed padding snapshot: change 3px to 4px through a class, flush, compare a fresh equivalent clone, then edit the child again. This is more likely to change baseline acquisition itself, so it may reproduce a second invalidation defect. It should first be observational, not assumed to be a clean regression control. Changing only a parent's paint style does not exercise layout, and setting a computed value to the same value may do nothing.
+
+Neither a track resize nor a padding change proves which internal child reflow route actually executed: a parent can reuse clean child layout. Direct source inspection already shows the flag is removed immediately after Init and is not copied into child mComputeSizeFlags. If claiming native flag-reset coverage beyond resulting geometry, a bounded trace must establish the selected root Init, flag removal, subsequent parent/child input acquisition and property values. No such trace was run here.
+
+Retain theme/SVG precedence, raw overrides, virtual padding semantics and later wide arithmetic as independent open coverage. The focused repair is not an exact-geometry or universal native proof.

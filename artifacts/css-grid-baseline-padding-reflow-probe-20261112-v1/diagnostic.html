@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Baseline padding after child reflow</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@font-face { font-family: Ahem; src: url(/fonts/Ahem.ttf); }
+body { margin: 0; }
+.grid { display: grid; grid-template-columns: 200px 200px;
+  grid-template-rows: 300px; inline-size: 400px; }
+.target { font: 20px/1 Ahem; inline-size: 100px; block-size: 100px;
+  padding: 3px; border: 2px solid; }
+.peer { font: 40px/1 Ahem; }
+.large .peer { font-size: 160px; }
+.first > div { align-content: baseline; align-self: start; }
+.last > div { align-content: last baseline; align-self: end; }
+.c-layout .target { contain: layout; }
+.c-size .target { contain: size; }
+.c-both .target { contain: layout size; }
+.c-strict .target { contain: strict; }
+.c-content .target { contain: content; }
+.c-inline .target { contain: inline-size layout; }
+.c-hidden .target { overflow: hidden; }
+</style>
+<div id="cases"></div>
+<script>
+const containments = ["none", "layout", "size", "both", "strict", "content", "inline", "hidden"];
+function observe(grid, id, phase) {
+  const target = grid.querySelector(".target");
+  const text = grid.querySelector("span");
+  const box = target.getBoundingClientRect();
+  const inner = text.getBoundingClientRect();
+  const parent = grid.getBoundingClientRect();
+  const style = getComputedStyle(target);
+  return {id, phase, contain: style.contain, align: style.alignContent,
+    box: [box.x - parent.x, box.y - parent.y, box.width, box.height],
+    text: [inner.x - box.x, inner.y - box.y, inner.width, inner.height],
+    padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft],
+    contentSize: [style.width, style.height], scroll: [target.scrollWidth, target.scrollHeight]};
+}
+promise_test(async () => {
+  await document.fonts.load("20px Ahem");
+  await document.fonts.load("160px Ahem");
+  const rows = [];
+  for (const containment of containments) {
+    for (const alignment of ["first", "last"]) {
+      for (const large of [false, true]) {
+        const id = `${containment}-${alignment}-${large ? "large" : "small"}`;
+        let grid = document.createElement("div");
+        grid.className = `grid c-${containment} ${alignment} ${large ? "large" : ""}`;
+        grid.innerHTML = '<div class="target"><div><span>X</span></div></div><div class="peer">X</div>';
+        document.getElementById("cases").append(grid);
+        rows.push(observe(grid, id, "initial"));
+        for (let pass = 1; pass <= 4; ++pass) {
+          grid.querySelector("span").textContent = pass % 2 ? "XX" : "X";
+          rows.push(observe(grid, id, `edit-${pass}`));
+          await new Promise(resolve => requestAnimationFrame(resolve));
+        }
+        const fresh = grid.cloneNode(true);
+        grid.replaceWith(fresh);
+        grid = fresh;
+        rows.push(observe(grid, id, "fresh"));
+        grid.remove();
+      }
+    }
+  }
+  assert_equals(rows.length, 192);
+  for (const row of rows) test(() => {}, "OBS " + JSON.stringify(row));
+}, "Collect child-reflow and fresh-layout baseline observations");
+</script>

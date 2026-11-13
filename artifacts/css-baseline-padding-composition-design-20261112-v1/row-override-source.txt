@@ -1,0 +1,28 @@
+ 270:                                 NS_FRAME_HAS_DIRTY_CHILDREN);
+ 271: 
+ 272:   // Remove the frame and destroy it
+ 273:   nsContainerFrame::RemoveFrame(aContext, aListID, aOldFrame);
+ 274: }
+ 275: 
+ 276: /* virtual */
+ 277: nsMargin nsTableRowFrame::GetUsedMargin() const { return nsMargin(0, 0, 0, 0); }
+ 278: 
+ 279: /* virtual */
+ 280: nsMargin nsTableRowFrame::GetUsedBorder() const { return nsMargin(0, 0, 0, 0); }
+ 281: 
+ 282: /* virtual */
+ 283: nsMargin nsTableRowFrame::GetUsedPadding() const {
+ 284:   return nsMargin(0, 0, 0, 0);
+ 285: }
+ 286: 
+ 287: static nscoord GetBSizeOfRowsSpannedBelowFirst(
+ 288:     nsTableCellFrame& aTableCellFrame, nsTableFrame& aTableFrame,
+ 289:     const WritingMode aWM) {
+ 290:   nscoord bsize = 0;
+ 291:   int32_t rowSpan = aTableFrame.GetEffectiveRowSpan(aTableCellFrame);
+ 292:   // add in bsize of rows spanned beyond the 1st one
+ 293:   nsIFrame* nextRow = aTableCellFrame.GetParent()->GetNextSibling();
+ 294:   for (int32_t rowX = 1; ((rowX < rowSpan) && nextRow);) {
+ 295:     if (nextRow->IsTableRowFrame()) {
+Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)
+      Run: cargo binstall searchfox-cli

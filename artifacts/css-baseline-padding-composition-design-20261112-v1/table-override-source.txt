@@ -1,0 +1,43 @@
+2110:   }
+2111: #ifdef DEBUG_TABLE_CELLMAP
+2112:   printf("=== TableFrame::RemoveFrame\n");
+2113:   Dump(true, true, true);
+2114: #endif
+2115: }
+2116: 
+2117: /* virtual */
+2118: nsMargin nsTableFrame::GetUsedBorder() const {
+2119:   if (!IsBorderCollapse()) {
+2120:     return nsContainerFrame::GetUsedBorder();
+2121:   }
+2122: 
+2123:   WritingMode wm = GetWritingMode();
+2124:   return GetOuterBCBorder(wm).GetPhysicalMargin(wm);
+2125: }
+2126: 
+2127: /* virtual */
+2128: nsMargin nsTableFrame::GetUsedPadding() const {
+2129:   if (!IsBorderCollapse()) {
+2130:     return nsContainerFrame::GetUsedPadding();
+2131:   }
+2132: 
+2133:   return nsMargin(0, 0, 0, 0);
+2134: }
+2135: 
+2136: /* virtual */
+2137: nsMargin nsTableFrame::GetUsedMargin() const {
+2138:   // The margin is inherited to the table wrapper frame via
+2139:   // the ::-moz-table-wrapper rule in ua.css.
+2140:   return nsMargin(0, 0, 0, 0);
+2141: }
+2142: 
+2143: // TODO(TYLin, dshin): This ideally should be set only in first-in-flow.
+2144: // However, the current implementation of border-collapsed table does not
+2145: // handle continuation gracefully. One concrete issue is shown in bug 1881157
+2146: // comment 3. It is also unclear if the damage area, current included in this
+2147: // property, should be stored separately per-continuation.
+2148: NS_DECLARE_FRAME_PROPERTY_DELETABLE(TableBCDataProperty, TableBCData)
+2149: 
+2150: TableBCData* nsTableFrame::GetTableBCData() const {
+Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)
+      Run: cargo binstall searchfox-cli

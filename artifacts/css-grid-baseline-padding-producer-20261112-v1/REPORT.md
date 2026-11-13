@@ -1,0 +1,17 @@
+# Baseline-padding producer bounds
+
+All sixteen original model obligations and their aggregate pass the local Lean kernel, along with three model mutation counterexamples. Twenty exact axiom audits use only standard Lean axioms; all three concrete boundary witnesses and mutation counterexamples use none. The frozen target was not amended during proof repair. This is a source-guided integer model, not a native execution proof, browser bugfix or protected-comparator acceptance.
+
+The actual grid property writer clamps a negative baseline offset to zero before encoding a last-baseline adjustment by negation. From a signed32 offset, a stored nonzero value therefore lies in `[-2147483647, 2147483647]`. The minimum signed32 value cannot reach this reader through that writer. The reader's magnitude is between zero and 2147483647.
+
+This resolves the minimum-negation concern for that producer path. It does not make the subsequent padding arithmetic safe in signed32. Adding the adjustment to one signed32 padding side yields `[-2147483648, 4294967294]`. Adding a signed32 border side extends this to `[-4294967296, 6442450941]`. Summing two padding and two border sides plus one adjustment per axis yields `[-8589934592, 10737418235]`. Individually promoting these inputs before arithmetic suffices for these local composites; promoting an already-overflowed result does not.
+
+The target includes a concrete admitted input where padding plus the adjustment exceeds signed32. This is an arithmetic counterexample, not established browser reachability. It also proves the exact-integer cancellation needed to recover border from border-padding and padding; that cancellation says nothing about previously overflowed native storage. No blanket nonnegativity assumption is added for padding overrides.
+
+The three checked altered-model witnesses demonstrate sensitivity to removing the writer's negative clamp, moving it after last-baseline sign encoding, and retaining a zero-valued property. They are kernel-checked counterexamples about explicitly defined altered functions, not failed proof attempts, compiled C++ mutations or WPT results.
+
+The first proof attempt is retained under `proof-1`: it failed on tactic reduction and decidability elaboration, and its audit contains `sorryAx`. It supplies no accepted proof. `proof-2` retains the corrected proof bodies, unchanged target, complete successful output and owned-process completion. The command checked Strength.lean, which includes the entire target and proof as exact prefixes. No compiled output cache was emitted. Standard-library imports use the installed Lean 4.35.0-rc4 toolchain; this was not a cold rebuild of Lean or its standard library.
+
+`check.py` authenticates source snapshots, excerpts, target identity, proof prefixes, commands and exact audits. Its replay reads retained evidence and does not rerun Lean. The live source snapshots remain unchanged. Native producer correspondence beyond the reviewed branch mapping, earlier arithmetic, property lifecycle, other writers, full writing-mode integration and CSS/browser reachability remain open. Future widened offsets or padding producers require updated bounds.
+
+The next migration work must move padding and border composition before narrow overflow, preserve the optional containing-block dimensions, and connect each resulting size to its actual downstream consumers. These local composite bounds do not prove headroom for adding them to an arbitrary signed128 content size.

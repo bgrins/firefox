@@ -1,0 +1,28 @@
+1525: /* virtual */
+1526: nsMargin nsTableRowGroupFrame::GetUsedMargin() const {
+1527:   return nsMargin(0, 0, 0, 0);
+1528: }
+1529: 
+1530: /* virtual */
+1531: nsMargin nsTableRowGroupFrame::GetUsedBorder() const {
+1532:   return nsMargin(0, 0, 0, 0);
+1533: }
+1534: 
+1535: /* virtual */
+1536: nsMargin nsTableRowGroupFrame::GetUsedPadding() const {
+1537:   return nsMargin(0, 0, 0, 0);
+1538: }
+1539: 
+1540: nscoord nsTableRowGroupFrame::GetBSizeBasis(const ReflowInput& aReflowInput) {
+1541:   nscoord result = 0;
+1542:   nsTableFrame* tableFrame = GetTableFrame();
+1543:   int32_t startRowIndex = GetStartRowIndex();
+1544:   if ((aReflowInput.ComputedBSize() > 0) &&
+1545:       (aReflowInput.ComputedBSize() < NS_UNCONSTRAINEDSIZE)) {
+1546:     nscoord cellSpacing = tableFrame->GetRowSpacing(
+1547:         startRowIndex,
+1548:         std::max(startRowIndex, startRowIndex + GetRowCount() - 1));
+1549:     result = aReflowInput.ComputedBSize() - cellSpacing;
+1550:   } else {
+Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)
+      Run: cargo binstall searchfox-cli

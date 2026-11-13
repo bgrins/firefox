@@ -1,0 +1,58 @@
+2485:       pseudoStyle->StyleText()->mForcedColorAdjust !=
+2486:           StyleForcedColorAdjust::None) {
+2487:     return nullptr;
+2488:   }
+2489:   return pseudoStyle.forget();
+2490: }
+2491: 
+2492: nsTextControlFrame* nsIFrame::GetContainingTextControlFrame() const {
+2493:   for (const nsIFrame* cur = this; cur; cur = cur->GetParent()) {
+2494:     if (const nsTextControlFrame* tc = do_QueryFrame(cur)) {
+2495:       return const_cast<nsTextControlFrame*>(tc);
+2496:     }
+2497:     if (cur->Style()->IsAnonBox()) {
+2498:       // Anon boxes could belong to the <input> / <textarea> itself.
+2499:       continue;
+2500:     }
+2501:     auto* content = cur->GetContent();
+2502:     if (!content || !content->IsInNativeAnonymousSubtree()) {
+2503:       // All content inside text controls is anonymous.
+2504:       break;
+2505:     }
+2506:   }
+2507:   return nullptr;
+2508: }
+2509: 
+2510: bool nsIFrame::CanBeDynamicReflowRoot() const {
+2511:   const auto& display = *StyleDisplay();
+2512:   if (IsLineParticipant() || display.mDisplay.IsRuby() ||
+2513:       display.IsInnerTableStyle() ||
+2514:       display.DisplayInside() == StyleDisplayInside::Table) {
+2515:     // We have a display type where 'width' and 'height' don't actually set the
+2516:     // width or height (i.e., the size depends on content).
+2517:     MOZ_ASSERT(!HasAnyStateBits(NS_FRAME_DYNAMIC_REFLOW_ROOT),
+2518:                "should not have dynamic reflow root bit");
+2519:     return false;
+2520:   }
+2521: 
+2522:   // In general, frames that have contain:layout+size can be reflow roots.
+2523:   // (One exception: table-wrapper frames don't work well as reflow roots,
+2524:   // because their inner-table ReflowInput init path tries to reuse & deref
+2525:   // the wrapper's containing block's reflow input, which may be null if we
+2526:   // initiate reflow from the table-wrapper itself.)
+2527:   //
+2528:   // Changes to `contain` force frame reconstructions, so we used to use
+2529:   // NS_FRAME_REFLOW_ROOT, this bit could be set for the whole lifetime of
+2530:   // this frame. But after the support of `content-visibility: auto` which
+2531:   // is with contain layout + size when it's not relevant to user, and only
+2532:   // with contain layout when it is relevant. The frame does not reconstruct
+2533:   // when the relevancy changes. So we use NS_FRAME_DYNAMIC_REFLOW_ROOT instead.
+2534:   //
+2535:   // We place it above the pref check on purpose, to make sure it works for
+2536:   // containment even with the pref disabled.
+2537:   if (display.IsContainLayout() && GetContainSizeAxes().IsBoth()) {
+2538:     return true;
+2539:   }
+2540: 
+Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)
+      Run: cargo binstall searchfox-cli

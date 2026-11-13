@@ -1,0 +1,153 @@
+--- a/layout/base/LayoutConstants.h
++++ b/layout/base/LayoutConstants.h
+@@ -45,6 +45,9 @@
+    * Set if this is a grid measuring reflow, to prevent stretching.
+    */
+   IsGridMeasuringReflow,
++
++  // Supplied padding already includes baseline alignment adjustments.
++  PaddingIncludesBaseline,
+ 
+   /**
+    * Indicates that we should clamp the margin-box min-size to the given CB
+--- a/layout/base/PresShell.cpp
++++ b/layout/base/PresShell.cpp
+@@ -10818,9 +10818,11 @@
+     // Initialize reflow input with current used border and padding,
+     // in case this was set specially by the parent frame when the reflow root
+     // was reflowed by its parent.
++    reflowInput.mComputeSizeFlags += ComputeSizeFlag::PaddingIncludesBaseline;
+     reflowInput.Init(mPresContext, Nothing(),
+                      Some(target->GetLogicalUsedBorder(wm)),
+                      Some(target->GetLogicalUsedPadding(wm)));
++    reflowInput.mComputeSizeFlags -= ComputeSizeFlag::PaddingIncludesBaseline;
+   }
+ 
+   // fix the computed height
+--- a/layout/generic/ReflowInput.cpp
++++ b/layout/generic/ReflowInput.cpp
+@@ -2383,6 +2383,7 @@
+   const WritingMode wm = GetWritingMode();
+   const nsStyleDisplay* disp = mFrame->StyleDisplayWithOptionalParam(aDisplay);
+   bool needPaddingProp;
++  bool paddingIncludesBaseline = false;
+   LayoutDeviceIntMargin widgetPadding;
+   if (mIsThemed && presContext->Theme()->GetWidgetPadding(
+                        presContext->DeviceContext(), mFrame,
+@@ -2396,6 +2397,8 @@
+     needPaddingProp = false;
+   } else if (aPadding) {  // padding is an input arg
+     SetComputedLogicalPadding(wm, *aPadding);
++    paddingIncludesBaseline =
++        aFlags.contains(ComputeSizeFlag::PaddingIncludesBaseline);
+     nsMargin stylePadding;
+     // If the caller passes a padding that doesn't match our style (like
+     // nsTextControlFrame might due due to theming), then we also need a
+@@ -2408,8 +2411,9 @@
+ 
+   // Add [align|justify]-content:baseline padding contribution.
+   typedef const FramePropertyDescriptor<SmallValueHolder<nscoord>>* Prop;
+-  auto ApplyBaselinePadding = [this, wm, &needPaddingProp](LogicalAxis aAxis,
+-                                                           Prop aProp) {
++  auto ApplyBaselinePadding = [this, wm, &needPaddingProp,
++                               paddingIncludesBaseline](LogicalAxis aAxis,
++                                                        Prop aProp) {
+     bool found;
+     nscoord val = mFrame->GetProperty(aProp, &found);
+     if (found) {
+@@ -2421,7 +2425,9 @@
+         side = MakeLogicalSide(aAxis, LogicalEdge::End);
+         val = -val;
+       }
+-      mComputedPadding.Side(side, wm) += val;
++      if (!paddingIncludesBaseline) {
++        mComputedPadding.Side(side, wm) += val;
++      }
+       needPaddingProp = true;
+       if (aAxis == LogicalAxis::Block && val > 0) {
+         // We have a baseline-adjusted block-axis start padding, so
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-grid/alignment/grid-baseline-content-reflow-root.html
+@@ -0,0 +1,82 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Baseline content alignment remains stable when a contained grid item reflows</title>
++<link rel="help" href="https://drafts.csswg.org/css-align-3/#baseline-align-content">
++<link rel="help" href="https://drafts.csswg.org/css-contain-2/#layout-containment">
++<link rel="stylesheet" href="/fonts/ahem.css">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++  .grid {
++    display: grid;
++    grid-template-columns: 200px 200px;
++    grid-template-rows: 300px;
++    inline-size: 400px;
++  }
++  .target {
++    font: 20px/1 Ahem;
++    inline-size: 100px;
++    block-size: 100px;
++    padding: 3px;
++    border: 2px solid;
++  }
++  .peer { font: 40px/1 Ahem; }
++  .large .peer { font-size: 160px; }
++  .first > div { align-content: baseline; align-self: start; }
++  .last > div { align-content: last baseline; align-self: end; }
++  .layout .target { contain: layout; }
++  .size .target { contain: size; }
++  .both .target { contain: layout size; }
++  .strict .target { contain: strict; }
++  .vertical-rl { writing-mode: vertical-rl; }
++  .vertical-lr { writing-mode: vertical-lr; }
++</style>
++<div id="cases"></div>
++<script>
++promise_setup(() => document.fonts.load("20px Ahem"));
++
++function blockOffset(target, text, writingMode) {
++  const box = target.getBoundingClientRect();
++  const content = text.getBoundingClientRect();
++  if (writingMode === "vertical-rl") {
++    return box.right - content.right;
++  }
++  if (writingMode === "vertical-lr") {
++    return content.left - box.left;
++  }
++  return content.top - box.top;
++}
++
++for (const containment of ["none", "layout", "size", "both", "strict"]) {
++  for (const alignment of ["first", "last"]) {
++    for (const writingMode of ["horizontal-tb", "vertical-rl", "vertical-lr"]) {
++      for (const direction of ["ltr", "rtl"]) {
++        for (const large of [false, true]) {
++          test(t => {
++            const grid = document.createElement("div");
++            grid.className = `grid ${containment} ${alignment} ${writingMode} ${large ? "large" : ""}`;
++            grid.dir = direction;
++            grid.innerHTML = '<div class="target"><div><span>X</span></div></div><div class="peer">X</div>';
++            document.getElementById("cases").append(grid);
++            t.add_cleanup(() => grid.remove());
++            const target = grid.querySelector(".target");
++            const text = grid.querySelector("span");
++            const initialOffset = blockOffset(target, text, writingMode);
++            const initialSize = target.getBoundingClientRect();
++            for (let pass = 1; pass <= 4; ++pass) {
++              text.textContent = pass % 2 ? "XX" : "X";
++              assert_equals(blockOffset(target, text, writingMode), initialOffset,
++                            `Content block offset after edit ${pass}`);
++              assert_equals(getComputedStyle(target).blockSize, "100px",
++                            `Content block size after edit ${pass}`);
++              const size = target.getBoundingClientRect();
++              assert_equals(size.width, initialSize.width, "Border-box width");
++              assert_equals(size.height, initialSize.height, "Border-box height");
++            }
++          }, `${containment}, ${alignment} baseline, ${writingMode}, ${direction}, ${large ? "large" : "small"} peer`);
++        }
++      }
++    }
++  }
++}
++</script>

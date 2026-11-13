@@ -1,0 +1,33 @@
+ 615:      *
+ 616:      * @param {TestFunction} func - Test function. This is executed
+ 617:      * immediately. If it returns without error, the test status is
+ 618:      * set to ``PASS``. If it throws an :js:class:`AssertionError`, or
+ 619:      * any other exception, the test status is set to ``FAIL``
+ 620:      * (typically from an `assert` function).
+ 621:      * @param {String} name - Test name. This must be unique in a
+ 622:      * given file and must be invariant between runs.
+ 623:      */
+ 624:     function test(func, name, properties)
+ 625:     {
+ 626:         if (tests.promise_setup_called) {
+ 627:             tests.status.status = tests.status.ERROR;
+ 628:             tests.status.message = '`test` invoked after `promise_setup`';
+ 629:             tests.complete();
+ 630:         }
+ 631:         var test_name = get_test_name(func, name);
+ 632:         var test_obj = new Test(test_name, properties);
+ 633:         var value = test_obj.step(func, test_obj, test_obj);
+ 634: 
+ 635:         if (value !== undefined) {
+ 636:             var msg = 'Test named "' + test_name +
+ 637:                 '" passed a function to `test` that returned a value.';
+ 638: 
+ 639:             try {
+ 640:                 if (value && typeof value.then === 'function') {
+ 641:                     msg += ' Consider using `promise_test` instead when ' +
+ 642:                         'using Promises or async/await.';
+ 643:                 }
+ 644:             } catch (err) {}
+ 645: 
+Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)
+      Run: cargo binstall searchfox-cli

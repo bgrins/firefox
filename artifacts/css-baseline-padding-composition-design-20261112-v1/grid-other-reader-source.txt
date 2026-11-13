@@ -1,0 +1,43 @@
+ 295:     if (aFrame->IsSubtreeDirty()) {
+ 296:       return false;
+ 297:     }
+ 298:     return mKey == Key(aFrame, aCBSize);
+ 299:   }
+ 300: 
+ 301:   const MeasuringReflowResult& Result() const { return mResult; }
+ 302: 
+ 303:   void Update(const nsIFrame* aFrame, const LogicalSize& aCBSize,
+ 304:               const MeasuringReflowResult& aResult) {
+ 305:     mKey.Update(aFrame, aCBSize);
+ 306:     mResult = aResult;
+ 307:   }
+ 308: 
+ 309:  private:
+ 310:   struct Key final {
+ 311:     nscoord mCBSizeInItemInlineAxis;
+ 312:     nscoord mBaselinePaddingInItemBlockAxis;
+ 313: 
+ 314:     Key(const nsIFrame* aFrame, const LogicalSize& aCBSize) {
+ 315:       Update(aFrame, aCBSize);
+ 316:     }
+ 317: 
+ 318:     void Update(const nsIFrame* aFrame, const LogicalSize& aCBSize) {
+ 319:       mCBSizeInItemInlineAxis = aCBSize.ISize(aFrame->GetWritingMode());
+ 320:       mBaselinePaddingInItemBlockAxis =
+ 321:           aFrame->GetProperty(nsIFrame::BBaselinePadProperty());
+ 322:     }
+ 323: 
+ 324:     bool operator==(const Key& aOther) const = default;
+ 325:   };
+ 326: 
+ 327:   Key mKey;
+ 328:   MeasuringReflowResult mResult;
+ 329: };
+ 330: 
+ 331: // The input sizes for calculating the number of repeat(auto-fill/fit) tracks.
+ 332: // https://drafts.csswg.org/css-grid-2/#auto-repeat
+ 333: struct RepeatTrackSizingInput {
+ 334:   explicit RepeatTrackSizingInput(WritingMode aWM)
+ 335:       : mMin(aWM, 0, 0),
+Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)
+      Run: cargo binstall searchfox-cli

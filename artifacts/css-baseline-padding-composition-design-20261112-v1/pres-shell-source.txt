@@ -1,0 +1,83 @@
+10800:       geckoprofiler::category::LAYOUT, std::move(mReflowCause), innerWindowID);
+10801:   mReflowCause = nullptr;
+10802: 
+10803:   FlushPendingScrollAnchorSelections();
+10804: 
+10805:   const bool isRoot = target == mFrameConstructor->GetRootFrame();
+10806: 
+10807:   MOZ_ASSERT(isRoot || aOverflowTracker,
+10808:              "caller must provide overflow tracker when reflowing "
+10809:              "non-root frames");
+10810: 
+10811:   // CreateReferenceRenderingContext can return nullptr
+10812:   UniquePtr<gfxContext> rcx(CreateReferenceRenderingContext());
+10813: 
+10814: #ifdef DEBUG
+10815:   mCurrentReflowRoot = target;
+10816: #endif
+10817: 
+10818:   // If the target frame is the root of the frame hierarchy, then
+10819:   // use all the available space. If it's simply a `reflow root',
+10820:   // then use the target frame's size as the available space.
+10821:   WritingMode wm = target->GetWritingMode();
+10822:   LogicalSize size(wm);
+10823:   if (isRoot) {
+10824:     size = LogicalSize(wm, mPresContext->GetVisibleArea().Size());
+10825:   } else {
+10826:     size = target->GetLogicalSize();
+10827:   }
+10828: 
+10829:   OverflowAreas oldOverflow;  // initialized and used only when !isRoot
+10830:   if (!isRoot) {
+10831:     oldOverflow = target->GetOverflowAreas();
+10832:   }
+10833: 
+10834:   NS_ASSERTION(!target->GetNextInFlow() && !target->GetPrevInFlow(),
+10835:                "reflow roots should never split");
+10836: 
+10837:   // Don't pass size directly to the reflow input, since a
+10838:   // constrained height implies page/column breaking.
+10839:   LogicalSize reflowSize(wm, size.ISize(wm), NS_UNCONSTRAINEDSIZE);
+10840:   ReflowInput reflowInput(mPresContext, target, rcx.get(), reflowSize,
+10841:                           ReflowInput::InitFlag::CallerWillInit);
+10842: 
+10843:   if (isRoot) {
+10844:     reflowInput.Init(mPresContext);
+10845:   } else {
+10846:     // Initialize reflow input with current used border and padding,
+10847:     // in case this was set specially by the parent frame when the reflow root
+10848:     // was reflowed by its parent.
+10849:     reflowInput.Init(mPresContext, Nothing(),
+10850:                      Some(target->GetLogicalUsedBorder(wm)),
+10851:                      Some(target->GetLogicalUsedPadding(wm)));
+10852:   }
+10853: 
+10854:   // fix the computed height
+10855:   NS_ASSERTION(reflowInput.ComputedPhysicalMargin() == nsMargin(0, 0, 0, 0),
+10856:                "reflow input should not set margin for reflow roots");
+10857:   if (size.BSize(wm) != NS_UNCONSTRAINEDSIZE) {
+10858:     nscoord computedBSize =
+10859:         size.BSize(wm) -
+10860:         reflowInput.ComputedLogicalBorderPadding(wm).BStartEnd(wm);
+10861:     computedBSize = std::max(computedBSize, 0);
+10862:     reflowInput.SetComputedBSize(computedBSize);
+10863:   }
+10864:   NS_ASSERTION(
+10865:       reflowInput.ComputedISize() ==
+10866:           size.ISize(wm) -
+10867:               reflowInput.ComputedLogicalBorderPadding(wm).IStartEnd(wm),
+10868:       "reflow input computed incorrect inline size");
+10869: 
+10870:   mPresContext->ReflowStarted(aInterruptible);
+10871:   mIsReflowing = true;
+10872: 
+10873:   nsReflowStatus status;
+10874:   ReflowOutput desiredSize(reflowInput);
+10875:   target->Reflow(mPresContext, desiredSize, reflowInput, status);
+10876: 
+10877:   // If an incremental reflow is initiated at a frame other than the
+10878:   // root frame, then its desired size had better not change!  If it's
+10879:   // initiated at the root, then the size better not change unless its
+10880:   // height was unconstrained to start with.
+Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)
+      Run: cargo binstall searchfox-cli

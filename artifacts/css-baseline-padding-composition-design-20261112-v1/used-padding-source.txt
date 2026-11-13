@@ -1,0 +1,93 @@
+1600:       // fact, then restyling undoes it...
+1601:       (mComputedStyle->GetPseudoType() == PseudoStyleType::MozText &&
+1602:        aNewStyle.GetPseudoType() ==
+1603:            PseudoStyleType::MozFirstLetterContinuation) ||
+1604:       (mComputedStyle->GetPseudoType() ==
+1605:            PseudoStyleType::MozFirstLetterContinuation &&
+1606:        aNewStyle.GetPseudoType() == PseudoStyleType::MozText));
+1607: }
+1608: #endif
+1609: 
+1610: /* virtual */
+1611: nsMargin nsIFrame::GetUsedMargin() const {
+1612:   nsMargin margin;
+1613:   if (((mState & NS_FRAME_FIRST_REFLOW) && !(mState & NS_FRAME_IN_REFLOW)) ||
+1614:       IsInSVGTextSubtree()) {
+1615:     return margin;
+1616:   }
+1617: 
+1618:   if (nsMargin* m = GetProperty(UsedMarginProperty())) {
+1619:     margin = *m;
+1620:   } else if (!StyleMargin()->GetMargin(margin)) {
+1621:     // If we get here, our caller probably shouldn't be calling us...
+1622:     NS_ERROR(
+1623:         "Returning bogus 0-sized margin, because this margin "
+1624:         "depends on layout & isn't cached!");
+1625:   }
+1626:   return margin;
+1627: }
+1628: 
+1629: /* virtual */
+1630: nsMargin nsIFrame::GetUsedBorder() const {
+1631:   if (((mState & NS_FRAME_FIRST_REFLOW) && !(mState & NS_FRAME_IN_REFLOW)) ||
+1632:       IsInSVGTextSubtree()) {
+1633:     return {};
+1634:   }
+1635: 
+1636:   const nsStyleDisplay* disp = StyleDisplay();
+1637:   if (IsThemed(disp)) {
+1638:     // Theme methods don't use const-ness.
+1639:     auto* mutable_this = const_cast<nsIFrame*>(this);
+1640:     nsPresContext* pc = PresContext();
+1641:     LayoutDeviceIntMargin widgetBorder = pc->Theme()->GetWidgetBorder(
+1642:         pc->DeviceContext(), mutable_this, disp->EffectiveAppearance());
+1643:     return LayoutDevicePixel::ToAppUnits(widgetBorder,
+1644:                                          pc->AppUnitsPerDevPixel());
+1645:   }
+1646: 
+1647:   return StyleBorder()->GetComputedBorder();
+1648: }
+1649: 
+1650: /* virtual */
+1651: nsMargin nsIFrame::GetUsedPadding() const {
+1652:   nsMargin padding;
+1653:   if (((mState & NS_FRAME_FIRST_REFLOW) && !(mState & NS_FRAME_IN_REFLOW)) ||
+1654:       IsInSVGTextSubtree()) {
+1655:     return padding;
+1656:   }
+1657: 
+1658:   const nsStyleDisplay* disp = StyleDisplay();
+1659:   if (IsThemed(disp)) {
+1660:     // Theme methods don't use const-ness.
+1661:     nsIFrame* mutable_this = const_cast<nsIFrame*>(this);
+1662:     nsPresContext* pc = PresContext();
+1663:     LayoutDeviceIntMargin widgetPadding;
+1664:     if (pc->Theme()->GetWidgetPadding(pc->DeviceContext(), mutable_this,
+1665:                                       disp->EffectiveAppearance(),
+1666:                                       &widgetPadding)) {
+1667:       return LayoutDevicePixel::ToAppUnits(widgetPadding,
+1668:                                            pc->AppUnitsPerDevPixel());
+1669:     }
+1670:   }
+1671: 
+1672:   if (nsMargin* p = GetProperty(UsedPaddingProperty())) {
+1673:     padding = *p;
+1674:   } else if (!StylePadding()->GetPadding(padding)) {
+1675:     // If we get here, our caller probably shouldn't be calling us...
+1676:     NS_ERROR(
+1677:         "Returning bogus 0-sized padding, because this padding "
+1678:         "depends on layout & isn't cached!");
+1679:   }
+1680:   return padding;
+1681: }
+1682: 
+1683: nsIFrame::Sides nsIFrame::GetSkipSides() const {
+1684:   if (MOZ_UNLIKELY(StyleBorder()->mBoxDecorationBreak ==
+1685:                    StyleBoxDecorationBreak::Clone) &&
+1686:       !HasAnyStateBits(NS_FRAME_IS_OVERFLOW_CONTAINER)) {
+1687:     return Sides();
+1688:   }
+1689: 
+1690:   // Convert the logical skip sides to physical sides using the frame's
+Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)
+      Run: cargo binstall searchfox-cli

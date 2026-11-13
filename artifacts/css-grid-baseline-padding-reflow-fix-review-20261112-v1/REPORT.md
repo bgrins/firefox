@@ -1,0 +1,27 @@
+# Source review of resolved-padding flag proposal
+
+The proposed opt-in `ComputeSizeFlag::PaddingIncludesBaseline` addresses the identified feedback edge without changing raw padding overrides. The flag must describe the supplied padding snapshot, not every padding producer or all reflows of that frame. Recommended implementation: set it in PresShell's non-root `DoReflow` branch before `Init` receives current used padding; recognize it only in the actual explicit-padding acquisition branch of `InitOffsets`; suppress only the additive operation, retaining the baseline reader's other bookkeeping.
+
+This reviews the proposed design against the pinned original source, not a final native patch or compiled candidate. Root owns implementation/build/browser evidence. No files outside this review directory were changed.
+
+## Required details
+
+Use a local boolean initialized false. Assign it from the flag only when `else if (aPadding)` is actually chosen. Theme padding and SVG-zero branches precede that branch and must keep their existing baseline application behavior. The flag by itself must not suppress additions when no override is supplied. Ordinary callers supplying raw padding without the flag must still receive baseline padding.
+
+Keep the two existing guarded calls to ApplyBaselinePadding: block is suppressed by IsGridMeasuringReflow, inline by ShrinkWrap. Inside the lambda, retain property lookup, nonzero diagnostic, side/magnitude interpretation, `needPaddingProp = true`, and the block-axis state-bit marking. Guard only the `mComputedPadding.Side(side, wm) += val` operation with the local boolean. This preserves existing cache-presence policy even if supplied padding happens to compare equal to style, and avoids treating cached baseline metadata as absent merely because its numeric contribution was already included.
+
+In particular, skipping the whole lambda would also skip NS_FRAME_CONTAINS_RELATIVE_BSIZE marking. `Init` calls `InitConstraints` and then `InitResizeFlags`; the latter can inspect the bit while deciding resize behavior and subsequently clear it when NS_FRAME_IS_DIRTY is set. Relying on a bit surviving from the previous reflow is weaker than preserving the original marking schedule. The existing lambda marks the block bit for either original sign after taking the positive magnitude, despite its start-padding comment; retain that behavior in this fix.
+
+The root constructor uses CallerWillInit in PresShell, so the flag can be added before initialization reads it. The child constructor copies `mFlags` but initializes `mComputeSizeFlags` from its explicit `aComputeSizeFlags` parameter; this is not automatic inheritance of the new flag into raw child padding. The retained indexed field search finds no other explicit parent-field copying. Ordinary subsequent shrink-wrap additions preserve the bit. It reaches ComputeSize as an additional EnumSet member; existing consumers test named members, rather than assigning a meaning to any nonempty set in the reviewed indexed field uses. Whole-tree compilation remains a required check for enum assumptions and unindexed/local consumers.
+
+No flag is needed on the frame or UsedPaddingProperty itself for this focused repair. New reflow inputs start without this opt-in; a parent-driven grid reflow can recompute raw padding and baseline properties normally. Do not set the bit on the document-root branch, all Init calls, or all explicit overrides. Do not remove baseline properties or alter the measuring cache key to hide the feedback.
+
+## Evidence and suggested regression coverage
+
+The retained OBSERVATIONS.json has 32 cases and 192 observations. Independent grouping confirms six cases with computed-content-size drift: both-first-large, both-last-small, both-last-large, strict-first-large, strict-last-small and strict-last-large. Each case has initial, four edit and fresh-clone phases. This reproduces the reported grouping; it is not an independent browser run or a full authentication of the probe harness. INPUTS.json pins the observations read and the four source snapshots used here.
+
+The strongest regression expectation compares edited instances to a fresh equivalent layout, including content size and content position, rather than requiring all text widths remain identical across edits. Include first and last baseline; layout-plus-size and strict containment; non-contained/layout-only/size-only controls; repeated child edits; a later parent-driven change to padding or baseline alignment followed by another child edit; a nested descendant that still needs its own raw baseline adjustment; and a vertical/orthogonal case to exercise inline as well as block mapping. Preserving both axis suppression flags is important even when the current witness is block-only.
+
+Component/source controls should distinguish flag absent, flag present with no override, actual override plus flag, theme winning over an override, and SVG winning over an override. Where those states are hard to construct in browser tests, source review plus focused native tests can cover them without pretending a browser witness exists. The proposal must leave margin cache refresh and unrelated size/overflow changes untouched.
+
+This repair removes repeated application of an already-included contribution. It does not address the separately demonstrated signed32 padding/border sum overflow or complete the exact reflow/geometry migration. No universal native theorem or security classification follows from this review.

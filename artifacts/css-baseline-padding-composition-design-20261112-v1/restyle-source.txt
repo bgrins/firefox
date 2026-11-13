@@ -1,0 +1,98 @@
+ 970:         // First, we need to ensure that the normal position is stored though.
+ 971:         bool hasProperty;
+ 972:         nsPoint normalPosition = cont->GetNormalPosition(&hasProperty);
+ 973:         if (!hasProperty) {
+ 974:           cont->AddProperty(nsIFrame::NormalPositionProperty(), normalPosition);
+ 975:         }
+ 976:         cont->SetPosition(normalPosition +
+ 977:                           nsPoint(newOffsets.left, newOffsets.top));
+ 978:       }
+ 979:     }
+ 980: 
+ 981:     postPendingScrollAnchorOrResnap(aFrame);
+ 982:     return true;
+ 983:   }
+ 984: 
+ 985:   // For the absolute positioning case, set up a fake HTML reflow input for
+ 986:   // the frame, and then get the offsets and size from it. If the frame's size
+ 987:   // doesn't need to change, we can simply update the frame position. Otherwise
+ 988:   // we fall back to a reflow.
+ 989:   UniquePtr<gfxContext> rc =
+ 990:       aFrame->PresShell()->CreateReferenceRenderingContext();
+ 991: 
+ 992:   // Construct a bogus parent reflow input so that there's a usable reflow input
+ 993:   // for the containing block.
+ 994:   nsIFrame* parentFrame = aFrame->GetParent();
+ 995:   WritingMode parentWM = parentFrame->GetWritingMode();
+ 996:   WritingMode frameWM = aFrame->GetWritingMode();
+ 997:   LogicalSize parentSize = parentFrame->GetLogicalSize();
+ 998: 
+ 999:   nsFrameState savedState = parentFrame->GetStateBits();
+1000:   ReflowInput parentReflowInput(aFrame->PresContext(), parentFrame, rc.get(),
+1001:                                 parentSize);
+1002:   parentFrame->RemoveStateBits(~NS_FRAME_STATE_NONE);
+1003:   parentFrame->AddStateBits(savedState);
+1004: 
+1005:   // The bogus parent state here was created with no parent state of its own,
+1006:   // and therefore it won't have an mCBReflowInput set up.
+1007:   // But we may need one (for InitCBReflowInput in a child state), so let's
+1008:   // try to create one here for the cases where it will be needed.
+1009:   Maybe<ReflowInput> cbReflowInput;
+1010:   nsIFrame* cbFrame = parentFrame->GetContainingBlock();
+1011:   if (cbFrame && (aFrame->GetContainingBlock() != parentFrame ||
+1012:                   parentFrame->IsTableFrame())) {
+1013:     const auto cbWM = cbFrame->GetWritingMode();
+1014:     LogicalSize cbSize = cbFrame->GetLogicalSize();
+1015:     cbReflowInput.emplace(cbFrame->PresContext(), cbFrame, rc.get(), cbSize);
+1016:     cbReflowInput->SetComputedLogicalMargin(
+1017:         cbWM, cbFrame->GetLogicalUsedMargin(cbWM));
+1018:     cbReflowInput->SetComputedLogicalPadding(
+1019:         cbWM, cbFrame->GetLogicalUsedPadding(cbWM));
+1020:     cbReflowInput->SetComputedLogicalBorderPadding(
+1021:         cbWM, cbFrame->GetLogicalUsedBorderAndPadding(cbWM));
+1022:     parentReflowInput.mCBReflowInput = cbReflowInput.ptr();
+1023:   }
+1024: 
+1025:   NS_WARNING_ASSERTION(parentSize.ISize(parentWM) != NS_UNCONSTRAINEDSIZE &&
+1026:                            parentSize.BSize(parentWM) != NS_UNCONSTRAINEDSIZE,
+1027:                        "parentSize should be valid");
+1028:   parentReflowInput.SetComputedISize(std::max(parentSize.ISize(parentWM), 0));
+1029:   parentReflowInput.SetComputedBSize(std::max(parentSize.BSize(parentWM), 0));
+1030:   parentReflowInput.SetComputedLogicalMargin(parentWM, LogicalMargin(parentWM));
+1031: 
+1032:   parentReflowInput.SetComputedLogicalPadding(
+1033:       parentWM, parentFrame->GetLogicalUsedPadding(parentWM));
+1034:   parentReflowInput.SetComputedLogicalBorderPadding(
+1035:       parentWM, parentFrame->GetLogicalUsedBorderAndPadding(parentWM));
+1036:   LogicalSize availSize = parentSize.ConvertTo(frameWM, parentWM);
+1037:   availSize.BSize(frameWM) = NS_UNCONSTRAINEDSIZE;
+1038: 
+1039:   ViewportFrame* viewport = do_QueryFrame(parentFrame);
+1040:   nsSize cbSize = viewport ? viewport
+1041:                                  ->GetContainingBlockAdjustedForScrollbars(
+1042:                                      parentReflowInput, aFrame)
+1043:                                  .Size()
+1044:                            : aFrame->GetContainingBlock()->GetSize();
+1045:   const nsMargin& parentBorder =
+1046:       parentReflowInput.mStyleBorder->GetComputedBorder();
+1047:   cbSize -= nsSize(parentBorder.LeftRight(), parentBorder.TopBottom());
+1048:   LogicalSize lcbSize(frameWM, cbSize);
+1049:   ReflowInput reflowInput(aFrame->PresContext(), parentReflowInput, aFrame,
+1050:                           availSize, Some(lcbSize));
+1051:   nscoord computedISize = reflowInput.ComputedISize();
+1052:   nscoord computedBSize = reflowInput.ComputedBSize();
+1053:   const auto frameBP = reflowInput.ComputedLogicalBorderPadding(frameWM);
+1054:   computedISize += frameBP.IStartEnd(frameWM);
+1055:   if (computedBSize != NS_UNCONSTRAINEDSIZE) {
+1056:     computedBSize += frameBP.BStartEnd(frameWM);
+1057:   }
+1058:   LogicalSize logicalSize = aFrame->GetLogicalSize(frameWM);
+1059:   nsSize size = aFrame->GetSize();
+1060:   // The RecomputePosition hint is not used if any offset changed between auto
+1061:   // and non-auto. If computedSize.height == NS_UNCONSTRAINEDSIZE then the new
+1062:   // element height will be its intrinsic height, and since 'top' and 'bottom''s
+1063:   // auto-ness hasn't changed, the old height must also be its intrinsic
+1064:   // height, which we can assume hasn't changed (or reflow would have
+1065:   // been triggered).
+Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)
+      Run: cargo binstall searchfox-cli
