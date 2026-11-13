@@ -57,8 +57,7 @@ FlexItemValues::FlexItemValues(FlexLineValues* aParent,
   // Convert app unit sizes to css pixel sizes.
   mMainBaseSize =
       nsPresContext::AppUnitsToDoubleCSSPixels(aItem->mMainBaseSize);
-  mMainDeltaSize =
-      nsPresContext::AppUnitsToDoubleCSSPixels(aItem->mMainDeltaSize);
+  mMainDeltaSize = double(aItem->mMainDeltaSize) / AppUnitsPerCSSPixel();
   mMainMinSize = nsPresContext::AppUnitsToDoubleCSSPixels(aItem->mMainMinSize);
   mMainMaxSize = ToPossiblyUnconstrainedPixels(aItem->mMainMaxSize);
   mCrossMinSize =

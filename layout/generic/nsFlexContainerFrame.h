@@ -43,7 +43,7 @@ struct ComputedFlexItemInfo {
    * algorithm proceeds linearly, the mMainDeltaSize for an item only
    * respects the resolved size of items already frozen.
    */
-  nscoord mMainDeltaSize;
+  int64_t mMainDeltaSize;
   nscoord mMainMinSize;
   nscoord mMainMaxSize;
   nscoord mCrossMinSize;

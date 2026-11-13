@@ -3281,6 +3281,8 @@ void FlexLine::ResolveFlexibleLengths(nscoord aFlexContainerMainSize,
                    (!isUsingFlexGrow && availableFreeSpace <= 0),
                "availableFreeSpace's sign should match isUsingFlexGrow");
 
+    AuCoord64 totalViolation = 0;
+
     // If we have any free space available, give each flexible item a portion
     // of availableFreeSpace.
     if (availableFreeSpace != AuCoord64(0)) {
@@ -3390,10 +3392,12 @@ void FlexLine::ResolveFlexibleLengths(nscoord aFlexContainerMainSize,
         // NOTE: It's important that we traverse our items in *reverse* order
         // here, for correct width distribution according to the items'
         // "ShareOfWeightSoFar" progressively-calculated values.
+        uint32_t itemIndex = NumItems();
         for (FlexItem& item : Reversed(Items())) {
           if (numUnfrozenItemsToBeSeen == 0) {
             break;
           }
+          --itemIndex;
 
           if (!item.IsFrozen()) {
             numUnfrozenItemsToBeSeen--;
@@ -3427,45 +3431,31 @@ void FlexLine::ResolveFlexibleLengths(nscoord aFlexContainerMainSize,
 
             availableFreeSpace -= sizeDelta;
 
-            item.SetMainSize(item.MainSize() +
-                             nscoord(sizeDelta.ToMinMaxClamped()));
+            // Preserve cancellation before narrowing, without hiding min/max
+            // violations by clamping to the preferred coordinate range.
+            const AuCoord64 mainSize = AuCoord64(item.MainSize()) + sizeDelta;
+            item.SetMainSize(nscoord(
+                std::clamp<int64_t>(mainSize.value, INT32_MIN, INT32_MAX)));
+            // Retain the violation contribution lost when narrowing the target.
+            totalViolation += AuCoord64(item.MainSize()) - mainSize;
+            if (mainSize < AuCoord64(INT32_MIN)) {
+              item.SetHadMinViolation();
+            } else if (mainSize > AuCoord64(INT32_MAX)) {
+              item.SetHadMaxViolation();
+            }
+            if (aLineInfo) {
+              aLineInfo->mItems[itemIndex].mMainDeltaSize = sizeDelta.value;
+            }
             FLEX_LOGV("  Flex item %p receives %" PRId64 ", for a total of %d",
                       item.Frame(), sizeDelta.value, item.MainSize());
           }
         }
 
         MOZ_ASSERT(numUnfrozenItemsToBeSeen == 0, "miscounted frozen items?");
-
-        // If we have an aLineInfo structure to fill out, capture any
-        // size changes that may have occurred in the previous loop.
-        // We don't do this inside the previous loop, because we don't
-        // want to burden layout when aLineInfo is null.
-        if (aLineInfo) {
-          uint32_t itemIndex = 0;
-          for (FlexItem& item : Items()) {
-            if (!item.IsFrozen()) {
-              // Calculate a deltaSize that represents how much the flex sizing
-              // algorithm "wants" to stretch or shrink this item during this
-              // pass through the algorithm. Later passes through the algorithm
-              // may overwrite this, until this item is frozen. Note that this
-              // value may not reflect how much the size of the item is
-              // actually changed, since the size of the item will be clamped
-              // to min and max values later in this pass. That's intentional,
-              // since we want to report the value that the sizing algorithm
-              // tried to stretch or shrink the item.
-              nscoord deltaSize =
-                  item.MainSize() - aLineInfo->mItems[itemIndex].mMainBaseSize;
-
-              aLineInfo->mItems[itemIndex].mMainDeltaSize = deltaSize;
-            }
-            ++itemIndex;
-          }
-        }
       }
     }
 
     // Fix min/max violations:
-    AuCoord64 totalViolation = 0;  // keeps track of adjustments for min/max
     FLEX_LOGV("Checking for violations:");
 
     // Since this loop only operates on unfrozen flex items, we can break as
