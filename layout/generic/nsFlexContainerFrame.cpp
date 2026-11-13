@@ -1600,16 +1600,19 @@ void nsFlexContainerFrame::GenerateFlexItemForChild(
   // up-front.
   if (flexGrow == 0.0f && flexShrink == 0.0f) {
     item.Freeze();
-    if (flexBaseSize < mainMinSize) {
-      item.SetWasMinClamped();
-    } else if (flexBaseSize > mainMaxSize) {
-      item.SetWasMaxClamped();
-    }
   }
 
   // Resolve "flex-basis:auto" and/or "min-[width|height]:auto" (which might
   // require us to reflow the item to measure content height)
   ResolveAutoFlexBasisAndMinSize(item, childRI, aAxisTracker);
+
+  if (item.IsFrozen()) {
+    if (item.FlexBaseSize() < item.MainMinSize()) {
+      item.SetWasMinClamped();
+    } else if (item.FlexBaseSize() > item.MainMaxSize()) {
+      item.SetWasMaxClamped();
+    }
+  }
 }
 
 nscoord nsFlexContainerFrame::PartiallyResolveAutoMinSize(
