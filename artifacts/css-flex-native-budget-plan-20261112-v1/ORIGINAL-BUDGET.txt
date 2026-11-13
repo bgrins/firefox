@@ -1,0 +1,16 @@
+Definition BudgetTarget : Prop := forall bytes line seeds info state result,
+  NativeEntry.Admitted bytes line seeds -> NativeEntry.ModelHistory line seeds info state ->
+  NativePass.step (NativeEntry.config line seeds) state = Some result ->
+  NativePass.FitsPass result /\ Fits64 (NativePass.spaceAvailable (NativeEntry.config line seeds)) /\
+  Fits64 (EntryAcquisition.inner line) /\ Fits64 (EntryAcquisition.gap line) /\
+  Fits64 (EntryAcquisition.mbpTotal line) /\ Fits64 (SignHistory.fixed line) /\
+  Fits64 (NativeClamp.total (NativePass.clamped result)) /\
+  (length seeds <= 134217727)%nat /\
+  (match NativePass.reverse result with None => True | Some reversed =>
+    SignHistory.sumZ (map (fun e => Z.abs (NativeReverse.delta e)) (NativeReverse.events reversed)) <=
+      Z.abs (NativePass.entryFree (NativePass.prepared result)) /\
+    Forall (fun e => Z.abs (NativeReverse.totalAfter e) <= Z.abs (NativePass.entryFree (NativePass.prepared result)))
+      (NativeReverse.events reversed) end) /\
+  Forall (fun e => Z.abs (NativeClamp.totalAfter e) <=
+    Z.abs (NativePass.entryFree (NativePass.prepared result)) + Z.of_nat (length seeds)*4294967295)
+      (NativeClamp.events (NativePass.clamped result)).
