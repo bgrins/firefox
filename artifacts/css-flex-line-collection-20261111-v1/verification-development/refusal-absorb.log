@@ -1,0 +1,21 @@
+refusal-absorb.lean:2:84: error: Tactic `decide` failed to reduce
+  @decide (FlexCollect.collect id 100 0 [150, -50] = [[150, -50]])
+    (instDecidableEqList (FlexCollect.collect id 100 0 [150, -50]) [[150, -50]])
+to `true` or `false`.
+
+Reduction got stuck at
+  match FlexCollect.collect id 100 0 [150, -50] with
+  | [] =>
+    match [[150, -50]] with
+    | [] => isTrue ⋯
+    | head :: tail => isFalse ⋯
+  | a :: as =>
+    match [[150, -50]] with
+    | [] => isFalse ⋯
+    | b :: bs =>
+      match decEq a b with
+      | { decide := true, reflects_decide := hab } =>
+        match as.hasDecEq bs with
+        | { decide := true, reflects_decide := habs } => isTrue ⋯
+        | { decide := false, reflects_decide := nabs } => isFalse ⋯
+      | { decide := false, reflects_decide := nab } => isFalse ⋯

@@ -1,0 +1,9 @@
+# Source interpretation
+
+The exact Flexbox1 collection clause is copied from the previous frozen primary snapshot; its full-source hash and the accepted browser capsule are pinned in ORIGINS.json. The clause uses consecutive collection until first failure and explicitly overrides an oversized first item with a singleton. Negative outer hypothetical sizes are expressly possible. The exact-fit zero-size note supports `≤`, but does not remove an actual positive gutter. No implementation behavior is used to select this interpretation.
+
+The current CSS Alignment3 gaps section is a relocation notice. It points to CSS Gaps1, whose `#gap-flex` clause treats a main-axis gutter as fixed additional spacing between adjacent flex items. This justifies `(n−1)*G`, not a gap before the first or after the last item. Normal/percentage resolution and extra distributed alignment spacing are excluded; G is already the fixed used gap contribution. SPEC-PINS.json retains both current drafts and the exact excerpt. The current Gaps draft links Flexbox2 terminology; we do not silently replace the original pinned Flexbox1 line algorithm.
+
+Interpretation boundaries: the input list has already undergone CSS order and relevant-item selection; no collapsed struts or forced breaks. Full item identity and supplied signed outer sizes are mathematical inputs. Width/min/max/margin acquisition is not proved here, nor is the prose-to-relation translation. Empty output means no occupied lines. All code and proofs are an isolated research addition, not canonical integration or native refinement.
+
+No unresolved ambiguity was found for the scoped unfragmented ordinary-item, definite-threshold, fixed-gap case. If review identifies a conflicting normative route, preserve it explicitly rather than changing the relation to match Gecko. In particular do not confuse maximum fitting prefix length with stopping at the first failed extension: signed totals invalidate that equivalence.

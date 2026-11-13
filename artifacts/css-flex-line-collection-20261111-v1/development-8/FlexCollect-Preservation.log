@@ -1,0 +1,45 @@
+FlexCollect/Preservation.lean:66:8: error: unsolved goals
+case nil
+α : Type
+size : α → Rat
+gap used : Rat
+⊢ used = used + 0 + 0
+FlexCollect/Preservation.lean:69:6: error(lean.unknownIdentifier): Unknown constant `Nat.cast_add`
+FlexCollect/Preservation.lean:69:20: error(lean.unknownIdentifier): Unknown constant `Nat.cast_one`
+FlexCollect/Preservation.lean:70:4: error: Tactic `rfl` failed: equality lhs
+  gap + (used + (size x + (List.foldr (fun x v => v + size x) 0 xs + gap * ↑xs.length)))
+is not definitionally equal to rhs
+  used + (size x + (List.foldr (fun x v => v + size x) 0 xs + gap * ↑(xs.length + 1)))
+
+case cons
+α : Type
+size : α → Rat
+gap : Rat
+x : α
+xs : List α
+ih :
+  ∀ (used : Rat),
+    List.foldl (fun v x => v + gap + size x) used xs = used + List.foldr (fun x v => size x + v) 0 xs + gap * ↑xs.length
+used : Rat
+⊢ gap + (used + (size x + (List.foldr (fun x v => v + size x) 0 xs + gap * ↑xs.length))) =
+    used + (size x + (List.foldr (fun x v => v + size x) 0 xs + gap * ↑(xs.length + 1)))
+FlexCollect/Preservation.lean:69:34: error: This simp argument is unused:
+  Rat.mul_add
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [List.foldl_cons, ih, List.foldr_cons, List.length_cons, Nat.cast_add, Nat.cast_one, Rat.mul_one]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+FlexCollect/Preservation.lean:69:47: error: This simp argument is unused:
+  Rat.mul_one
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [List.foldl_cons, ih, List.foldr_cons, List.length_cons, Nat.cast_add, Nat.cast_one, Rat.mul_add]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+FlexCollect/Preservation.lean:76:8: error: unsolved goals
+case nil
+α : Type
+size : α → Rat
+gap : Rat
+⊢ 0 = 0 + 0

@@ -1,0 +1,9 @@
+# Signed flex-line wrapping repair
+
+The local native repair passes the complete planned browser gate. The new 120-case WPT changes from 32 FAIL and 88 PASS to 120 PASS, with identical subtest names. All fifteen neighboring files pass: the combined suite has 139 checks, including 123 subtests and sixteen file results, with no unexpected outcomes. Original build session 38678 ended exit 0 in e1ecca; after-test session 80022 ended exit 0 in 323a1b. AFTER-BUILD pins the source, WPT, XUL, launcher and build ID 20261111165501. AFTER-RESULT records the report checks.
+
+GenerateFlexLines now starts a new line when the preceding line already exceeds its wrapping threshold, even when the new item's negative margin would make their combined size fit. The patch retains the existing finite-coordinate guard and unconstrained/first-item exceptions. The standalone proposal contains only nsFlexContainerFrame.cpp and the WPT; research remains separate. Focused formatting and WPT lint passed before the build. No expected-failure metadata was introduced.
+
+Discovery came from static review of the signed-size domain and independent browser reproduction. The subsequently accepted rational collection and native-policy models corroborate the intended algorithm, including the old [150, -50] counterexample. They do not prove native arithmetic, input acquisition or machine-code correspondence. The browser run is against the current research branch, not an independently built clean upstream tree. Native before/after evidence supports this narrow repair; it is not a general flex correctness or security claim.
+
+The native build emitted a mach output-monitor KeyError for the export tier but completed successfully. Compiler warnings and that diagnostic are retained in build.log. The fix is installed and validated locally, but remains uncommitted pending signing availability. No push or Try run occurred.

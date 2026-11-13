@@ -1,0 +1,52 @@
+Error running mach:
+
+    mach python --virtualenv web-platform -- testing/web-platform/tests/wpt lint --help
+
+The error occurred in code that was called by the mach command. This is either
+a bug in the called code itself or in the way that mach is calling it.
+You can invoke ``./mach busted`` to check if this issue is already on file. If it
+isn't, please use ``./mach busted file python`` to report it. If ``./mach busted`` is
+misbehaving, you can also inspect the dependencies of bug 1543241.
+
+If filing a bug, please include the full output of mach, including this error
+message.
+
+The details of the failure are as follows:
+
+Traceback (most recent call last):
+  File "/Users/bgrins/code/firefox/python/mach/mach/main.py", line 430, in _run
+    return Registrar._run_command_handler(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        handler,
+        ^^^^^^^^
+    ...<4 lines>...
+        **vars(args.command_args),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/bgrins/code/firefox/python/mach/mach/registrar.py", line 124, in _run_command_handler
+    result = fn(instance, **kwargs)
+  File "/Users/bgrins/code/firefox/python/mach_commands.py", line 77, in python
+    command_context.virtualenv_manager.ensure()
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bgrins/code/firefox/python/mozbuild/mozbuild/base.py", line 336, in virtualenv_manager
+    self._virtualenv_manager = CommandSiteManager.from_environment(
+                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self.topsrcdir,
+        ^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        get_virtualenv_base_dir(self.topsrcdir),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/bgrins/code/firefox/python/mach/mach/site.py", line 656, in from_environment
+    resolve_requirements(topsrcdir, site_name),
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bgrins/code/firefox/python/mach/mach/site.py", line 1283, in resolve_requirements
+    raise Exception(
+    ...<3 lines>...
+    )
+Exception: The current command is using the "web-platform" site. However, that site is missing its associated requirements definition file at "None".
+Sentry is attempting to send 1 pending events
+Waiting up to 2 seconds
+Press Ctrl-C to quit

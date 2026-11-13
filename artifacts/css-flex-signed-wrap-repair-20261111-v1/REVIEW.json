@@ -1,0 +1,46 @@
+{
+  "status": "candidate; native build and after-WPT pending",
+  "summary": "Keep an oversized first flex item on its own line before considering a later negative outer size",
+  "component": "Layout: Flexbox",
+  "relative_priority": "P2 candidate",
+  "priority_reason": "Observable standards/layout mismatch with ordinary pixel sizes; no crash, memory corruption or exfiltration established.",
+  "spec": "https://drafts.csswg.org/css-flexbox-1/#algo-line-break",
+  "trigger": {
+    "container_main_size": 100,
+    "first_item_outer_size": 150,
+    "second_item_size": 20,
+    "second_item_end_margin": -70
+  },
+  "before": {
+    "expected_line_indices": [
+      0,
+      1
+    ],
+    "actual_line_indices": [
+      0,
+      0
+    ],
+    "wpt_failures": 32,
+    "wpt_controls_passing": 88,
+    "local_browser_build_id": "20261110181740"
+  },
+  "implementation": "GenerateFlexLines checked only the new combined total; a negative next item could make an already oversized line fit. The candidate also checks the existing total before accepting another item.",
+  "preserved_controls": [
+    "nowrap",
+    "exact-fit zero and negative outer sizes",
+    "negative prefix followed by an individually larger item",
+    "first failing extension before a later negative item",
+    "row/column directions and reversal",
+    "nonzero gaps"
+  ],
+  "test": "testing/web-platform/tests/css/css-flexbox/flex-wrap-oversized-item-negative-margin.html",
+  "patch": "standalone.patch",
+  "discovery_attribution": "Found while reviewing a missing signed-size domain and statically inspecting line collection; confirmed by browser/WPT. Lean line-collection model/proofs are subsequent validation, not the original bug-discovery result.",
+  "not_proved": [
+    "production compiled flex implementation correctness",
+    "overflow/sentinel semantics",
+    "collapsed-strut source refinement",
+    "fixed-browser WPT outcome until native build completes"
+  ],
+  "committed": false
+}

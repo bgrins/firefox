@@ -1,0 +1,26 @@
+FlexCollect/Preservation.lean:69:23: error(lean.unknownIdentifier): Unknown constant `Rat.natCast_one`
+FlexCollect/Preservation.lean:70:4: error: Tactic `rfl` failed: equality lhs
+  gap + (used + (size x + (List.foldr (fun x v => v + size x) 0 xs + gap * ↑xs.length)))
+is not definitionally equal to rhs
+  used + (size x + (List.foldr (fun x v => v + size x) 0 xs + (gap * ↑xs.length + gap * ↑1)))
+
+case cons
+α : Type
+size : α → Rat
+gap : Rat
+x : α
+xs : List α
+ih :
+  ∀ (used : Rat),
+    List.foldl (fun v x => v + gap + size x) used xs = used + List.foldr (fun x v => size x + v) 0 xs + gap * ↑xs.length
+used : Rat
+⊢ gap + (used + (size x + (List.foldr (fun x v => v + size x) 0 xs + gap * ↑xs.length))) =
+    used + (size x + (List.foldr (fun x v => v + size x) 0 xs + (gap * ↑xs.length + gap * ↑1)))
+FlexCollect/Preservation.lean:69:53: error: This simp argument is unused:
+  Rat.mul_one
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [List.foldl_cons, ih, List.foldr_cons, List.length_cons, Rat.natCast_add, Rat.natCast_one,
+    Rat.mul_add]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

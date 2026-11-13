@@ -1,0 +1,89 @@
+usage: mach [global arguments] format [command arguments]
+
+Format files, alternative to 'lint --fix'. Runs the following formatters: clang-format, eslint, ruff-format, rustfmt, stylelint (plus android-format on Android, unless --skip-android is passed).
+
+Global Arguments:
+  -v, --verbose         Print verbose output.
+  -q, --quiet           Don't print as much output.
+  -l, --log-file FILENAME
+                        Filename to write log data to.
+  --log-interval        Prefix log line with interval from last message rather
+                        than relative time. Note that this is NOT execution
+                        time if there are parallel operations.
+  --no-interactive      Automatically selects the default option on any
+                        interactive prompts. If the output is not a terminal,
+                        then --no-interactive is assumed.
+  --log-no-times        Do not prefix log lines with times. By default, mach
+                        will prefix each output line with the time since
+                        command start.
+  -h, --help            Show this help message.
+  --debug-command       Start a Python debugger when command is dispatched.
+  --profile-command     Capture a Python profile of the mach process as
+                        command is dispatched.
+  --settings FILENAME   Path to settings file.
+
+Command Parameters:
+  paths                 Paths to file or directories to lint, like
+                        'browser/components/loop' or 'mobile/android'. If not
+                        provided, defaults to the files changed according to
+                        --outgoing and --workdir.
+  extra_args            Extra arguments that will be forwarded to the
+                        underlying linter.
+
+Command Arguments:
+  -h, --help            show this help message and exit
+  -l, --linter LINTERS  Linters to run, e.g 'eslint'. By default all linters
+                        are run for all the appropriate files.
+  --list                List all available linters and exit.
+  -W, --warnings [{soft}]
+                        Display and fail on warnings in addition to errors.
+                        --warnings=soft can be used to report warnings but
+                        only fail on errors.
+  -v, --verbose         Enable verbose logging.
+  -f, --format FORMATS  Formatter to use. Defaults to 'stylish' on stdout. You
+                        can specify an optional path as --format
+                        formatter:path that will be used instead of stdout.
+                        You can also use multiple formatters at the same time.
+                        Formatters available: compact, json, stylish, summary,
+                        treeherder, unix.
+  -n, --no-filter       Ignore all filtering. This is useful for quickly
+                        testing a directory that otherwise wouldn't be run,
+                        without needing to modify the config file.
+  --include-third-party
+                        Also run the linter(s) on third-party code
+  -o, --outgoing [OUTGOING]
+                        Lint files touched by commits that are not on the
+                        remote repository. Without arguments, finds the
+                        default remote that would be pushed to. The remote
+                        branch can also be specified manually. Works with
+                        mercurial or git.
+  -w, --workdir [{staged,all}]
+                        Lint files touched by changes in the working directory
+                        (i.e haven't been committed yet). On git,
+                        --workdir=staged can be used to only consider staged
+                        files. Works with mercurial or git.
+  -r, --rev REV         Lint files touched by changes in revisions described
+                        by REV. For mercurial, it may be any revset. For git,
+                        it is a single tree-ish.
+  --stdin-filename STDIN_FILENAME
+                        Lint a file passed in via stdin. The value is the
+                        relative path of the file from the repo root. This is
+                        useful for some editor or vcs integrations.
+  --dump-stdin-file [DUMP_STDIN_FILE]
+                        If a file was passed in via --stdin-filename, this
+                        flag will cause the resulting file (after applying any
+                        fixes) to be dumped to the specified file path. If no
+                        value is provided, stdout will be used.
+  --fix                 Fix lint errors if possible. Any errors that could not
+                        be fixed will be printed as normal.
+  --edit                Each file containing lint errors will be opened in
+                        $EDITOR one after the other.
+  --setup               Bootstrap linter dependencies without running any of
+                        the linters.
+  -j, --jobs NUM_PROCS  Number of worker processes to spawn when running
+                        linters. Defaults to the number of cores in your CPU.
+  --check-exclude-list  Run linters for all the paths in the exclude list.
+  --skip-rollouts       Skip loading stylelint-rollouts.config.js (stylelint
+                        only).
+  --skip-android        Skips checking if android formatters are valid in this
+                        context.

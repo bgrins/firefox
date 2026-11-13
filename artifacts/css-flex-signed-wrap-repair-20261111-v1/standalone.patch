@@ -1,0 +1,115 @@
+diff --git a/layout/generic/nsFlexContainerFrame.cpp b/layout/generic/nsFlexContainerFrame.cpp
+index 1a27d83d5a90..16599357b111 100644
+--- a/layout/generic/nsFlexContainerFrame.cpp
++++ b/layout/generic/nsFlexContainerFrame.cpp
+@@ -4320,7 +4320,8 @@ void nsFlexContainerFrame::GenerateFlexLines(
+     }
+ 
+     // Check if we need to wrap the newly appended item to a new line, i.e. if
+-    // its outer hypothetical main size pushes our line over the threshold.
++    // its outer hypothetical main size pushes our line over the threshold,
++    // or the line already contains an oversized first item.
+     // But we don't wrap if the line-length is unconstrained, nor do we wrap if
+     // this was the first item on the line.
+     if (wrapThreshold != NS_UNCONSTRAINEDSIZE &&
+@@ -4334,7 +4335,8 @@ void nsFlexContainerFrame::GenerateFlexLines(
+       // Account for gap between this line's previous item and this item.
+       newOuterSize += aMainGapSize;
+ 
+-      if (newOuterSize >= nscoord_MAX || newOuterSize > wrapThreshold) {
++      if (curLine->TotalOuterHypotheticalMainSize() > wrapThreshold ||
++          newOuterSize >= nscoord_MAX || newOuterSize > wrapThreshold) {
+         curLine = ConstructNewFlexLine();
+ 
+         // Get the previous line after adding a new line because the address can
+diff --git a/testing/web-platform/tests/css/css-flexbox/flex-wrap-oversized-item-negative-margin.html b/testing/web-platform/tests/css/css-flexbox/flex-wrap-oversized-item-negative-margin.html
+new file mode 100644
+index 000000000000..0c28adf99782
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-flexbox/flex-wrap-oversized-item-negative-margin.html
+@@ -0,0 +1,85 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Flex wrapping after an oversized item with negative margins</title>
++<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#algo-line-break">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++  .flex {
++    display: flex;
++    align-content: flex-start;
++    align-items: flex-start;
++    width: 100px;
++    height: 60px;
++  }
++  .column {
++    width: 60px;
++    height: 100px;
++  }
++  .flex > div {
++    flex: none;
++    width: 10px;
++    height: 10px;
++    min-width: 0;
++    min-height: 0;
++  }
++</style>
++<body>
++<script>
++const cases = [
++  {name: "negative margin makes the combined size fit",
++   sizes: [150, 20], margins: [0, -70], lines: [0, 1]},
++  {name: "negative margin makes the combined size smaller than the container",
++   sizes: [150, 20], margins: [0, -120], lines: [0, 1]},
++  {name: "negative margin leaves the combined size too large",
++   sizes: [150, 20], margins: [0, -69], lines: [0, 1]},
++  {name: "zero outer size after an oversized item",
++   sizes: [150, 20], margins: [0, -20], lines: [0, 1]},
++  {name: "negative outer size after an exact fit",
++   sizes: [100, 20], margins: [0, -70], lines: [0, 0]},
++  {name: "zero outer size after an exact fit",
++   sizes: [100, 20], margins: [0, -20], lines: [0, 0]},
++  {name: "negative prefix allows a larger second item",
++   sizes: [20, 150, 10], margins: [-70, 0, 0], lines: [0, 0, 1]},
++  {name: "negative item starts the next line and allows another item",
++   sizes: [150, 20, 150], margins: [0, -70, 0], lines: [0, 1, 1]},
++  {name: "stop at the first item that does not fit",
++   sizes: [80, 30, 20], margins: [0, 0, -70], lines: [0, 1, 1]},
++  {name: "gap with an oversized first item",
++   sizes: [150, 20], margins: [0, -77], lines: [0, 1], gap: 7},
++];
++
++for (const direction of ["row", "row-reverse", "column", "column-reverse"]) {
++  const column = direction.startsWith("column");
++  for (const wrap of ["wrap", "wrap-reverse", "nowrap"]) {
++    for (const c of cases) {
++      test(t => {
++        const container = document.createElement("div");
++        container.className = column ? "flex column" : "flex";
++        container.style.flexDirection = direction;
++        container.style.flexWrap = wrap;
++        container.style.gap = `${c.gap || 0}px`;
++        for (let i = 0; i < c.sizes.length; ++i) {
++          const item = document.createElement("div");
++          item.style.flexBasis = `${c.sizes[i]}px`;
++          item.style[column ? "marginBottom" : "marginRight"] = `${c.margins[i]}px`;
++          container.append(item);
++        }
++        document.body.append(container);
++        t.add_cleanup(() => container.remove());
++        const rects = [...container.children].map(item => item.getBoundingClientRect());
++        const cross = column ? "left" : "top";
++        for (let i = 0; i < rects.length; ++i) {
++          assert_equals(rects[i][column ? "height" : "width"], c.sizes[i],
++                        `item ${i} main size`);
++          assert_equals(rects[i][column ? "width" : "height"], 10,
++                        `item ${i} cross size`);
++          const line = wrap === "nowrap" ? 0 : c.lines[i];
++          assert_equals(Math.abs(rects[i][cross] - rects[0][cross]),
++                        line * (10 + (c.gap || 0)), `item ${i} line`);
++        }
++      }, `${direction}, ${wrap}: ${c.name}`);
++    }
++  }
++}
++</script>

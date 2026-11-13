@@ -1,0 +1,62 @@
+FlexCollect/Prefixes.lean:35:8: error: Tactic `subst` failed: did not find equation for eliminating 'y'
+
+case cons.mp.cons
+α : Type
+size : α → Rat
+threshold gap : Rat
+x : α
+xs : List α
+ih :
+  ∀ (used : Rat),
+    TrailFits size threshold gap used xs ↔
+      ∀ (pre suffix : List α), xs = pre ++ suffix → List.foldl (fun v x => v + gap + size x) used pre ≤ threshold
+used : Rat
+hstart : used ≤ threshold
+htail : TrailFits size threshold gap (used + gap + size x) xs
+suffix : List α
+y : α
+ys : List α
+heq : x :: xs = y :: ys ++ suffix
+eqs : x = y ∧ xs = ys ++ suffix
+⊢ List.foldl (fun v x => v + gap + size x) used (y :: ys) ≤ threshold
+FlexCollect/Prefixes.lean:54:6: error: Tactic `subst` failed: did not find equation for eliminating 'y'
+
+case mpr.cons
+α : Type
+size : α → Rat
+threshold gap : Rat
+x : α
+xs : List α
+h : ∀ (pre suffix : List α), xs = pre ++ suffix → List.foldl (fun v x => v + gap + size x) (size x) pre ≤ threshold
+suffix : List α
+y : α
+ys : List α
+heq : x :: xs = y :: ys ++ suffix
+hne : y :: ys ≠ []
+eqs : x = y ∧ xs = ys ++ suffix
+⊢ span size gap (y :: ys) ≤ threshold
+FlexCollect/Prefixes.lean:77:16: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+FlexCollect/Prefixes.lean:79:28: error: Type mismatch: After simplification, term
+  h
+ has type
+  ¬used + gap + size x ≤ threshold
+but is expected to have type
+  threshold < used + gap + size x
+FlexCollect/Prefixes.lean:91:16: error: unsolved goals
+case nil.cons.isTrue
+α : Type
+size : α → Rat
+threshold gap used : Rat
+hfits : TrailFits size threshold gap used []
+x : α
+xs : List α
+hstop : threshold < used + gap + size x
+h✝ : used + gap + size x ≤ threshold
+⊢ False
+FlexCollect/Prefixes.lean:94:43: error: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
