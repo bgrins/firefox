@@ -1,15 +1,21 @@
 # CSS verification bugfix commits
 
+## GitHub size repair — 13 November 2026
+
+Four oversized generated signing snapshots were removed from unpublished history and preserved as byte-exact compressed archives. The original remote tip remains an ancestor, so a normal branch push is sufficient. All 244 rewritten commits were re-signed and verified; every commit preserves its native/test content, all other paths, metadata and order. The accepted-fix count is unchanged at **158**.
+
+Commit references in this ledger use the repaired history. Immutable historical reports retain their original hashes; resolve those through the [old-to-new commit map](../css-github-size-repair-20261113-v1/COMMIT-MAP.json). The local recovery branch is `backup-stylo-bloom-verification-2-before-size-repair-20261113`; it deliberately retains the original oversized history and should not be pushed. See the [repair report](../css-github-size-repair-20261113-v1/README.md) for archive restoration and the outgoing-blob check.
+
 ## Research checkpoint at pause — 12 November 2026
 
 The accepted native-fix count remains **158**. These research commits add no fixes to that count:
 
 | Commit | Scope |
 |---|---|
-| `e74ea781f80f326c653301be244f83fcb672f109` | High-bit classifier targets, proof attempts and pending V4/final-gate preparation |
-| `f1a1592131dc191706c0aad8243b6e331e5950ee` | Grid work transaction tooling and failure/recovery checks |
-| `79dab9d6d01b58cd71f4bd393cf6f54ae467a777` | Grid bundle source candidate, ABI evidence and correctness-run preparation |
-| `bb65783f1315087d59ff444da663e3062f8b7ac7` | Unfinished grid diff and 23 untracked CSS WPT probes preserved for resumption |
+| `4ea7ff5dc50503c76ca04b9170801f2b90acf65b` | High-bit classifier targets, proof attempts and pending V4/final-gate preparation |
+| `7a7ffb6591f9757d4136d99f3b518183d43e28a6` | Grid work transaction tooling and failure/recovery checks |
+| `21ed5b18ef3e8e4b1fca6c70956521b9a022fcd7` | Grid bundle source candidate, ABI evidence and correctness-run preparation |
+| `c9256647b0e20a04d477809e76fda1ea3658a092` | Unfinished grid diff and 23 untracked CSS WPT probes preserved for resumption |
 
 All four commits use the configured signing key and passed signature and exact-blob verification. The grid bundle remains an experiment pending work-cost, provider, timing and other acceptance gates. The [pause checkpoint](../css-paused-worktree-snapshot-20261112-v1/STATUS.md) records proof limitations and next steps. The live experimental files remain available and are not counted as new landable repairs.
 
@@ -19,15 +25,15 @@ All four commits use the configured signing key and passed signature and exact-b
 
 | Fix | Native/test commit | Preceding research |
 |---|---|---|
-| 151: Keep an oversized first flex item on its own line | `71239d5d159be979af49f5a772247c7f47985465` | `2f87d729843443be9375e449c7a5274ffcb22c20` |
-| 152: Preserve wide accumulated flex margins | `064002dd69fec8c7ccd26d5f8deb7b4f0fcb3c38` | `638f1a523cf8ef6baee1a80caa5990a73d30cefa` |
-| 153: Preserve the sign of total flex size violations | `8ede5bb4b67148b5bd9d71fb2d8f695608892ced` | `3ac5ddb84783af1f32e3f7fb5e2157f8483e53f3` |
-| 154: Preserve wide flex targets through violation selection | `522d10b65e8c50bc0a71ce6f196d48e3c55a70c8` | `26a26a6d44b57b34db0572bd769271c9ce48b206` |
-| 155: Preserve finite scaled flex shrink weights | `7211ffc956934d528aeae3e076d429644e2786e0` | `cecc9b34eea3a3b4db9ceb9cd4cbe0451856b85a` |
-| 156: Report initial flex clamps after automatic size resolution | `916ea4e125ec2ab519560eb004777ca1b337914c` | `531de7dcf486a34965e8a40871cb2a502e9285b7` |
-| 157: Reject container units in registered initial values | `0c04c990a979bd522a34f625b50b678a0d0b2163` | `3e1e664ed5d3873bca372d4858d5436c90ae2b49` |
-| 158: Refresh used margins for overflowing blocks | `aed6b7216bb7b6c1c28554852ccc80e793127909` | `41262d9e012c2d451afd511d616005f7075f2ba9` |
-| 159: Avoid repeated baseline padding on non-root reflows | `8c2339490ac034ac1c895c12459f9bae896338d4` | `6c5a50dd69490cda06a3fc237fe6623575c70bbb` |
+| 151: Keep an oversized first flex item on its own line | `42233a338aabc182daaa1262554f00e63e5f01df` | `b1cf1f74113cc9aee907e38d87cfc781187ae85c` |
+| 152: Preserve wide accumulated flex margins | `c3b9c4e534f931123ecf6293369b262cbac16422` | `a5b8cfba31f9fc254f7a4e929e5324df602b1462` |
+| 153: Preserve the sign of total flex size violations | `cec86039ea37f2231fd346b4c59c344a148e5205` | `949cfa2fa732d07e4337d2def9290f8d5e3cddee` |
+| 154: Preserve wide flex targets through violation selection | `4117ba8a99ce975a568e0bd8f8f364a8cdbaafc1` | `7d36a7dd2ea16a1768f0ae9c171d243db2839c17` |
+| 155: Preserve finite scaled flex shrink weights | `275017b617be49c216fcf955239e23d38a497e31` | `afb3ad25c855b9945939fef1ed17bac4cbfb5fb2` |
+| 156: Report initial flex clamps after automatic size resolution | `e52de170502680eb8e475e49e935dd6ff4569afa` | `5bbfede9ce21d229eceab152c9110f16f3044d78` |
+| 157: Reject container units in registered initial values | `6a764f216f02c8fd697eb22667882f1dd9b62209` | `902adc1e654085d01c99fc63a0d47201fcce48a7` |
+| 158: Refresh used margins for overflowing blocks | `95d21fba2d58d1149d7078da200587252203633c` | `00d9d906d7b9c2d54f048b791cc0c9fc9ee037ba` |
+| 159: Avoid repeated baseline padding on non-root reflows | `fec39f2caa6c4970832b43d6880964c03563e238` | `03a5566aa0c5f3a597ea69fc46544b03e9a3523f` |
 
 Fix 154 uses the incremental patch after total-violation fix 153; its retained standalone export includes that necessary widening. Fix 156 uses a chrome test for the privileged clampState API. All other new native fixes include WPT coverage. Publication preserves the recorded local validation scope; it is not a clean-upstream runtime test or a new universal native proof.
 
@@ -144,37 +150,37 @@ Native patch and WPT are prepared in [the signed-wrap repair](../css-flex-signed
 
 Fix 150: Handle CSS pow exceptional values consistently
 
-Native: `2d18f8b4a4d7ac7f29b1f8b4b1f3ded57e792e72`. Research and validation checkpoint: `9ae9588e3ffd3d061ef0edd9348439d28ae882ba`. Exact three-path payload: calc implementation, 24-case WPT and deletion of twelve obsolete expected-FAIL annotations. Eighteen targets repaired; 129 control signatures and two endings preserved. Historical fixes 149 and 145 remain intact with explicit current source supersession. Shared-branch validation includes the held provider. Scoped abstract and binary32 classification models do not prove native powf or full CSS conformance.
+Native: `7d283adfe51fb86a38d28f7350242f3bca05b473`. Research and validation checkpoint: `1b7085b8171487cec81c6f34d55132f51aa04c9e`. Exact three-path payload: calc implementation, 24-case WPT and deletion of twelve obsolete expected-FAIL annotations. Eighteen targets repaired; 129 control signatures and two endings preserved. Historical fixes 149 and 145 remain intact with explicit current source supersession. Shared-branch validation includes the held provider. Scoped abstract and binary32 classification models do not prove native powf or full CSS conformance.
 
 
 Fix 149: Avoid intermediate overflow and underflow in hypot()
 
-Native: `36b693fee75e828f87b0c34df156caac903810c8`. Research and validation checkpoint: `8f86612a97c87b56e5bbae58ec09f851200c63b7`. Exact two-path source/WPT payload; sixteen targets repaired, all thirty new-page callbacks PASS, 211 control signatures and four endings preserved. Twelve existing pow failures remain unchanged. Historical fix 145 source/commit attribution remains unchanged with explicit current full-file supersession. Shared-branch validation includes the held provider. CSS precision/range is implementation-defined; this numerical robustness fix has no settled strict-conformance claim. No clean-upstream execution or universal IEEE/native proof is claimed.
+Native: `1296a62924f9ed8923e309a5b82bbb377989deba`. Research and validation checkpoint: `00b255486b60fec826085d328f95401ede760b7f`. Exact two-path source/WPT payload; sixteen targets repaired, all thirty new-page callbacks PASS, 211 control signatures and four endings preserved. Twelve existing pow failures remain unchanged. Historical fix 145 source/commit attribution remains unchanged with explicit current full-file supersession. Shared-branch validation includes the held provider. CSS precision/range is implementation-defined; this numerical robustness fix has no settled strict-conformance claim. No clean-upstream execution or universal IEEE/native proof is claimed.
 
 
 Fix 148: Preserve move context through shadow-root traversal, including animations, custom elements and iframes
 
-Native: `9e99cf9e4c886efb9232d90ed13f0c587e240da9`. Research: `c79aace4b76dac7186ce3e67c686b8b8554b8f2e`. Validation: `369f288603917711ba2f6420aa992ee917a6c91e`. Exact eight-path payload: three DOM source files, four WPT pages with 29 callbacks, and removal of obsolete expected-failure metadata. Final 98 callbacks PASS; eight original failures repaired, with 90 control and 16 ending signatures preserved. Supplemental iframe validation separately passes eight callbacks with two repaired targets, six unchanged controls and one ending. Shared held-provider/configured-pref validation limits remain.
+Native: `04f25a647035e32d0fae811651c52d7d1d1149c4`. Research: `1f96d3cd676107470f6f4142b56651655fc9b9f0`. Validation: `81133f18cde05240b4a2eebc419f888b5db07d3f`. Exact eight-path payload: three DOM source files, four WPT pages with 29 callbacks, and removal of obsolete expected-failure metadata. Final 98 callbacks PASS; eight original failures repaired, with 90 control and 16 ending signatures preserved. Supplemental iframe validation separately passes eight callbacks with two repaired targets, six unchanged controls and one ending. Shared held-provider/configured-pref validation limits remain.
 
 
 Fix 147: Invalidate old-parent styles during moveBefore()
 
-Native: `ebb5d4fc489e1a5affdb8f2c1ae2d4dd50884bf9`. Research: `d6e3b47c1c7f0c504fae1548e650473eec27fb22`. Validation: `95faba10a2d1fe388dc1156d689732dd7b658df8`. Exact five-path payload: three C++ files, two-case landing WPT, and removal of obsolete expected-failure metadata. Final 70 callbacks PASS; 21 original failures repaired, with 19 control and 12 ending signatures preserved. Shared held-provider/configured-pref validation limits remain.
+Native: `302a47c87cdfaca3c787ed9610f0f331876b4cb8`. Research: `61f6e65b278b08f1324ce8051cf18e95d21e4b71`. Validation: `ef43d5922ef9dfded03f0ac4b76950e8cde7ace5`. Exact five-path payload: three C++ files, two-case landing WPT, and removal of obsolete expected-failure metadata. Final 70 callbacks PASS; 21 original failures repaired, with 19 control and 12 ending signatures preserved. Shared held-provider/configured-pref validation limits remain.
 
 
 Fix 146: Avoid caching reset styles that depend on sibling-count()
 
-Native: `7501711ae4a105980cde23db588e582f41b77daa`. Research: `588fa673a74701b2ed74f9c495bdb3bb35fcf562`. Validation: `cf834b1da25142d2a4748cb5e2104bc84a20fd4b`. Exact two-path source/WPT payload; two landing target failures repaired, both targets PASS and thirty-four control plus seven ending signatures preserved. No prior accepted-fix semantic prerequisite established; shared held-provider/configured-pref validation limits remain.
+Native: `040bfff9eb160ef54325bd7f463dad4dd921f5ca`. Research: `ab5b201fa6d716f9c0b57d7e9c8a693487a445a0`. Validation: `df939d3264397d716b61436ae580927332214a4e`. Exact two-path source/WPT payload; two landing target failures repaired, both targets PASS and thirty-four control plus seven ending signatures preserved. No prior accepted-fix semantic prerequisite established; shared held-provider/configured-pref validation limits remain.
 
 
 Fix 145: Preserve finite multiples when resolving round()
 
-Native: `eb52086488112d1809062cf369f5e8feda6c2c38`. Research: `68c4b558957437fdad07a2685bd71fb76dc5fd4c`. Validation: `2fc2dbca7d5af460391e4c944cb11f5eea275977`. Exact two-path source/WPT payload; thirteen target failures repaired, all twenty-five validation targets PASS and seven hundred twelve control signatures preserved. The landing WPT contains twenty-one subtests; four exposure cases remain validation-only. Historical fix 144 source attribution remains unchanged; the current full-file source pin is explicitly superseded. No semantic prerequisite or independent upstream execution is claimed.
+Native: `029665cb2cc59a60c4ae18380e997899f5c6f4d7`. Research: `765f30b7ccf49db64cad78023ba74d260ddc1954`. Validation: `8a0343a43a81afbb75bdc38ef870afc66671ee02`. Exact two-path source/WPT payload; thirteen target failures repaired, all twenty-five validation targets PASS and seven hundred twelve control signatures preserved. The landing WPT contains twenty-one subtests; four exposure cases remain validation-only. Historical fix 144 source attribution remains unchanged; the current full-file source pin is explicitly superseded. No semantic prerequisite or independent upstream execution is claimed.
 
 
 Fix 144: Defer infinite-step rounding until the value is resolved
 
-Native: `c63be5163f2e0a05a27c6b022e9f388597f1c381`. Research: `a7c76027952c0d86a3cf133d4248095b3eb1048a`. Validation: `5edbaed4ff8afec083c8b283de6f5efeb4fdbd70`. Exact two-path source/WPT payload; nineteen target failures repaired, all twenty-three targets PASS and six hundred eighty-nine control signatures preserved. Accepted125 is a prerequisite.
+Native: `170682e028621d1352012b27aa941ded2c02a888`. Research: `9d114b01a2e6a761763ddb1895ba700ae09dc630`. Validation: `f714bbce363fa8cbfbf1ff35141dad6ee21a31ab`. Exact two-path source/WPT payload; nineteen target failures repaired, all twenty-three targets PASS and six hundred eighty-nine control signatures preserved. Accepted125 is a prerequisite.
 
 
 Fix 143: Guard both linear easing stop positions before conversion
