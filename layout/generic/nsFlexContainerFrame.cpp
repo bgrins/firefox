@@ -4320,7 +4320,8 @@ void nsFlexContainerFrame::GenerateFlexLines(
     }
 
     // Check if we need to wrap the newly appended item to a new line, i.e. if
-    // its outer hypothetical main size pushes our line over the threshold.
+    // its outer hypothetical main size pushes our line over the threshold,
+    // or the line already contains an oversized first item.
     // But we don't wrap if the line-length is unconstrained, nor do we wrap if
     // this was the first item on the line.
     if (wrapThreshold != NS_UNCONSTRAINEDSIZE &&
@@ -4334,7 +4335,8 @@ void nsFlexContainerFrame::GenerateFlexLines(
       // Account for gap between this line's previous item and this item.
       newOuterSize += aMainGapSize;
 
-      if (newOuterSize >= nscoord_MAX || newOuterSize > wrapThreshold) {
+      if (curLine->TotalOuterHypotheticalMainSize() > wrapThreshold ||
+          newOuterSize >= nscoord_MAX || newOuterSize > wrapThreshold) {
         curLine = ConstructNewFlexLine();
 
         // Get the previous line after adding a new line because the address can
