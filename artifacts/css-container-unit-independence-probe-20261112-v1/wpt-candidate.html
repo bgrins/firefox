@@ -1,0 +1,56 @@
+<!doctype html>
+<title>Container relative units in registered initial values</title>
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#container-lengths">
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#computationally-independent">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="support/cq-testcommon.js"></script>
+<script>
+setup(() => assert_implements_size_container_queries());
+
+let nextName = 0;
+function testInitialValue(value, syntax, valid, description) {
+  test(() => {
+    const registration = {
+      name: `--container-unit-js-${nextName++}`,
+      inherits: false,
+      syntax,
+      initialValue: value,
+    };
+    if (valid) {
+      CSS.registerProperty(registration);
+    } else {
+      assert_throws_dom("SyntaxError", () => CSS.registerProperty(registration));
+    }
+  }, description);
+
+  test(t => {
+    const name = `--container-unit-rule-${nextName++}`;
+    const style = document.createElement("style");
+    style.textContent = `@property ${name} { syntax: "${syntax}"; inherits: false; initial-value: ${value}; }`;
+    document.head.append(style);
+    t.add_cleanup(() => style.remove());
+    const computed = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    assert_equals(computed !== "", valid);
+  }, `@property: ${description}`);
+}
+
+for (const unit of ["cqw", "cqh", "cqi", "cqb", "cqmin", "cqmax"]) {
+  for (const value of [`1${unit}`, `calc(1${unit})`, `calc(1px + 1${unit})`]) {
+    for (const syntax of ["<length>", "<length-percentage>"]) {
+      const description = value === `1${unit}` && syntax === "<length>"
+        ? `Container relative unit ${unit} is not computationally independent`
+        : `${value} is not a computationally independent ${syntax}`;
+      testInitialValue(value, syntax, false, description);
+    }
+    test(() => assert_true(CSS.supports("width", value)), `${value} remains a valid ordinary length`);
+  }
+}
+
+for (const [value, valid] of [
+  ["1px", true], ["1in", true], ["calc(1px + 1px)", true], ["1vw", true],
+  ["1svw", true], ["1em", false], ["1rem", false], ["1lh", false],
+]) {
+  testInitialValue(value, "<length>", valid, `Computational independence control: ${value}`);
+}
+</script>

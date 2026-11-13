@@ -1,0 +1,121 @@
+--- a/servo/components/style/values/specified/length.rs
++++ b/servo/components/style/values/specified/length.rs
+@@ -139,6 +139,8 @@
+         unit: &str,
+     ) -> Result<Self, ()> {
+         let allows_computational_dependence = parsing_mode.allows_computational_dependence();
++        let allows_container_units =
++            allows_computational_dependence && !in_page_rule && cfg!(feature = "gecko");
+ 
+         Ok(match_ignore_ascii_case! { unit,
+             "px" => Self::Px,
+@@ -188,12 +190,12 @@
+             "dvi" if !in_page_rule => Self::Dvi,
+             // Container query lengths. Inherit the limitation from viewport units since
+             // we may fall back to them.
+-            "cqw" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqw,
+-            "cqh" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqh,
+-            "cqi" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqi,
+-            "cqb" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqb,
+-            "cqmin" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqmin,
+-            "cqmax" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqmax,
++            "cqw" if allows_container_units => Self::Cqw,
++            "cqh" if allows_container_units => Self::Cqh,
++            "cqi" if allows_container_units => Self::Cqi,
++            "cqb" if allows_container_units => Self::Cqb,
++            "cqmin" if allows_container_units => Self::Cqmin,
++            "cqmax" if allows_container_units => Self::Cqmax,
+             _ => return Err(()),
+         })
+     }
+--- a/testing/web-platform/tests/css/css-conditional/container-queries/container-units-computational-independence.html
++++ b/testing/web-platform/tests/css/css-conditional/container-queries/container-units-computational-independence.html
+@@ -1,20 +1,56 @@
+ <!doctype html>
+-<title>Container Relative Units: Computationally independent</title>
++<title>Container relative units in registered initial values</title>
+ <link rel="help" href="https://drafts.csswg.org/css-conditional-5/#container-lengths">
+ <link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#computationally-independent">
+ <script src="/resources/testharness.js"></script>
+ <script src="/resources/testharnessreport.js"></script>
+ <script src="support/cq-testcommon.js"></script>
+ <script>
+-  setup(() => assert_implements_size_container_queries());
++setup(() => assert_implements_size_container_queries());
+ 
+-  const units = ['cqw', 'cqh', 'cqi', 'cqb', 'cqmin', 'cqmax'];
++let nextName = 0;
++function testInitialValue(value, syntax, valid, description) {
++  test(() => {
++    const registration = {
++      name: `--container-unit-js-${nextName++}`,
++      inherits: false,
++      syntax,
++      initialValue: value,
++    };
++    if (valid) {
++      CSS.registerProperty(registration);
++    } else {
++      assert_throws_dom("SyntaxError", () => CSS.registerProperty(registration));
++    }
++  }, description);
+ 
+-  for (let unit of units) {
+-    test(function() {
+-      assert_throws_dom('SyntaxError', () => {
+-        CSS.registerProperty({ name: '--x', inherits: false, syntax: '<length>', initialValue: `1${unit}` });
+-      });
+-    }, `Container relative unit ${unit} is not computationally independent`);
++  test(t => {
++    const name = `--container-unit-rule-${nextName++}`;
++    const style = document.createElement("style");
++    style.textContent = `@property ${name} { syntax: "${syntax}"; inherits: false; initial-value: ${value}; }`;
++    document.head.append(style);
++    t.add_cleanup(() => style.remove());
++    const computed = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
++    assert_equals(computed !== "", valid);
++  }, `@property: ${description}`);
++}
++
++for (const unit of ["cqw", "cqh", "cqi", "cqb", "cqmin", "cqmax"]) {
++  for (const value of [`1${unit}`, `calc(1${unit})`, `calc(1px + 1${unit})`]) {
++    for (const syntax of ["<length>", "<length-percentage>"]) {
++      const description = value === `1${unit}` && syntax === "<length>"
++        ? `Container relative unit ${unit} is not computationally independent`
++        : `${value} is not a computationally independent ${syntax}`;
++      testInitialValue(value, syntax, false, description);
++    }
++    test(() => assert_true(CSS.supports("width", value)), `${value} remains a valid ordinary length`);
+   }
++}
++
++for (const [value, valid] of [
++  ["1px", true], ["1in", true], ["calc(1px + 1px)", true], ["1vw", true],
++  ["1svw", true], ["1em", false], ["1rem", false], ["1lh", false],
++]) {
++  testInitialValue(value, "<length>", valid, `Computational independence control: ${value}`);
++}
+ </script>
+--- a/testing/web-platform/meta/css/css-conditional/container-queries/container-units-computational-independence.html.ini
++++ b/testing/web-platform/meta/css/css-conditional/container-queries/container-units-computational-independence.html.ini
+@@ -1,20 +1,3 @@
+ [container-units-computational-independence.html]
+   expected:
+     if (processor == "x86") and not debug: CRASH
+-  [Container relative unit cqw is not computationally independent]
+-    expected: FAIL
+-
+-  [Container relative unit cqh is not computationally independent]
+-    expected: FAIL
+-
+-  [Container relative unit cqi is not computationally independent]
+-    expected: FAIL
+-
+-  [Container relative unit cqb is not computationally independent]
+-    expected: FAIL
+-
+-  [Container relative unit cqmin is not computationally independent]
+-    expected: FAIL
+-
+-  [Container relative unit cqmax is not computationally independent]
+-    expected: FAIL
