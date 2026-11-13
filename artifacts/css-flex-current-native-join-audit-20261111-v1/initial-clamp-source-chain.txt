@@ -1,0 +1,146 @@
+  // MAIN SIZES (flex base size, min/max size)
+  // -----------------------------------------
+  const LogicalSize computedSizeInFlexWM = childRI.ComputedSize(flexWM);
+  const LogicalSize computedMinSizeInFlexWM = childRI.ComputedMinSize(flexWM);
+  const LogicalSize computedMaxSizeInFlexWM = childRI.ComputedMaxSize(flexWM);
+
+  const nscoord flexBaseSize = aAxisTracker.MainComponent(computedSizeInFlexWM);
+  const nscoord mainMinSize =
+      aAxisTracker.MainComponent(computedMinSizeInFlexWM);
+  const nscoord mainMaxSize =
+      aAxisTracker.MainComponent(computedMaxSizeInFlexWM);
+
+  // This is enforced by the ReflowInput where these values come from:
+  MOZ_ASSERT(mainMinSize <= mainMaxSize, "min size is larger than max size");
+
+
+  // Before thinking about freezing the item at its base size, we need to give
+  // it a chance to recalculate the base size from its cross size and aspect
+  // ratio (since its cross size might've *just* now become definite due to
+  // 'stretch' above).
+  item.ResolveFlexBaseSizeFromAspectRatio(childRI);
+
+  // If we're inflexible, we can just freeze to our hypothetical main-size
+  // up-front.
+  if (flexGrow == 0.0f && flexShrink == 0.0f) {
+    item.Freeze();
+    if (flexBaseSize < mainMinSize) {
+      item.SetWasMinClamped();
+    } else if (flexBaseSize > mainMaxSize) {
+      item.SetWasMaxClamped();
+    }
+  }
+
+  // Resolve "flex-basis:auto" and/or "min-[width|height]:auto" (which might
+  // require us to reflow the item to measure content height)
+  ResolveAutoFlexBasisAndMinSize(item, childRI, aAxisTracker);
+}
+
+    FlexItem& aFlexItem, const ReflowInput& aItemReflowInput,
+    const FlexboxAxisTracker& aAxisTracker) {
+  // (Note: We can guarantee that the flex-basis will have already been
+  // resolved if the main axis is the same as the item's inline
+  // axis. Inline-axis values should always be resolvable without reflow.)
+  const bool isMainSizeAuto =
+      (!aFlexItem.IsInlineAxisMainAxis() &&
+       NS_UNCONSTRAINEDSIZE == aFlexItem.FlexBaseSize());
+
+  const bool isMainMinSizeAuto = aFlexItem.NeedsMinSizeAutoResolution();
+
+  if (!isMainSizeAuto && !isMainMinSizeAuto) {
+    // Nothing to do; this function is only needed for flex items
+    // with a used flex-basis of "auto" or a min-main-size of "auto".
+    return;
+  }
+
+      const ReflowInput& flexContainerRI = *aItemReflowInput.mParentReflowInput;
+      nscoord contentBSize = MeasureFlexItemContentBSize(
+          aFlexItem, forceBResizeForMeasuringReflow, flexContainerRI);
+      if (minSizeNeedsToMeasureContent) {
+        contentSizeSuggestion = contentBSize;
+      }
+      if (flexBasisNeedsToMeasureContent) {
+        aFlexItem.SetFlexBaseSizeAndMainSize(contentBSize);
+        aFlexItem.SetIsFlexBaseSizeContentBSize();
+      }
+    }
+
+  void UpdateMainMinSize(nscoord aNewMinSize) {
+    NS_ASSERTION(aNewMinSize >= 0,
+                 "How did we end up with a negative min-size?");
+    MOZ_ASSERT(
+        mMainMaxSize == NS_UNCONSTRAINEDSIZE || mMainMaxSize >= aNewMinSize,
+        "Should only use this function for resolving min-size:auto, "
+        "and main max-size should be an upper-bound for resolved val");
+    MOZ_ASSERT(
+        mNeedsMinSizeAutoResolution &&
+            (mMainMinSize == 0 || mFrame->IsThemed(mFrame->StyleDisplay())),
+        "Should only use this function for resolving min-size:auto, "
+        "so we shouldn't already have a nonzero min-size established "
+        "(unless it's a themed-widget-imposed minimum size)");
+
+    if (aNewMinSize > mMainMinSize) {
+      mMainMinSize = aNewMinSize;
+      // Also clamp main-size to be >= new min-size:
+      mMainSize = std::max(mMainSize, aNewMinSize);
+    }
+    mNeedsMinSizeAutoResolution = false;
+  }
+
+  // This sets our flex base size, and then sets our main size to the
+  // resulting "hypothetical main size" (the base size clamped to our
+  // main-axis [min,max] sizing constraints).
+  void SetFlexBaseSizeAndMainSize(nscoord aNewFlexBaseSize) {
+    MOZ_ASSERT(!mIsFrozen || mFlexBaseSize == NS_UNCONSTRAINEDSIZE,
+               "flex base size shouldn't change after we're frozen "
+               "(unless we're just resolving an intrinsic size)");
+    mFlexBaseSize = aNewFlexBaseSize;
+
+    // Before we've resolved flexible lengths, we keep mMainSize set to
+    // the 'hypothetical main size', which is the flex base size, clamped
+    // to the [min,max] range:
+    mMainSize = CSSMinMax(mFlexBaseSize, mMainMinSize, mMainMaxSize);
+
+
+void FlexItem::ResolveFlexBaseSizeFromAspectRatio(
+    const ReflowInput& aItemReflowInput) {
+  // This implements the Flex Layout Algorithm Step 3B:
+  // https://drafts.csswg.org/css-flexbox-1/#algo-main-item
+  // If the flex item has ...
+  //  - an aspect ratio,
+  //  - a [used] flex-basis of 'content', and
+  //  - a definite cross size
+  // then the flex base size is calculated from its inner cross size and the
+  // flex item's preferred aspect ratio.
+  if (HasAspectRatio() &&
+      nsFlexContainerFrame::IsUsedFlexBasisContent(
+          aItemReflowInput.mStylePosition->mFlexBasis,
+          *aItemReflowInput.mStylePosition->Size(
+              MainAxis(), mCBWM,
+              AnchorPosResolutionParams::From(&aItemReflowInput))) &&
+      IsCrossSizeDefinite(aItemReflowInput)) {
+    const LogicalSize contentBoxSizeToBoxSizingAdjust =
+        aItemReflowInput.mStylePosition->mBoxSizing == StyleBoxSizing::BorderBox
+            ? BorderPadding().Size(mCBWM)
+            : LogicalSize(mCBWM);
+    const nscoord mainSizeFromRatio = mAspectRatio.ComputeRatioDependentSize(
+        MainAxis(), mCBWM, CrossSize(), contentBoxSizeToBoxSizingAdjust);
+    SetFlexBaseSizeAndMainSize(mainSizeFromRatio);
+  }
+
+    uint32_t itemIndex = 0;
+    for (const FlexItem& item : line.Items()) {
+      ComputedFlexItemInfo& itemInfo = lineInfo.mItems[itemIndex];
+      itemInfo.mFrameRect = item.Frame()->GetRect();
+      itemInfo.mMainMinSize = item.MainMinSize();
+      itemInfo.mMainMaxSize = item.MainMaxSize();
+      itemInfo.mCrossMinSize = item.CrossMinSize();
+      itemInfo.mCrossMaxSize = item.CrossMaxSize();
+      itemInfo.mClampState =
+          item.WasMinClamped()
+              ? mozilla::dom::FlexItemClampState::Clamped_to_min
+              : (item.WasMaxClamped()
+                     ? mozilla::dom::FlexItemClampState::Clamped_to_max
+                     : mozilla::dom::FlexItemClampState::Unclamped);
+      ++itemIndex;
+    }

@@ -1,0 +1,209 @@
+  void UpdateMainMinSize(nscoord aNewMinSize) {
+    NS_ASSERTION(aNewMinSize >= 0,
+                 "How did we end up with a negative min-size?");
+    MOZ_ASSERT(
+        mMainMaxSize == NS_UNCONSTRAINEDSIZE || mMainMaxSize >= aNewMinSize,
+        "Should only use this function for resolving min-size:auto, "
+        "and main max-size should be an upper-bound for resolved val");
+    MOZ_ASSERT(
+        mNeedsMinSizeAutoResolution &&
+            (mMainMinSize == 0 || mFrame->IsThemed(mFrame->StyleDisplay())),
+        "Should only use this function for resolving min-size:auto, "
+        "so we shouldn't already have a nonzero min-size established "
+        "(unless it's a themed-widget-imposed minimum size)");
+
+    if (aNewMinSize > mMainMinSize) {
+      mMainMinSize = aNewMinSize;
+      // Also clamp main-size to be >= new min-size:
+      mMainSize = std::max(mMainSize, aNewMinSize);
+    }
+    mNeedsMinSizeAutoResolution = false;
+  }
+
+  // This sets our flex base size, and then sets our main size to the
+  // resulting "hypothetical main size" (the base size clamped to our
+  // main-axis [min,max] sizing constraints).
+  void SetFlexBaseSizeAndMainSize(nscoord aNewFlexBaseSize) {
+    MOZ_ASSERT(!mIsFrozen || mFlexBaseSize == NS_UNCONSTRAINEDSIZE,
+               "flex base size shouldn't change after we're frozen "
+               "(unless we're just resolving an intrinsic size)");
+    mFlexBaseSize = aNewFlexBaseSize;
+
+    // Before we've resolved flexible lengths, we keep mMainSize set to
+    // the 'hypothetical main size', which is the flex base size, clamped
+    // to the [min,max] range:
+    mMainSize = CSSMinMax(mFlexBaseSize, mMainMinSize, mMainMaxSize);
+
+    FLEX_ITEM_LOG(mFrame, "Set flex base size: %d, hypothetical main size: %d",
+                  mFlexBaseSize, mMainSize);
+  }
+
+  // Setters used while we're resolving flexible lengths
+  // ---------------------------------------------------
+
+  // Sets the main-size of our flex item's content-box.
+  void SetMainSize(nscoord aNewMainSize) {
+    MOZ_ASSERT(!mIsFrozen, "main size shouldn't change after we're frozen");
+    mMainSize = aNewMainSize;
+  }
+
+  void SetShareOfWeightSoFar(double aNewShare) {
+    MOZ_ASSERT(!mIsFrozen || aNewShare == 0.0,
+               "shouldn't be giving this item any share of the weight "
+               "after it's frozen");
+    mShareOfWeightSoFar = aNewShare;
+  }
+
+  void Freeze() {
+    mIsFrozen = true;
+    // Now that we are frozen, the meaning of mHadMinViolation and
+    // mHadMaxViolation changes to indicate min and max clamping. Clear
+    // both of the member variables so that they are ready to be set
+    // as clamping state later, if necessary.
+    mHadMinViolation = false;
+    mHadMaxViolation = false;
+  }
+
+  void SetHadMinViolation() {
+    MOZ_ASSERT(!mIsFrozen,
+               "shouldn't be changing main size & having violations "
+               "after we're frozen");
+    mHadMinViolation = true;
+  }
+  void SetHadMaxViolation() {
+    MOZ_ASSERT(!mIsFrozen,
+               "shouldn't be changing main size & having violations "
+               "after we're frozen");
+    mHadMaxViolation = true;
+  }
+  void ClearViolationFlags() {
+    MOZ_ASSERT(!mIsFrozen,
+               "shouldn't be altering violation flags after we're "
+               "frozen");
+    mHadMinViolation = mHadMaxViolation = false;
+  }
+
+  void SetWasMinClamped() {
+    MOZ_ASSERT(!mHadMinViolation && !mHadMaxViolation, "only clamp once");
+    // This reuses the mHadMinViolation member variable to track clamping
+    // events. This is allowable because mHadMinViolation only reflects
+    // a violation up until the item is frozen.
+    MOZ_ASSERT(mIsFrozen, "shouldn't set clamping state when we are unfrozen");
+    mHadMinViolation = true;
+  }
+  void SetWasMaxClamped() {
+    MOZ_ASSERT(!mHadMinViolation && !mHadMaxViolation, "only clamp once");
+    // This reuses the mHadMaxViolation member variable to track clamping
+    // events. This is allowable because mHadMaxViolation only reflects
+    // a violation up until the item is frozen.
+    MOZ_ASSERT(mIsFrozen, "shouldn't set clamping state when we are unfrozen");
+    mHadMaxViolation = true;
+  }
+
+
+  // Stored in flex container's writing mode.
+  LogicalMargin mBorderPadding;
+
+  // Stored in flex container's writing mode. Its value can change when we
+  // resolve "auto" marigns.
+  LogicalMargin mMargin;
+
+  // These are non-const so that we can lazily update them with the item's
+  // intrinsic size (obtained via a "measuring" reflow), when necessary.
+  // (e.g. for "flex-basis:auto;height:auto" & "min-height:auto")
+  nscoord mFlexBaseSize = 0;
+  nscoord mMainMinSize = 0;
+  nscoord mMainMaxSize = 0;
+
+  // mCrossMinSize and mCrossMaxSize are not changed after constructor.
+  nscoord mCrossMinSize = 0;
+  nscoord mCrossMaxSize = 0;
+
+  // Values that we compute after constructor:
+  nscoord mMainSize = 0;
+  nscoord mMainPosn = 0;
+  nscoord mCrossSize = 0;
+  nscoord mCrossPosn = 0;
+
+  // Mutable b/c it's set & resolved lazily, sometimes via const pointer. See
+  // comment above SetAscent().
+  // We initialize this to ASK_FOR_BASELINE, and opportunistically fill it in
+  // with a real value if we end up reflowing this flex item. (But if we don't
+  // reflow this flex item, then this sentinel tells us that we don't know it
+  // yet & anyone who cares will need to explicitly request it.)
+  //
+  // Both mAscent and mAscentForLast are distance from the frame's border-box
+  // block-start edge.
+  mutable nscoord mAscent = ReflowOutput::ASK_FOR_BASELINE;
+  mutable nscoord mAscentForLast = ReflowOutput::ASK_FOR_BASELINE;
+
+  // Temporary state, while we're resolving flexible widths (for our main size)
+  // XXXdholbert To save space, we could use a union to make these variables
+  // overlay the same memory as some other member vars that aren't touched
+  // until after main-size has been resolved. In particular, these could share
+  // memory with mMainPosn through mAscent, and mIsStretched.
+  double mShareOfWeightSoFar = 0.0;
+
+  bool mIsFrozen = false;
+  bool mHadMinViolation = false;
+  bool mHadMaxViolation = false;
+
+  // Did this item get a preliminary reflow, to measure its desired height?
+  bool mHadMeasuringReflow = false;
+
+  // See IsStretched() documentation.
+
+FlexItem::FlexItem(ReflowInput& aFlexItemReflowInput, float aFlexGrow,
+                   float aFlexShrink, nscoord aFlexBaseSize,
+                   nscoord aMainMinSize, nscoord aMainMaxSize,
+                   nscoord aTentativeCrossSize, nscoord aCrossMinSize,
+                   nscoord aCrossMaxSize,
+                   const FlexboxAxisTracker& aAxisTracker)
+    : mFrame(aFlexItemReflowInput.mFrame),
+      mFlexGrow(aFlexGrow),
+      mFlexShrink(aFlexShrink),
+      mAspectRatio(mFrame->GetAspectRatio()),
+      mWM(aFlexItemReflowInput.GetWritingMode()),
+      mCBWM(aAxisTracker.GetWritingMode()),
+      mMainAxis(aAxisTracker.MainAxis()),
+      mBorderPadding(aFlexItemReflowInput.ComputedLogicalBorderPadding(mCBWM)),
+      mMargin(aFlexItemReflowInput.ComputedLogicalMargin(mCBWM)),
+      mMainMinSize(aMainMinSize),
+      mMainMaxSize(aMainMaxSize),
+      mCrossMinSize(aCrossMinSize),
+      mCrossMaxSize(aCrossMaxSize),
+      mCrossSize(aTentativeCrossSize),
+      mIsInlineAxisMainAxis(aAxisTracker.IsInlineAxisMainAxis(mWM)),
+      mNeedsMinSizeAutoResolution(IsMinSizeAutoResolutionNeeded())
+// mAlignSelf, mHasAnyAutoMargin see below
+{
+  MOZ_ASSERT(mFrame, "expecting a non-null child frame");
+  MOZ_ASSERT(!mFrame->IsPlaceholderFrame(),
+             "placeholder frames should not be treated as flex items");
+  MOZ_ASSERT(mFrame->IsFlexItem(), "mFrame must be a flex item!");
+  MOZ_ASSERT(mIsInlineAxisMainAxis ==
+
+  SetFlexBaseSizeAndMainSize(aFlexBaseSize);
+
+
+FlexItem::FlexItem(nsIFrame* aChildFrame, nscoord aCrossSize,
+                   WritingMode aContainerWM,
+                   const FlexboxAxisTracker& aAxisTracker)
+    : mFrame(aChildFrame),
+      mWM(aChildFrame->GetWritingMode()),
+      mCBWM(aContainerWM),
+      mMainAxis(aAxisTracker.MainAxis()),
+      mBorderPadding(mCBWM),
+      mMargin(mCBWM),
+      mCrossSize(aCrossSize),
+      // Struts don't do layout, so its WM doesn't matter at this point. So, we
+      // just share container's WM for simplicity:
+      mIsFrozen(true),
+      mIsStrut(true),  // (this is the constructor for making struts, after all)
+      mAlignSelf(StyleAlignFlags::FLEX_START) {
+  MOZ_ASSERT(mFrame, "expecting a non-null child frame");
+  MOZ_ASSERT(mFrame->StyleVisibility()->IsCollapse(),
+             "Should only make struts for children with 'visibility:collapse'");
+  MOZ_ASSERT(!mFrame->IsPlaceholderFrame(),
+             "placeholder frames should not be treated as flex items");
+  MOZ_ASSERT(!mFrame->HasAnyStateBits(NS_FRAME_OUT_OF_FLOW),

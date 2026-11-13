@@ -1,0 +1,99 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Flex clamp state after resolving an automatic base size</title>
+<script src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
+<link rel="stylesheet" href="chrome://mochikit/content/tests/SimpleTest/test.css">
+<style>
+  .container {
+    display: flex;
+    width: 200px;
+    height: 200px;
+    align-items: flex-start;
+  }
+  .column { flex-direction: column; }
+  .column.reverse { flex-direction: column-reverse; }
+  .item {
+    flex: 0 0 auto;
+    margin: 0;
+    border: 0;
+    padding: 0;
+    --minimum: 0px;
+    --maximum: 100px;
+  }
+  .row > .item {
+    height: 40px;
+    min-width: var(--minimum);
+    max-width: var(--maximum);
+  }
+  .column > .item {
+    width: 40px;
+    min-height: var(--minimum);
+    max-height: var(--maximum);
+  }
+  .content { width: 20px; height: 20px; }
+  .above-max { --maximum: 10px; }
+  .below-min { --minimum: 30px; }
+  .equal-max { --maximum: 20px; }
+  .no-max { --maximum: none; }
+  .explicit { flex-basis: 20px; }
+  .flexible { flex-shrink: 1; }
+  .ratio { flex-basis: content; aspect-ratio: 1; }
+  .ratio.above-max { --maximum: 30px; }
+  .ratio.below-min { --minimum: 50px; }
+</style>
+<script>
+"use strict";
+
+SimpleTest.waitForExplicitFinish();
+
+const cases = [
+  { name: "auto below max", classes: "", size: 20, clamp: "unclamped" },
+  { name: "auto above max", classes: "above-max", size: 10, clamp: "clamped_to_max" },
+  { name: "auto below min", classes: "below-min", size: 30, clamp: "clamped_to_min" },
+  { name: "auto equal max", classes: "equal-max", size: 20, clamp: "unclamped" },
+  { name: "auto without max", classes: "no-max", size: 20, clamp: "unclamped" },
+  { name: "explicit below max", classes: "explicit", size: 20, clamp: "unclamped" },
+  { name: "explicit above max", classes: "explicit above-max", size: 10, clamp: "clamped_to_max" },
+  { name: "flexible below max", classes: "flexible", size: 20, clamp: "unclamped" },
+  { name: "flexible below min", classes: "flexible below-min", size: 30, clamp: "clamped_to_min" },
+  { name: "ratio below max", classes: "ratio", size: 40, clamp: "unclamped" },
+  { name: "ratio above max", classes: "ratio above-max", size: 30, clamp: "clamped_to_max" },
+  { name: "ratio below min", classes: "ratio below-min", size: 50, clamp: "clamped_to_min" },
+];
+
+addEventListener("load", () => {
+  const entries = [];
+  const fragment = document.createDocumentFragment();
+  for (const direction of ["row", "column", "column reverse"]) {
+    for (const expected of cases) {
+      const container = document.createElement("div");
+      container.className = "container " + direction;
+      const item = document.createElement("div");
+      item.className = "item " + expected.classes;
+      const content = document.createElement("div");
+      content.className = "content";
+      item.append(content);
+      container.append(item);
+      fragment.append(container);
+      entries.push({ container, direction, expected });
+    }
+  }
+  document.body.append(fragment);
+  for (const { container, direction, expected } of entries) {
+    const item = container.getAsFlexContainer().getLines()[0].getItems()[0];
+    const axis = direction == "row" ? "width" : "height";
+    const label = direction + " " + expected.name;
+    is(container.firstElementChild.getBoundingClientRect()[axis], expected.size,
+       label + " used size");
+    is(item.mainBaseSize, expected.classes.includes("ratio") ? 40 : 20,
+       label + " resolved base size");
+    is(item.clampState, expected.clamp, label + " clamp state");
+  }
+  SimpleTest.finish();
+});
+</script>
+</head>
+<body></body>
+</html>

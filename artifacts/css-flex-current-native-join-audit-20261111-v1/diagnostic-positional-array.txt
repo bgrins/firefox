@@ -1,0 +1,75 @@
+void nsFlexContainerFrame::CreateFlexLineAndFlexItemInfo(
+    ComputedFlexContainerInfo& aContainerInfo,
+    const nsTArray<FlexLine>& aLines) {
+  for (const FlexLine& line : aLines) {
+    ComputedFlexLineInfo* lineInfo = aContainerInfo.mLines.AppendElement();
+    // Most of the remaining lineInfo properties will be filled out in
+    // UpdateFlexLineAndItemInfo (some will be provided by other functions),
+    // when we have real values. But we still add all the items here, so
+    // we can capture computed data for each item as we proceed.
+    for (const FlexItem& item : line.Items()) {
+      nsIFrame* frame = item.Frame();
+
+      // The frame may be for an element, or it may be for an
+      // anonymous flex item, e.g. wrapping one or more text nodes.
+      // DevTools wants the content node for the actual child in
+      // the DOM tree, so we descend through anonymous boxes.
+      nsIContent* content = nullptr;
+      nsIFrame* targetFrame = GetFirstNonAnonBoxInSubtree(frame);
+      if (targetFrame) {
+        content = targetFrame->GetContent();
+      }
+
+      // Skip over content that is only whitespace, which might
+      // have been broken off from a text node which is our real
+      // target.
+      while (content && content->TextIsOnlyWhitespace()) {
+        // If content is only whitespace, try the frame sibling.
+        targetFrame = targetFrame->GetNextSibling();
+        if (targetFrame) {
+          content = targetFrame->GetContent();
+        } else {
+          content = nullptr;
+        }
+      }
+
+      ComputedFlexItemInfo* itemInfo = lineInfo->mItems.AppendElement();
+
+      itemInfo->mNode = content;
+
+      // itemInfo->mMainBaseSize and mMainDeltaSize will be filled out
+      // in ResolveFlexibleLengths(). Other measurements will be captured in
+      // UpdateFlexLineAndItemInfo.
+    }
+  }
+
+  // Construct our computed info if we've been asked to do so. This is
+  // necessary to do now so we can capture some computed values for
+  // FlexItems during layout that would not otherwise be saved (like
+  // size adjustments). We'll later fix up the line properties,
+  // because the correct values aren't available yet.
+  if (aContainerInfo) {
+    MOZ_ASSERT(HasAnyStateBits(NS_STATE_FLEX_COMPUTED_INFO),
+               "We should only have the info struct if we should generate it");
+
+    if (!aStruts.IsEmpty()) {
+      // We restarted DoFlexLayout, and may have stale mLines to clear:
+      aContainerInfo->mLines.Clear();
+    } else {
+      MOZ_ASSERT(aContainerInfo->mLines.IsEmpty(), "Shouldn't have lines yet.");
+    }
+
+    CreateFlexLineAndFlexItemInfo(*aContainerInfo, flr.mLines);
+    ComputeFlexDirections(*aContainerInfo, aAxisTracker);
+  }
+
+  flr.mContentBoxMainSize = ComputeMainSize(
+      aReflowInput, aAxisTracker, aTentativeContentBoxMainSize, flr.mLines);
+
+  uint32_t lineIndex = 0;
+  for (FlexLine& line : flr.mLines) {
+    ComputedFlexLineInfo* lineInfo =
+        aContainerInfo ? &aContainerInfo->mLines[lineIndex] : nullptr;
+    line.ResolveFlexibleLengths(flr.mContentBoxMainSize, lineInfo);
+    ++lineIndex;
+  }

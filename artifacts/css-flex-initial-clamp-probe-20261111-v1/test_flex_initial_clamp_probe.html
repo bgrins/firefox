@@ -1,0 +1,357 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Initial flex clamp acquisition probe</title>
+<script src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
+<style>
+.container { display:flex; width:200px; height:200px; align-items:flex-start; }
+.item, .content { margin:0; padding:0; border:0; }
+.content { width:20px; height:20px; }
+#row-auto-below-max { flex-direction:row; }
+#row-auto-below-max > .item { flex:0 0 auto; min-width:0px; max-width:100px; height:40px; }
+#row-auto-above-max { flex-direction:row; }
+#row-auto-above-max > .item { flex:0 0 auto; min-width:0px; max-width:10px; height:40px; }
+#row-auto-below-min { flex-direction:row; }
+#row-auto-below-min > .item { flex:0 0 auto; min-width:30px; max-width:100px; height:40px; }
+#row-auto-equal-max { flex-direction:row; }
+#row-auto-equal-max > .item { flex:0 0 auto; min-width:0px; max-width:20px; height:40px; }
+#row-auto-no-max { flex-direction:row; }
+#row-auto-no-max > .item { flex:0 0 auto; min-width:0px; max-width:none; height:40px; }
+#row-explicit-below-max { flex-direction:row; }
+#row-explicit-below-max > .item { flex:0 0 20px; min-width:0px; max-width:100px; height:40px; }
+#row-explicit-above-max { flex-direction:row; }
+#row-explicit-above-max > .item { flex:0 0 20px; min-width:0px; max-width:10px; height:40px; }
+#row-flexible-below-max { flex-direction:row; }
+#row-flexible-below-max > .item { flex:0 1 auto; min-width:0px; max-width:100px; height:40px; }
+#row-flexible-below-min { flex-direction:row; }
+#row-flexible-below-min > .item { flex:0 1 auto; min-width:30px; max-width:100px; height:40px; }
+#row-ratio-below-max { flex-direction:row; }
+#row-ratio-below-max > .item { flex:0 0 content; min-width:0px; max-width:100px; height:40px; aspect-ratio:1; }
+#row-ratio-above-max { flex-direction:row; }
+#row-ratio-above-max > .item { flex:0 0 content; min-width:0px; max-width:30px; height:40px; aspect-ratio:1; }
+#row-ratio-below-min { flex-direction:row; }
+#row-ratio-below-min > .item { flex:0 0 content; min-width:50px; max-width:100px; height:40px; aspect-ratio:1; }
+#column-auto-below-max { flex-direction:column; }
+#column-auto-below-max > .item { flex:0 0 auto; min-height:0px; max-height:100px; width:40px; }
+#column-auto-above-max { flex-direction:column; }
+#column-auto-above-max > .item { flex:0 0 auto; min-height:0px; max-height:10px; width:40px; }
+#column-auto-below-min { flex-direction:column; }
+#column-auto-below-min > .item { flex:0 0 auto; min-height:30px; max-height:100px; width:40px; }
+#column-auto-equal-max { flex-direction:column; }
+#column-auto-equal-max > .item { flex:0 0 auto; min-height:0px; max-height:20px; width:40px; }
+#column-auto-no-max { flex-direction:column; }
+#column-auto-no-max > .item { flex:0 0 auto; min-height:0px; max-height:none; width:40px; }
+#column-explicit-below-max { flex-direction:column; }
+#column-explicit-below-max > .item { flex:0 0 20px; min-height:0px; max-height:100px; width:40px; }
+#column-explicit-above-max { flex-direction:column; }
+#column-explicit-above-max > .item { flex:0 0 20px; min-height:0px; max-height:10px; width:40px; }
+#column-flexible-below-max { flex-direction:column; }
+#column-flexible-below-max > .item { flex:0 1 auto; min-height:0px; max-height:100px; width:40px; }
+#column-flexible-below-min { flex-direction:column; }
+#column-flexible-below-min > .item { flex:0 1 auto; min-height:30px; max-height:100px; width:40px; }
+#column-ratio-below-max { flex-direction:column; }
+#column-ratio-below-max > .item { flex:0 0 content; min-height:0px; max-height:100px; width:40px; aspect-ratio:1; }
+#column-ratio-above-max { flex-direction:column; }
+#column-ratio-above-max > .item { flex:0 0 content; min-height:0px; max-height:30px; width:40px; aspect-ratio:1; }
+#column-ratio-below-min { flex-direction:column; }
+#column-ratio-below-min > .item { flex:0 0 content; min-height:50px; max-height:100px; width:40px; aspect-ratio:1; }
+#column-reverse-auto-below-max { flex-direction:column-reverse; }
+#column-reverse-auto-below-max > .item { flex:0 0 auto; min-height:0px; max-height:100px; width:40px; }
+#column-reverse-auto-above-max { flex-direction:column-reverse; }
+#column-reverse-auto-above-max > .item { flex:0 0 auto; min-height:0px; max-height:10px; width:40px; }
+#column-reverse-auto-below-min { flex-direction:column-reverse; }
+#column-reverse-auto-below-min > .item { flex:0 0 auto; min-height:30px; max-height:100px; width:40px; }
+#column-reverse-auto-equal-max { flex-direction:column-reverse; }
+#column-reverse-auto-equal-max > .item { flex:0 0 auto; min-height:0px; max-height:20px; width:40px; }
+#column-reverse-auto-no-max { flex-direction:column-reverse; }
+#column-reverse-auto-no-max > .item { flex:0 0 auto; min-height:0px; max-height:none; width:40px; }
+#column-reverse-explicit-below-max { flex-direction:column-reverse; }
+#column-reverse-explicit-below-max > .item { flex:0 0 20px; min-height:0px; max-height:100px; width:40px; }
+#column-reverse-explicit-above-max { flex-direction:column-reverse; }
+#column-reverse-explicit-above-max > .item { flex:0 0 20px; min-height:0px; max-height:10px; width:40px; }
+#column-reverse-flexible-below-max { flex-direction:column-reverse; }
+#column-reverse-flexible-below-max > .item { flex:0 1 auto; min-height:0px; max-height:100px; width:40px; }
+#column-reverse-flexible-below-min { flex-direction:column-reverse; }
+#column-reverse-flexible-below-min > .item { flex:0 1 auto; min-height:30px; max-height:100px; width:40px; }
+#column-reverse-ratio-below-max { flex-direction:column-reverse; }
+#column-reverse-ratio-below-max > .item { flex:0 0 content; min-height:0px; max-height:100px; width:40px; aspect-ratio:1; }
+#column-reverse-ratio-above-max { flex-direction:column-reverse; }
+#column-reverse-ratio-above-max > .item { flex:0 0 content; min-height:0px; max-height:30px; width:40px; aspect-ratio:1; }
+#column-reverse-ratio-below-min { flex-direction:column-reverse; }
+#column-reverse-ratio-below-min > .item { flex:0 0 content; min-height:50px; max-height:100px; width:40px; aspect-ratio:1; }
+</style>
+<script>
+"use strict";
+SimpleTest.waitForExplicitFinish();
+const cases = [
+  {
+    "id": "row-auto-below-max",
+    "axis": "width",
+    "size": 20,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "row-auto-above-max",
+    "axis": "width",
+    "size": 10,
+    "clamp": "clamped_to_max"
+  },
+  {
+    "id": "row-auto-below-min",
+    "axis": "width",
+    "size": 30,
+    "clamp": "clamped_to_min"
+  },
+  {
+    "id": "row-auto-equal-max",
+    "axis": "width",
+    "size": 20,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "row-auto-no-max",
+    "axis": "width",
+    "size": 20,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "row-explicit-below-max",
+    "axis": "width",
+    "size": 20,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "row-explicit-above-max",
+    "axis": "width",
+    "size": 10,
+    "clamp": "clamped_to_max"
+  },
+  {
+    "id": "row-flexible-below-max",
+    "axis": "width",
+    "size": 20,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "row-flexible-below-min",
+    "axis": "width",
+    "size": 30,
+    "clamp": "clamped_to_min"
+  },
+  {
+    "id": "row-ratio-below-max",
+    "axis": "width",
+    "size": 40,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "row-ratio-above-max",
+    "axis": "width",
+    "size": 30,
+    "clamp": "clamped_to_max"
+  },
+  {
+    "id": "row-ratio-below-min",
+    "axis": "width",
+    "size": 50,
+    "clamp": "clamped_to_min"
+  },
+  {
+    "id": "column-auto-below-max",
+    "axis": "height",
+    "size": 20,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "column-auto-above-max",
+    "axis": "height",
+    "size": 10,
+    "clamp": "clamped_to_max"
+  },
+  {
+    "id": "column-auto-below-min",
+    "axis": "height",
+    "size": 30,
+    "clamp": "clamped_to_min"
+  },
+  {
+    "id": "column-auto-equal-max",
+    "axis": "height",
+    "size": 20,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "column-auto-no-max",
+    "axis": "height",
+    "size": 20,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "column-explicit-below-max",
+    "axis": "height",
+    "size": 20,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "column-explicit-above-max",
+    "axis": "height",
+    "size": 10,
+    "clamp": "clamped_to_max"
+  },
+  {
+    "id": "column-flexible-below-max",
+    "axis": "height",
+    "size": 20,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "column-flexible-below-min",
+    "axis": "height",
+    "size": 30,
+    "clamp": "clamped_to_min"
+  },
+  {
+    "id": "column-ratio-below-max",
+    "axis": "height",
+    "size": 40,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "column-ratio-above-max",
+    "axis": "height",
+    "size": 30,
+    "clamp": "clamped_to_max"
+  },
+  {
+    "id": "column-ratio-below-min",
+    "axis": "height",
+    "size": 50,
+    "clamp": "clamped_to_min"
+  },
+  {
+    "id": "column-reverse-auto-below-max",
+    "axis": "height",
+    "size": 20,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "column-reverse-auto-above-max",
+    "axis": "height",
+    "size": 10,
+    "clamp": "clamped_to_max"
+  },
+  {
+    "id": "column-reverse-auto-below-min",
+    "axis": "height",
+    "size": 30,
+    "clamp": "clamped_to_min"
+  },
+  {
+    "id": "column-reverse-auto-equal-max",
+    "axis": "height",
+    "size": 20,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "column-reverse-auto-no-max",
+    "axis": "height",
+    "size": 20,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "column-reverse-explicit-below-max",
+    "axis": "height",
+    "size": 20,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "column-reverse-explicit-above-max",
+    "axis": "height",
+    "size": 10,
+    "clamp": "clamped_to_max"
+  },
+  {
+    "id": "column-reverse-flexible-below-max",
+    "axis": "height",
+    "size": 20,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "column-reverse-flexible-below-min",
+    "axis": "height",
+    "size": 30,
+    "clamp": "clamped_to_min"
+  },
+  {
+    "id": "column-reverse-ratio-below-max",
+    "axis": "height",
+    "size": 40,
+    "clamp": "unclamped"
+  },
+  {
+    "id": "column-reverse-ratio-above-max",
+    "axis": "height",
+    "size": 30,
+    "clamp": "clamped_to_max"
+  },
+  {
+    "id": "column-reverse-ratio-below-min",
+    "axis": "height",
+    "size": 50,
+    "clamp": "clamped_to_min"
+  }
+];
+addEventListener("load", () => {
+  info("PROBE-BUILD " + navigator.userAgent);
+  try {
+    const app = SpecialPowers.Services.appinfo;
+    info("PROBE-APP " + JSON.stringify({version: app.version, buildID: app.appBuildID, platformBuildID: app.platformBuildID}));
+  } catch (error) {
+    info("PROBE-APP-UNAVAILABLE " + error);
+  }
+  for (const expected of cases) {
+    const container = document.getElementById(expected.id);
+    const item = container.getAsFlexContainer().getLines()[0].getItems()[0];
+    const size = container.firstElementChild.getBoundingClientRect()[expected.axis];
+    info("CLAMP-PROBE " + JSON.stringify({id: expected.id, size, clamp: item.clampState, base: item.mainBaseSize, delta: item.mainDeltaSize, min: item.mainMinSize, max: String(item.mainMaxSize), expected}));
+    is(size, expected.size, expected.id + " used size");
+    is(item.clampState, expected.clamp, expected.id + " clamp state");
+  }
+  SimpleTest.finish();
+});
+</script>
+<div id="row-auto-below-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="row-auto-above-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="row-auto-below-min" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="row-auto-equal-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="row-auto-no-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="row-explicit-below-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="row-explicit-above-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="row-flexible-below-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="row-flexible-below-min" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="row-ratio-below-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="row-ratio-above-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="row-ratio-below-min" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-auto-below-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-auto-above-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-auto-below-min" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-auto-equal-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-auto-no-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-explicit-below-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-explicit-above-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-flexible-below-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-flexible-below-min" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-ratio-below-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-ratio-above-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-ratio-below-min" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-reverse-auto-below-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-reverse-auto-above-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-reverse-auto-below-min" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-reverse-auto-equal-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-reverse-auto-no-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-reverse-explicit-below-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-reverse-explicit-above-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-reverse-flexible-below-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-reverse-flexible-below-min" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-reverse-ratio-below-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-reverse-ratio-above-max" class="container"><div class="item"><div class="content"></div></div></div>
+<div id="column-reverse-ratio-below-min" class="container"><div class="item"><div class="content"></div></div></div>

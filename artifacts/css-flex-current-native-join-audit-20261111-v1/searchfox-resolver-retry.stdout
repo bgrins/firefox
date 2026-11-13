@@ -1,0 +1,202 @@
+>>> 3177: void FlexLine::ResolveFlexibleLengths(nscoord aFlexContainerMainSize,
+    3178:                                       ComputedFlexLineInfo* aLineInfo) {
+    3179:   // In this function, we use 64-bit coord type to avoid integer overflow in
+    3180:   // case several of the individual items have huge hypothetical main sizes,
+    3181:   // which can happen with percent-width table-layout:fixed descendants. Here we
+    3182:   // promote the container's main size to 64-bit to make the arithmetic
+    3183:   // convenient.
+    3184:   AuCoord64 flexContainerMainSize(aFlexContainerMainSize);
+    3185: 
+    3186:   // Before we start resolving sizes: if we have an aLineInfo structure to fill
+    3187:   // out, we inform it of each item's base size, and we initialize the "delta"
+    3188:   // for each item to 0. (And if the flex algorithm wants to grow or shrink the
+    3189:   // item, we'll update this delta further down.)
+    3190:   if (aLineInfo) {
+    3191:     uint32_t itemIndex = 0;
+    3192:     for (FlexItem& item : Items()) {
+    3193:       aLineInfo->mItems[itemIndex].mMainBaseSize = item.FlexBaseSize();
+    3194:       aLineInfo->mItems[itemIndex].mMainDeltaSize = 0;
+    3195:       ++itemIndex;
+    3196:     }
+    3197:   }
+    3198: 
+    3199:   // Determine whether we're going to be growing or shrinking items.
+    3200:   const bool isUsingFlexGrow =
+    3201:       (mTotalOuterHypotheticalMainSize < flexContainerMainSize);
+    3202: 
+    3203:   if (aLineInfo) {
+    3204:     aLineInfo->mGrowthState =
+    3205:         isUsingFlexGrow ? mozilla::dom::FlexLineGrowthState::Growing
+    3206:                         : mozilla::dom::FlexLineGrowthState::Shrinking;
+    3207:   }
+    3208: 
+    3209:   // Do an "early freeze" for flex items that obviously can't flex in the
+    3210:   // direction we've chosen:
+    3211:   FreezeItemsEarly(isUsingFlexGrow, aLineInfo);
+    3212: 
+    3213:   if ((mNumFrozenItems == NumItems()) && !aLineInfo) {
+    3214:     // All our items are frozen, so we have no flexible lengths to resolve,
+    3215:     // and we aren't being asked to generate computed line info.
+    3216:     FLEX_LOG("No flexible length to resolve");
+    3217:     return;
+    3218:   }
+    3219:   MOZ_ASSERT(!IsEmpty() || aLineInfo,
+    3220:              "empty lines should take the early-return above");
+    3221: 
+    3222:   FLEX_LOG("Resolving flexible lengths for items");
+    3223: 
+    3224:   // Subtract space occupied by our items' margins/borders/padding/gaps, so
+    3225:   // we can just be dealing with the space available for our flex items' content
+    3226:   // boxes.
+    3227:   const AuCoord64 totalItemMBPAndGaps = mTotalItemMBP + SumOfGaps();
+    3228:   const AuCoord64 spaceAvailableForFlexItemsContentBoxes =
+    3229:       flexContainerMainSize - totalItemMBPAndGaps;
+    3230: 
+    3231:   Maybe<AuCoord64> origAvailableFreeSpace;
+    3232: 
+    3233:   // NOTE: I claim that this chunk of the algorithm (the looping part) needs to
+    3234:   // run the loop at MOST NumItems() times.  This claim should hold up
+    3235:   // because we'll freeze at least one item on each loop iteration, and once
+    3236:   // we've run out of items to freeze, there's nothing left to do.  However,
+    3237:   // in most cases, we'll break out of this loop long before we hit that many
+    3238:   // iterations.
+    3239:   for (uint32_t iterationCounter = 0; iterationCounter < NumItems();
+    3240:        iterationCounter++) {
+    3241:     // Set every not-yet-frozen item's used main size to its
+    3242:     // flex base size, and subtract all the used main sizes from our
+    3243:     // total amount of space to determine the 'available free space'
+    3244:     // (positive or negative) to be distributed among our flexible items.
+    3245:     AuCoord64 availableFreeSpace = spaceAvailableForFlexItemsContentBoxes;
+    3246:     for (FlexItem& item : Items()) {
+    3247:       if (!item.IsFrozen()) {
+    3248:         item.SetMainSize(item.FlexBaseSize());
+    3249:       }
+    3250:       availableFreeSpace -= item.MainSize();
+    3251:     }
+    3252: 
+    3253:     FLEX_LOGV("Available free space: %" PRId64 "; flex items should \"%s\"",
+    3254:               availableFreeSpace.value, isUsingFlexGrow ? "grow" : "shrink");
+    3255: 
+    3256:     // The sign of our free space should agree with the type of flexing
+    3257:     // (grow/shrink) that we're doing. Any disagreement should've made us use
+    3258:     // the other type of flexing, or should've been resolved in
+    3259:     // FreezeItemsEarly.
+    3260:     //
+    3261:     // Note: it's possible that an individual flex item has huge
+    3262:     // margin/border/padding that makes either its
+    3263:     // MarginBorderPaddingSizeInMainAxis() or OuterMainSize() negative due to
+    3264:     // integer overflow. If that happens, the accumulated
+    3265:     // mTotalOuterHypotheticalMainSize or mTotalItemMBP could be negative due to
+    3266:     // that one item's negative (overflowed) size. Likewise, a huge main gap
+    3267:     // size between flex items can also make our accumulated SumOfGaps()
+    3268:     // negative. In these case, we throw up our hands and don't require
+    3269:     // isUsingFlexGrow to agree with availableFreeSpace. Luckily, we won't get
+    3270:     // stuck in the algorithm below, and just distribute the wrong
+    3271:     // availableFreeSpace with the wrong grow/shrink factors.
+    3272:     MOZ_ASSERT(!(mTotalOuterHypotheticalMainSize >= 0 && mTotalItemMBP >= 0 &&
+    3273:                  totalItemMBPAndGaps >= 0) ||
+    3274:                    (isUsingFlexGrow && availableFreeSpace >= 0) ||
+    3275:                    (!isUsingFlexGrow && availableFreeSpace <= 0),
+    3276:                "availableFreeSpace's sign should match isUsingFlexGrow");
+    3277: 
+    3278:     // If we have any free space available, give each flexible item a portion
+    3279:     // of availableFreeSpace.
+    3280:     if (availableFreeSpace != AuCoord64(0)) {
+    3281:       // The first time we do this, we initialize origAvailableFreeSpace.
+    3282:       if (!origAvailableFreeSpace) {
+    3283:         origAvailableFreeSpace.emplace(availableFreeSpace);
+    3284:       }
+    3285: 
+    3286:       // STRATEGY: On each item, we compute & store its "share" of the total
+    3287:       // weight that we've seen so far:
+    3288:       //   curWeight / weightSum
+    3289:       //
+    3290:       // Then, when we go to actually distribute the space (in the next loop),
+    3291:       // we can simply walk backwards through the elements and give each item
+    3292:       // its "share" multiplied by the remaining available space.
+    3293:       //
+    3294:       // SPECIAL CASE: If the sum of the weights is larger than the
+    3295:       // maximum representable double (overflowing to infinity), then we can't
+    3296:       // sensibly divide out proportional shares anymore. In that case, we
+    3297:       // simply treat the flex item(s) with the largest weights as if
+    3298:       // their weights were infinite (dwarfing all the others), and we
+    3299:       // distribute all of the available space among them.
+    3300:       double weightSum = 0.0;
+    3301:       double flexFactorSum = 0.0;
+    3302:       double largestWeight = 0.0;
+    3303:       uint32_t numItemsWithLargestWeight = 0;
+    3304: 
+    3305:       // Since this loop only operates on unfrozen flex items, we can break as
+    3306:       // soon as we have seen all of them.
+    3307:       uint32_t numUnfrozenItemsToBeSeen = NumItems() - mNumFrozenItems;
+    3308:       for (FlexItem& item : Items()) {
+    3309:         if (numUnfrozenItemsToBeSeen == 0) {
+    3310:           break;
+    3311:         }
+    3312: 
+    3313:         if (!item.IsFrozen()) {
+    3314:           numUnfrozenItemsToBeSeen--;
+    3315: 
+    3316:           const double curWeight = item.GetWeight(isUsingFlexGrow);
+    3317:           const double curFlexFactor = item.GetFlexFactor(isUsingFlexGrow);
+    3318:           MOZ_ASSERT(curWeight >= 0.0, "weights are non-negative");
+    3319:           MOZ_ASSERT(curFlexFactor >= 0.0, "flex factors are non-negative");
+    3320: 
+    3321:           weightSum += curWeight;
+    3322:           flexFactorSum += curFlexFactor;
+    3323: 
+    3324:           if (std::isfinite(weightSum)) {
+    3325:             if (curWeight == 0.0) {
+    3326:               item.SetShareOfWeightSoFar(0.0);
+    3327:             } else {
+    3328:               item.SetShareOfWeightSoFar(curWeight / weightSum);
+    3329:             }
+    3330:           }  // else, the sum of weights overflows to infinity, in which
+    3331:              // case we don't bother with "SetShareOfWeightSoFar" since
+    3332:              // we know we won't use it. (instead, we'll just give every
+    3333:              // item with the largest weight an equal share of space.)
+    3334: 
+    3335:           // Update our largest-weight tracking vars
+    3336:           if (curWeight > largestWeight) {
+    3337:             largestWeight = curWeight;
+    3338:             numItemsWithLargestWeight = 1;
+    3339:           } else if (curWeight == largestWeight) {
+    3340:             numItemsWithLargestWeight++;
+    3341:           }
+    3342:         }
+    3343:       }
+    3344: 
+    3345:       MOZ_ASSERT(numUnfrozenItemsToBeSeen == 0, "miscounted frozen items?");
+    3346: 
+    3347:       if (weightSum != 0.0) {
+    3348:         MOZ_ASSERT(flexFactorSum != 0.0,
+    3349:                    "flex factor sum can't be 0, if a weighted sum "
+    3350:                    "of its components (weightSum) is nonzero");
+    3351:         if (flexFactorSum < 1.0) {
+    3352:           // Our unfrozen flex items don't want all of the original free space!
+    3353:           // (Their flex factors add up to something less than 1.)
+    3354:           // Hence, make sure we don't distribute any more than the portion of
+    3355:           // our original free space that these items actually want.
+    3356:           auto totalDesiredPortionOfOrigFreeSpace =
+    3357:               AuCoord64::FromRound(*origAvailableFreeSpace * flexFactorSum);
+    3358: 
+    3359:           // Clamp availableFreeSpace to be no larger than that ^^.
+    3360:           // (using min or max, depending on sign).
+    3361:           // This should not change the sign of availableFreeSpace (except
+    3362:           // possibly by setting it to 0), as enforced by this assertion:
+    3363:           NS_ASSERTION(totalDesiredPortionOfOrigFreeSpace == AuCoord64(0) ||
+    3364:                            ((totalDesiredPortionOfOrigFreeSpace > 0) ==
+    3365:                             (availableFreeSpace > 0)),
+    3366:                        "When we reduce available free space for flex "
+    3367:                        "factors < 1, we shouldn't change the sign of the "
+    3368:                        "free space...");
+    3369: 
+    3370:           if (availableFreeSpace > 0) {
+    3371:             availableFreeSpace = std::min(availableFreeSpace,
+    3372:                                           totalDesiredPortionOfOrigFreeSpace);
+    3373:           } else {
+    3374:             availableFreeSpace = std::max(availableFreeSpace,
+    3375:                                           totalDesiredPortionOfOrigFreeSpace);
+    3376:           }
+    3377:         }
+   ...  : (method too long, truncated)
