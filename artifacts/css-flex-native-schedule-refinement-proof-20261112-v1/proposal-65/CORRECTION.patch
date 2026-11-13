@@ -1,0 +1,19 @@
+--- saved-draft/NativeProjectionPoint.v
++++ reviewed-source/NativeProjectionPoint.v
+@@ -35,8 +35,14 @@
+     assert (Raw : main prepared+NativeReverseEffects.atDelta i es =
+       baseSize (seed before)+SignHistory.deltaFor i model).
+     { rewrite Main,Delta. unfold NativeResetProof.currentSize. rewrite F; reflexivity. }
+-    cbn zeta. unfold NativeClampMap.each.
+-    cbn [NativeProjectionFlags.projected NativeSchedule.frozen]. rewrite Frozen,F.
++    cbn zeta.
++    assert (Each : NativeClampMap.each (NativeProjectionFlags.projected prepared
++        (main prepared+NativeReverseEffects.atDelta i es)) =
++      fst (NativeClamp.one (NativeProjectionFlags.projected prepared
++        (main prepared+NativeReverseEffects.atDelta i es)))).
++    { unfold NativeClampMap.each.
++      cbn [NativeProjectionFlags.projected NativeSchedule.frozen]. rewrite Frozen,F; reflexivity. }
++    rewrite Each.
+     pose proof (NativeProjectedOne.main_exact prepared
+       (main prepared+NativeReverseEffects.atDelta i es) RangeP MaxP32) as MainExact.
+     pose proof (NativeProjectedOne.flags_exact prepared
