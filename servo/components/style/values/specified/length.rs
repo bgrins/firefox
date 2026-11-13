@@ -139,6 +139,8 @@ impl LengthUnit {
         unit: &str,
     ) -> Result<Self, ()> {
         let allows_computational_dependence = parsing_mode.allows_computational_dependence();
+        let allows_container_units =
+            allows_computational_dependence && !in_page_rule && cfg!(feature = "gecko");
 
         Ok(match_ignore_ascii_case! { unit,
             "px" => Self::Px,
@@ -188,12 +190,12 @@ impl LengthUnit {
             "dvi" if !in_page_rule => Self::Dvi,
             // Container query lengths. Inherit the limitation from viewport units since
             // we may fall back to them.
-            "cqw" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqw,
-            "cqh" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqh,
-            "cqi" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqi,
-            "cqb" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqb,
-            "cqmin" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqmin,
-            "cqmax" if !in_page_rule && cfg!(feature = "gecko") => Self::Cqmax,
+            "cqw" if allows_container_units => Self::Cqw,
+            "cqh" if allows_container_units => Self::Cqh,
+            "cqi" if allows_container_units => Self::Cqi,
+            "cqb" if allows_container_units => Self::Cqb,
+            "cqmin" if allows_container_units => Self::Cqmin,
+            "cqmax" if allows_container_units => Self::Cqmax,
             _ => return Err(()),
         })
     }
