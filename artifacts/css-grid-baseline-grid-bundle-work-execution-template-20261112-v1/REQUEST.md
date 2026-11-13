@@ -1,0 +1,1 @@
+Review run.py, exact 18-command expected_labels, failure checks, patch roundtrip and REPORT limitations. After current restoration acceptance, bind a separate immutable authority document and external authorization or prepare a successor with those reviewed pins; do not mutate this sealed source template. No native release is requested before that authority exists.

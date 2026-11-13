@@ -1,0 +1,375 @@
+--- a/layout/generic/nsBlockFrame.cpp
++++ b/layout/generic/nsBlockFrame.cpp
+@@ -69,6 +69,8 @@
+ 
+ static const int MIN_LINES_NEEDING_CURSOR = 20;
+ 
++void GridWorkBlockVisit(const nsIFrame*, uint32_t);
++
+ using namespace mozilla;
+ using namespace mozilla::css;
+ using namespace mozilla::dom;
+@@ -598,6 +600,7 @@
+   bool hitLineClampEllipsis = false;
+ 
+   for (auto line = aStart; line != aEnd; ++line) {
++    GridWorkBlockVisit(this, 1);
+     hitLineClampEllipsis = hitLineClampEllipsis || line->HasLineClampEllipsis();
+     if (!line->IsBlock()) {
+       if (isLineClamped && !hitLineClampEllipsis) {
+@@ -633,6 +636,7 @@
+         aExportContext == BaselineExportContext::LineLayout
+             ? kid->GetDefaultBaselineSharingGroup()
+             : aBaselineGroup;
++    GridWorkBlockVisit(this, 2);
+     const auto kidBaseline =
+         kid->GetNaturalBaselineBOffset(aWM, kidBaselineGroup, aExportContext);
+     if (!kidBaseline) {
+@@ -656,6 +660,7 @@
+ Maybe<nscoord> nsBlockFrame::GetNaturalBaselineBOffset(
+     WritingMode aWM, BaselineSharingGroup aBaselineGroup,
+     BaselineExportContext aExportContext) const {
++  GridWorkBlockVisit(this, 0);
+   if (StyleDisplay()->IsContainLayout()) {
+     return Nothing{};
+   }
+--- a/layout/generic/nsGridContainerFrame.cpp
++++ b/layout/generic/nsGridContainerFrame.cpp
+@@ -7,6 +7,7 @@
+ #include "nsGridContainerFrame.h"
+ 
+ #include <stdlib.h>  // for div()
++#include <stdio.h>
+ 
+ #include <functional>
+ #include <type_traits>
+@@ -27,6 +28,7 @@
+ #include "mozilla/ReflowInput.h"
+ #include "mozilla/ScrollContainerFrame.h"
+ #include "mozilla/StaticPrefs_layout.h"
++#include "mozilla/dom/Element.h"
+ #include "mozilla/dom/Grid.h"
+ #include "mozilla/dom/GridBinding.h"
+ #include "nsCSSFrameConstructor.h"
+@@ -266,6 +268,106 @@
+       aAxis, aWM, rdSize, aBoxSizingAdjustment.EnsureAndGet()));
+ }
+ 
++struct GridWorkCall;
++struct GridWorkQuery;
++static thread_local GridWorkCall* sGridWorkCall = nullptr;
++static thread_local GridWorkQuery* sGridWorkQuery = nullptr;
++
++static void GridWorkLog(const char* aStage, int64_t a0 = 0, int64_t a1 = 0,
++                        int64_t a2 = 0, int64_t a3 = 0, int64_t a4 = 0,
++                        int64_t a5 = 0);
++
++struct GridWorkCall {
++  GridWorkCall* mPrevious;
++  const nsIFrame* mFrame;
++  nsCString mId;
++  nsCString mPhase;
++  uint64_t mCall;
++  int mDemand;
++  const char* mSite;
++
++  GridWorkCall(const nsIFrame* aFrame, int aDemand, const char* aSite)
++      : mPrevious(sGridWorkCall), mFrame(aFrame), mDemand(aDemand), mSite(aSite) {
++    static uint64_t nextCall = 0;
++    mCall = ++nextCall;
++    const auto* content = aFrame->GetContent();
++    if (content && content->IsElement()) {
++      nsAutoString id, phase;
++      content->AsElement()->GetAttr(kNameSpaceID_None, nsGkAtoms::id, id);
++      content->AsElement()->GetAttr(kNameSpaceID_None, nsGkAtoms::title, phase);
++      CopyUTF16toUTF8(id, mId);
++      CopyUTF16toUTF8(phase, mPhase);
++    }
++    sGridWorkCall = this;
++    GridWorkLog("call-begin");
++  }
++
++  ~GridWorkCall() {
++    GridWorkLog("call-end");
++    sGridWorkCall = mPrevious;
++  }
++};
++
++static void GridWorkLog(const char* aStage, int64_t a0, int64_t a1,
++                        int64_t a2, int64_t a3, int64_t a4, int64_t a5) {
++  const auto* c = sGridWorkCall;
++  if (!c || !StringBeginsWith(c->mId, "gsw-"_ns)) {
++    return;
++  }
++  static uint32_t sequence = 0;
++  if (sequence >= 4194304) {
++    if (sequence == 4194304) {
++      ++sequence;
++      fprintf(stderr, "GRIDWORK TRUNCATED\n");
++    }
++    return;
++  }
++  fprintf(stderr,
++          "GRIDWORK seq=%u stage=%s id=%s phase=%s call=%llu demand=%d site=%s "
++          "frame=%p dirty=%d children=%d subtree=%d "
++          "v0=%lld v1=%lld v2=%lld v3=%lld v4=%lld v5=%lld\n",
++          ++sequence, aStage, c->mId.get(), c->mPhase.get(),
++          static_cast<unsigned long long>(c->mCall), c->mDemand, c->mSite,
++          static_cast<const void*>(c->mFrame),
++          c->mFrame->HasAnyStateBits(NS_FRAME_IS_DIRTY),
++          c->mFrame->HasAnyStateBits(NS_FRAME_HAS_DIRTY_CHILDREN),
++          c->mFrame->IsSubtreeDirty(), static_cast<long long>(a0),
++          static_cast<long long>(a1), static_cast<long long>(a2),
++          static_cast<long long>(a3), static_cast<long long>(a4),
++          static_cast<long long>(a5));
++}
++
++struct GridWorkQuery {
++  GridWorkQuery* mPrevious;
++  uint32_t mCounts[3] = {};
++  int mKind;
++  int mGroup;
++  bool mTruncated = false;
++
++  GridWorkQuery(int aKind, int aGroup)
++      : mPrevious(sGridWorkQuery), mKind(aKind), mGroup(aGroup) {
++    sGridWorkQuery = this;
++    GridWorkLog("query-begin", mKind, mGroup);
++  }
++  ~GridWorkQuery() {
++    if (mTruncated) {
++      fprintf(stderr, "GRIDWORK TRUNCATED\n");
++    }
++    GridWorkLog("query-end", mKind, mGroup, mCounts[0], mCounts[1], mCounts[2]);
++    sGridWorkQuery = mPrevious;
++  }
++};
++
++void GridWorkBlockVisit(const nsIFrame*, uint32_t aKind) {
++  if (auto* q = sGridWorkQuery) {
++    if (aKind >= 3 || q->mCounts[aKind] >= 1048576) {
++      q->mTruncated = true;
++    } else {
++      ++q->mCounts[aKind];
++    }
++  }
++}
++
+ enum class MeasuringReflowRequest : uint8_t {
+   Geometry,
+   NaturalFirst,
+@@ -344,8 +446,12 @@
+     Maybe<MeasuringReflowResult> Result(MeasuringReflowRequest aRequest) const {
+       if (aRequest == MeasuringReflowRequest::Geometry || aRequest == mRequest ||
+           (mHasGridBaselines && IsGridMeasuringReflowRequest(aRequest))) {
++        GridWorkLog("demand-hit", int(aRequest), int(mRequest),
++                    mHasGridBaselines, mHasBaseline);
+         return Some(Project(aRequest));
+       }
++      GridWorkLog("demand-miss", int(aRequest), int(mRequest),
++                  mHasGridBaselines, mHasBaseline);
+       return Nothing();
+     }
+   };
+@@ -356,9 +462,18 @@
+ 
+   bool IsValidFor(const nsIFrame* aFrame, const LogicalSize& aCBSize) const {
+     if (aFrame->IsSubtreeDirty()) {
++      GridWorkLog("key-dirty", mKey.mCBSizeInItemInlineAxis,
++                  mKey.mBaselinePaddingInItemBlockAxis);
+       return false;
+     }
+-    return mKey == Key(aFrame, aCBSize);
++    const Key key(aFrame, aCBSize);
++    const bool matches = mKey == key;
++    GridWorkLog(matches ? "key-valid" : "key-mismatch",
++                mKey.mCBSizeInItemInlineAxis,
++                mKey.mBaselinePaddingInItemBlockAxis,
++                key.mCBSizeInItemInlineAxis,
++                key.mBaselinePaddingInItemBlockAxis);
++    return matches;
+   }
+ 
+   Maybe<MeasuringReflowResult> Result(MeasuringReflowRequest aRequest) const {
+@@ -374,27 +489,47 @@
+     result.mGeometry.mContentBSize = aContentBSize;
+     result.mGeometry.mPhysicalSize = aFrame->GetSize();
+     result.mGeometry.mUsedMargin = aFrame->GetUsedMargin();
++    GridWorkLog("capture-begin", int(aRequest), aFrame->IsGridContainerFrame(),
++                aFrame->HasAnyStateBits(NS_STATE_GRID_PRODUCED_BASELINES),
++                aFrame->IsSubtreeDirty());
+     if (IsGridMeasuringReflowRequest(aRequest)) {
+       const auto* grid = static_cast<nsGridContainerFrame*>(aFrame);
+       if (grid->HasAnyStateBits(NS_STATE_GRID_PRODUCED_BASELINES) &&
+           !grid->IsSubtreeDirty()) {
++        {
++          GridWorkQuery workQuery(1, int(BaselineSharingGroup::First));
+         result.mBaselines[LogicalAxis::Block][BaselineSharingGroup::First] =
+             grid->GetBBaseline(BaselineSharingGroup::First);
++        }
++        {
++          GridWorkQuery workQuery(1, int(BaselineSharingGroup::Last));
+         result.mBaselines[LogicalAxis::Block][BaselineSharingGroup::Last] =
+             grid->GetBBaseline(BaselineSharingGroup::Last);
++        }
++        {
++          GridWorkQuery workQuery(2, int(BaselineSharingGroup::First));
+         result.mBaselines[LogicalAxis::Inline][BaselineSharingGroup::First] =
+             grid->GetIBaseline(BaselineSharingGroup::First);
++        }
++        {
++          GridWorkQuery workQuery(2, int(BaselineSharingGroup::Last));
+         result.mBaselines[LogicalAxis::Inline][BaselineSharingGroup::Last] =
+             grid->GetIBaseline(BaselineSharingGroup::Last);
++        }
+         result.mHasBaseline = true;
+         result.mHasGridBaselines = true;
++        GridWorkLog("capture-end", int(result.mRequest), result.mHasBaseline,
++                result.mHasGridBaselines);
+         return result;
+       }
+     }
+     Maybe<nscoord> baseline;
+     switch (aRequest) {
+       case MeasuringReflowRequest::NaturalFirst:
+-      case MeasuringReflowRequest::NaturalLast:
++      case MeasuringReflowRequest::NaturalLast: {
++        GridWorkQuery workQuery(
++            0, int(aRequest == MeasuringReflowRequest::NaturalFirst
++                       ? BaselineSharingGroup::First : BaselineSharingGroup::Last));
+         baseline = aFrame->GetNaturalBaselineBOffset(
+             aFrame->GetWritingMode(),
+             aRequest == MeasuringReflowRequest::NaturalFirst
+@@ -402,22 +537,31 @@
+                 : BaselineSharingGroup::Last,
+             BaselineExportContext::Other);
+         break;
++      }
+       case MeasuringReflowRequest::GridBlockFirst:
+-      case MeasuringReflowRequest::GridBlockLast:
++      case MeasuringReflowRequest::GridBlockLast: {
++        GridWorkQuery workQuery(
++            1, int(aRequest == MeasuringReflowRequest::GridBlockFirst
++                       ? BaselineSharingGroup::First : BaselineSharingGroup::Last));
+         baseline.emplace(
+             static_cast<nsGridContainerFrame*>(aFrame)->GetBBaseline(
+                 aRequest == MeasuringReflowRequest::GridBlockFirst
+                     ? BaselineSharingGroup::First
+                     : BaselineSharingGroup::Last));
+         break;
++      }
+       case MeasuringReflowRequest::GridInlineFirst:
+-      case MeasuringReflowRequest::GridInlineLast:
++      case MeasuringReflowRequest::GridInlineLast: {
++        GridWorkQuery workQuery(
++            2, int(aRequest == MeasuringReflowRequest::GridInlineFirst
++                       ? BaselineSharingGroup::First : BaselineSharingGroup::Last));
+         baseline.emplace(
+             static_cast<nsGridContainerFrame*>(aFrame)->GetIBaseline(
+                 aRequest == MeasuringReflowRequest::GridInlineFirst
+                     ? BaselineSharingGroup::First
+                     : BaselineSharingGroup::Last));
+         break;
++      }
+       case MeasuringReflowRequest::Geometry:
+         break;
+     }
+@@ -426,6 +570,8 @@
+       result.mBaselines[LogicalAxis::Block][BaselineSharingGroup::First] =
+           *baseline;
+     }
++    GridWorkLog("capture-end", int(result.mRequest), result.mHasBaseline,
++                result.mHasGridBaselines);
+     return result;
+   }
+ 
+@@ -5838,18 +5984,25 @@
+   MOZ_ASSERT(aChild->IsGridItem(), "aChild should be a grid item!");
+   auto wm = aChild->GetWritingMode();
+   // NOTE: Reflowing or FinishReflowChild might invalidate the cache.
+-  if (const auto* cachedMeasurement =
+-          aChild->GetProperty(GridItemCachedBAxisMeasurement::Prop());
+-      cachedMeasurement && cachedMeasurement->IsValidFor(aChild, aCBSize)) {
++  {
++    const auto* cachedMeasurement =
++        aChild->GetProperty(GridItemCachedBAxisMeasurement::Prop());
++    if (!cachedMeasurement) {
++      GridWorkLog("cache-absent");
++    }
++    if (cachedMeasurement && cachedMeasurement->IsValidFor(aChild, aCBSize)) {
+     if (const auto result = cachedMeasurement->Result(aRequest)) {
+       GRID_LOG(
+           "[perf] MeasuringReflow accepted cached value=%d, child=%p, "
+           "aCBSize.ISize=%d",
+           result->mBSize, aChild, aCBSize.ISize(wm));
++      GridWorkLog("cache-hit");
+       return *result;
+     }
+   }
+ 
++  }
++  GridWorkLog("measure-begin");
+   auto* parent = static_cast<nsGridContainerFrame*>(aChild->GetParent());
+   nsPresContext* pc = aChild->PresContext();
+   Maybe<ReflowInput> dummyParentState;
+@@ -5918,6 +6071,8 @@
+   if (GridItemCachedBAxisMeasurement* cachedMeasurement =
+           aChild->GetProperty(GridItemCachedBAxisMeasurement::Prop())) {
+     cachedMeasurement->Update(aChild, aCBSize, snapshot);
++    GridWorkLog("store-update", int(snapshot.mRequest),
++                snapshot.mHasBaseline, snapshot.mHasGridBaselines);
+     GRID_LOG(
+         "[perf] MeasuringReflow rejected but updated cached value=%d, "
+         "child=%p, aCBSize.ISize=%d",
+@@ -5927,12 +6082,15 @@
+         new GridItemCachedBAxisMeasurement(aChild, aCBSize, snapshot);
+     aChild->SetProperty(GridItemCachedBAxisMeasurement::Prop(),
+                         cachedMeasurement);
++    GridWorkLog("store-create", int(snapshot.mRequest),
++                snapshot.mHasBaseline, snapshot.mHasGridBaselines);
+     GRID_LOG(
+         "[perf] MeasuringReflow created new cached value=%d, child=%p, "
+         "aCBSize.ISize=%d",
+         result.mBSize, aChild, aCBSize.ISize(wm));
+   }
+ 
++  GridWorkLog("measure-end", result.mBSize, result.mContentBSize);
+   return result;
+ }
+ 
+@@ -6154,6 +6312,7 @@
+         iMinSizeClamp = aMinSizeClamp;
+       }
+       LogicalSize availableSize(childWM, availISize, availBSize);
++      GridWorkCall workCall(child, 0, "content");
+       const auto measurement =
+           ::MeasuringReflow(child, aGridRI.mReflowInput, rc, availableSize,
+                             cbSize, iMinSizeClamp, bMinSizeClamp);
+@@ -6799,6 +6958,7 @@
+                       ? MeasuringReflowRequest::NaturalFirst
+                       : MeasuringReflowRequest::NaturalLast;
+       }
++      GridWorkCall workCall(child, int(request), "baseline");
+       const auto measurement = ::MeasuringReflow(
+           child, aGridRI.mReflowInput, rc, avail, cbSize, NS_MAXSIZE, NS_MAXSIZE,
+           request);
+@@ -9593,6 +9753,9 @@
+                                   const ReflowInput& aReflowInput,
+                                   nsReflowStatus& aStatus) {
+   RemoveStateBits(NS_STATE_GRID_PRODUCED_BASELINES);
++  if (sGridWorkCall && sGridWorkCall->mFrame == this) {
++    GridWorkLog("producer-reset", HasAnyStateBits(NS_STATE_GRID_PRODUCED_BASELINES));
++  }
+   NormalizeChildLists();
+ 
+   if (IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
+@@ -10213,6 +10376,9 @@
+ 
+   FinishAndStoreOverflow(&aDesiredSize);
+   AddStateBits(NS_STATE_GRID_PRODUCED_BASELINES);
++  if (sGridWorkCall && sGridWorkCall->mFrame == this) {
++    GridWorkLog("producer-complete", HasAnyStateBits(NS_STATE_GRID_PRODUCED_BASELINES));
++  }
+ }
+ 
+ void nsGridContainerFrame::UpdateSubgridFrameState() {

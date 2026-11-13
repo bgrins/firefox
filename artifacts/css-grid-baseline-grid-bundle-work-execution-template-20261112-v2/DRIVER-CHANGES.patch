@@ -1,0 +1,230 @@
+--- a/run.py
++++ b/run.py
+@@ -62,12 +62,18 @@
+     return result + ["restored-demand-build", "restored-demand-focused", "restored-demand-alignment"]
+ 
+ 
++def validate_execution_binding(binding):
++    assert {PYTHON, str(ROOT / "mach")} <= set(binding["tools"]), "Required Python/mach pin missing"
++    assert {str(ROOT / "mozconfig"), str(ROOT / "objdir-full.noindex/config.status")} <= set(binding["configs"]), "Required config pin missing"
++
++
+ def main(out, authorization, authority):
+     out, authorization, authority = out.resolve(), authorization.resolve(), authority.resolve()
+     assert not authorization.is_relative_to(HERE) and not authority.is_relative_to(HERE)
+     approval, binding = read(authorization), read(authority)
+     template = read(HERE / "AUTHORIZATION-TEMPLATE.json")
+     assert approval["authorized"] is True and binding["ready"] is True
++    validate_execution_binding(binding)
+     for key in ("stage", "commands", "build_jobs", "build_timeout", "wpt_timeout",
+                 "timeout_multiplier", "record_cap", "always_restore"):
+         assert approval[key] == template[key], key
+@@ -76,8 +82,9 @@
+     assert approval["out"] == str(out) and out.parent == ROOT / "artifacts" and not out.exists()
+     authenticate_preparation()
+     assert sha(binding["restoration_receipt"]["path"]) == binding["restoration_receipt"]["sha256"]
+-    for name, row in binding["tools"].items():
+-        assert str(Path(name).resolve()) == row["resolved"] and sha(name) == row["sha256"]
++    for category in ("tools", "configs"):
++        for name, row in binding[category].items():
++            assert str(Path(name).resolve()) == row["resolved"] and sha(name) == row["sha256"], name
+     current = {name: (HERE / "demand" / name).read_bytes() for name in SOURCES}
+     originals = dict(current)
+     for name, data in current.items():
+@@ -109,6 +116,23 @@
+     result = dict(status="INCOMPLETE", accepted_repair=False, timing_claim=False)
+     installed_tests, parsed, comparable = [], {}, {}
+     touched = False
++    input_checks = []
++
++    def execution_inputs(label):
++        record = dict(label=label, status="checking")
++        try:
++            for category in ("tools", "configs"):
++                for name, pin in binding[category].items():
++                    assert str(Path(name).resolve()) == pin["resolved"], (category, "resolution", name)
++                    assert sha(name) == pin["sha256"], (category, "bytes", name)
++            preserved()
++            record["status"] = "PASS"
++        except BaseException as error:
++            record.update(status="FAIL", error=repr(error))
++            raise
++        finally:
++            input_checks.append(record)
++            save(out / "INPUT-CHECKS.json", input_checks)
+ 
+     def preserved():
+         for name, digest in binding["live_pins"].items():
+@@ -116,7 +140,8 @@
+ 
+     def safe():
+         assert runner.safe_cleanup and all(process.absent(group) for group in runner.groups)
+-        preserved()
++        for name in SOURCES:
++            assert (ROOT / name).read_bytes() == current[name], ("concurrent source mutation", name)
+ 
+     def binaries(label):
+         values = {name: dict(sha256=sha(name), bytes=Path(name).stat().st_size) for name in expected_binaries}
+@@ -124,9 +149,13 @@
+         return values
+ 
+     def command(label, argv, timeout):
++        execution_inputs(label + ":before")
+         save(out / "LIVE.json", dict(phase=label, status="launching"))
+-        row, _ = runner.run(argv, ROOT, env, label, timeout=timeout)
+-        save(out / "LIVE.json", dict(phase=label, status="terminal", exit=row["exit"]))
++        try:
++            row, _ = runner.run(argv, ROOT, env, label, timeout=timeout)
++            save(out / "LIVE.json", dict(phase=label, status="terminal", exit=row["exit"]))
++        finally:
++            execution_inputs(label + ":after")
+         limit = 64 * 1024**2 if label.endswith("-build") else (4 * 1024**3 if label.startswith("instrumented-bundle-") else 16 * 1024**2)
+         assert (out / (label + ".log")).stat().st_size <= limit
+         return row
+@@ -217,6 +246,7 @@
+             remove_fixtures()
+             result["owned_fixtures_removed"] = True
+             if touched:
++                result["runtime_restoration"] = "INCOMPLETE: pinned inputs and restored build/tests not yet verified"
+                 restored = build("restored-demand-build")
+                 result["build_restored"] = True
+                 result["binary_byte_identical"] = restored == expected_binaries
+@@ -228,12 +258,15 @@
+                 assert outcomes(alignment) == outcomes(read(HERE / "EXPECTED-ALIGNMENT.json"))
+                 result["restored_focused_pass"] = 700
+                 result["restored_alignment_files"] = 457
++                execution_inputs("restoration:complete")
++                result["runtime_restoration"] = "VERIFIED restored build and regression outcomes"
+             safe()
+             result["fresh_groups_absent"] = True
+         except BaseException as error:
+             result["restoration_error"] = repr(error)
+         try:
+             if not any(key.endswith("error") for key in result):
++                execution_inputs("transaction:complete")
+                 assert [row["label"] for row in runner.commands] == expected_labels(configs)
+                 assert len(parsed) == 4 and len(comparable) == 12
+                 directions, bundles = set(), 0
+--- a/check_failures.py
++++ b/check_failures.py
+@@ -11,7 +11,8 @@
+ HERE = Path(__file__).resolve().parent
+ CONFIGS = run.read(HERE / "CONFIGS.json")
+ CASES = ["success"] + run.expected_labels(CONFIGS) + ["unsafe-lifecycle", "concurrent-source-change",
+-         "partial-install", "truncated-trace", "missing-phase", "wrong-final-count", "missing-switch-coverage"]
++         "partial-install", "truncated-trace", "missing-phase", "wrong-final-count", "missing-switch-coverage", "tool-drift", "config-drift", "tool-resolution-drift",
++         "config-resolution-drift", "tool-unavailable"]
+ 
+ 
+ def exercise(case, base):
+@@ -43,7 +44,22 @@
+     work = {c["name"]: dict((key, c[key]) for key in ("depth", "lines", "columns", "orientation", "group")) for c in CONFIGS}
+     for value in work.values():
+         value["checksum"] = 10
+-    binding = dict(ready=True, restoration_receipt=dict(path=str(receipt), sha256=run.sha(receipt)), tools={},
++    tool_target = root / "python-target"
++    tool_target.write_text("mock python")
++    tool = root / "python"
++    tool.symlink_to(tool_target)
++    config_target = root / "config-target"
++    config_target.write_text("mock config")
++    config = root / "mozconfig"
++    config.symlink_to(config_target)
++    mach = root / "mach"
++    mach.write_text("mock mach")
++    status = root / "objdir-full.noindex/config.status"
++    status.parent.mkdir()
++    status.write_text("mock config status")
++    def pins(paths):
++        return {str(path): dict(resolved=str(path.resolve()), sha256=run.sha(path)) for path in paths}
++    binding = dict(ready=True, restoration_receipt=dict(path=str(receipt), sha256=run.sha(receipt)), tools=pins((tool, mach)), configs=pins((config, status)),
+                    live_pins={name: run.sha(root / name) for name in run.SOURCES}, binaries=bins, work_observations=work)
+     authority = root / "authority.json"
+     run.save(authority, binding)
+@@ -69,6 +85,19 @@
+                     self.safe_cleanup = False
+                     raise RuntimeError("mock unresolved process")
+                 binary.write_text("demand binary" if label == "restored-demand-build" else label)
++                if label == "instrumented-bundle-build":
++                    if case == "tool-drift":
++                        tool.write_text("changed tool")
++                    elif case == "config-drift":
++                        status.write_text("changed config")
++                    elif case in ("tool-resolution-drift", "config-resolution-drift"):
++                        link = tool if case == "tool-resolution-drift" else config
++                        alternate = root / "alternate-target"
++                        alternate.write_bytes(link.read_bytes())
++                        link.unlink()
++                        link.symlink_to(alternate)
++                    elif case == "tool-unavailable":
++                        tool_target.unlink()
+             else:
+                 assert argv[2:6] == ["wpt", "--headless", "--no-pause-after-test", "--processes=1"] and timeout == 600
+                 if label.endswith(("-focused", "-alignment")):
+@@ -111,7 +140,7 @@
+             raise OSError("mock second source refusal before write")
+         return write(path, data)
+ 
+-    with patch.object(run, "HERE", prep), patch.object(run, "ROOT", root), \
++    with patch.object(run, "HERE", prep), patch.object(run, "ROOT", root), patch.object(run, "PYTHON", str(tool)), \
+          patch.object(run.process, "Runner", Runner), patch.object(run.process, "absent", return_value=True), \
+          patch.object(run.shutil, "disk_usage", return_value=SimpleNamespace(free=run.MIN_FREE+1)), \
+          patch.object(run.observations, "extract_trace", extract), patch.object(run.trace_parser, "parse_file", parsed), \
+@@ -130,6 +159,17 @@
+     else:
+         assert all((root / name).read_bytes() == data for name, data in originals.items())
+         assert not list((root / "testing/web-platform/tests/css/css-grid/alignment").glob("grid-bundle-work-local-*"))
++    if case in ("tool-drift", "config-drift", "tool-resolution-drift", "config-resolution-drift", "tool-unavailable"):
++        assert result["source_restored"] and result["owned_fixtures_removed"]
++        assert result["runtime_restoration"].startswith("INCOMPLETE")
++        assert not result.get("build_restored", False)
++        assert commands[-1]["label"] == "instrumented-bundle-build"
++        checks = run.read(out / "INPUT-CHECKS.json")
++        assert checks[-2]["label"] == "instrumented-bundle-build:after" and checks[-2]["status"] == "FAIL"
++        assert checks[-1]["label"] == "restored-demand-build:before" and checks[-1]["status"] == "FAIL"
++    if case == "success":
++        checks = run.read(out / "INPUT-CHECKS.json")
++        assert len(checks) == 38 and all(x["status"] == "PASS" for x in checks)
+     return dict(case=case, exit=code, result=result, commands=[x["label"] for x in commands], mock_only=True)
+ 
+ 
+@@ -137,8 +177,22 @@
+     with tempfile.TemporaryDirectory(prefix="grid-bundle-work-mock-") as tmp:
+         scratch = Path(tmp)
+         results = [exercise(case, scratch) for case in CASES]
++        binding = dict(tools={run.PYTHON: {}, str(run.ROOT / "mach"): {}},
++                       configs={str(run.ROOT / "mozconfig"): {}, str(run.ROOT / "objdir-full.noindex/config.status"): {}})
++        missing = []
++        for category in ("tools", "configs"):
++            for name in binding[category]:
++                bad = copy.deepcopy(binding)
++                del bad[category][name]
++                try:
++                    run.validate_execution_binding(bad)
++                except AssertionError:
++                    missing.append(name)
++                else:
++                    raise AssertionError("missing mandatory pin accepted")
++        assert len(missing) == 4
+     assert not scratch.exists()
+-    value = dict(status="PASS source-only mock transaction checks", cases=results, scratch_removed=True, native_commands_executed=0)
++    value = dict(status="PASS source-only mock transaction checks", cases=results, scratch_removed=True, native_commands_executed=0, missing_required_pin_refusals=missing)
+     run.save(HERE / "FAILURE-CHECK.json", value)
+     print(run.json.dumps(value, indent=2))
+ 
+--- a/check_source.py
++++ b/check_source.py
+@@ -33,6 +33,13 @@
+     configs = json.loads((HERE / "CONFIGS.json").read_text())
+     source_configs = json.loads((BASE / "css-grid-baseline-measurement-work-trace-plan-20261112-v2/SCENARIOS.json").read_text())["initial"]
+     assert configs == source_configs and len(configs) == 4
++    predecessor = BASE / "css-grid-baseline-grid-bundle-work-execution-template-20261112-v1"
++    for name in ("demand", "bundle", "instrumented", "fixtures"):
++        old_files = {str(x.relative_to(predecessor / name)): x.read_bytes() for x in (predecessor / name).rglob("*") if x.is_file()}
++        new_files = {str(x.relative_to(HERE / name)): x.read_bytes() for x in (HERE / name).rglob("*") if x.is_file()}
++        assert old_files == new_files
++    for name in ("CONFIGS.json", "BUNDLE.patch", "WORK.patch", "AUTHORIZATION-TEMPLATE.json", "parse.py", "observations.py", "process.py"):
++        assert (HERE / name).read_bytes() == (predecessor / name).read_bytes()
+     commands = []
+     with tempfile.TemporaryDirectory(prefix="grid-work-source-") as tmp:
+         scratch = Path(tmp)

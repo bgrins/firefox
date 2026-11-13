@@ -1,0 +1,1 @@
+Source-only WORK-first template under review. Native/runtime/tool authority is pending current correctness restoration acceptance. No compiler/browser execution authorized. Provider and state harness remain separate.
