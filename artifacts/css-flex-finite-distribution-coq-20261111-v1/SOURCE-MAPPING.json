@@ -1,0 +1,23 @@
+{
+  "source": "layout/generic/nsFlexContainerFrame.cpp",
+  "sha256": "210a38a494eba5ebc666ad6409c4b4f5b6651668c8bc6f9ef5b02834d578e733",
+  "mapping": "Manual source audit only; no checked native refinement.",
+  "blocks": [
+    {
+      "begin": "if (curWeight == 0.0)",
+      "meaning": "store zero without division; otherwise compute current weight divided by rounded prefix sum"
+    },
+    {
+      "begin": "if (myShareOfRemainingSpace == 1.0)",
+      "meaning": "return exact integer free space for unit share; otherwise round positive-share product; leave delta zero for remaining share cases"
+    }
+  ],
+  "unproved": [
+    "finite float factors promoted exactly to double",
+    "native live shrinking bases nonnegative and representable acquired values",
+    "actual iteration/list and stored-prefix correspondence",
+    "native branches and IEEE instructions correspond to real rounding model",
+    "runtime rounding mode and exceptional values",
+    "integer caller preconditions and Coq-to-Lean theorem transfer"
+  ]
+}

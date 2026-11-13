@@ -1,0 +1,44 @@
+Welcome to Coq 8.18.0
+[Loading ML file ring_plugin.cmxs (using legacy method) ... done]
+[Loading ML file zify_plugin.cmxs (using legacy method) ... done]
+[Loading ML file micromega_plugin.cmxs (using legacy method) ... done]
+[Loading ML file btauto_plugin.cmxs (using legacy method) ... done]
+B754_finite
+     : forall prec emax : Z,
+       bool ->
+       forall (m : positive) (e : Z),
+       SpecFloat.bounded prec emax m e = true -> binary_float prec emax
+B2R =
+fun (prec emax : Z) (f : binary_float prec emax) =>
+match f with
+| B754_finite _ _ s m e _ =>
+    Defs.F2R
+      {| Defs.Fnum := SpecFloat.cond_Zopp s (Z.pos m); Defs.Fexp := e |}
+| _ => 0%R
+end
+     : forall prec emax : Z, binary_float prec emax -> R
+
+Arguments B2R (prec emax)%Z_scope f
+SpecFloat.fexp =
+fun prec emax e : Z => Z.max (e - prec) (SpecFloat.emin prec emax)
+     : Z -> Z -> Z -> Z
+
+Arguments SpecFloat.fexp (prec emax e)%Z_scope
+SpecFloat.emin = fun prec emax : Z => (3 - emax - prec)%Z
+     : Z -> Z -> Z
+
+Arguments SpecFloat.emin (prec emax)%Z_scope
+
+
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < Toplevel input, characters 6-28:
+> Check Binary.B2R_B754_finite.
+>       ^^^^^^^^^^^^^^^^^^^^^^
+Error: The reference Binary.B2R_B754_finite was not found in the current
+environment.
+
+Coq < 

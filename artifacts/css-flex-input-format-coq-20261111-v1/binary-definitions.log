@@ -1,0 +1,52 @@
+Welcome to Coq 8.18.0
+[Loading ML file ring_plugin.cmxs (using legacy method) ... done]
+[Loading ML file zify_plugin.cmxs (using legacy method) ... done]
+[Loading ML file micromega_plugin.cmxs (using legacy method) ... done]
+[Loading ML file btauto_plugin.cmxs (using legacy method) ... done]
+binary_float
+     : Z -> Z -> Set
+B2R
+     : forall prec emax : Z, binary_float prec emax -> R
+is_finite
+     : forall prec emax : Z, binary_float prec emax -> bool
+generic_format_B2R
+     : forall (prec emax : Z) (x : binary_float prec emax),
+       Generic_fmt.generic_format radix2 (SpecFloat.fexp prec emax)
+         (B2R prec emax x)
+valid_binary
+     : Z -> Z -> full_float -> bool
+abs_B2R_lt_emax:
+  forall (prec emax : Z) (x : binary_float prec emax),
+  (Rabs (B2R prec emax x) < Raux.bpow radix2 emax)%R
+Bfrexp_correct:
+  forall (prec emax : Z) (prec_gt_0_ : FLX.Prec_gt_0 prec),
+  (2 < emax)%Z ->
+  forall f : binary_float prec emax,
+  is_finite_strict prec emax f = true ->
+  let x := B2R prec emax f in
+  let z := fst (Bfrexp prec emax prec_gt_0_ f) in
+  let e := snd (Bfrexp prec emax prec_gt_0_ f) in
+  (/ 2 <= Rabs (B2R prec emax z) < 1)%R /\
+  x = (B2R prec emax z * Raux.bpow radix2 e)%R /\
+  e = Raux.mag_val radix2 x (Raux.mag radix2 x)
+generic_format_B2R:
+  forall (prec emax : Z) (x : binary_float prec emax),
+  Generic_fmt.generic_format radix2 (SpecFloat.fexp prec emax)
+    (B2R prec emax x)
+
+
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < Toplevel input, characters 6-24:
+> Check Binary.B2R_lt_emax.
+>       ^^^^^^^^^^^^^^^^^^
+Error: The reference Binary.B2R_lt_emax was not found in the current
+environment.
+
+Coq < 
+Coq < 
+Coq < 
+Coq < 

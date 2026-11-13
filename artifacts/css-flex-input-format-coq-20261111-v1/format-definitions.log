@@ -1,0 +1,50 @@
+Welcome to Coq 8.18.0
+[Loading ML file ring_plugin.cmxs (using legacy method) ... done]
+[Loading ML file zify_plugin.cmxs (using legacy method) ... done]
+[Loading ML file micromega_plugin.cmxs (using legacy method) ... done]
+[Loading ML file btauto_plugin.cmxs (using legacy method) ... done]
+Inductive FLT_format (beta : Zaux.radix) (emin prec : Z) (x : R) : Prop :=
+    FLT_spec : forall f : Defs.float beta,
+               x = Defs.F2R f ->
+               (Z.abs (Defs.Fnum f) < Zaux.radix_val beta ^ prec)%Z ->
+               (emin <= Defs.Fexp f)%Z -> FLT.FLT_format beta emin prec x.
+
+Arguments FLT.FLT_format beta (emin prec)%Z_scope x%R_scope
+Arguments FLT.FLT_spec beta (emin prec)%Z_scope x%R_scope f _ _ _
+FLT.FLT_exp =
+fun emin prec e : Z => Z.max (e - prec) emin
+     : Z -> Z -> Z -> Z
+
+Arguments FLT.FLT_exp (emin prec e)%Z_scope
+Generic_fmt.generic_inclusion_mag
+     : forall (beta : Zaux.radix) (fexp1 fexp2 : Z -> Z) (x : R),
+       (x <> 0%R ->
+        (fexp2 (Raux.mag_val beta x (Raux.mag beta x)) <=
+         fexp1 (Raux.mag_val beta x (Raux.mag beta x)))%Z) ->
+       Generic_fmt.generic_format beta fexp1 x ->
+       Generic_fmt.generic_format beta fexp2 x
+Defs.F2R
+     : Defs.float ?beta -> R
+where
+?beta : [ |- Zaux.radix]
+FIX.FIX_format
+     : Zaux.radix -> Z -> R -> Prop
+FIX.generic_format_FIX
+     : forall (beta : Zaux.radix) (emin : Z) (x : R),
+       FIX.FIX_format beta emin x ->
+       Generic_fmt.generic_format beta (FIX.FIX_exp emin) x
+FLX.Prec_gt_0 = fun prec : Z => (0 < prec)%Z
+     : Z -> Prop
+
+Arguments FLX.Prec_gt_0 prec%Z_scope
+
+
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < 

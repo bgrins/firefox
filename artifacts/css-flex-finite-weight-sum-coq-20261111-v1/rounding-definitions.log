@@ -1,0 +1,37 @@
+Welcome to Coq 8.18.0
+
+Coq < [Loading ML file ring_plugin.cmxs (using legacy method) ... done]
+[Loading ML file zify_plugin.cmxs (using legacy method) ... done]
+[Loading ML file micromega_plugin.cmxs (using legacy method) ... done]
+[Loading ML file btauto_plugin.cmxs (using legacy method) ... done]
+
+Coq < 
+Coq < Generic_fmt.round_le
+     : forall (beta : Zaux.radix) (fexp : Z -> Z),
+       Generic_fmt.Valid_exp fexp ->
+       forall rnd : R -> Z,
+       Generic_fmt.Valid_rnd rnd ->
+       forall x y : R,
+       (x <= y)%R ->
+       (Generic_fmt.round beta fexp rnd x <=
+        Generic_fmt.round beta fexp rnd y)%R
+
+Coq < Generic_fmt.round_generic
+     : forall (beta : Zaux.radix) (fexp : Z -> Z) (rnd : R -> Z),
+       Generic_fmt.Valid_rnd rnd ->
+       forall x : R,
+       Generic_fmt.generic_format beta fexp x ->
+       Generic_fmt.round beta fexp rnd x = x
+Generic_fmt.generic_format_round
+     : forall (beta : Zaux.radix) (fexp : Z -> Z),
+       Generic_fmt.Valid_exp fexp ->
+       forall rnd : R -> Z,
+       Generic_fmt.Valid_rnd rnd ->
+       forall x : R,
+       Generic_fmt.generic_format beta fexp
+         (Generic_fmt.round beta fexp rnd x)
+
+Coq < 
+Coq < 
+Notation rounding_float rdir p d :=
+  (Generic_fmt.round radix2 (FLT.FLT_exp d (Z.pos p)) rdir)

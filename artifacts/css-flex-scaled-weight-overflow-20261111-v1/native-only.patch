@@ -1,0 +1,20 @@
+--- a/layout/generic/nsFlexContainerFrame.cpp
++++ b/layout/generic/nsFlexContainerFrame.cpp
+@@ -588,7 +588,7 @@
+   //
+   // Asserts fatally if called on a frozen item (since frozen items are not
+   // flexible).
+-  float GetWeight(bool aIsUsingFlexGrow) {
++  double GetWeight(bool aIsUsingFlexGrow) {
+     MOZ_ASSERT(!IsFrozen(), "shouldn't need weight after item is frozen");
+ 
+     if (aIsUsingFlexGrow) {
+@@ -603,7 +603,7 @@
+       // avoid performing mFlexShrink * mFlexBaseSize = inf * 0 = undefined.)
+       return 0.0f;
+     }
+-    return mFlexShrink * mFlexBaseSize;
++    return double(mFlexShrink) * mFlexBaseSize;
+   }
+ 
+   bool TreatBSizeAsIndefinite() const { return mTreatBSizeAsIndefinite; }

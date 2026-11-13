@@ -1,0 +1,79 @@
+Welcome to Coq 8.18.0
+[Loading ML file ring_plugin.cmxs (using legacy method) ... done]
+[Loading ML file zify_plugin.cmxs (using legacy method) ... done]
+[Loading ML file micromega_plugin.cmxs (using legacy method) ... done]
+[Loading ML file btauto_plugin.cmxs (using legacy method) ... done]
+FLT.FLT_exp_valid
+     : forall emin prec : Z,
+       FLX.Prec_gt_0 prec -> Generic_fmt.Valid_exp (FLT.FLT_exp emin prec)
+Generic_fmt.valid_rnd_N
+     : forall choice : Z -> bool,
+       Generic_fmt.Valid_rnd (Generic_fmt.Znearest choice)
+rndNE = Generic_fmt.Znearest (fun x : Z => negb (Z.even x))
+     : R -> Z
+
+Arguments rndNE x%R_scope
+Generic_fmt.generic_format_0
+     : forall (beta : Zaux.radix) (fexp : Z -> Z),
+       Generic_fmt.generic_format beta fexp 0
+FLT.generic_format_FLT
+     : forall (beta : Zaux.radix) (emin prec : Z) (x : R),
+       FLT.FLT_format beta emin prec x ->
+       Generic_fmt.generic_format beta (FLT.FLT_exp emin prec) x
+Generic_fmt.generic_format_bpow
+     : forall (beta : Zaux.radix) (fexp : Z -> Z) (e : Z),
+       (fexp (e + 1) <= e)%Z ->
+       Generic_fmt.generic_format beta fexp (Raux.bpow beta e)
+Generic_fmt.round_0
+     : forall (beta : Zaux.radix) (fexp : Z -> Z) (rnd : R -> Z),
+       Generic_fmt.Valid_rnd rnd -> Generic_fmt.round beta fexp rnd 0 = 0%R
+Fetching opaque proofs from disk for Flocq.Core.Generic_fmt
+Generic_fmt.round_generic =
+fun (beta : Zaux.radix) (fexp : Z -> Z) (rnd : R -> Z)
+  (valid_rnd : Generic_fmt.Valid_rnd rnd) (x : R)
+  (Hx : Generic_fmt.generic_format beta fexp x) =>
+eq_ind_r
+  (fun r : R =>
+   Defs.F2R
+     {| Defs.Fnum := rnd r; Defs.Fexp := Generic_fmt.cexp beta fexp x |} = x)
+  (eq_ind_r
+     (fun z : Z =>
+      Defs.F2R
+        {| Defs.Fnum := z; Defs.Fexp := Generic_fmt.cexp beta fexp x |} = x)
+     (eq_sym Hx)
+     (Generic_fmt.Zrnd_IZR rnd
+        (Raux.Ztrunc (Generic_fmt.scaled_mantissa beta fexp x))))
+  (Generic_fmt.scaled_mantissa_generic beta fexp x Hx)
+:
+Generic_fmt.round beta fexp rnd x = x
+     : forall (beta : Zaux.radix) (fexp : Z -> Z) (rnd : R -> Z),
+       Generic_fmt.Valid_rnd rnd ->
+       forall x : R,
+       Generic_fmt.generic_format beta fexp x ->
+       Generic_fmt.round beta fexp rnd x = x
+
+Arguments Generic_fmt.round_generic beta (fexp rnd)%function_scope
+  {valid_rnd} x%R_scope _
+
+
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < Toplevel input, characters 6-15:
+> Check Rdiv_le_1.
+>       ^^^^^^^^^
+Error: The reference Rdiv_le_1 was not found in the current environment.
+
+Coq < Toplevel input, characters 6-22:
+> Check Rdiv_le_1_compat.
+>       ^^^^^^^^^^^^^^^^
+Error: The reference Rdiv_le_1_compat was not found in the current
+environment.
+
+Coq < 

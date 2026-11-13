@@ -1,0 +1,172 @@
+Welcome to Coq 8.18.0
+[Loading ML file ring_plugin.cmxs (using legacy method) ... done]
+[Loading ML file zify_plugin.cmxs (using legacy method) ... done]
+[Loading ML file micromega_plugin.cmxs (using legacy method) ... done]
+[Loading ML file btauto_plugin.cmxs (using legacy method) ... done]
+Generic_fmt.generic_inclusion
+     : forall (beta : Zaux.radix) (fexp1 fexp2 : Z -> Z),
+       Generic_fmt.Valid_exp fexp1 ->
+       Generic_fmt.Valid_exp fexp2 ->
+       forall e : Z,
+       (fexp2 e <= fexp1 e)%Z ->
+       forall x : R,
+       (Raux.bpow beta (e - 1) <= Rabs x <= Raux.bpow beta e)%R ->
+       Generic_fmt.generic_format beta fexp1 x ->
+       Generic_fmt.generic_format beta fexp2 x
+Generic_fmt.generic_format_0:
+  forall (beta : Zaux.radix) (fexp : Z -> Z),
+  Generic_fmt.generic_format beta fexp 0
+FLX.generic_format_FLX_1:
+  forall (beta : Zaux.radix) (prec : Z),
+  FLX.Prec_gt_0 prec -> Generic_fmt.generic_format beta (FLX.FLX_exp prec) 1
+FLT.generic_format_FLT_1:
+  forall (beta : Zaux.radix) (emin prec : Z),
+  FLX.Prec_gt_0 prec ->
+  (emin <= 0)%Z -> Generic_fmt.generic_format beta (FLT.FLT_exp emin prec) 1
+FLT.FLT_format
+     : Zaux.radix -> Z -> Z -> R -> Prop
+FLT.generic_format_FLT
+     : forall (beta : Zaux.radix) (emin prec : Z) (x : R),
+       FLT.FLT_format beta emin prec x ->
+       Generic_fmt.generic_format beta (FLT.FLT_exp emin prec) x
+FLT.FLT_format_generic
+     : forall (beta : Zaux.radix) (emin prec : Z),
+       FLX.Prec_gt_0 prec ->
+       forall x : R,
+       Generic_fmt.generic_format beta (FLT.FLT_exp emin prec) x ->
+       FLT.FLT_format beta emin prec x
+Generic_fmt.generic_format_abs_inv:
+  forall (beta : Zaux.radix) (fexp : Z -> Z) (x : R),
+  Generic_fmt.generic_format beta fexp (Rabs x) ->
+  Generic_fmt.generic_format beta fexp x
+Generic_fmt.generic_format_opp:
+  forall (beta : Zaux.radix) (fexp : Z -> Z) (x : R),
+  Generic_fmt.generic_format beta fexp x ->
+  Generic_fmt.generic_format beta fexp (- x)
+Generic_fmt.generic_format_abs:
+  forall (beta : Zaux.radix) (fexp : Z -> Z) (x : R),
+  Generic_fmt.generic_format beta fexp x ->
+  Generic_fmt.generic_format beta fexp (Rabs x)
+FLT.generic_format_FLX_FLT:
+  forall (beta : Zaux.radix) (emin prec : Z) (x : R),
+  Generic_fmt.generic_format beta (FLT.FLT_exp emin prec) x ->
+  Generic_fmt.generic_format beta (FLX.FLX_exp prec) x
+FLT.generic_format_FIX_FLT:
+  forall (beta : Zaux.radix) (emin prec : Z) (x : R),
+  Generic_fmt.generic_format beta (FLT.FLT_exp emin prec) x ->
+  Generic_fmt.generic_format beta (FIX.FIX_exp emin) x
+Ulp.generic_format_succ:
+  forall (beta : Zaux.radix) (fexp : Z -> Z),
+  Generic_fmt.Valid_exp fexp ->
+  forall x : R,
+  Generic_fmt.generic_format beta fexp x ->
+  Generic_fmt.generic_format beta fexp (Ulp.succ beta fexp x)
+Ulp.generic_format_pred:
+  forall (beta : Zaux.radix) (fexp : Z -> Z),
+  Generic_fmt.Valid_exp fexp ->
+  forall x : R,
+  Generic_fmt.generic_format beta fexp x ->
+  Generic_fmt.generic_format beta fexp (Ulp.pred beta fexp x)
+Ulp.generic_format_plus_ulp:
+  forall (beta : Zaux.radix) (fexp : Z -> Z),
+  Generic_fmt.Valid_exp fexp ->
+  Generic_fmt.Monotone_exp fexp ->
+  forall x : R,
+  Generic_fmt.generic_format beta fexp x ->
+  Generic_fmt.generic_format beta fexp (x + Ulp.ulp beta fexp x)
+Generic_fmt.generic_round_generic:
+  forall (beta : Zaux.radix) (fexp1 fexp2 : Z -> Z),
+  Generic_fmt.Valid_exp fexp1 ->
+  Generic_fmt.Valid_exp fexp2 ->
+  forall rnd : R -> Z,
+  Generic_fmt.Valid_rnd rnd ->
+  forall x : R,
+  Generic_fmt.generic_format beta fexp1 x ->
+  Generic_fmt.generic_format beta fexp1 (Generic_fmt.round beta fexp2 rnd x)
+Ulp.generic_format_succ_aux1:
+  forall (beta : Zaux.radix) (fexp : Z -> Z),
+  Generic_fmt.Valid_exp fexp ->
+  forall x : R,
+  (0 < x)%R ->
+  Generic_fmt.generic_format beta fexp x ->
+  Generic_fmt.generic_format beta fexp (x + Ulp.ulp beta fexp x)
+FLT.generic_format_FLT_FIX:
+  forall (beta : Zaux.radix) (emin prec : Z),
+  FLX.Prec_gt_0 prec ->
+  forall x : R,
+  (Rabs x <= Raux.bpow beta (emin + prec))%R ->
+  Generic_fmt.generic_format beta (FIX.FIX_exp emin) x ->
+  Generic_fmt.generic_format beta (FLT.FLT_exp emin prec) x
+Generic_fmt.generic_inclusion_ge:
+  forall (beta : Zaux.radix) (fexp1 fexp2 : Z -> Z) (e1 : Z),
+  (forall e : Z, (e1 < e)%Z -> (fexp2 e <= fexp1 e)%Z) ->
+  forall x : R,
+  (Raux.bpow beta e1 <= Rabs x)%R ->
+  Generic_fmt.generic_format beta fexp1 x ->
+  Generic_fmt.generic_format beta fexp2 x
+FLT.generic_format_FLT_FLX:
+  forall (beta : Zaux.radix) (emin prec : Z) (x : R),
+  (Raux.bpow beta (emin + prec - 1) <= Rabs x)%R ->
+  Generic_fmt.generic_format beta (FLX.FLX_exp prec) x ->
+  Generic_fmt.generic_format beta (FLT.FLT_exp emin prec) x
+Generic_fmt.generic_inclusion_le:
+  forall (beta : Zaux.radix) (fexp1 fexp2 : Z -> Z),
+  Generic_fmt.Valid_exp fexp1 ->
+  Generic_fmt.Valid_exp fexp2 ->
+  forall e2 : Z,
+  (forall e : Z, (e <= e2)%Z -> (fexp2 e <= fexp1 e)%Z) ->
+  forall x : R,
+  (Rabs x <= Raux.bpow beta e2)%R ->
+  Generic_fmt.generic_format beta fexp1 x ->
+  Generic_fmt.generic_format beta fexp2 x
+Generic_fmt.generic_inclusion_mag:
+  forall (beta : Zaux.radix) (fexp1 fexp2 : Z -> Z) (x : R),
+  (x <> 0%R ->
+   (fexp2 (Raux.mag_val beta x (Raux.mag beta x)) <=
+    fexp1 (Raux.mag_val beta x (Raux.mag beta x)))%Z) ->
+  Generic_fmt.generic_format beta fexp1 x ->
+  Generic_fmt.generic_format beta fexp2 x
+Generic_fmt.generic_inclusion_lt_ge:
+  forall (beta : Zaux.radix) (fexp1 fexp2 : Z -> Z) (e1 e2 : Z),
+  (forall e : Z, (e1 < e <= e2)%Z -> (fexp2 e <= fexp1 e)%Z) ->
+  forall x : R,
+  (Raux.bpow beta e1 <= Rabs x < Raux.bpow beta e2)%R ->
+  Generic_fmt.generic_format beta fexp1 x ->
+  Generic_fmt.generic_format beta fexp2 x
+Generic_fmt.generic_inclusion:
+  forall (beta : Zaux.radix) (fexp1 fexp2 : Z -> Z),
+  Generic_fmt.Valid_exp fexp1 ->
+  Generic_fmt.Valid_exp fexp2 ->
+  forall e : Z,
+  (fexp2 e <= fexp1 e)%Z ->
+  forall x : R,
+  (Raux.bpow beta (e - 1) <= Rabs x <= Raux.bpow beta e)%R ->
+  Generic_fmt.generic_format beta fexp1 x ->
+  Generic_fmt.generic_format beta fexp2 x
+Generic_fmt.generic_inclusion_le_ge:
+  forall (beta : Zaux.radix) (fexp1 fexp2 : Z -> Z),
+  Generic_fmt.Valid_exp fexp1 ->
+  Generic_fmt.Valid_exp fexp2 ->
+  forall e1 e2 : Z,
+  (e1 < e2)%Z ->
+  (forall e : Z, (e1 < e <= e2)%Z -> (fexp2 e <= fexp1 e)%Z) ->
+  forall x : R,
+  (Raux.bpow beta e1 <= Rabs x <= Raux.bpow beta e2)%R ->
+  Generic_fmt.generic_format beta fexp1 x ->
+  Generic_fmt.generic_format beta fexp2 x
+
+
+Coq < 
+Coq < Toplevel input, characters 6-35:
+> Check FLT.generic_inclusion_FLT_FLT.
+>       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: The reference FLT.generic_inclusion_FLT_FLT was not found
+in the current environment.
+
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < 
+Coq < 
