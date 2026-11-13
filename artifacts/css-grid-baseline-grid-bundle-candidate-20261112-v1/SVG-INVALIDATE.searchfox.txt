@@ -1,0 +1,31 @@
+>>> 1228: void SVGRenderingObserverSet::InvalidateAll(bool aFrameInReflow) {
+    1229:   if (mObservers.IsEmpty()) {
+    1230:     return;
+    1231:   }
+    1232: 
+    1233:   auto ExtractObserversForReflow = [this]() {
+    1234:     nsTHashSet<SVGRenderingObserver*> observers;
+    1235: 
+    1236:     for (auto it = mObservers.cbegin(), end = mObservers.cend(); it != end;
+    1237:          ++it) {
+    1238:       SVGRenderingObserver* obs = *it;
+    1239:       if (obs->ObservesReflow()) {
+    1240:         observers.Insert(obs);
+    1241:         mObservers.Remove(it);
+    1242:       }
+    1243:     }
+    1244:     return observers;
+    1245:   };
+    1246: 
+    1247:   const auto observers =
+    1248:       aFrameInReflow ? ExtractObserversForReflow() : std::move(mObservers);
+    1249: 
+    1250:   // We need to notify all observers of eviction before we process
+    1251:   // any rendering changes. In short, don't try to merge these loops.
+    1252:   for (const auto& observer : observers) {
+    1253:     observer->NotifyEvictedFromRenderingObserverSet();
+    1254:   }
+    1255:   for (const auto& observer : observers) {
+    1256:     observer->OnNonDOMMutationRenderingChange();
+    1257:   }
+    1258: }

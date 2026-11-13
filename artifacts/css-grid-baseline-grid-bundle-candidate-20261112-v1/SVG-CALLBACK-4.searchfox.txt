@@ -1,0 +1,24 @@
+>>>  684: void SVGMarkerObserver::OnRenderingChange() {
+     685:   SVGRenderingObserverProperty::OnRenderingChange();
+     686: 
+     687:   nsIFrame* frame = mFrameReference.Get();
+     688:   if (!frame) {
+     689:     return;
+     690:   }
+     691: 
+     692:   MOZ_ASSERT(frame->IsSVGFrame(), "SVG frame expected");
+     693: 
+     694:   // Don't need to request ReflowFrame if we're being reflowed.
+     695:   // Because mRect for SVG frames includes the bounds of any markers
+     696:   // (see the comment for nsIFrame::GetRect), the referencing frame must be
+     697:   // reflowed for any marker changes.
+     698:   if (!SVGUtils::OuterSVGIsCallingReflowSVG(frame)) {
+     699:     // XXXjwatt: We need to unify SVG into standard reflow so we can just use
+     700:     // nsChangeHint_NeedReflow | nsChangeHint_NeedDirtyReflow here.
+     701:     // XXXSDL KILL THIS!!!
+     702:     SVGUtils::ScheduleReflowSVG(frame);
+     703:   }
+     704:   frame->PresContext()->RestyleManager()->PostRestyleEvent(
+     705:       frame->GetContent()->AsElement(), RestyleHint{0},
+     706:       nsChangeHint_RepaintFrame);
+     707: }

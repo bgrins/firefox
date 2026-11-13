@@ -1,0 +1,1 @@
+Resumed correctness-only preparation completed for root review. No execution has started. PAUSED-STATUS.md preserves the earlier incomplete checkpoint; REPORT.md and the source/mock check receipts describe the completed preparation. Provider/work followup remains separate and unfinished. The false authorization template must not be edited after sealing.

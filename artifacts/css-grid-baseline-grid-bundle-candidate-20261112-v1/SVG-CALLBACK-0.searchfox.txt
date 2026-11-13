@@ -1,0 +1,20 @@
+>>>  532: void SVGRenderingObserverProperty::OnRenderingChange() {
+     533:   SVGIDRenderingObserver::OnRenderingChange();
+     534: 
+     535:   if (!mTargetIsValid) {
+     536:     return;
+     537:   }
+     538: 
+     539:   nsIFrame* frame = mFrameReference.Get();
+     540: 
+     541:   if (frame && frame->HasAllStateBits(NS_FRAME_SVG_LAYOUT)) {
+     542:     // We need to notify anything that is observing the referencing frame or
+     543:     // any of its ancestors that the referencing frame has been invalidated.
+     544:     // Since walking the parent chain checking for observers is expensive we
+     545:     // do that using a change hint (multiple change hints of the same type are
+     546:     // coalesced).
+     547:     nsLayoutUtils::PostRestyleEvent(frame->GetContent()->AsElement(),
+     548:                                     RestyleHint{0},
+     549:                                     nsChangeHint_InvalidateRenderingObservers);
+     550:   }
+     551: }

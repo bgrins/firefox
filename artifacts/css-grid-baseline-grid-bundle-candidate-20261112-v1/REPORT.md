@@ -1,0 +1,11 @@
+This is an uncompiled, copied-source candidate for review. No live native file, browser, object, test, or index was changed. It addresses the measured single-demand snapshot's repeated grid-axis misses; it is not an accepted repair or a proof of cache-key adequacy.
+
+CHANGES.patch changes three files: nsGridContainerFrame.cpp, nsGridContainerFrame.h, and nsFrameStateBits.h. A grid request can capture all four scalar exports from the same completed measurement when the frame records that both baseline producers ran and its subtree is clean. Otherwise it performs the original single requested query. Natural and geometry requests retain their eligibility. Every real measurement replaces the whole snapshot.
+
+CHECK.json records successful source invariants and byte-exact forward/reverse patch transport, with owned scratch removed. The original fallback switch and cache admission are unchanged. The checker also requires the clean-subtree bundle guard, constructor/entry/tail marker lifecycle, free grid bit 31, cleared geometry answers, and complete replacement. This is source checking, not execution of the candidate C++.
+
+SVG-LIFETIME.md records the synchronous callback qualification and the construction-order evidence that excludes the direct text-path geometry-target route for the measured grid. SOURCE-REVIEW-INPUTS.json pins local source copies and six exact indexed-to-local excerpts. The first mapping attempt incorrectly searched for a private CPP class in the header and concatenated two separate function excerpts; that attempt is retained. The corrected mapping passes without source changes.
+
+The prior complete eight-trace comparison remains frozen separately. Its nonseed depth-4 alternating phases measured 3,065 old versus 5,576 demand reflows per phase, including both block/inline missing-demand directions. This motivates the candidate; it does not predict its outcome. Seed differences remain unattributed, and logged timings are not performance evidence.
+
+NEXT-GATES.md specifies the actual-TU ABI, correctness/provider, work-count, timing, and padding-fix independence gates. Full-input key/context diagnostics remain separate. The inherited key omits relevant measurement arguments; no new key-sufficiency premise is introduced. Original wide-position/reflow/observer and fragmentation objectives remain open outside this change.

@@ -1,0 +1,48 @@
+>>> 4972: nsCSSFrameConstructor::FindElementData(const Element& aElement,
+    4973:                                        ComputedStyle& aStyle,
+    4974:                                        nsIFrame* aParentFrame,
+    4975:                                        ItemFlags aFlags) {
+    4976:   // Don't create frames for non-SVG element children of SVG elements.
+    4977:   if (!aElement.IsSVGElement()) {
+    4978:     // NOTE: Anon content (from non display: contents) is allowed, the native
+    4979:     // code should know what it's doing. In practice we care about ::backdrop
+    4980:     // and the custom-content-container.
+    4981:     if (aParentFrame && IsFrameForSVG(aParentFrame) &&
+    4982:         !aParentFrame->IsSVGForeignObjectFrame() &&
+    4983:         (aElement.GetParent() != aParentFrame->GetContent() ||
+    4984:          !aElement.IsRootOfNativeAnonymousSubtree())) {
+    4985:       return nullptr;
+    4986:     }
+    4987:     if (aFlags.contains(ItemFlag::IsWithinSVGText)) {
+    4988:       return nullptr;
+    4989:     }
+    4990:   }
+    4991: 
+    4992:   if (auto* data = FindElementTagData(aElement, aStyle, aParentFrame, aFlags)) {
+    4993:     return data;
+    4994:   }
+    4995: 
+    4996:   // Check for 'content: <image-url>' on the element (which makes us ignore
+    4997:   // 'display' values other than 'none' or 'contents').
+    4998:   if (nsImageFrame::ShouldCreateImageFrameForContentProperty(aElement,
+    4999:                                                              aStyle)) {
+    5000:     static constexpr FrameConstructionData sImgData(
+    5001:         NS_NewImageFrameForContentProperty);
+    5002:     return &sImgData;
+    5003:   }
+    5004: 
+    5005:   const bool shouldBlockify = aFlags.contains(ItemFlag::IsForRenderedLegend) ||
+    5006:                               aFlags.contains(ItemFlag::IsForOutsideMarker);
+    5007:   if (shouldBlockify && !aStyle.StyleDisplay()->IsBlockOutsideStyle()) {
+    5008:     // Make a temp copy of StyleDisplay and blockify its mDisplay value.
+    5009:     auto display = *aStyle.StyleDisplay();
+    5010:     bool isRootElement = false;
+    5011:     uint16_t rawDisplayValue =
+    5012:         Servo_ComputedValues_BlockifiedDisplay(&aStyle, isRootElement);
+    5013:     display.mDisplay = StyleDisplay{rawDisplayValue};
+    5014:     return FindDisplayData(display, aElement);
+    5015:   }
+    5016: 
+    5017:   const auto& display = *aStyle.StyleDisplay();
+    5018:   return FindDisplayData(display, aElement);
+    5019: }

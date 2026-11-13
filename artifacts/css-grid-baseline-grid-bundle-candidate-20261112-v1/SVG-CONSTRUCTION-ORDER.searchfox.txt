@@ -1,0 +1,19 @@
+>>> 5022: nsCSSFrameConstructor::FindElementTagData(const Element& aElement,
+    5023:                                           ComputedStyle& aStyle,
+    5024:                                           nsIFrame* aParentFrame,
+    5025:                                           ItemFlags aFlags) {
+    5026:   switch (aElement.GetNameSpaceID()) {
+    5027:     case kNameSpaceID_XHTML:
+    5028:       return FindHTMLData(aElement, aParentFrame, aStyle);
+    5029:     case kNameSpaceID_MathML:
+    5030:       return FindMathMLData(aElement, aStyle);
+    5031:     case kNameSpaceID_SVG:
+    5032:       return FindSVGData(aElement, aParentFrame,
+    5033:                          aFlags.contains(ItemFlag::IsWithinSVGText),
+    5034:                          aFlags.contains(ItemFlag::AllowTextPathChild), aStyle);
+    5035:     case kNameSpaceID_XUL:
+    5036:       return FindXULTagData(aElement, aStyle);
+    5037:     default:
+    5038:       return nullptr;
+    5039:   }
+    5040: }

@@ -1,0 +1,24 @@
+>>> 1002: void SVGFilterObserverListForCSSProp::OnRenderingChange(
+    1003:     Element* aObservingElement) {
+    1004:   nsIFrame* frame = aObservingElement->GetPrimaryFrame();
+    1005:   if (!frame) {
+    1006:     return;
+    1007:   }
+    1008:   // Repaint asynchronously in case the filter frame is being torn down
+    1009:   auto changeHint = nsChangeHint_RepaintFrame;
+    1010: 
+    1011:   // Since we don't call SVGRenderingObserverProperty::
+    1012:   // OnRenderingChange, we have to add this bit ourselves.
+    1013:   if (frame->HasAnyStateBits(NS_FRAME_SVG_LAYOUT)) {
+    1014:     // Changes should propagate out to things that might be observing
+    1015:     // the referencing frame or its ancestors.
+    1016:     changeHint |= nsChangeHint_InvalidateRenderingObservers;
+    1017:   }
+    1018: 
+    1019:   // Don't need to request UpdateOverflow if we're being reflowed.
+    1020:   if (!frame->HasAnyStateBits(NS_FRAME_IN_REFLOW)) {
+    1021:     changeHint |= nsChangeHint_UpdateOverflow;
+    1022:   }
+    1023:   frame->PresContext()->RestyleManager()->PostRestyleEvent(
+    1024:       aObservingElement, RestyleHint{0}, changeHint);
+    1025: }

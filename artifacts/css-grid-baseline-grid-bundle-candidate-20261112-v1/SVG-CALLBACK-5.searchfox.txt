@@ -1,0 +1,17 @@
+>>>  719: void SVGPaintingProperty::OnRenderingChange() {
+     720:   SVGRenderingObserverProperty::OnRenderingChange();
+     721: 
+     722:   nsIFrame* frame = mFrameReference.Get();
+     723:   if (!frame) {
+     724:     return;
+     725:   }
+     726: 
+     727:   if (frame->HasAnyStateBits(NS_FRAME_SVG_LAYOUT)) {
+     728:     frame->InvalidateFrameSubtree();
+     729:   } else {
+     730:     for (nsIFrame* f = frame; f;
+     731:          f = nsLayoutUtils::GetNextContinuationOrIBSplitSibling(f)) {
+     732:       f->InvalidateFrame();
+     733:     }
+     734:   }
+     735: }

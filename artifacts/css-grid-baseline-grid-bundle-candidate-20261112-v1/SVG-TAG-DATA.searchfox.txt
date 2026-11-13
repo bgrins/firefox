@@ -1,0 +1,202 @@
+>>> 4628: nsCSSFrameConstructor::FindSVGData(const Element& aElement,
+    4629:                                    nsIFrame* aParentFrame,
+    4630:                                    bool aIsWithinSVGText,
+    4631:                                    bool aAllowsTextPathChild,
+    4632:                                    ComputedStyle& aStyle) {
+    4633:   MOZ_ASSERT(aElement.IsSVGElement());
+    4634: 
+    4635:   static constexpr FrameConstructionData sSuppressData = SUPPRESS_FCDATA();
+    4636:   static constexpr FrameConstructionData sContainerData =
+    4637:       SIMPLE_SVG_FCDATA(NS_NewSVGContainerFrame);
+    4638: 
+    4639:   bool parentIsSVG = aIsWithinSVGText;
+    4640:   nsIContent* parentContent =
+    4641:       aParentFrame ? aParentFrame->GetContent() : nullptr;
+    4642: 
+    4643:   nsAtom* tag = aElement.NodeInfo()->NameAtom();
+    4644: 
+    4645:   if (aElement.OwnerDoc()->IsSVGGlyphsDocument()) {
+    4646:     // SVG elements that are explicitly not supported in svg-glyphs documents.
+    4647:     // (Partially applies the restrictions mentioned at
+    4648:     // https://learn.microsoft.com/en-us/typography/opentype/spec/svg#svg-capability-requirements-and-restrictions
+    4649:     if (tag == nsGkAtoms::text || tag == nsGkAtoms::tspan ||
+    4650:         tag == nsGkAtoms::textPath || tag == nsGkAtoms::a ||
+    4651:         tag == nsGkAtoms::foreignObject || tag == nsGkAtoms::svgSwitch ||
+    4652:         tag == nsGkAtoms::view) {
+    4653:       return &sSuppressData;
+    4654:     }
+    4655:   }
+    4656: 
+    4657:   // XXXbz should this really be based on the tag of the parent frame's content?
+    4658:   // Should it not be based on the type of the parent frame (e.g. whether it's
+    4659:   // an SVG frame)?
+    4660:   if (parentContent) {
+    4661:     // It's not clear whether the SVG spec intends to allow any SVG
+    4662:     // content within svg:foreignObject at all (SVG 1.1, section
+    4663:     // 23.2), but if it does, it better be svg:svg.  So given that
+    4664:     // we're allowing it, treat it as a non-SVG parent.
+    4665:     parentIsSVG =
+    4666:         parentContent->IsSVGElement() &&
+    4667:         parentContent->NodeInfo()->NameAtom() != nsGkAtoms::foreignObject;
+    4668:   }
+    4669: 
+    4670:   if ((tag != nsGkAtoms::svg && !parentIsSVG) ||
+    4671:       (tag == nsGkAtoms::desc || tag == nsGkAtoms::title ||
+    4672:        tag == nsGkAtoms::metadata)) {
+    4673:     // Sections 5.1 and G.4 of SVG 1.1 say that SVG elements other than
+    4674:     // svg:svg not contained within svg:svg are incorrect, although they
+    4675:     // don't seem to specify error handling.  Ignore them, since many of
+    4676:     // our frame classes can't deal.  It *may* be that the document
+    4677:     // should at that point be considered in error according to F.2, but
+    4678:     // it's hard to tell.
+    4679:     //
+    4680:     // We don't currently handle any UI for desc/title/metadata
+    4681:     return &sSuppressData;
+    4682:   }
+    4683: 
+    4684:   // We don't need frames for animation elements
+    4685:   if (aElement.IsSVGAnimationElement()) {
+    4686:     return &sSuppressData;
+    4687:   }
+    4688: 
+    4689:   if (tag == nsGkAtoms::svg && !parentIsSVG) {
+    4690:     // We need outer <svg> elements to have an SVGOuterSVGFrame regardless
+    4691:     // of whether they fail conditional processing attributes, since various
+    4692:     // SVG frames assume that one exists.  We handle the non-rendering
+    4693:     // of failing outer <svg> element contents like <switch> statements,
+    4694:     // and do the PassesConditionalProcessingTests call in
+    4695:     // SVGOuterSVGFrame::Init.
+    4696:     static constexpr FrameConstructionData sOuterSVGData(
+    4697:         &nsCSSFrameConstructor::ConstructOuterSVG);
+    4698:     return &sOuterSVGData;
+    4699:   }
+    4700: 
+    4701:   if (tag == nsGkAtoms::marker) {
+    4702:     static constexpr FrameConstructionData sMarkerSVGData(
+    4703:         &nsCSSFrameConstructor::ConstructMarker);
+    4704:     return &sMarkerSVGData;
+    4705:   }
+    4706: 
+    4707:   if (!aElement.PassesConditionalProcessingTests()) {
+    4708:     // Elements with failing conditional processing attributes never get
+    4709:     // rendered.  Note that this is not where we select which frame in a
+    4710:     // <switch> to render!  That happens in SVGSwitchFrame::PaintSVG.
+    4711:     if (aIsWithinSVGText) {
+    4712:       // SVGTextFrame doesn't handle conditional processing attributes,
+    4713:       // so don't create frames for descendants of <text> with failing
+    4714:       // attributes.  We need frames not to be created so that text layout
+    4715:       // is correct.
+    4716:       return &sSuppressData;
+    4717:     }
+    4718:     // If we're not inside <text>, create an SVGContainerFrame (which is a
+    4719:     // frame that doesn't render) so that paint servers can still be referenced,
+    4720:     // even if they live inside an element with failing conditional processing
+    4721:     // attributes.
+    4722:     return &sContainerData;
+    4723:   }
+    4724: 
+    4725:   // Ensure that a stop frame is a child of a gradient and that gradients
+    4726:   // can only have stop children.
+    4727:   bool parentIsGradient = aParentFrame && static_cast<SVGGradientFrame*>(
+    4728:                                               do_QueryFrame(aParentFrame));
+    4729:   bool stop = (tag == nsGkAtoms::stop);
+    4730:   if ((parentIsGradient && !stop) || (!parentIsGradient && stop)) {
+    4731:     return &sSuppressData;
+    4732:   }
+    4733: 
+    4734:   // Prevent bad frame types being children of filters or parents of filter
+    4735:   // primitives.  If aParentFrame is null, we know that the frame that will
+    4736:   // be created will be an nsInlineFrame, so it can never be a filter.
+    4737:   bool parentIsFilter = aParentFrame && aParentFrame->IsSVGFilterFrame();
+    4738:   if ((parentIsFilter && !aElement.IsSVGFilterPrimitiveElement()) ||
+    4739:       (!parentIsFilter && aElement.IsSVGFilterPrimitiveElement())) {
+    4740:     return &sSuppressData;
+    4741:   }
+    4742: 
+    4743:   // Prevent bad frame types being children of filter primitives or parents of
+    4744:   // filter primitive children.  If aParentFrame is null, we know that the frame
+    4745:   // that will be created will be an nsInlineFrame, so it can never be a filter
+    4746:   // primitive.
+    4747:   bool parentIsFEContainerFrame =
+    4748:       aParentFrame && aParentFrame->IsSVGFEContainerFrame();
+    4749:   if ((parentIsFEContainerFrame &&
+    4750:        !aElement.IsSVGFilterPrimitiveChildElement()) ||
+    4751:       (!parentIsFEContainerFrame &&
+    4752:        aElement.IsSVGFilterPrimitiveChildElement())) {
+    4753:     return &sSuppressData;
+    4754:   }
+    4755: 
+    4756:   // Special cases for text/tspan/textPath, because the kind of frame
+    4757:   // they get depends on the parent frame.  We ignore 'a' elements when
+    4758:   // determining the parent, however.
+    4759:   if (aIsWithinSVGText) {
+    4760:     // If aIsWithinSVGText is true, then we know that the "SVG text uses
+    4761:     // CSS frames" pref was true when this SVG fragment was first constructed.
+    4762:     //
+    4763:     // FIXME(bug 1588477) Don't render stuff in display: contents / Shadow DOM
+    4764:     // subtrees, because TextCorrespondenceRecorder in the SVG text code doesn't
+    4765:     // really know how to deal with it. This kinda sucks. :(
+    4766:     if (aParentFrame && aParentFrame->GetContent() != aElement.GetParent()) {
+    4767:       return &sSuppressData;
+    4768:     }
+    4769: 
+    4770:     // We don't use ConstructInline because we want different behavior
+    4771:     // for generated content.
+    4772:     static constexpr FrameConstructionData sTSpanData(
+    4773:         ToCreationFunc(NS_NewInlineFrame),
+    4774:         FCDATA_DISALLOW_OUT_OF_FLOW | FCDATA_SKIP_ABSPOS_PUSH |
+    4775:             FCDATA_DISALLOW_GENERATED_CONTENT | FCDATA_IS_LINE_PARTICIPANT |
+    4776:             FCDATA_IS_INLINE | FCDATA_USE_CHILD_ITEMS);
+    4777:     if (tag == nsGkAtoms::textPath) {
+    4778:       if (aAllowsTextPathChild) {
+    4779:         return &sTSpanData;
+    4780:       }
+    4781:     } else if (tag == nsGkAtoms::tspan || tag == nsGkAtoms::a) {
+    4782:       return &sTSpanData;
+    4783:     }
+    4784:     return &sSuppressData;
+    4785:   } else if (tag == nsGkAtoms::tspan || tag == nsGkAtoms::textPath) {
+    4786:     return &sSuppressData;
+    4787:   }
+    4788: 
+    4789:   static constexpr FrameConstructionDataByTag sSVGData[] = {
+    4790:       SIMPLE_SVG_CREATE(svg, NS_NewSVGInnerSVGFrame),
+    4791:       SIMPLE_SVG_CREATE(g, NS_NewSVGGFrame),
+    4792:       SIMPLE_SVG_CREATE(svgSwitch, NS_NewSVGSwitchFrame),
+    4793:       SIMPLE_SVG_CREATE(symbol, NS_NewSVGSymbolFrame),
+    4794:       SIMPLE_SVG_CREATE(polygon, NS_NewSVGGeometryFrame),
+    4795:       SIMPLE_SVG_CREATE(polyline, NS_NewSVGGeometryFrame),
+    4796:       SIMPLE_SVG_CREATE(circle, NS_NewSVGGeometryFrame),
+    4797:       SIMPLE_SVG_CREATE(ellipse, NS_NewSVGGeometryFrame),
+    4798:       SIMPLE_SVG_CREATE(line, NS_NewSVGGeometryFrame),
+    4799:       SIMPLE_SVG_CREATE(rect, NS_NewSVGGeometryFrame),
+    4800:       SIMPLE_SVG_CREATE(path, NS_NewSVGGeometryFrame),
+    4801:       SIMPLE_SVG_CREATE(defs, NS_NewSVGContainerFrame),
+    4802:       {nsGkAtoms::text,
+    4803:        {NS_NewSVGTextFrame,
+    4804:         FCDATA_DISALLOW_OUT_OF_FLOW | FCDATA_ALLOW_BLOCK_STYLES |
+    4805:             FCDATA_DISALLOW_GENERATED_CONTENT,
+    4806:         PseudoStyleType::MozSvgText}},
+    4807:       {nsGkAtoms::foreignObject,
+    4808:        {ToCreationFunc(NS_NewSVGForeignObjectFrame),
+    4809:         FCDATA_DISALLOW_OUT_OF_FLOW, PseudoStyleType::MozSvgForeignContent}},
+    4810:       SIMPLE_SVG_CREATE(a, NS_NewSVGAFrame),
+    4811:       SIMPLE_SVG_CREATE(linearGradient, NS_NewSVGLinearGradientFrame),
+    4812:       SIMPLE_SVG_CREATE(radialGradient, NS_NewSVGRadialGradientFrame),
+    4813:       SIMPLE_SVG_CREATE(stop, NS_NewSVGStopFrame),
+    4814:       SIMPLE_SVG_CREATE(use, NS_NewSVGUseFrame),
+    4815:       SIMPLE_SVG_CREATE(view, NS_NewSVGViewFrame),
+    4816:       SIMPLE_SVG_CREATE(image, NS_NewSVGImageFrame),
+    4817:       SIMPLE_SVG_CREATE(clipPath, NS_NewSVGClipPathFrame),
+    4818:       SIMPLE_SVG_CREATE(filter, NS_NewSVGFilterFrame),
+    4819:       SIMPLE_SVG_CREATE(pattern, NS_NewSVGPatternFrame),
+    4820:       SIMPLE_SVG_CREATE(mask, NS_NewSVGMaskFrame),
+    4821:       SIMPLE_SVG_CREATE(feDistantLight, NS_NewSVGFEUnstyledLeafFrame),
+    4822:       SIMPLE_SVG_CREATE(fePointLight, NS_NewSVGFEUnstyledLeafFrame),
+    4823:       SIMPLE_SVG_CREATE(feSpotLight, NS_NewSVGFEUnstyledLeafFrame),
+    4824:       SIMPLE_SVG_CREATE(feBlend, NS_NewSVGFELeafFrame),
+    4825:       SIMPLE_SVG_CREATE(feColorMatrix, NS_NewSVGFELeafFrame),
+    4826:       SIMPLE_SVG_CREATE(feFuncR, NS_NewSVGFEUnstyledLeafFrame),
+    4827:       SIMPLE_SVG_CREATE(feFuncG, NS_NewSVGFEUnstyledLeafFrame),
+    4828:       SIMPLE_SVG_CREATE(feFuncB, NS_NewSVGFEUnstyledLeafFrame),
+   ...  : (method too long, truncated)

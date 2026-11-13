@@ -1,0 +1,14 @@
+>>> 1049: void SVGFilterObserverListForCanvasContext::OnRenderingChange(
+    1050:     Element* aObservingElement) {
+    1051:   if (!mActive) {
+    1052:     return;
+    1053:   }
+    1054:   // Refresh the cached FilterDescription in mContext->CurrentState().filter.
+    1055:   // If this filter is not at the top of the state stack, we'll refresh the
+    1056:   // wrong filter, but that's ok, because we'll refresh the right filter
+    1057:   // when we pop the state stack in CanvasRenderingContext2D::Restore().
+    1058:   //
+    1059:   // We don't need to flush, we're called by layout.
+    1060:   RefPtr<CanvasRenderingContext2D> kungFuDeathGrip(mContext);
+    1061:   kungFuDeathGrip->UpdateFilter(/* aFlushIfNeeded = */ false);
+    1062: }

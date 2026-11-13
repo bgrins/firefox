@@ -1,0 +1,63 @@
+>>> 3582: void SVGTextFrame::ReflowSVG() {
+    3583:   MOZ_ASSERT(SVGUtils::AnyOuterSVGIsCallingReflowSVG(this),
+    3584:              "This call is probaby a wasteful mistake");
+    3585: 
+    3586:   MOZ_ASSERT(!HasAnyStateBits(NS_FRAME_IS_NONDISPLAY),
+    3587:              "ReflowSVG mechanism not designed for this");
+    3588: 
+    3589:   if (!SVGUtils::NeedsReflowSVG(this)) {
+    3590:     MOZ_ASSERT(!HasAnyStateBits(NS_STATE_SVG_TEXT_CORRESPONDENCE_DIRTY |
+    3591:                                 NS_STATE_SVG_POSITIONING_DIRTY),
+    3592:                "How did this happen?");
+    3593:     return;
+    3594:   }
+    3595: 
+    3596:   MaybeReflowAnonymousBlockChild();
+    3597:   UpdateGlyphPositioning();
+    3598: 
+    3599:   nsPresContext* presContext = PresContext();
+    3600: 
+    3601:   SVGBBox r;
+    3602:   TextRenderedRunIterator it(
+    3603:       this, TextRenderedRunIterator::RenderedRunFilter::AllFrames);
+    3604:   for (TextRenderedRun run = it.Current(); run.mFrame; run = it.Next()) {
+    3605:     TextRenderedRun::GeometryFlags runFlags{
+    3606:         TextRenderedRun::GeometryFlag::IncludeFill};
+    3607:     if (!run.mFrame->StyleSVG()->mStroke.kind.IsNone()) {
+    3608:       runFlags += TextRenderedRun::GeometryFlag::IncludeStroke;
+    3609:     }
+    3610:     r.UnionEdges(run.GetUserSpaceRect(presContext, runFlags));
+    3611:   }
+    3612: 
+    3613:   if (r.IsEmpty()) {
+    3614:     mRect.SetEmpty();
+    3615:   } else {
+    3616:     mRect = nsLayoutUtils::RoundGfxRectToAppRect((const Rect&)r,
+    3617:                                                  AppUnitsPerCSSPixel());
+    3618: 
+    3619:     // Due to rounding issues when we have a transform applied, we sometimes
+    3620:     // don't include an additional row of pixels.  For now, just inflate our
+    3621:     // covered region.
+    3622:     if (mLastContextScale != 0.0f) {
+    3623:       mRect.Inflate(
+    3624:           ceil(presContext->AppUnitsPerDevPixel() / mLastContextScale));
+    3625:     }
+    3626:   }
+    3627: 
+    3628:   if (HasAnyStateBits(NS_FRAME_FIRST_REFLOW)) {
+    3629:     // Make sure we have our filter property (if any) before calling
+    3630:     // FinishAndStoreOverflow (subsequent filter changes are handled off
+    3631:     // nsChangeHint_UpdateEffects):
+    3632:     SVGObserverUtils::UpdateEffects(this);
+    3633:   }
+    3634: 
+    3635:   // Now unset the various reflow bits. Do this before calling
+    3636:   // FinishAndStoreOverflow since FinishAndStoreOverflow can require glyph
+    3637:   // positions (to resolve transform-origin).
+    3638:   RemoveStateBits(NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY |
+    3639:                   NS_FRAME_HAS_DIRTY_CHILDREN);
+    3640: 
+    3641:   nsRect overflow = nsRect(nsPoint(0, 0), mRect.Size());
+    3642:   OverflowAreas overflowAreas(overflow, overflow);
+    3643:   FinishAndStoreOverflow(overflowAreas, mRect.Size());
+    3644: }

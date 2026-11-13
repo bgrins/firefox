@@ -1,0 +1,39 @@
+>>>   91:   virtual void OnRenderingChange() override {
+      92:     Element* elem = GetReferencedElementWithoutObserving();
+      93:     MOZ_ASSERT(elem, "missing root SVG node");
+      94: 
+      95:     if (mHonoringInvalidations && !mDocWrapper->ShouldIgnoreInvalidation()) {
+      96:       nsIFrame* frame = elem->GetPrimaryFrame();
+      97:       if (!frame || frame->PresShell()->IsDestroying()) {
+      98:         // We're being destroyed. Bail out.
+      99:         return;
+     100:       }
+     101: 
+     102:       // Ignore further invalidations until we draw.
+     103:       mHonoringInvalidations = false;
+     104: 
+     105:       mVectorImage->InvalidateObserversOnNextRefreshDriverTick();
+     106:     }
+     107: 
+     108:     // Our caller might've removed us from rendering-observer list.
+     109:     // Add ourselves back!
+     110:     if (!mInObserverSet) {
+     111:       SVGObserverUtils::AddRenderingObserver(elem, this);
+     112:       mInObserverSet = true;
+     113:     }
+     114:   }
+
+>>>  489: void SVGIDRenderingObserver::OnRenderingChange() {
+     490:   if (mObservedElementTracker.get() && mInObserverSet) {
+     491:     SVGObserverUtils::RemoveRenderingObserver(mObservedElementTracker.get(),
+     492:                                               this);
+     493:     mInObserverSet = false;
+     494:   }
+     495: }
+
+>>>  796: void BackgroundClipRenderingObserver::OnRenderingChange() {
+     797:   for (nsIFrame* f = mFrame; f;
+     798:        f = nsLayoutUtils::GetNextContinuationOrIBSplitSibling(f)) {
+     799:     f->InvalidateFrame();
+     800:   }
+     801: }

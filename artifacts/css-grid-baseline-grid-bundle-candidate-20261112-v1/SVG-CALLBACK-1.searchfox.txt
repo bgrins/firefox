@@ -1,0 +1,41 @@
+>>>  568: void SVGTextPathObserver::OnRenderingChange() {
+     569:   SVGRenderingObserverProperty::OnRenderingChange();
+     570: 
+     571:   if (!mTargetIsValid) {
+     572:     return;
+     573:   }
+     574: 
+     575:   nsIFrame* frame = mFrameReference.Get();
+     576:   if (!frame) {
+     577:     return;
+     578:   }
+     579: 
+     580:   MOZ_ASSERT(frame->IsSVGFrame() || frame->IsInSVGTextSubtree(),
+     581:              "SVG frame expected");
+     582: 
+     583:   MOZ_ASSERT(frame->GetContent()->IsSVGElement(nsGkAtoms::textPath),
+     584:              "expected frame for a <textPath> element");
+     585: 
+     586:   auto* text = static_cast<SVGTextFrame*>(
+     587:       nsLayoutUtils::GetClosestFrameOfType(frame, LayoutFrameType::SVGText));
+     588:   MOZ_ASSERT(text, "expected to find an ancestor SVGTextFrame");
+     589:   if (text) {
+     590:     text->AddStateBits(NS_STATE_SVG_POSITIONING_DIRTY);
+     591: 
+     592:     if (text->HasAnyStateBits(NS_STATE_SVG_TEXT_IN_REFLOW |
+     593:                               NS_STATE_SVG_TEXT_CORRESPONDENCE_DIRTY)) {
+     594:       return;
+     595:     }
+     596: 
+     597:     if (SVGUtils::AnyOuterSVGIsCallingReflowSVG(text)) {
+     598:       text->AddStateBits(NS_FRAME_IS_DIRTY | NS_FRAME_HAS_DIRTY_CHILDREN);
+     599:       if (text->HasAnyStateBits(NS_FRAME_IS_NONDISPLAY)) {
+     600:         text->ReflowSVGNonDisplayText();
+     601:       } else {
+     602:         text->ReflowSVG();
+     603:       }
+     604:     } else {
+     605:       text->ScheduleReflowSVG();
+     606:     }
+     607:   }
+     608: }
