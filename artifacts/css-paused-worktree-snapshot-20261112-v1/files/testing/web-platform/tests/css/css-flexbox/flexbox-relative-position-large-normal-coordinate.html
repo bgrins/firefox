@@ -1,0 +1,89 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Relative flex item positions preserve cancellation across style changes</title>
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#main-alignment">
+<link rel="help" href="https://drafts.csswg.org/css-position-3/#relative-positioning">
+<meta name="assert" content="Relative offsets and ancestor positions preserve small final coordinates when a flex item's normal position is large.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  body { margin: 0; }
+  .wrapper {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1024px;
+    height: 1024px;
+  }
+  .container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: flex;
+    width: 1024px;
+    height: 1024px;
+    justify-content: flex-start;
+    align-items: flex-start;
+  }
+  .item {
+    flex: 0 0 0px;
+    width: 0;
+    height: 0;
+    min-width: 0;
+    min-height: 0;
+  }
+  .target { position: relative; }
+</style>
+<body>
+<script>
+for (const direction of ["row", "row-reverse", "column", "column-reverse"]) {
+  for (const [count, gap] of [[3, 1024], [3, 10000000], [3, 16777216], [4, 1024], [4, 10000000], [4, 16777216]]) {
+    test(t => {
+      const horizontal = direction.startsWith("row");
+      const reversed = direction.endsWith("reverse");
+      const axis = horizontal ? "x" : "y";
+      const offsetProperty = horizontal ? "left" : "top";
+      const wrapper = document.createElement("div");
+      wrapper.className = "wrapper";
+      wrapper.style[offsetProperty] = `${count === 4 ? (reversed ? gap : -gap) : 0}px`;
+      const container = document.createElement("div");
+      container.className = "container";
+      container.style.flexDirection = direction;
+      container.style.gap = `${gap}px`;
+      container.style[offsetProperty] = `${reversed ? gap - 1024 : -gap}px`;
+      for (let i = 0; i < count; ++i) {
+        const item = document.createElement("div");
+        item.className = "item";
+        container.append(item);
+      }
+      const target = container.lastElementChild;
+      target.classList.add("target");
+      const offset = reversed ? gap : -gap;
+      target.style[offsetProperty] = `${offset}px`;
+      const outer = document.createElement("div");
+      outer.className = "wrapper";
+      wrapper.append(container);
+      outer.append(wrapper);
+      document.body.append(outer);
+      t.add_cleanup(() => outer.remove());
+
+      const checkPosition = (expected, description) => {
+        assert_approx_equals(target.getBoundingClientRect()[axis], expected, 0.05, description);
+      };
+      checkPosition(0, "Initial relative position");
+      target.style[offsetProperty] = `${offset + 128}px`;
+      checkPosition(128, "Changed relative offset");
+      container.style.alignItems = "flex-end";
+      checkPosition(128, "Changed cross-axis alignment");
+      target.style[horizontal ? "height" : "width"] = "1px";
+      checkPosition(128, "Changed item cross size");
+      target.style[offsetProperty] = "0px";
+      outer.style[offsetProperty] = `${offset}px`;
+      checkPosition(0, "Moved relative offset to ancestor");
+      target.style[offsetProperty] = `${offset}px`;
+      outer.style[offsetProperty] = "0px";
+      checkPosition(0, "Restored relative offset");
+    }, `${direction}: ${count} items with ${gap}px gaps and relative positioning`);
+  }
+}
+</script>

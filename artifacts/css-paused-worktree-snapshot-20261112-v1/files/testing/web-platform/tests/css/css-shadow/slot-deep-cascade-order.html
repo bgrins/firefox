@@ -1,0 +1,65 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Forwarded slots preserve distinct encapsulation contexts</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#cascade-sort">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-layer">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="fixtures"></div>
+<script>
+function fixture(t, count, kind) {
+  const host = document.createElement("div");
+  document.querySelector("#fixtures").append(host);
+  const target = document.createElement("div");
+  target.id = "target";
+  target.textContent = "target";
+  host.append(target);
+  t.add_cleanup(() => host.remove());
+  let root = host.attachShadow({mode: "open"});
+  const slots = [];
+  for (let i = 0; i < count; ++i) {
+    const slot = document.createElement("slot");
+    slots.push(slot);
+    const style = document.createElement("style");
+    const important = kind === "important" ? " !important" : "";
+    style.textContent = i === 0 ? `::slotted(#target) {margin-left:10px${important};--value:10px${important}}` : "::slotted(#unused) {--inert:0}";
+    root.append(style);
+    if (i === count - 1) {
+      root.append(slot);
+    } else {
+      const nextHost = document.createElement("x-box");
+      root.append(nextHost);
+      nextHost.append(slot);
+      root = nextHost.attachShadow({mode: "open"});
+    }
+  }
+  const style = document.createElement("style");
+  const value = kind === "rollback" ? "revert-layer" : kind === "origin" ? "revert" : "20px";
+  const important = kind === "important" ? " !important" : "";
+  style.textContent = `#target {margin-left:${value}${important};--value:${value}${important}}`;
+  document.head.append(style);
+  t.add_cleanup(() => style.remove());
+  const chain = [];
+  for (let slot = target.assignedSlot; slot; slot = slot.assignedSlot) chain.push(slot);
+  const cs = getComputedStyle(target);
+  const expected = kind === "normal" ? "20px" : kind === "origin" ? "0px" : "10px";
+  const row = {count, kind, actualSlots: chain.length,
+    exactSlotChain: chain.length === slots.length && chain.every((s, i) => s === slots[i]),
+    expected, actual: cs.marginLeft, expectedCustom: kind === "origin" ? "" : expected,
+    actualCustom: cs.getPropertyValue("--value").trim()};
+  style.remove();
+  host.remove();
+  return row;
+}
+for (const count of [1, 5, 6, 7, 8, 9, 16, 32]) {
+  for (const kind of ["normal", "important", "rollback", "origin"]) {
+    test(t => {
+      const row = fixture(t, count, kind);
+      assert_equals(row.actualSlots, count, "Assigned slot chain length");
+      assert_true(row.exactSlotChain, "Assigned slot identities");
+      assert_equals(row.actual, row.expected, "Longhand context precedence");
+      assert_equals(row.actualCustom, row.expectedCustom, "Custom property context precedence");
+    }, `${count} forwarded slots, ${kind}`);
+  }
+}
+</script>

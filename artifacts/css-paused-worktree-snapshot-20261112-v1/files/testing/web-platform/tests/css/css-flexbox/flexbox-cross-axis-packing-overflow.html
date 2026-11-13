@@ -1,0 +1,98 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Safe flex line alignment with large cross sizes and gaps</title>
+<link rel="help" href="https://drafts.csswg.org/css-align-3/#overflow-values">
+<link rel="help" href="https://drafts.csswg.org/css-flexbox/#align-content-property">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#numeric-types">
+<meta name="assert" content="Safe cross-axis alignment keeps the first flex line at the start when the line sizes and gaps exceed the container size.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .container {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    inline-size: 100px;
+    block-size: 100px;
+  }
+  .item { flex: none; }
+</style>
+<body>
+<script>
+const inputs = [
+  {name: "small lines", count: 3, size: 20, gap: 0},
+  {name: "two large lines", count: 2, size: 12000000, gap: 0},
+  {name: "three large lines", count: 3, size: 12000000, gap: 0},
+  {name: "four large lines", count: 4, size: 12000000, gap: 0},
+  {name: "large gaps", count: 4, size: 20, gap: 12000000},
+  {name: "large lines and gap", count: 2, size: 12000000, gap: 12000000},
+];
+for (const writingMode of ["horizontal-tb", "vertical-lr", "vertical-rl"]) {
+  for (const direction of ["ltr", "rtl"]) {
+    for (const flexDirection of ["row", "row-reverse", "column", "column-reverse"]) {
+      for (const alignment of ["flex-start", "safe flex-end", "safe center"]) {
+        for (const input of inputs) {
+          test(t => {
+            const row = flexDirection.startsWith("row");
+            const container = document.createElement("div");
+            container.className = "container";
+            Object.assign(container.style, {
+              writingMode, direction, flexDirection,
+              alignContent: alignment,
+              [row ? "rowGap" : "columnGap"]: `${input.gap}px`,
+            });
+            for (let i = 0; i < input.count; ++i) {
+              const item = document.createElement("div");
+              item.className = "item";
+              item.style.inlineSize = `${row ? 100 : input.size}px`;
+              item.style.blockSize = `${row ? input.size : 100}px`;
+              container.append(item);
+            }
+            document.body.append(container);
+            t.add_cleanup(() => container.remove());
+            const crossSize = row ? "blockSize" : "inlineSize";
+            const mainSize = row ? "inlineSize" : "blockSize";
+            const gap = row ? "rowGap" : "columnGap";
+            const styles = [...container.children].map(item => getComputedStyle(item));
+            assert_implements_optional(styles.every(style =>
+              Math.abs(parseFloat(style[crossSize]) - input.size) <= 2) &&
+              Math.abs(parseFloat(getComputedStyle(container)[gap]) - input.gap) <= 2,
+              "The input sizes and gaps are within the supported numeric range");
+            for (const style of styles) {
+              assert_equals(parseFloat(style[mainSize]), 100, "Each item fills one line");
+            }
+            assert_equals(getComputedStyle(container).alignContent, alignment,
+              "Requested alignment is supported");
+            const start = rect => {
+              if (row) {
+                return writingMode === "horizontal-tb" ? rect.top :
+                  writingMode === "vertical-rl" ? -rect.right : rect.left;
+              }
+              if (writingMode === "horizontal-tb") {
+                return direction === "ltr" ? rect.left : -rect.right;
+              }
+              return direction === "ltr" ? rect.top : -rect.bottom;
+            };
+            const measure = () => {
+              const rect = container.getBoundingClientRect();
+              assert_equals(rect.width, 100, "Container width");
+              assert_equals(rect.height, 100, "Container height");
+              return start(container.firstElementChild.getBoundingClientRect()) - start(rect);
+            };
+            const actual = measure();
+            container.style.alignContent = "flex-start";
+            assert_approx_equals(measure(), 0, 0.02, "Flex-start control");
+            container.style.alignContent = alignment;
+            assert_approx_equals(measure(), actual, 0.02, "Restoring alignment restores the observation");
+            const free = 100 - input.count * input.size - (input.count - 1) * input.gap;
+            const expected = alignment === "flex-start" ? 0 :
+              Math.max(0, free) / (alignment === "safe center" ? 2 : 1);
+            assert_approx_equals(actual, expected, 0.02,
+              "Safe alignment does not move overflowing lines away from the start");
+          }, `${writingMode}, ${direction}, ${flexDirection}, ${alignment}, ${input.name}`);
+        }
+      }
+    }
+  }
+}
+</script>

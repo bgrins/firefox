@@ -1,0 +1,65 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Exported parts preserve distinct encapsulation contexts in deep trees</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#cascade-sort">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-layer">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="fixtures"></div>
+<script>
+function fixture(depth, kind, fillers) {
+  const container = document.createElement("div");
+  document.querySelector("#fixtures").append(container);
+  const roots = [container.attachShadow({mode: "open"})];
+  for (let i = 0; i < depth; ++i) {
+    const host = document.createElement("x-box");
+    host.setAttribute("exportparts", "p");
+    roots.at(-1).append(host);
+    roots.push(host.attachShadow({mode: "open"}));
+  }
+  const target = document.createElement("div");
+  target.setAttribute("part", "p");
+  target.setAttribute("style", "margin-left:1px; --value:1px");
+  target.textContent = "target";
+  roots.at(-1).append(target);
+  const styles = roots.slice(0, -1).map(root => {
+    const style = document.createElement("style");
+    root.append(style);
+    return style;
+  });
+  function setFillers(enabled) {
+    for (let i = 2; i < styles.length; ++i) {
+      styles[i].textContent = enabled ? "x-box::part(unused) { --inert:0 }" : "";
+    }
+  }
+  const important = kind === "important" ? " !important" : "";
+  styles[1].textContent = `x-box::part(p) { margin-left:10px${important}; --value:10px${important} }`;
+  const outer = kind === "rollback" ? "revert-layer" : kind === "origin" ? "revert" : "20px";
+  styles[0].textContent = `x-box::part(p) { margin-left:${outer}${important}; --value:${outer}${important} }`;
+  setFillers(fillers);
+  return {container, target, setFillers};
+}
+for (const depth of [2, 6, 7, 8, 9, 16, 32]) {
+  for (const kind of ["normal", "important", "rollback", "origin"]) {
+    for (const stage of ["initial", "add unrelated rules", "fresh with unrelated rules", "remove unrelated rules"]) {
+      test(t => {
+        const initialFillers = stage === "fresh with unrelated rules" || stage === "remove unrelated rules";
+        const f = fixture(depth, kind, initialFillers);
+        t.add_cleanup(() => f.container.remove());
+        const expected = kind === "normal" ? "20px" : kind === "origin" ? "0px" : "10px";
+        const expectedCustom = kind === "origin" ? "" : expected;
+        if (stage === "add unrelated rules") {
+          assert_equals(getComputedStyle(f.target).marginLeft, expected, "Initial sparse context order");
+          f.setFillers(true);
+        } else if (stage === "remove unrelated rules") {
+          getComputedStyle(f.target).marginLeft;
+          f.setFillers(false);
+        }
+        const style = getComputedStyle(f.target);
+        assert_equals(style.marginLeft, expected, "Longhand context precedence");
+        assert_equals(style.getPropertyValue("--value").trim(), expectedCustom, "Custom property context precedence");
+      }, `${depth} exported contexts, ${kind}, ${stage}`);
+    }
+  }
+}
+</script>

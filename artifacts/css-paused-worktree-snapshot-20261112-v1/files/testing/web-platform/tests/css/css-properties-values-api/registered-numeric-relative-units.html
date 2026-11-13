@@ -1,0 +1,73 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered numeric values resolve relative units using the element's font</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#sign-funcs">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+  function createTarget(t) {
+    const parent = document.createElement("div");
+    parent.style.cssText = "font-size: 30px; line-height: 40px; width: 100px";
+    const target = document.createElement("div");
+    target.style.cssText = "font-size: 10px; line-height: 12px";
+    parent.append(target);
+    document.body.append(parent);
+    t.add_cleanup(() => parent.remove());
+    return target;
+  }
+
+  const types = [
+    ["number", ""],
+    ["integer", ""],
+    ["percentage", "%"],
+    ["angle", "deg"],
+    ["time", "s"],
+    ["resolution", "dppx"],
+  ];
+  for (const [type, unit] of types) {
+    for (const inherits of [false, true]) {
+      for (const input of ["10px", "1em", "1lh"]) {
+        for (const variable of [false, true]) {
+          test(t => {
+            const name = `--${type}-${inherits}-${input}-${variable}`;
+            CSS.registerProperty({ name, syntax: `<${type}>`, inherits, initialValue: `2${unit}` });
+            const target = createTarget(t);
+            target.style.setProperty("--input", input);
+            const operand = variable ? "var(--input)" : input;
+            target.style.setProperty(name, `calc((sign(${operand} - 20px) + 2) * 1${unit})`);
+            target.style.width = `calc((sign(var(${name}) - 2${unit}) + 2) * 10px)`;
+
+            assert_not_equals(target.style.getPropertyValue(name), "", "Declaration is accepted");
+            const style = getComputedStyle(target);
+            assert_equals(style.fontSize, "10px");
+            assert_equals(style.lineHeight, "12px");
+            assert_equals(style.getPropertyValue(name).trim(), `1${unit}`, "Registered computed value");
+            assert_equals(style.width, "10px", "Width using the registered value");
+            assert_equals(target.getBoundingClientRect().width, 10, "Used width");
+          }, `Registered <${type}> using ${input}, ${variable ? "substituted" : "direct"}, inherits: ${inherits}`);
+        }
+      }
+    }
+  }
+
+  for (const inherits of [false, true]) {
+    for (const [input, expected] of [["1em", 10], ["1lh", 12]]) {
+      test(t => {
+        const name = `--length-${inherits}-${input}`;
+        CSS.registerProperty({ name, syntax: "<length>", inherits, initialValue: "0px" });
+        const target = createTarget(t);
+        target.style.setProperty(name, input);
+        target.style.width = `var(${name})`;
+
+        const style = getComputedStyle(target);
+        assert_equals(style.getPropertyValue(name).trim(), `${expected}px`);
+        assert_equals(style.width, `${expected}px`);
+        assert_equals(target.getBoundingClientRect().width, expected);
+      }, `Registered length control using ${input}, inherits: ${inherits}`);
+    }
+  }
+</script>

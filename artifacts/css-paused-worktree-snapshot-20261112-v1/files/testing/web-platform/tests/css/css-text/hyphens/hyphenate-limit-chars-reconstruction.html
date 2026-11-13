@@ -1,0 +1,83 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hyphenation ownership reconstruction and shaping controls</title>
+<link rel="help" href="https://drafts.csswg.org/css-text-4/#hyphenate-char-limits">
+<link rel="stylesheet" href="/fonts/ahem.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.sample { font: 20px/24px Ahem; width: 60px; hyphens: auto;
+  hyphenate-character: "-"; word-break: normal; overflow-wrap: normal; }
+.pseudo::first-line { hyphenate-limit-chars: var(--pseudo); }
+</style>
+<div id="log"></div>
+<script>
+function make(t, {word = "example", limit = "5 2 2", pseudo = "100", width = 60,
+                  transform = "none", direction = "ltr", family = "Ahem"} = {}) {
+  const el = document.createElement("div");
+  el.className = "sample pseudo";
+  el.lang = "en-US";
+  el.style.cssText = `width:${width}px;hyphenate-limit-chars:${limit};--pseudo:${pseudo};text-transform:${transform};direction:${direction};font-family:${family}`;
+  el.textContent = "xxx " + word;
+  document.body.append(el);
+  t.add_cleanup(() => el.remove());
+  return el;
+}
+function geometry(el) {
+  const origin = el.getBoundingClientRect();
+  return Array.from({length: el.firstChild.length - 4}, (_, index) => {
+    const range = document.createRange();
+    range.setStart(el.firstChild, index + 4);
+    range.setEnd(el.firstChild, index + 5);
+    const rect = range.getBoundingClientRect();
+    return [rect.x - origin.x, rect.y - origin.y, rect.width, rect.height];
+  });
+}
+function sameGeometry(actual, expected, label) {
+  assert_equals(actual.length, expected.length, label);
+  actual.forEach((row, i) => row.forEach((value, j) =>
+    assert_approx_equals(value, expected[i][j], 0.02, `${label}: ${i}/${j}`)));
+}
+for (const transform of ["none", "uppercase", "capitalize"]) {
+  for (const direction of ["ltr", "rtl"]) {
+    promise_test(async t => {
+      assert_equals((await document.fonts.load("20px Ahem", "xxx example-EXAMPLE")).length, 1);
+      const settings = {transform, direction};
+      const sample = make(t, settings);
+      const calibration = geometry(sample);
+      assert_implements_optional(new Set(calibration.map(rect => rect[1])).size > 1,
+        "English dictionary permits a break in the whole later word");
+      for (const width of [220, 60, 220, 60]) {
+        sample.style.width = `${width}px`;
+        const fresh = make(t, {...settings, width});
+        sameGeometry(geometry(sample), geometry(fresh), `fresh reconstruction at ${width}`);
+      }
+      for (const limit of ["100", "5 2 2", "100"]) {
+        sample.style.hyphenateLimitChars = limit;
+        const fresh = make(t, {...settings, limit});
+        const current = geometry(sample);
+        sameGeometry(current, geometry(fresh), `fresh limits ${limit}`);
+        if (limit === "100") {
+          assert_equals(new Set(current.map(rect => rect[1])).size, 1,
+            "Restricted whole later word does not hyphenate");
+        }
+      }
+    }, `${transform}/${direction}: first-line membership and own-limit reconstruction`);
+  }
+}
+for (const word of ["affiliation", "exa\u0301mple"]) {
+  promise_test(async t => {
+    const settings = {word, family: "serif", width: 45};
+    await document.fonts.ready;
+    const sample = make(t, settings);
+    const uniform = make(t, {...settings, pseudo: "5 2 2"});
+    assert_implements_optional(new Set(geometry(uniform).map(rect => rect[1])).size > 1,
+      "The selected font and dictionary expose a break opportunity");
+    for (const limit of ["100", "5 2 2", "100"]) {
+      sample.style.hyphenateLimitChars = limit;
+      const fresh = make(t, {...settings, limit});
+      sameGeometry(geometry(sample), geometry(fresh), `shaped fresh reconstruction ${limit}`);
+    }
+  }, `${word}: shaping-sensitive fresh reconstruction diagnostic`);
+}
+</script>

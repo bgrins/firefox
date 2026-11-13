@@ -1,0 +1,260 @@
+diff --git a/layout/generic/nsGridContainerFrame.cpp b/layout/generic/nsGridContainerFrame.cpp
+index 09ebd764c9ad..cfe6b6675803 100644
+--- a/layout/generic/nsGridContainerFrame.cpp
++++ b/layout/generic/nsGridContainerFrame.cpp
+@@ -266,10 +266,29 @@ static Maybe<nscoord> ComputeTransferredSize(
+       aAxis, aWM, rdSize, aBoxSizingAdjustment.EnsureAndGet()));
+ }
+ 
++enum class MeasuringReflowRequest : uint8_t {
++  Geometry,
++  NaturalFirst,
++  NaturalLast,
++  GridBlockFirst,
++  GridBlockLast,
++  GridInlineFirst,
++  GridInlineLast
++};
++
+ struct MeasuringReflowResult {
+-  // The border-box and content-box block-size of the child.
++  // The reported sizes and live geometry belong to the completed measurement.
+   nscoord mBSize = 0;
+   nscoord mContentBSize = 0;
++  nsSize mPhysicalSize;
++  nsMargin mUsedMargin;
++  Maybe<nscoord> mBaseline;
++
++  MeasuringReflowResult GeometryOnly() const {
++    auto result = *this;
++    result.mBaseline.reset();
++    return result;
++  }
+ };
+ 
+ // A cached result for a grid item's block-axis measuring reflow. This
+@@ -281,15 +300,15 @@ struct MeasuringReflowResult {
+ // We cache the following as a "key"
+ //   - The size of the grid area in the item's inline axis
+ //   - The item's block axis baseline padding
+-// ...and we cache the following as the "value",
+-//   - The item's border-box and content-box BSize
++// ...and we cache one complete measured snapshot and its requested export.
+ class nsGridContainerFrame::CachedBAxisMeasurement final {
+  public:
+   NS_DECLARE_FRAME_PROPERTY_DELETABLE(Prop, CachedBAxisMeasurement)
+ 
+   CachedBAxisMeasurement(const nsIFrame* aFrame, const LogicalSize& aCBSize,
++                         MeasuringReflowRequest aRequest,
+                          const MeasuringReflowResult& aResult)
+-      : mKey(aFrame, aCBSize), mResult(aResult) {}
++      : mKey(aFrame, aCBSize), mRequest(aRequest), mResult(aResult) {}
+ 
+   bool IsValidFor(const nsIFrame* aFrame, const LogicalSize& aCBSize) const {
+     if (aFrame->IsSubtreeDirty()) {
+@@ -298,11 +317,58 @@ class nsGridContainerFrame::CachedBAxisMeasurement final {
+     return mKey == Key(aFrame, aCBSize);
+   }
+ 
+-  const MeasuringReflowResult& Result() const { return mResult; }
++  const MeasuringReflowResult* Result(MeasuringReflowRequest aRequest) const {
++    if (aRequest == MeasuringReflowRequest::Geometry || aRequest == mRequest) {
++      return &mResult;
++    }
++    return nullptr;
++  }
++
++  static MeasuringReflowResult Capture(nsIFrame* aFrame, nscoord aBSize,
++                                       nscoord aContentBSize,
++                                       MeasuringReflowRequest aRequest) {
++    MeasuringReflowResult result;
++    result.mBSize = aBSize;
++    result.mContentBSize = aContentBSize;
++    result.mPhysicalSize = aFrame->GetSize();
++    result.mUsedMargin = aFrame->GetUsedMargin();
++    switch (aRequest) {
++      case MeasuringReflowRequest::NaturalFirst:
++      case MeasuringReflowRequest::NaturalLast:
++        result.mBaseline = aFrame->GetNaturalBaselineBOffset(
++            aFrame->GetWritingMode(),
++            aRequest == MeasuringReflowRequest::NaturalFirst
++                ? BaselineSharingGroup::First
++                : BaselineSharingGroup::Last,
++            BaselineExportContext::Other);
++        break;
++      case MeasuringReflowRequest::GridBlockFirst:
++      case MeasuringReflowRequest::GridBlockLast:
++        result.mBaseline.emplace(
++            static_cast<nsGridContainerFrame*>(aFrame)->GetBBaseline(
++                aRequest == MeasuringReflowRequest::GridBlockFirst
++                    ? BaselineSharingGroup::First
++                    : BaselineSharingGroup::Last));
++        break;
++      case MeasuringReflowRequest::GridInlineFirst:
++      case MeasuringReflowRequest::GridInlineLast:
++        result.mBaseline.emplace(
++            static_cast<nsGridContainerFrame*>(aFrame)->GetIBaseline(
++                aRequest == MeasuringReflowRequest::GridInlineFirst
++                    ? BaselineSharingGroup::First
++                    : BaselineSharingGroup::Last));
++        break;
++      case MeasuringReflowRequest::Geometry:
++        break;
++    }
++    return result;
++  }
+ 
+   void Update(const nsIFrame* aFrame, const LogicalSize& aCBSize,
++              MeasuringReflowRequest aRequest,
+               const MeasuringReflowResult& aResult) {
+     mKey.Update(aFrame, aCBSize);
++    mRequest = aRequest;
+     mResult = aResult;
+   }
+ 
+@@ -325,6 +391,7 @@ class nsGridContainerFrame::CachedBAxisMeasurement final {
+   };
+ 
+   Key mKey;
++  MeasuringReflowRequest mRequest;
+   MeasuringReflowResult mResult;
+ };
+ 
+@@ -5704,18 +5771,23 @@ static void MarkDirtyAfterIntrinsicSizingReflow(nsIFrame* aChild) {
+ static MeasuringReflowResult MeasuringReflow(
+     nsIFrame* aChild, const ReflowInput* aReflowInput, gfxContext* aRC,
+     const LogicalSize& aAvailableSize, const LogicalSize& aCBSize,
+-    nscoord aIMinSizeClamp = NS_MAXSIZE, nscoord aBMinSizeClamp = NS_MAXSIZE) {
++    nscoord aIMinSizeClamp = NS_MAXSIZE, nscoord aBMinSizeClamp = NS_MAXSIZE,
++    MeasuringReflowRequest aRequest = MeasuringReflowRequest::Geometry) {
+   MOZ_ASSERT(aChild->IsGridItem(), "aChild should be a grid item!");
+   auto wm = aChild->GetWritingMode();
+   // NOTE: Reflowing or FinishReflowChild might invalidate the cache.
+   if (const auto* cachedMeasurement =
+           aChild->GetProperty(GridItemCachedBAxisMeasurement::Prop());
+       cachedMeasurement && cachedMeasurement->IsValidFor(aChild, aCBSize)) {
+-    GRID_LOG(
+-        "[perf] MeasuringReflow accepted cached value=%d, child=%p, "
+-        "aCBSize.ISize=%d",
+-        cachedMeasurement->Result().mBSize, aChild, aCBSize.ISize(wm));
+-    return cachedMeasurement->Result();
++    if (const auto* result = cachedMeasurement->Result(aRequest)) {
++      GRID_LOG(
++          "[perf] MeasuringReflow accepted cached value=%d, child=%p, "
++          "aCBSize.ISize=%d",
++          result->mBSize, aChild, aCBSize.ISize(wm));
++      return aRequest == MeasuringReflowRequest::Geometry
++                 ? result->GeometryOnly()
++                 : *result;
++    }
+   }
+ 
+   auto* parent = static_cast<nsGridContainerFrame*>(aChild->GetParent());
+@@ -5778,20 +5850,20 @@ static MeasuringReflowResult MeasuringReflow(
+   parent->RemoveProperty(nsContainerFrame::DebugReflowingWithInfiniteISize());
+ #endif
+ 
+-  const MeasuringReflowResult result{
+-      childSize.BSize(wm),
++  const auto result = GridItemCachedBAxisMeasurement::Capture(
++      aChild, childSize.BSize(wm),
+       childSize.BSize(wm) -
+-          childRI.ComputedLogicalBorderPadding(wm).BStartEnd(wm)};
++          childRI.ComputedLogicalBorderPadding(wm).BStartEnd(wm), aRequest);
+   if (GridItemCachedBAxisMeasurement* cachedMeasurement =
+           aChild->GetProperty(GridItemCachedBAxisMeasurement::Prop())) {
+-    cachedMeasurement->Update(aChild, aCBSize, result);
++    cachedMeasurement->Update(aChild, aCBSize, aRequest, result);
+     GRID_LOG(
+         "[perf] MeasuringReflow rejected but updated cached value=%d, "
+         "child=%p, aCBSize.ISize=%d",
+         result.mBSize, aChild, aCBSize.ISize(wm));
+   } else {
+     cachedMeasurement =
+-        new GridItemCachedBAxisMeasurement(aChild, aCBSize, result);
++        new GridItemCachedBAxisMeasurement(aChild, aCBSize, aRequest, result);
+     aChild->SetProperty(GridItemCachedBAxisMeasurement::Prop(),
+                         cachedMeasurement);
+     GRID_LOG(
+@@ -5940,11 +6012,13 @@ static nscoord ContentContribution(const GridItemInfo& aGridItem,
+       nsLayoutUtils::BAIL_IF_REFLOW_NEEDED, aMinSizeClamp, overrides);
+   if (size == NS_INTRINSIC_ISIZE_UNKNOWN && childAxis == LogicalAxis::Block) {
+     nscoord contentBSize = 0;
++    nscoord marginBSize = 0;
+     if (aGridRI.mIsGridIntrinsicSizing && aAxis == LogicalAxis::Block &&
+         !StaticPrefs::layout_css_grid_intrinsic_sizing_measure_bsize()) {
+       // FIXME: Remove this code-path once the stack overflow crashes it causes
+       // are figured out.
+       size = 0;
++      marginBSize = child->GetLogicalUsedMargin(childWM).BStartEnd(childWM);
+     } else {
+       // We need to reflow the child to find its BSize contribution.
+       nscoord availISize = INFINITE_ISIZE_COORD;
+@@ -6024,11 +6098,13 @@ static nscoord ContentContribution(const GridItemInfo& aGridItem,
+                             cbSize, iMinSizeClamp, bMinSizeClamp);
+       size = measurement.mBSize;
+       contentBSize = measurement.mContentBSize;
++      marginBSize =
++          LogicalMargin(childWM, measurement.mUsedMargin).BStartEnd(childWM);
+       if (aGridRI.mIsGridIntrinsicSizing) {
+         MarkDirtyAfterIntrinsicSizingReflow(child);
+       }
+     }
+-    size += child->GetLogicalUsedMargin(childWM).BStartEnd(childWM);
++    size += marginBSize;
+     nscoord overflow = size - aMinSizeClamp;
+     if (MOZ_UNLIKELY(overflow > 0)) {
+       nscoord newContentSize = std::max(nscoord(0), contentBSize - overflow);
+@@ -6645,27 +6721,36 @@ void nsGridContainerFrame::Tracks::InitializeItemBaselines(
+       if (colSize != NS_UNCONSTRAINEDSIZE) {
+         avail.Size(inlineAxisInChildWM, childWM) = colSize;
+       }
+-      ::MeasuringReflow(child, aGridRI.mReflowInput, rc, avail, cbSize);
+-
+       nsGridContainerFrame* grid = do_QueryFrame(child);
+-      auto frameSize =
+-          isInlineAxis ? child->ISize(containerWM) : child->BSize(containerWM);
+-      auto margin = child->GetLogicalUsedMargin(containerWM);
++      auto request = MeasuringReflowRequest::Geometry;
++      if (grid) {
++        if (isOrthogonal == isInlineAxis) {
++          request = baselineAlignment == BaselineSharingGroup::First
++                        ? MeasuringReflowRequest::GridBlockFirst
++                        : MeasuringReflowRequest::GridBlockLast;
++        } else {
++          request = baselineAlignment == BaselineSharingGroup::First
++                        ? MeasuringReflowRequest::GridInlineFirst
++                        : MeasuringReflowRequest::GridInlineLast;
++        }
++      } else if (itemHasBaselineParallelToTrack) {
++        request = baselineAlignment == BaselineSharingGroup::First
++                      ? MeasuringReflowRequest::NaturalFirst
++                      : MeasuringReflowRequest::NaturalLast;
++      }
++      const auto measurement = ::MeasuringReflow(
++          child, aGridRI.mReflowInput, rc, avail, cbSize, NS_MAXSIZE, NS_MAXSIZE,
++          request);
++
++      const auto frameSize = LogicalSize(containerWM, measurement.mPhysicalSize)
++                                 .Size(mAxis, containerWM);
++      const LogicalMargin margin(containerWM, measurement.mUsedMargin);
+       auto alignSize =
+           frameSize + (isInlineAxis ? margin.IStartEnd(containerWM)
+                                     : margin.BStartEnd(containerWM));
+ 
+-      Maybe<nscoord> baseline;
+-      if (grid) {
+-        baseline.emplace((isOrthogonal == isInlineAxis)
+-                             ? grid->GetBBaseline(baselineAlignment)
+-                             : grid->GetIBaseline(baselineAlignment));
+-      } else {
+-        if (itemHasBaselineParallelToTrack) {
+-          baseline = child->GetNaturalBaselineBOffset(
+-              childWM, baselineAlignment, BaselineExportContext::Other);
+-        }
+-
++      Maybe<nscoord> baseline = measurement.mBaseline;
++      if (!grid) {
+         if (!baseline) {
+           // If baseline alignment is specified on a grid item whose size in
+           // that axis depends on the size of an intrinsically-sized track, that

@@ -1,0 +1,130 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Collapsed flex items do not participate in main-axis alignment</title>
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#algo-visibility">
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#main-alignment">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.container { display: flex; align-items: flex-start; }
+.container, .container > div { margin: 0; padding: 0; border: 0; }
+.container > div { flex: none; }
+.row { width: 100px; }
+.column { height: 100px; width: 30px; flex-direction: column; }
+.row > .target { width: 20px; height: 10px; }
+.row > .collapsed { width: 20px; height: 30px; }
+.column > .target { height: 20px; width: 10px; }
+.column > .collapsed { height: 20px; width: 30px; }
+.row > .auto { margin-left: auto; }
+.column > .auto { margin-top: auto; }
+</style>
+<div id="log"></div>
+<script>
+for (const axis of ["row", "column"]) {
+  for (const position of ["before", "after"]) {
+    for (const autoMargin of [false, true]) {
+      for (const removed of [false, true]) {
+        for (const [justify, expected] of [
+          ["flex-start", 0], ["center", 40], ["space-between", 0],
+          ["space-around", 40], ["space-evenly", 40],
+        ]) {
+          test(t => {
+            const container = document.createElement("div");
+            container.className = "container " + axis;
+            container.style.justifyContent = justify;
+            const collapsed = document.createElement("div");
+            collapsed.className = "collapsed" + (autoMargin ? " auto" : "");
+            collapsed.style.visibility = "collapse";
+            if (removed) {
+              collapsed.style.display = "none";
+            }
+            const target = document.createElement("div");
+            target.className = "target";
+            container.append(...(position === "before" ?
+              [collapsed, target] : [target, collapsed]));
+            document.body.append(container);
+            t.add_cleanup(() => container.remove());
+            const outer = container.getBoundingClientRect();
+            const inner = target.getBoundingClientRect();
+            const offset = axis === "row" ? inner.left - outer.left : inner.top - outer.top;
+            const crossSize = axis === "row" ? outer.height : outer.width;
+            assert_equals(crossSize, axis === "column" || !removed ? 30 : 10,
+              "Only a collapsed item's cross-size strut remains");
+            assert_approx_equals(offset, expected, 0.02,
+              "The single visible item determines main-axis alignment");
+          }, `${axis}; ${position}; auto margin=${autoMargin}; display none=${removed}; ${justify}`);
+        }
+      }
+    }
+  }
+}
+
+for (const axis of ["row", "column"]) {
+  for (const position of [0, 1, 2]) {
+    for (const gap of [0, 10]) {
+      for (const justify of ["flex-start", "center", "space-between", "space-around", "space-evenly"]) {
+        test(t => {
+          const container = document.createElement("div");
+          container.className = "container " + axis;
+          container.style.justifyContent = justify;
+          container.style.gap = gap + "px";
+          const targets = [document.createElement("div"), document.createElement("div")];
+          for (const target of targets) {
+            target.className = "target";
+          }
+          const collapsed = document.createElement("div");
+          collapsed.className = "collapsed auto";
+          collapsed.style.visibility = "collapse";
+          const children = [...targets];
+          children.splice(position, 0, collapsed);
+          container.append(...children);
+          document.body.append(container);
+          t.add_cleanup(() => container.remove());
+          const free = 60 - gap;
+          const leading = {"flex-start": 0, "center": free / 2, "space-between": 0,
+            "space-around": free / 4, "space-evenly": free / 3}[justify];
+          const between = {"flex-start": 0, "center": 0, "space-between": free,
+            "space-around": free / 2, "space-evenly": free / 3}[justify];
+          const observations = [];
+          for (const visibility of ["collapse", "hidden", "collapse"]) {
+            collapsed.style.visibility = visibility;
+            const outer = container.getBoundingClientRect();
+            const offsets = targets.map(target => {
+              const inner = target.getBoundingClientRect();
+              return axis === "row" ? inner.left - outer.left : inner.top - outer.top;
+            });
+            observations.push({visibility, offsets});
+          }
+          for (const observation of [observations[0], observations[2]]) {
+            assert_approx_equals(observation.offsets[0], leading, 0.02,
+              "First visible item; " + JSON.stringify(observations));
+            assert_approx_equals(observation.offsets[1], leading + 20 + gap + between, 0.02,
+              "Second visible item; " + JSON.stringify(observations));
+          }
+        }, `${axis}; two visible items; strut index=${position}; gap=${gap}; ${justify}; collapse restoration`);
+      }
+    }
+  }
+}
+
+for (const axis of ["row", "column"]) {
+  for (const justify of ["flex-start", "center", "space-between", "space-around", "space-evenly"]) {
+    test(t => {
+      const container = document.createElement("div");
+      container.className = "container " + axis;
+      container.style.justifyContent = justify;
+      for (let i = 0; i < 2; ++i) {
+        const child = document.createElement("div");
+        child.className = "collapsed auto";
+        child.style.visibility = "collapse";
+        container.append(child);
+      }
+      document.body.append(container);
+      t.add_cleanup(() => container.remove());
+      const bounds = container.getBoundingClientRect();
+      assert_equals(axis === "row" ? bounds.width : bounds.height, 100);
+      assert_equals(axis === "row" ? bounds.height : bounds.width, 30);
+    }, `${axis}; only collapsed items; ${justify}`);
+  }
+}
+</script>

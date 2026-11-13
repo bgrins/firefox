@@ -1,0 +1,105 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Safe flex alignment preserves scroll reachability</title>
+<link rel="help" href="https://drafts.csswg.org/css-align-3/#valdef-overflow-position-safe">
+<link rel="help" href="https://drafts.csswg.org/css-overflow-3/#scroll-origin">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .box {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: flex;
+    width: 100px;
+    height: 100px;
+    scrollbar-width: none;
+    align-items: flex-start;
+    justify-content: flex-start;
+    align-content: flex-start;
+  }
+  .item { flex: none; }
+</style>
+<body>
+<script>
+const configurations = [];
+const alignments = ["safe center", "safe end", "safe flex-end", "safe flex-start",
+                    "space-between", "space-around", "space-evenly", "flex-start"];
+for (const writingMode of ["horizontal-tb", "vertical-rl", "vertical-lr"]) {
+  for (const direction of ["ltr", "rtl"]) {
+    for (const orientation of ["row", "column"]) {
+      for (const axis of ["main", "cross"]) {
+        const base = { writingMode, direction, orientation, axis, reversed: true, fits: false };
+        for (const overflow of ["auto", "scroll", "hidden"]) {
+          for (const alignment of alignments) {
+            configurations.push({ ...base, overflow, alignment });
+          }
+        }
+        configurations.push({ ...base, overflow: "auto", alignment: "safe center", reversed: false });
+        configurations.push({ ...base, overflow: "auto", alignment: "safe center", fits: true });
+      }
+    }
+  }
+}
+for (const orientation of ["row", "column"]) {
+  for (const axis of ["main", "cross"]) {
+    for (const overflow of ["auto visible", "visible auto", "auto clip", "clip auto"]) {
+      configurations.push({ writingMode: "horizontal-tb", direction: "ltr", orientation,
+        axis, overflow, alignment: "safe center", reversed: true, fits: false });
+    }
+  }
+}
+for (const config of configurations) {
+  const { writingMode, direction, orientation, axis, overflow, alignment, reversed, fits } = config;
+  test(t => {
+    const row = orientation === "row";
+    const vertical = writingMode !== "horizontal-tb";
+    const inlineAxis = axis === "main" ? row : !row;
+    const horizontal = inlineAxis ? !vertical : vertical;
+    const logicalStartFar = inlineAxis ? direction === "rtl" : writingMode === "vertical-rl";
+    const startFar = logicalStartFar !== reversed;
+    const itemSize = fits ? 40 : axis === "main" ? 60 : 80;
+    const overflowSize = Math.max(0, 2 * itemSize - 100);
+    const leading = fits ? (100 - 2 * itemSize) / 2 : 0;
+    const expectedPositions = [0, 1].map(index => startFar ?
+      100 - leading - (index + 1) * itemSize : leading + index * itemSize);
+    const box = document.createElement("div");
+    box.className = "box";
+    Object.assign(box.style, { writingMode, direction, overflow,
+      flexDirection: orientation + (axis === "main" && reversed ? "-reverse" : ""),
+      flexWrap: axis === "cross" ? reversed ? "wrap-reverse" : "wrap" : "nowrap" });
+    const alignmentProperty = axis === "main" ? "justifyContent" : "alignContent";
+    box.style[alignmentProperty] = alignment;
+    const mainSize = axis === "main" ? itemSize : 60;
+    const crossSize = axis === "cross" ? itemSize : 20;
+    for (let index = 0; index < 2; index++) {
+      const item = document.createElement("div");
+      item.className = "item";
+      item.style.inlineSize = `${row ? mainSize : crossSize}px`;
+      item.style.blockSize = `${row ? crossSize : mainSize}px`;
+      box.append(item);
+    }
+    document.body.append(box);
+    t.add_cleanup(() => box.remove());
+    box.scrollLeft = box.scrollTop = 0;
+    assert_equals(box.clientWidth, 100, "scrollport width");
+    assert_equals(box.clientHeight, 100, "scrollport height");
+    assert_equals(getComputedStyle(box)[alignmentProperty], alignment, "computed alignment");
+    const bounds = box.getBoundingClientRect();
+    const positions = [...box.children].map(item => {
+      const rect = item.getBoundingClientRect();
+      assert_equals(horizontal ? rect.width : rect.height, itemSize, "item size on alignment axis");
+      return horizontal ? rect.left - bounds.left : rect.top - bounds.top;
+    });
+    assert_array_equals(positions, expectedPositions, "items align toward the scroll origin");
+    const property = horizontal ? "scrollLeft" : "scrollTop";
+    box[property] = -1000;
+    assert_equals(box[property], startFar && overflowSize ? -overflowSize : 0, "minimum reachable scroll offset");
+    box[property] = 1000;
+    assert_equals(box[property], startFar ? 0 : overflowSize, "maximum reachable scroll offset");
+    assert_equals(horizontal ? box.scrollWidth : box.scrollHeight,
+                  100 + overflowSize, "complete content contributes to scroll extent");
+  }, `${writingMode}, ${direction}, ${orientation}, ${axis}, reversed=${reversed}, ` +
+     `${overflow}, ${alignment}, fits=${fits}`);
+}
+</script>

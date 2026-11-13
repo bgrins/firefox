@@ -1,0 +1,125 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Collapsed flex items do not contribute scrollable overflow</title>
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#visibility-collapse">
+<link rel="help" href="https://drafts.csswg.org/css-overflow-3/#scrollable">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .box {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: flex;
+    width: 100px;
+    height: 100px;
+    overflow: auto;
+    scrollbar-width: none;
+  }
+  .item { flex: none; inline-size: 20px; block-size: 240px; }
+  .border { border: 1px solid; }
+  .margin { margin: 1px; }
+  .descendant { inline-size: 40px; block-size: 240px; }
+</style>
+<body>
+<script>
+function makeBox(t, writingMode, direction, flexDirection, variant) {
+  const box = document.createElement("div");
+  box.className = "box";
+  Object.assign(box.style, { writingMode, direction, flexDirection });
+  const item = document.createElement("div");
+  item.className = "item " + variant;
+  if (variant.includes("descendant")) {
+    const descendant = document.createElement("div");
+    descendant.className = "descendant";
+    if (variant === "visible-descendant") descendant.style.visibility = "visible";
+    item.append(descendant);
+  }
+  box.append(item);
+  document.body.append(box);
+  t.add_cleanup(() => box.remove());
+  return { box, item };
+}
+
+function extent(box) {
+  assert_equals(box.clientWidth, 100, "scrollport width");
+  assert_equals(box.clientHeight, 100, "scrollport height");
+  return [box.scrollWidth, box.scrollHeight];
+}
+
+function assertCollapsed(box, message) {
+  assert_array_equals(extent(box), [100, 100], message);
+  box.scrollLeft = box.scrollTop = -1000;
+  assert_equals(box.scrollLeft, 0, "no negative horizontal scroll range");
+  assert_equals(box.scrollTop, 0, "no negative vertical scroll range");
+  box.scrollLeft = box.scrollTop = 1000;
+  assert_equals(box.scrollLeft, 0, "no positive horizontal scroll range");
+  assert_equals(box.scrollTop, 0, "no positive vertical scroll range");
+}
+
+const flexDirections = ["row", "row-reverse", "column", "column-reverse"];
+for (const writingMode of ["horizontal-tb", "vertical-rl", "vertical-lr"]) {
+  for (const direction of ["ltr", "rtl"]) {
+    for (const flexDirection of flexDirections) {
+      for (const variant of ["plain", "border", "margin", "descendant", "visible-descendant"]) {
+        test(t => {
+          const { box, item } = makeBox(t, writingMode, direction, flexDirection, variant);
+          const visible = extent(box);
+          assert_greater_than_equal(visible[writingMode === "horizontal-tb" ? 1 : 0], 240,
+                                    "visible control retains the tall item's overflow");
+          item.style.visibility = "hidden";
+          assert_array_equals(extent(box), visible, "hidden control retains overflow");
+          item.style.visibility = "collapse";
+          assert_equals(getComputedStyle(item).visibility, "collapse", "computed visibility");
+          assertCollapsed(box, "collapsed item and its descendants do not enlarge the scroll area");
+          item.remove();
+          assertCollapsed(box, "removal reference");
+          box.append(item);
+          assertCollapsed(box, "restored collapsed item");
+          item.style.visibility = "visible";
+          assert_array_equals(extent(box), visible, "uncollapsing restores overflow");
+        }, `${writingMode}, ${direction}, ${flexDirection}, ${variant}`);
+      }
+    }
+  }
+}
+
+for (const flexDirection of flexDirections) {
+  for (const position of ["static", "relative", "sticky"]) {
+    test(t => {
+      const { box, item } = makeBox(t, "horizontal-tb", "ltr", flexDirection, "margin");
+      item.style.position = position;
+      if (position !== "static") item.style.top = item.style.left = "20px";
+      assert_greater_than_equal(extent(box)[1], 240, "ordinary positioned overflow control");
+      item.style.visibility = "collapse";
+      assertCollapsed(box, "collapsed positioned margin box does not contribute overflow");
+    }, `${flexDirection}, ${position}, collapsed positioned margin`);
+  }
+}
+
+for (const writingMode of ["horizontal-tb", "vertical-rl", "vertical-lr"]) {
+  for (const flexDirection of flexDirections) {
+    test(t => {
+      const { box, item } = makeBox(t, writingMode, "ltr", flexDirection, "descendant");
+      item.style.blockSize = "40px";
+      item.style.visibility = "collapse";
+      const descendant = item.firstElementChild;
+      descendant.style.inlineSize = descendant.style.blockSize = "1px";
+      assertCollapsed(box, "initial collapsed item fits");
+      descendant.style.transform = "translate(300px, 300px)";
+      assertCollapsed(box, "transform overflow update remains excluded");
+      descendant.style.transform = "translate(-300px, -300px)";
+      assertCollapsed(box, "opposite transform overflow update remains excluded");
+    }, `${writingMode}, ${flexDirection}, transformed collapsed descendant`);
+  }
+}
+
+test(t => {
+  const { box, item } = makeBox(t, "horizontal-tb", "ltr", "row", "plain");
+  Object.assign(item.style, { position: "absolute", left: "0", top: "0" });
+  const visible = extent(box);
+  assert_equals(visible[1], 240, "absolute control overflows");
+  item.style.visibility = "collapse";
+  assert_array_equals(extent(box), visible, "absolute child is not a collapsed flex item");
+}, "Absolutely positioned child remains an overflow contributor");
+</script>

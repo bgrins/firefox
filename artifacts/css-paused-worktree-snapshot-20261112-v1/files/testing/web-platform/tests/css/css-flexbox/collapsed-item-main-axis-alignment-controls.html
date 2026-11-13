@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Collapsed item alignment preserves visible zero-size items and auto margins</title>
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#algo-visibility">
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#main-alignment">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.container { display: flex; align-items: flex-start; }
+.container, .container > div { margin: 0; padding: 0; border: 0; }
+.container > div { flex: none; }
+.row { inline-size: 100px; block-size: 40px; }
+.row > div { inline-size: 20px; block-size: 10px; }
+.row > .zero { inline-size: 0; }
+.row > .auto { margin-inline: auto; }
+.column { block-size: 100px; inline-size: 40px; }
+.column > div { block-size: 20px; inline-size: 10px; }
+.column > .zero { block-size: 0; }
+.column > .auto { margin-block: auto; }
+.collapsed { visibility: collapse; order: -1; }
+</style>
+<div id="log"></div>
+<script>
+for (const writingMode of ["horizontal-tb", "vertical-rl", "vertical-lr"]) {
+  for (const direction of ["ltr", "rtl"]) {
+    for (const flexDirection of ["row", "row-reverse", "column", "column-reverse"]) {
+      for (const autoMargin of [false, true]) {
+        for (const [justify, ordinaryOffset] of [
+          ["flex-start", 0], ["center", 40], ["space-between", 80],
+          ["space-around", 60], ["space-evenly", 160 / 3],
+        ]) {
+          test(t => {
+            const row = flexDirection.startsWith("row");
+            const vertical = writingMode !== "horizontal-tb";
+            const container = document.createElement("div");
+            container.className = "container " + (row ? "row" : "column");
+            Object.assign(container.style, {writingMode, direction, flexDirection,
+              justifyContent: justify});
+            const zero = document.createElement("div");
+            zero.className = "zero" + (autoMargin ? " auto" : "");
+            const target = document.createElement("div");
+            const collapsed = document.createElement("div");
+            collapsed.className = "collapsed auto";
+            container.append(zero, target, collapsed);
+            document.body.append(container);
+            t.add_cleanup(() => container.remove());
+            const outer = container.getBoundingClientRect();
+            const inner = target.getBoundingClientRect();
+            const horizontalMain = row !== vertical;
+            const reversed = flexDirection.endsWith("reverse") !==
+              (row ? direction === "rtl" : writingMode === "vertical-rl");
+            let offset;
+            if (horizontalMain) {
+              offset = reversed ? outer.right - inner.right : inner.left - outer.left;
+            } else {
+              offset = reversed ? outer.bottom - inner.bottom : inner.top - outer.top;
+            }
+            assert_approx_equals(offset, autoMargin ? 80 : ordinaryOffset, 0.02,
+              "The visible zero-size item participates; the collapsed item does not");
+            assert_equals(horizontalMain ? inner.width : inner.height, 20);
+          }, `${writingMode}; ${direction}; ${flexDirection}; visible auto margins=${autoMargin}; ${justify}`);
+        }
+      }
+    }
+  }
+}
+</script>

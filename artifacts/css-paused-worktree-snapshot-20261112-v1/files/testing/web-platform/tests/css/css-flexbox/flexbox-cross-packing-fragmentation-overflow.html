@@ -1,0 +1,86 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Flex cross positions remain relative to the current fragment</title>
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#pagination-algo">
+<link rel="help" href="https://drafts.csswg.org/css-break-3/#breaking-controls">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; }
+.columns {
+  width: 200px;
+  columns: 100px;
+  column-gap: 0;
+  column-fill: auto;
+  height: calc(2 * var(--item-height));
+}
+.content { width: 100px; }
+.flex {
+  display: flex;
+  flex-flow: row wrap;
+  align-content: flex-start;
+  align-items: flex-start;
+}
+.item {
+  width: 100px;
+  height: var(--item-height);
+  flex: none;
+  break-inside: avoid;
+}
+.calibration { position: absolute; top: 0; }
+</style>
+<body>
+<script>
+for (const layout of ["block", "flex"]) {
+  for (const height of [80, 1000000, 4000000, 6000000, 8000000]) {
+    for (const count of [4, 6, 8, 12]) {
+      test(t => {
+        const columns = document.createElement("div");
+        columns.className = "columns";
+        columns.style.setProperty("--item-height", `${height}px`);
+        const calibration = document.createElement("div");
+        calibration.className = "item calibration";
+        calibration.style.setProperty("--item-height", `${height}px`);
+        document.body.append(columns, calibration);
+        t.add_cleanup(() => {
+          columns.remove();
+          calibration.remove();
+        });
+        assert_implements_optional(
+          columns.getBoundingClientRect().height === height * 2 &&
+          calibration.getBoundingClientRect().height === height,
+          "The declared item and column heights are supported");
+        calibration.remove();
+        const content = document.createElement("div");
+        content.className = `content ${layout}`;
+        const items = Array.from({length: count}, () => {
+          const item = document.createElement("div");
+          item.className = "item";
+          content.append(item);
+          return item;
+        });
+        columns.append(content);
+        const measure = () => {
+          const origin = columns.getBoundingClientRect();
+          assert_equals(origin.height, height * 2, "Column height");
+          return items.map((item, index) => {
+            const rect = item.getBoundingClientRect();
+            assert_equals(rect.width, 100, `Item ${index} width`);
+            assert_equals(rect.height, height, `Item ${index} height`);
+            return [rect.x - origin.x, rect.y - origin.y];
+          });
+        };
+        const initial = measure();
+        columns.remove();
+        document.body.append(columns);
+        const restored = measure();
+        for (let index = 0; index < count; ++index) {
+          assert_array_equals(restored[index], initial[index], `Item ${index} restored position`);
+          assert_array_equals(initial[index], [Math.floor(index / 2) * 100, index % 2 * height],
+            `Item ${index} position within its column`);
+        }
+      }, `${layout}, ${count} items of ${height}px in columns of ${height * 2}px`);
+    }
+  }
+}
+</script>

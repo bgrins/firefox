@@ -1,0 +1,77 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Flex auto margins preserve positions after large negative margin cancellation</title>
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#main-alignment">
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#auto-margins">
+<meta name="assert" content="A main-start auto margin absorbs positive free space so the last item reaches the main-end edge, even when negative margins make the free space large.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .container {
+    position: relative;
+    display: flex;
+    flex-wrap: nowrap;
+    width: 1000px;
+    height: 1000px;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .item {
+    flex: 0 0 0px;
+    width: 0;
+    height: 0;
+    min-width: 0;
+    min-height: 0;
+  }
+  .reference {
+    position: absolute;
+    width: 0;
+    height: 0;
+    left: 0;
+    top: 0;
+  }
+</style>
+<body>
+<script>
+for (const direction of ["row", "row-reverse", "column", "column-reverse"]) {
+  for (const [count, magnitude] of [[5, 1000], [4, 10000000], [5, 10000000], [8, 10000000]]) {
+    test(t => {
+      const horizontal = direction.startsWith("row");
+      const reversed = direction.endsWith("reverse");
+      const start = horizontal ? (reversed ? "marginRight" : "marginLeft") :
+        (reversed ? "marginBottom" : "marginTop");
+      const end = horizontal ? (reversed ? "marginLeft" : "marginRight") :
+        (reversed ? "marginTop" : "marginBottom");
+      const container = document.createElement("div");
+      container.className = "container";
+      container.style.flexDirection = direction;
+      for (let i = 0; i < count; i++) {
+        const item = document.createElement("div");
+        item.className = "item";
+        if (i < count - 1) {
+          item.style[end] = `${-magnitude}px`;
+        }
+        if (i === 0) {
+          item.style[start] = "auto";
+        }
+        container.append(item);
+      }
+      const last = container.lastElementChild;
+      const expected = reversed ? 0 : 1000;
+      const axis = horizontal ? "x" : "y";
+      const reference = document.createElement("div");
+      reference.className = "reference";
+      reference.style[horizontal ? "left" : "top"] = `${expected}px`;
+      container.append(reference);
+      document.body.append(container);
+      t.add_cleanup(() => container.remove());
+
+      const origin = container.getBoundingClientRect()[axis];
+      const referenceOffset = reference.getBoundingClientRect()[axis] - origin;
+      assert_approx_equals(referenceOffset, expected, 0.05, "Reference position");
+      const actual = last.getBoundingClientRect()[axis] - origin;
+      assert_approx_equals(actual, referenceOffset, 0.05, "Last flex item position");
+    }, `${direction}: ${count} items with ${-magnitude}px main-end margins and one auto main-start margin`);
+  }
+}
+</script>

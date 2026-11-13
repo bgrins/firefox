@@ -1,0 +1,106 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Grid baseline alignment after a peer's font size changes</title>
+<link rel="help" href="https://drafts.csswg.org/css-align-3/#baseline-align-content">
+<link rel="help" href="https://drafts.csswg.org/css-grid-2/#row-align">
+<link rel="stylesheet" href="/fonts/ahem.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; }
+.grid {
+  display: grid;
+  grid-template-columns: 200px 200px;
+  grid-template-rows: 300px;
+  inline-size: 400px;
+}
+.target {
+  font: 20px/1 Ahem;
+  inline-size: 100px;
+  block-size: 100px;
+  padding: 3px;
+  border: 2px solid;
+}
+.peer { font: 40px/1 Ahem; }
+.large .peer { font-size: 160px; }
+.first > div { align-content: baseline; align-self: start; }
+.last > div { align-content: last baseline; align-self: end; }
+.c-layout .target { contain: layout; }
+.c-size .target { contain: size; }
+.vertical-rl { writing-mode: vertical-rl; }
+.vertical-lr { writing-mode: vertical-lr; }
+.rtl { direction: rtl; }
+.nested .target {
+  display: grid;
+  grid-template-columns: 100px;
+  margin-inline: 7px 11px;
+  margin-block: 13px 17px;
+}
+.orthogonal.horizontal-tb .target { writing-mode: vertical-rl; }
+.orthogonal.vertical-rl .target,
+.orthogonal.vertical-lr .target { writing-mode: horizontal-tb; }
+.empty .target { block-size: 101px; }
+</style>
+<div id="cases"></div>
+<script>
+promise_setup(() => document.fonts.load("20px Ahem"));
+
+function observe(grid) {
+  const target = grid.querySelector(".target");
+  const marker = target.querySelector("span");
+  const box = target.getBoundingClientRect();
+  const parent = grid.getBoundingClientRect();
+  const text = marker?.getBoundingClientRect();
+  const style = getComputedStyle(target);
+  return {
+    box: [box.x - parent.x, box.y - parent.y, box.width, box.height],
+    text: text ? [text.x - box.x, text.y - box.y, text.width, text.height] : [],
+    padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft],
+    margin: [style.marginTop, style.marginRight, style.marginBottom, style.marginLeft],
+    contentSize: [style.width, style.height],
+    scroll: [target.scrollWidth, target.scrollHeight],
+  };
+}
+
+for (const containment of ["none", "layout", "size"])
+for (const baseline of ["first", "last"])
+for (const writingMode of ["horizontal-tb", "vertical-rl", "vertical-lr"])
+for (const direction of ["ltr", "rtl"])
+for (const kind of ["block", "nested", "orthogonal", "empty"])
+for (const large of [false, true])
+for (const primed of [false, true]) {
+  const name = [containment, baseline, writingMode, direction, kind,
+    large ? "large-to-small" : "small-to-large", primed ? "primed" : "unprimed"].join(" ");
+  promise_test(async t => {
+    let grid = document.createElement("div");
+    grid.className = `grid c-${containment} ${baseline} ${writingMode} ${direction} ${kind} ${large ? "large" : ""}`;
+    grid.innerHTML = '<div class="target"><div><span>X</span></div></div><div class="peer">X</div>';
+    const target = grid.querySelector(".target");
+    if (kind === "empty") {
+      target.replaceChildren();
+    }
+    document.getElementById("cases").append(grid);
+    t.add_cleanup(() => grid.remove());
+    grid.getBoundingClientRect();
+    if (primed) {
+      for (let i = 0; i < 4; ++i) {
+        if (kind === "empty") {
+          target.textContent = i % 2 ? "" : "X";
+        } else {
+          target.querySelector("span").textContent = i % 2 ? "X" : "XX";
+        }
+        grid.getBoundingClientRect();
+      }
+    }
+    grid.classList.toggle("large");
+    const changed = observe(grid);
+    const fresh = grid.cloneNode(true);
+    grid.replaceWith(fresh);
+    grid = fresh;
+    const expected = observe(fresh);
+    for (const field of Object.keys(expected)) {
+      assert_array_equals(changed[field], expected[field], field);
+    }
+  }, name);
+}
+</script>

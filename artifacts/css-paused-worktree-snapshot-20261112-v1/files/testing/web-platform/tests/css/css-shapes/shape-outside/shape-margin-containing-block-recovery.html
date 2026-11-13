@@ -1,0 +1,77 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Recovering descendant floats preserves percentage shape margins</title>
+<link rel="help" href="https://drafts.csswg.org/css-shapes-1/#shape-margin-property">
+<link rel="help" href="https://www.w3.org/TR/CSS22/visudet.html#containing-block-details">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+function fixture(t, writingMode, outerSize, innerSize, flowRoot, margin) {
+  const vertical = writingMode !== "horizontal-tb";
+  const outer = document.createElement("div");
+  outer.style.cssText = `position:absolute;top:0;left:0;display:flow-root;
+    writing-mode:${writingMode};inline-size:${outerSize}px;font-size:0;line-height:20px;`;
+  const inner = document.createElement("div");
+  inner.style.cssText = `inline-size:${innerSize}px;block-size:0;display:${flowRoot ? "flow-root" : "block"}`;
+  const float = document.createElement("div");
+  float.style.cssText = `float:left;inline-size:160px;block-size:120px;
+    shape-outside:inset(${vertical ? "0 0 100px 0" : "0 100px 0 0"});shape-margin:${margin};`;
+  inner.append(float);
+  outer.append(inner);
+  const markers = [];
+  for (let i = 0; i < 5; ++i) {
+    const marker = document.createElement("span");
+    marker.style.cssText = "display:inline-block;inline-size:1px;block-size:20px;vertical-align:top";
+    outer.append(marker, document.createElement("br"));
+    markers.push(marker);
+  }
+  document.body.append(outer);
+  t.add_cleanup(() => outer.remove());
+  return {
+    tail: markers[4],
+    measure() {
+      const origin = outer.getBoundingClientRect();
+      const innerRect = inner.getBoundingClientRect();
+      const floatRect = float.getBoundingClientRect();
+      assert_equals(vertical ? origin.height : origin.width, outerSize, "outer inline size");
+      assert_equals(vertical ? innerRect.height : innerRect.width, innerSize, "float containing block inline size");
+      assert_equals(vertical ? innerRect.width : innerRect.height, 0, "zero block size of inner block");
+      assert_equals(vertical ? floatRect.height : floatRect.width, 160, "float inline size");
+      return [2, 4].map(i => {
+        const rect = markers[i].getBoundingClientRect();
+        const bandStart = vertical ?
+          (writingMode === "vertical-rl" ? origin.right - rect.right : rect.left - origin.left) :
+          rect.top - origin.top;
+        assert_equals(bandStart, 20 * i, "line band");
+        return vertical ? rect.top - origin.top : rect.left - origin.left;
+      });
+    }
+  };
+}
+
+for (const writingMode of ["horizontal-tb", "vertical-rl", "vertical-lr"]) {
+  for (const [outerSize, innerSize] of [[200, 200], [400, 200], [600, 300]]) {
+    for (const flowRoot of [false, true]) {
+      test(t => {
+        const percent = fixture(t, writingMode, outerSize, innerSize, flowRoot, "10%");
+        const absolute = fixture(t, writingMode, outerSize, innerSize, flowRoot, `${innerSize / 10}px`);
+        const observations = [];
+        for (const width of [1, 2, 1]) {
+          percent.tail.style.inlineSize = `${width}px`;
+          absolute.tail.style.inlineSize = `${width}px`;
+          observations.push({width, percent: percent.measure(), absolute: absolute.measure()});
+        }
+        const fresh = fixture(t, writingMode, outerSize, innerSize, flowRoot, "10%").measure();
+        const expected = flowRoot ? 0 : 60 + innerSize / 10;
+        const details = JSON.stringify({observations, fresh});
+        for (const row of observations) {
+          assert_array_equals(row.absolute, [expected, expected], `absolute control: ${details}`);
+          assert_array_equals(row.percent, row.absolute, `percentage after tail width ${row.width}: ${details}`);
+        }
+        assert_array_equals(fresh, [expected, expected], `fresh fixture: ${details}`);
+      }, `${writingMode}, outer ${outerSize}, float containing block ${innerSize}, separate formatting context ${flowRoot}`);
+    }
+  }
+}
+</script>

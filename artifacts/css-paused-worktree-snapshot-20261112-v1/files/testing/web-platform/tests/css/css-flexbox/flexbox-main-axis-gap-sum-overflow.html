@@ -1,0 +1,74 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Flex alignment with large accumulated gaps</title>
+<link rel="help" href="https://drafts.csswg.org/css-align-3/#overflow-values">
+<link rel="help" href="https://drafts.csswg.org/css-align-3/#distribution-values">
+<meta name="assert" content="Accumulated gaps preserve overflow alignment and distribution fallback.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .container {
+    display: flex;
+    flex-wrap: nowrap;
+    width: 1000px;
+    height: 1000px;
+    align-items: flex-start;
+  }
+  .item {
+    flex: 0 0 0px;
+    width: 0;
+    height: 0;
+    min-width: 0;
+    min-height: 0;
+  }
+</style>
+<body>
+<script>
+const cases = [
+  {count: 1, gap: 10000000},
+  {count: 4, gap: 0},
+  {count: 4, gap: 100},
+  {count: 4, gap: 1000},
+  {count: 4, gap: 10000000},
+  {count: 5, gap: 10000000},
+  {count: 358, gap: 100000},
+  {count: 359, gap: 100000},
+];
+
+for (const direction of ["row", "column"]) {
+  for (const alignment of ["safe center", "safe end", "space-around", "space-evenly", "flex-start"]) {
+    for (const {count, gap} of cases) {
+      test(t => {
+        const container = document.createElement("div");
+        container.className = "container";
+        container.style.flexDirection = direction;
+        container.style.justifyContent = alignment;
+        container.style.gap = `${gap}px`;
+        for (let i = 0; i < count; i++) {
+          const item = document.createElement("div");
+          item.className = "item";
+          container.append(item);
+        }
+        document.body.append(container);
+        t.add_cleanup(() => container.remove());
+
+        const freeSpace = Math.max(0, 1000 - (count - 1) * gap);
+        let expected = 0;
+        if (alignment === "safe center") {
+          expected = freeSpace / 2;
+        } else if (alignment === "safe end") {
+          expected = freeSpace;
+        } else if (alignment === "space-around") {
+          expected = freeSpace / (2 * count);
+        } else if (alignment === "space-evenly") {
+          expected = freeSpace / (count + 1);
+        }
+        const axis = direction === "row" ? "x" : "y";
+        const first = container.firstElementChild.getBoundingClientRect();
+        const outer = container.getBoundingClientRect();
+        assert_approx_equals(first[axis] - outer[axis], expected, 0.05);
+      }, `${direction}, ${alignment}: ${count} items, gap ${gap}px`);
+    }
+  }
+}
+</script>
