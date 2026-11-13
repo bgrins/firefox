@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Large finite flex shrink weights preserve their proportions</title>
+<link rel="help" href="https://drafts.csswg.org/css-flexbox/#resolve-flexible-lengths">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .container {
+    display: flex;
+    position: absolute;
+    writing-mode: var(--writing-mode);
+    flex-direction: var(--direction);
+    inline-size: var(--container-size);
+    block-size: 20px;
+  }
+  .column {
+    inline-size: 20px;
+    block-size: var(--container-size);
+  }
+  .item {
+    flex: var(--grow) var(--shrink) var(--basis);
+    min-inline-size: 0;
+    min-block-size: 0;
+  }
+</style>
+<div id="log"></div>
+<script>
+  const cases = [
+    {name: "unequal shrink factors", bases: [100, 100], ratios: [1, 2],
+     containerSize: 150, grow: false, expected: [250 / 3, 200 / 3]},
+    {name: "unequal flex bases", bases: [100, 200], ratios: [1, 1],
+     containerSize: 225, grow: false, expected: [75, 150]},
+    {name: "growth control", bases: [100, 100], ratios: [1, 2],
+     containerSize: 300, grow: true, expected: [400 / 3, 500 / 3]},
+  ];
+  for (const writingMode of ["horizontal-tb", "vertical-lr", "vertical-rl"]) {
+    for (const direction of ["row", "column"]) {
+      for (const factor of [1, 1e34, 3e34, 1e38]) {
+        for (const config of cases) {
+          test(t => {
+            const container = document.createElement("div");
+            container.className = `container ${direction}`;
+            container.style.setProperty("--writing-mode", writingMode);
+            container.style.setProperty("--direction", direction);
+            container.style.setProperty("--container-size", `${config.containerSize}px`);
+            for (let index = 0; index < 2; ++index) {
+              const item = document.createElement("div");
+              item.className = "item";
+              item.style.setProperty("--basis", `${config.bases[index]}px`);
+              item.style.setProperty("--grow", config.grow ? factor * config.ratios[index] : 0);
+              item.style.setProperty("--shrink", config.grow ? 1 : factor * config.ratios[index]);
+              container.append(item);
+            }
+            document.body.append(container);
+            t.add_cleanup(() => container.remove());
+            const mainIsHorizontal = (writingMode === "horizontal-tb") === (direction === "row");
+            for (let index = 0; index < 2; ++index) {
+              const rect = container.children[index].getBoundingClientRect();
+              assert_approx_equals(mainIsHorizontal ? rect.width : rect.height,
+                                   config.expected[index], 0.05, `Item ${index}`);
+            }
+          }, `${config.name}, ${writingMode}, ${direction}, factor ${factor}`);
+        }
+      }
+    }
+  }
+</script>
