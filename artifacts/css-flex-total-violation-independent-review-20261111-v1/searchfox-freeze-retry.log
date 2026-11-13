@@ -1,0 +1,70 @@
+>>> 3108: void FlexLine::FreezeOrRestoreEachFlexibleSize(const nscoord aTotalViolation,
+    3109:                                                bool aIsFinalIteration) {
+    3110:   enum FreezeType {
+    3111:     eFreezeEverything,
+    3112:     eFreezeMinViolations,
+    3113:     eFreezeMaxViolations
+    3114:   };
+    3115: 
+    3116:   FreezeType freezeType;
+    3117:   if (aTotalViolation == 0) {
+    3118:     freezeType = eFreezeEverything;
+    3119:   } else if (aTotalViolation > 0) {
+    3120:     freezeType = eFreezeMinViolations;
+    3121:   } else {  // aTotalViolation < 0
+    3122:     freezeType = eFreezeMaxViolations;
+    3123:   }
+    3124: 
+    3125:   // Since this loop only operates on unfrozen flex items, we can break as
+    3126:   // soon as we have seen all of them.
+    3127:   uint32_t numUnfrozenItemsToBeSeen = NumItems() - mNumFrozenItems;
+    3128:   for (FlexItem& item : Items()) {
+    3129:     if (numUnfrozenItemsToBeSeen == 0) {
+    3130:       break;
+    3131:     }
+    3132: 
+    3133:     if (!item.IsFrozen()) {
+    3134:       numUnfrozenItemsToBeSeen--;
+    3135: 
+    3136:       MOZ_ASSERT(!item.HadMinViolation() || !item.HadMaxViolation(),
+    3137:                  "Can have either min or max violation, but not both");
+    3138: 
+    3139:       bool hadMinViolation = item.HadMinViolation();
+    3140:       bool hadMaxViolation = item.HadMaxViolation();
+    3141:       if (eFreezeEverything == freezeType ||
+    3142:           (eFreezeMinViolations == freezeType && hadMinViolation) ||
+    3143:           (eFreezeMaxViolations == freezeType && hadMaxViolation)) {
+    3144:         MOZ_ASSERT(item.MainSize() >= item.MainMinSize(),
+    3145:                    "Freezing item at a size below its minimum");
+    3146:         MOZ_ASSERT(item.MainSize() <= item.MainMaxSize(),
+    3147:                    "Freezing item at a size above its maximum");
+    3148: 
+    3149:         item.Freeze();
+    3150:         if (hadMinViolation) {
+    3151:           item.SetWasMinClamped();
+    3152:         } else if (hadMaxViolation) {
+    3153:           item.SetWasMaxClamped();
+    3154:         }
+    3155:         mNumFrozenItems++;
+    3156:       } else if (MOZ_UNLIKELY(aIsFinalIteration)) {
+    3157:         // XXXdholbert If & when bug 765861 is fixed, we should upgrade this
+    3158:         // assertion to be fatal except in documents with enormous lengths.
+    3159:         NS_ERROR(
+    3160:             "Final iteration still has unfrozen items, this shouldn't"
+    3161:             " happen unless there was nscoord under/overflow.");
+    3162:         item.Freeze();
+    3163:         mNumFrozenItems++;
+    3164:       }  // else, we'll reset this item's main size to its flex base size on the
+    3165:          // next iteration of this algorithm.
+    3166: 
+    3167:       if (!item.IsFrozen()) {
+    3168:         // Clear this item's violation(s), now that we've dealt with them
+    3169:         item.ClearViolationFlags();
+    3170:       }
+    3171:     }
+    3172:   }
+    3173: 
+    3174:   MOZ_ASSERT(numUnfrozenItemsToBeSeen == 0, "miscounted frozen items?");
+    3175: }
+Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)
+      Run: cargo binstall searchfox-cli

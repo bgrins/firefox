@@ -1,0 +1,58 @@
+>>> 3049: void FlexLine::FreezeItemsEarly(bool aIsUsingFlexGrow,
+    3050:                                 ComputedFlexLineInfo* aLineInfo) {
+    3051:   // After we've established the type of flexing we're doing (growing vs.
+    3052:   // shrinking), and before we try to flex any items, we freeze items that
+    3053:   // obviously *can't* flex.
+    3054:   //
+    3055:   // Quoting the spec:
+    3056:   //  # Freeze, setting its target main size to its hypothetical main size...
+    3057:   //  #  - any item that has a flex factor of zero
+    3058:   //  #  - if using the flex grow factor: any item that has a flex base size
+    3059:   //  #    greater than its hypothetical main size
+    3060:   //  #  - if using the flex shrink factor: any item that has a flex base size
+    3061:   //  #    smaller than its hypothetical main size
+    3062:   //  https://drafts.csswg.org/css-flexbox/#resolve-flexible-lengths
+    3063:   //
+    3064:   // (NOTE: At this point, item->MainSize() *is* the item's hypothetical
+    3065:   // main size, since SetFlexBaseSizeAndMainSize() sets it up that way, and the
+    3066:   // item hasn't had a chance to flex away from that yet.)
+    3067: 
+    3068:   // Since this loop only operates on unfrozen flex items, we can break as
+    3069:   // soon as we have seen all of them.
+    3070:   uint32_t numUnfrozenItemsToBeSeen = NumItems() - mNumFrozenItems;
+    3071:   for (FlexItem& item : Items()) {
+    3072:     if (numUnfrozenItemsToBeSeen == 0) {
+    3073:       break;
+    3074:     }
+    3075: 
+    3076:     if (!item.IsFrozen()) {
+    3077:       numUnfrozenItemsToBeSeen--;
+    3078:       bool shouldFreeze = (0.0f == item.GetFlexFactor(aIsUsingFlexGrow));
+    3079:       if (!shouldFreeze) {
+    3080:         if (aIsUsingFlexGrow) {
+    3081:           if (item.FlexBaseSize() > item.MainSize()) {
+    3082:             shouldFreeze = true;
+    3083:           }
+    3084:         } else {  // using flex-shrink
+    3085:           if (item.FlexBaseSize() < item.MainSize()) {
+    3086:             shouldFreeze = true;
+    3087:           }
+    3088:         }
+    3089:       }
+    3090:       if (shouldFreeze) {
+    3091:         // Freeze item! (at its hypothetical main size)
+    3092:         item.Freeze();
+    3093:         if (item.FlexBaseSize() < item.MainSize()) {
+    3094:           item.SetWasMinClamped();
+    3095:         } else if (item.FlexBaseSize() > item.MainSize()) {
+    3096:           item.SetWasMaxClamped();
+    3097:         }
+    3098:         mNumFrozenItems++;
+    3099:       }
+    3100:     }
+    3101:   }
+    3102: 
+    3103:   MOZ_ASSERT(numUnfrozenItemsToBeSeen == 0, "miscounted frozen items?");
+    3104: }
+Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)
+      Run: cargo binstall searchfox-cli

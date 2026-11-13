@@ -1,0 +1,15 @@
+--- elaboration-6-check.py
++++ check.py
+@@ -45,8 +45,10 @@
+         m = re.fullmatch(r"'([^']+)' (?:depends on axioms: \[(.*)\]|does not depend on any axioms)", line)
+         assert m, line
+         found.append(m[1])
+-        allowed = {'propext', 'Classical.choice', 'Quot.sound'} if m[1] in json.loads((HERE / 'WITNESS-NAMES.json').read_text()) else set()
+-        assert set(filter(None, (m[2] or '').split(', '))) <= allowed, line
++        expected = set(json.loads((HERE / 'EXPECTED-AXIOMS.json').read_text())[m[1]])
++        assert expected <= {'propext', 'Classical.choice', 'Quot.sound'}, m[1]
++        actual = list(filter(None, (m[2] or '').split(', ')))
++        assert len(actual) == len(set(actual)) and set(actual) == expected, line
+     assert found == names and len(set(found)) == len(names)
+ 
+ 

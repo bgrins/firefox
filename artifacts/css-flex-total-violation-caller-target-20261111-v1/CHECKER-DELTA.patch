@@ -1,0 +1,56 @@
+--- accepted-scalar-check.py
++++ caller-target-check.py
+@@ -45,7 +45,10 @@
+         m = re.fullmatch(r"'([^']+)' (?:depends on axioms: \[(.*)\]|does not depend on any axioms)", line)
+         assert m, line
+         found.append(m[1])
+-        assert set(filter(None, (m[2] or '').split(', '))) <= {'propext', 'Classical.choice', 'Quot.sound'}, line
++        expected = set(json.loads((HERE / 'EXPECTED-AXIOMS.json').read_text())[m[1]])
++        assert expected <= {'propext', 'Classical.choice', 'Quot.sound'}, m[1]
++        actual = list(filter(None, (m[2] or '').split(', ')))
++        assert len(actual) == len(set(actual)) and set(actual) == expected, line
+     assert found == names and len(set(found)) == len(names)
+ 
+ 
+@@ -74,16 +77,17 @@
+     records = []
+     safe = True
+     status = 'FAIL'
++    audit_done = False
+     try:
+         modules = args.modules or json.loads((HERE / 'ORDER.json').read_text())
+         refusals = {} if args.modules else json.loads((HERE / 'REFUSALS.json').read_text())
+         for name, refusal in refusals.items():
+             (work / ('refusal-' + name + '.lean')).write_text(
+-                'import FlexViolation.Controls\nexample : ' + refusal['proposition'] +
++                'import FlexViolationCaller.Target\nexample : ' + refusal['proposition'] +
+                 ' := by rw [' + refusal['rewrite'] + ']; decide\n')
+         for module in modules + ['refusal-' + n for n in refusals]:
+             log_path = out / (module.replace('/', '-') + '.log')
+-            argv = [str(lean), '-j1', '-M4096', '-DwarningAsError=true', '-o', module + '.olean', module + '.lean']
++            argv = [str(lean), '-j1', '-M1024', '-DwarningAsError=true', '-o', module + '.olean', module + '.lean']
+             record = {'module': module, 'argv': argv}
+             started = time.monotonic()
+             previous_safe = safe
+@@ -117,6 +121,8 @@
+                 assert record['exit'] == 0, record
+         if not args.modules:
+             audit((out / 'ProofAudit.log').read_text(), json.loads((HERE / 'AUDIT-NAMES.json').read_text()))
++            audit_done = True
++            assert (out / 'Controls.log').read_text() == (HERE / 'CONTROL-EXPECTED.txt').read_text()
+         assert sources == {str(p.relative_to(HERE / 'proof')): sha(p) for p in (HERE / 'proof').rglob('*.lean')}
+         authenticate()
+         assert sha(lean) == 'd1d9c26a539f54fe839d2aa7760bf1ac1dd76a30b26e2c9684bebf2900038fcf'
+@@ -128,8 +134,10 @@
+         if safe:
+             shutil.rmtree(work)
+         (out / 'RESULT.json').write_text(json.dumps({'status': status, 'commands': len(records),
+-            'scope': 'development' if args.modules else 'full',
+-            'audit_roots': 0 if args.modules else len(json.loads((HERE / 'AUDIT-NAMES.json').read_text())),
++            'scope': 'definition checks and finite history witnesses',
++            'universal_target_proofs': 0,
++            'finite_history_witness_proofs': len(json.loads((HERE / 'WITNESS-NAMES.json').read_text())) if audit_done else 0,
++            'audit_roots': len(json.loads((HERE / 'AUDIT-NAMES.json').read_text())) if audit_done else 0,
+             'expected_refusals': 0 if args.modules else len(json.loads((HERE / 'REFUSALS.json').read_text())),
+             'scratch_removed': not work.exists(), 'groups_absent': safe}, indent=2) + '\n')
+ 

@@ -1,0 +1,5 @@
+# Explicit definition-audit correction
+
+Elaboration-6 compiled all seven modules, but the Python checker rejected its proof-audit output because the original gate required every definition to have an empty axiom set. The recursive Prop-valued `Aligned` definition has a standard `propext` dependency. Exactly `FrozenPreserved`, `ClampedFrom`, `PassTarget` and `UniversalTarget` inherit it. This is not a target proof or an added opaque specification assumption.
+
+The Model and Target bytes remain unchanged from the separately pinned definition checkpoint. The successor gate requires the complete 96-name roster and the exact axiom set for every name, with no duplicates. `EXPECTED-AXIOMS.json` permits only `propext` at those five definitions, all three standard logical axioms for the two finite admission/joint witnesses, and no axioms elsewhere (including the direct History construction). No nonstandard axiom, native evaluator certificate, sorry or trusted global setting is admitted. The failed elaboration-6 receipt and output remain unchanged.

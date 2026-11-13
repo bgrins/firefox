@@ -1,0 +1,13 @@
+# Total violation arithmetic and selection contract
+
+This target models one min/max-clamping and freeze-selection pass over the current unfrozen items. Each input retains its identity, pre-clamp target size, and effective minimum/maximum. The native caller must supply signed32 target sizes, nonnegative ordered effective bounds, fresh violation flags, and a subset of a valid FlexLine array. The array's 31-bit capacity bounds the subset length. This does not prove upstream floating-point sizing, style resolution, array validity or the entire iterative flex-sizing algorithm.
+
+Model.clamped follows the native min-first, then max branch order. Because the effective minimum is nonnegative, the model also floors negative content sizes as required by the CSS algorithm. adjustment subtracts the pre-clamp value in mathematical integers; the candidate promotes both native operands before subtracting. total is the independent list sum. checkedFold executes ordered additions with explicit range checks. A checked failure describes the model's admitted arithmetic domain, not native rejection or defined C++ overflow behavior.
+
+The seven unchanged target conjuncts require every prefix to fit signed64, each acquired difference to fit signed64, successful exact accumulation, ordered agreement between native-branch selection and adjustment-sign selection, at least one selected item for a nonempty pass, preservation of previously defined checked32 sums, and a concrete jointly admitted counterexample to wrapping the aggregate. No premise assumes the final sum or any prefix fits32 or64.
+
+positiveWitness is an abstract clamp-state witness. Its four positive adjustments sum to 2,400,000,000. Exact sign selection freezes the four min-violating identities; a wrap32 aggregate selects maximum violations, of which there are none. This is a model mutation, not a disproof of a native binary or an assertion that C++ signed overflow wraps. The exact floating-point intermediate states of the WPT are not proved here.
+
+The independent source review must connect native fields and fresh flags to this model. Any later proof acceptance is limited to the acquired model until that correspondence is established. The native repair's browser evidence remains separate: the 28-case WPT changes from 16 FAIL / 12 PASS to 28 PASS, and the 20-file suite passes 231 checks on the combined local branch.
+
+The definition-only elaboration compiles Model, Target and the generated audit using the pinned Lean 4.35.0-rc4 toolchain. All eight audited target definitions report no axioms. No correctness theorem has yet been supplied. The owned elaboration scratch was removed after all three command groups terminated and the source/dependency hashes were rechecked.

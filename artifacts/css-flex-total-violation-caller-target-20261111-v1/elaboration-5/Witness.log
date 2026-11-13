@@ -1,0 +1,31 @@
+Witness.lean:19:2: error: failed to synthesize
+  Decidable
+    (twoSeeds.length ≤ FlexViolation.maxCount ∧
+      ∀ (seed : Seed),
+        seed ∈ twoSeeds →
+          (FlexViolation.Fits32 seed.fields.base ∧
+              0 ≤ seed.fields.minimum ∧
+                seed.fields.minimum ≤ seed.fields.maximum ∧ seed.fields.maximum ≤ FlexViolation.max32) ∧
+            match seed.retainedFrozen with
+            | none => True
+            | some (size, minFlag, maxFlag) =>
+              seed.fields.minimum ≤ size ∧ size ≤ seed.fields.maximum ∧ ¬(minFlag = true ∧ maxFlag = true))
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+Witness.lean:27:6: error: Expected type must not contain metavariables
+  List.length ?m.9 = (start twoSeeds true false).line.items.length ∧
+    ∀ (pair : ItemState × Int),
+      pair ∈ (start twoSeeds true false).line.items.zip ?m.9 → pair.fst.frozen = false → FlexViolation.Fits32 pair.snd
+Witness.lean:28:6: error: Expected type must not contain metavariables
+  runPass (start twoSeeds true false).iteration (start twoSeeds true false).line ?m.9 = some firstPass
+Witness.lean:22:59: error: unsolved goals
+⊢ List Int
+Witness.lean:33:4: error: Expected type must not contain metavariables
+  List.length ?m.23 = middleState.line.items.length ∧
+    ∀ (pair : ItemState × Int),
+      pair ∈ middleState.line.items.zip ?m.23 → pair.fst.frozen = false → FlexViolation.Fits32 pair.snd
+Witness.lean:34:4: error: Expected type must not contain metavariables
+  runPass middleState.iteration middleState.line ?m.23 = some secondPass
+Witness.lean:21:69: error: unsolved goals
+hfirst : History twoSeeds true false middleState
+⊢ List Int

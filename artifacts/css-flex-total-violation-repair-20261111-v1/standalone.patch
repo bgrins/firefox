@@ -1,0 +1,137 @@
+--- a/layout/generic/nsFlexContainerFrame.cpp
++++ b/layout/generic/nsFlexContainerFrame.cpp
+@@ -1099,7 +1099,7 @@
+   // Helpers for ResolveFlexibleLengths():
+   void FreezeItemsEarly(bool aIsUsingFlexGrow, ComputedFlexLineInfo* aLineInfo);
+ 
+-  void FreezeOrRestoreEachFlexibleSize(const nscoord aTotalViolation,
++  void FreezeOrRestoreEachFlexibleSize(const AuCoord64 aTotalViolation,
+                                        bool aIsFinalIteration);
+ 
+   // Sum of FlexItems' outer hypothetical main sizes and all main-axis
+@@ -3111,7 +3111,7 @@
+ 
+ // Based on the sign of aTotalViolation, this function freezes a subset of our
+ // flexible sizes, and restores the remaining ones to their initial pref sizes.
+-void FlexLine::FreezeOrRestoreEachFlexibleSize(const nscoord aTotalViolation,
++void FlexLine::FreezeOrRestoreEachFlexibleSize(const AuCoord64 aTotalViolation,
+                                                bool aIsFinalIteration) {
+   enum FreezeType {
+     eFreezeEverything,
+@@ -3120,9 +3120,9 @@
+   };
+ 
+   FreezeType freezeType;
+-  if (aTotalViolation == 0) {
++  if (aTotalViolation == AuCoord64(0)) {
+     freezeType = eFreezeEverything;
+-  } else if (aTotalViolation > 0) {
++  } else if (aTotalViolation > AuCoord64(0)) {
+     freezeType = eFreezeMinViolations;
+   } else {  // aTotalViolation < 0
+     freezeType = eFreezeMaxViolations;
+@@ -3465,7 +3465,7 @@
+     }
+ 
+     // Fix min/max violations:
+-    nscoord totalViolation = 0;  // keeps track of adjustments for min/max
++    AuCoord64 totalViolation = 0;  // keeps track of adjustments for min/max
+     FLEX_LOGV("Checking for violations:");
+ 
+     // Since this loop only operates on unfrozen flex items, we can break as
+@@ -3481,12 +3481,14 @@
+ 
+         if (item.MainSize() < item.MainMinSize()) {
+           // min violation
+-          totalViolation += item.MainMinSize() - item.MainSize();
++          totalViolation +=
++              AuCoord64(item.MainMinSize()) - AuCoord64(item.MainSize());
+           item.SetMainSize(item.MainMinSize());
+           item.SetHadMinViolation();
+         } else if (item.MainSize() > item.MainMaxSize()) {
+           // max violation
+-          totalViolation += item.MainMaxSize() - item.MainSize();
++          totalViolation +=
++              AuCoord64(item.MainMaxSize()) - AuCoord64(item.MainSize());
+           item.SetMainSize(item.MainMaxSize());
+           item.SetHadMaxViolation();
+         }
+@@ -3498,13 +3500,13 @@
+     FreezeOrRestoreEachFlexibleSize(totalViolation,
+                                     iterationCounter + 1 == NumItems());
+ 
+-    FLEX_LOGV("Total violation: %d", totalViolation);
++    FLEX_LOGV("Total violation: %" PRId64, totalViolation.value);
+ 
+     if (mNumFrozenItems == NumItems()) {
+       break;
+     }
+ 
+-    MOZ_ASSERT(totalViolation != 0,
++    MOZ_ASSERT(totalViolation != AuCoord64(0),
+                "Zero violation should've made us freeze all items & break");
+   }
+ 
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-flexbox/flexbox-total-min-violation-overflow.html
+@@ -0,0 +1,60 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Large total min-size violations freeze the constrained flex items</title>
++<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#resolve-flexible-lengths">
++<meta name="assert" content="A positive total min-size violation freezes the min-constrained items before redistributing remaining shrink space.">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++  .container {
++    display: flex;
++    width: 1000px;
++    height: 1000px;
++    align-items: flex-start;
++  }
++  .item {
++    width: 0;
++    height: 0;
++    min-width: 0;
++    min-height: 0;
++  }
++  .subject {
++    flex: 0 0.0000152587890625 1000px;
++  }
++</style>
++<body>
++<script>
++for (const direction of ["row", "row-reverse", "column", "column-reverse"]) {
++  for (const [count, minimum] of [[5, 1000], [3, 10000000], [4, 10000000], [5, 10000000], [7, 10000000], [357, 100000], [359, 100000]]) {
++    test(t => {
++      const size = direction.startsWith("row") ? "width" : "height";
++      const minSize = direction.startsWith("row") ? "minWidth" : "minHeight";
++      const container = document.createElement("div");
++      container.className = "container";
++      container.style.flexDirection = direction;
++      const subject = document.createElement("div");
++      subject.className = "item subject";
++      container.append(subject);
++      const constrained = [];
++      for (let i = 0; i < count; i++) {
++        const item = document.createElement("div");
++        item.className = "item";
++        item.style.flex = `0 1 ${minimum}px`;
++        item.style[minSize] = `${minimum}px`;
++        container.append(item);
++        constrained.push(item);
++      }
++      document.body.append(container);
++      t.add_cleanup(() => container.remove());
++
++      for (const item of constrained) {
++        assert_approx_equals(parseFloat(getComputedStyle(item)[size]), minimum, 0.05,
++          "Min-constrained item size");
++      }
++      const expected = Math.max(0, 1000 - count * minimum / 65536);
++      assert_approx_equals(subject.getBoundingClientRect()[size], expected, 0.05,
++        "Subject size after the min-constrained items freeze");
++    }, `${direction}: shrink beside ${count} items with minimum ${minimum}px`);
++  }
++}
++</script>

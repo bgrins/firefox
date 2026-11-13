@@ -1,0 +1,11 @@
+# Flex sizing violation trace
+
+Source: [CSS Flexbox resolving flexible lengths](https://drafts.csswg.org/css-flexbox-1/#resolve-flexible-lengths), current editor draft read 2026-11-11.
+
+The test uses a 1000px main extent. Its first item has base 1000px, shrink factor 1/65536 and minimum zero. Each of n later items has base and minimum m, and shrink factor one. There are no margins, borders, padding or gaps. The sum of hypothetical sizes exceeds the container, selecting shrink. Every item has equal base and hypothetical size and nonzero shrink, so the initial early-freeze rules do not freeze these items.
+
+Initial free space is −n*m. First-pass proportional shrink makes each later item's target smaller than m, producing only positive min-size adjustments; the subject stays above zero. The sum is positive, so the algorithm must freeze the min-violating items. Once they are frozen, the subject is the only flexible item. Its shrink factor is below one, so the algorithm limits the remaining deficit using initial free space times 1/65536. Its resulting used size is max(0,1000−n*m/65536), allowing ordinary app-unit rounding.
+
+The native source uses nscoord for totalViolation and its freeze-helper parameter. Four ten-million-pixel primary items produce a positive correction sum beyond signed32. The selected browser witness retains the subject at roughly 999.983px, while the spec yields 389.648px. This is REACHED behavior in the sizing algorithm, with no dependence on gap or negative-margin acquisition. The subsequent oversized layout can independently exceed coordinate limits; the test observes the first subject at a small position and checks primary sizes through computed style to avoid conflating coordinate clipping with sizing.
+
+The candidate promotes both inputs before each difference and keeps the accumulated sum wide through sign selection. For signed32 inputs, each difference has magnitude at most 2^32−1. At n≤2^31−1 valid array length, every prefix has magnitude at most 9223372030412324865, below signed64 maximum. This bound was independently reviewed, not yet proved in Lean; it does not establish upstream floating-point sizing correctness or all provider invariants.

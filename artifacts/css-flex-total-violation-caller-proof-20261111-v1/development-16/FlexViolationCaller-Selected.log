@@ -1,0 +1,27 @@
+FlexViolationCaller/Selected.lean:34:4: error: unsolved goals
+case cons.true
+f : ItemState → ItemState
+choice : FlexViolation.FreezeKind
+item : ItemState
+items : List ItemState
+ih :
+  (∀ (item : ItemState),
+      item ∈ items → item.frozen = false → (f item).frozen = FlexViolation.selected choice (asItem item)) →
+    newlySelected items (List.map f items) =
+      List.filter (FlexViolation.selected choice) (List.map asItem (active items))
+hbit :
+  ∀ (item_1 : ItemState),
+    item_1 ∈ item :: items → item_1.frozen = false → (f item_1).frozen = FlexViolation.selected choice (asItem item_1)
+ht :
+  newlySelected items (List.map f items) = List.filter (FlexViolation.selected choice) (List.map asItem (active items))
+hf : item.frozen = true
+⊢ List.map (fun pair => asItem pair.fst)
+      (List.filter (fun x => !x.fst.frozen && x.snd.frozen) (items.zip (List.map f items))) =
+    List.filter (FlexViolation.selected choice) (List.map asItem (active items))
+FlexViolationCaller/Selected.lean:34:44: error: This simp argument is unused:
+  ht
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [newlySelected, hf, active_cons]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

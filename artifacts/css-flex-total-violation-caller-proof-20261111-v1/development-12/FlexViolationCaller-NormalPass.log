@@ -1,0 +1,108 @@
+FlexViolationCaller/NormalPass.lean:37:12: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  freezeWalk ?choice ?finalIteration (active ?items).length ?items
+in the target expression
+  (do
+      let prepared ← some { items := suppliedItems line.items values, frozenCount := line.frozenCount }
+      pure
+          { prepared := prepared,
+            clamped := clampWalk (active (List.map clampOne (suppliedItems line.items values))).length 0 prepared.items,
+            helper :=
+              freezeWalk
+                (FlexViolation.kind
+                  (clampWalk (active (List.map clampOne (suppliedItems line.items values))).length 0
+                      prepared.items).violation)
+                (iteration + 1 == line.items.length)
+                (active (List.map clampOne (suppliedItems line.items values))).length
+                (clampWalk (active (List.map clampOne (suppliedItems line.items values))).length 0
+                    prepared.items).items,
+            after :=
+              {
+                items :=
+                  (freezeWalk
+                      (FlexViolation.kind
+                        (clampWalk (active (List.map clampOne (suppliedItems line.items values))).length 0
+                            prepared.items).violation)
+                      (iteration + 1 == line.items.length)
+                      (active (List.map clampOne (suppliedItems line.items values))).length
+                      (clampWalk (active (List.map clampOne (suppliedItems line.items values))).length 0
+                          prepared.items).items).items,
+                frozenCount :=
+                  line.frozenCount +
+                    (freezeWalk
+                        (FlexViolation.kind
+                          (clampWalk (active (List.map clampOne (suppliedItems line.items values))).length 0
+                              prepared.items).violation)
+                        (iteration + 1 == line.items.length)
+                        (active (List.map clampOne (suppliedItems line.items values))).length
+                        (clampWalk (active (List.map clampOne (suppliedItems line.items values))).length 0
+                            prepared.items).items).newlyFrozen } }) =
+    some (normalizedPass iteration line values)
+
+iteration : Nat
+line : Line
+values : List Int
+hc : CountAgrees line
+hv : ProviderValid line values
+hp : countedFrozen line.items + (active line.items).length = line.items.length
+ha : (active (suppliedItems line.items values)).length = (active line.items).length
+he : line.items.length - line.frozenCount = (active (suppliedItems line.items values)).length
+hm :
+  (active (List.map clampOne (suppliedItems line.items values))).length =
+    (active (suppliedItems line.items values)).length
+⊢ (do
+      let prepared ← some { items := suppliedItems line.items values, frozenCount := line.frozenCount }
+      pure
+          { prepared := prepared,
+            clamped := clampWalk (active (List.map clampOne (suppliedItems line.items values))).length 0 prepared.items,
+            helper :=
+              freezeWalk
+                (FlexViolation.kind
+                  (clampWalk (active (List.map clampOne (suppliedItems line.items values))).length 0
+                      prepared.items).violation)
+                (iteration + 1 == line.items.length)
+                (active (List.map clampOne (suppliedItems line.items values))).length
+                (clampWalk (active (List.map clampOne (suppliedItems line.items values))).length 0
+                    prepared.items).items,
+            after :=
+              {
+                items :=
+                  (freezeWalk
+                      (FlexViolation.kind
+                        (clampWalk (active (List.map clampOne (suppliedItems line.items values))).length 0
+                            prepared.items).violation)
+                      (iteration + 1 == line.items.length)
+                      (active (List.map clampOne (suppliedItems line.items values))).length
+                      (clampWalk (active (List.map clampOne (suppliedItems line.items values))).length 0
+                          prepared.items).items).items,
+                frozenCount :=
+                  line.frozenCount +
+                    (freezeWalk
+                        (FlexViolation.kind
+                          (clampWalk (active (List.map clampOne (suppliedItems line.items values))).length 0
+                              prepared.items).violation)
+                        (iteration + 1 == line.items.length)
+                        (active (List.map clampOne (suppliedItems line.items values))).length
+                        (clampWalk (active (List.map clampOne (suppliedItems line.items values))).length 0
+                            prepared.items).items).newlyFrozen } }) =
+    some (normalizedPass iteration line values)
+FlexViolationCaller/NormalPass.lean:35:52: error: This simp argument is unused:
+  Option.bind_some
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [runPass, prepare_exact line values hv, he, clamp_walk_exact, Int.zero_add]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+FlexViolationCaller/NormalPass.lean:36:4: error: This simp argument is unused:
+  clamp_walk_exact
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [runPass, prepare_exact line values hv, Option.bind_some, he, Int.zero_add]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+FlexViolationCaller/NormalPass.lean:36:22: error: This simp argument is unused:
+  Int.zero_add
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [runPass, prepare_exact line values hv, Option.bind_some, he, clamp_walk_exact]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

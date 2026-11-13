@@ -1,0 +1,185 @@
+>>> 2194: FlexItem::FlexItem(ReflowInput& aFlexItemReflowInput, float aFlexGrow,
+    2195:                    float aFlexShrink, nscoord aFlexBaseSize,
+    2196:                    nscoord aMainMinSize, nscoord aMainMaxSize,
+    2197:                    nscoord aTentativeCrossSize, nscoord aCrossMinSize,
+    2198:                    nscoord aCrossMaxSize,
+    2199:                    const FlexboxAxisTracker& aAxisTracker)
+    2200:     : mFrame(aFlexItemReflowInput.mFrame),
+    2201:       mFlexGrow(aFlexGrow),
+    2202:       mFlexShrink(aFlexShrink),
+    2203:       mAspectRatio(mFrame->GetAspectRatio()),
+    2204:       mWM(aFlexItemReflowInput.GetWritingMode()),
+    2205:       mCBWM(aAxisTracker.GetWritingMode()),
+    2206:       mMainAxis(aAxisTracker.MainAxis()),
+    2207:       mBorderPadding(aFlexItemReflowInput.ComputedLogicalBorderPadding(mCBWM)),
+    2208:       mMargin(aFlexItemReflowInput.ComputedLogicalMargin(mCBWM)),
+    2209:       mMainMinSize(aMainMinSize),
+    2210:       mMainMaxSize(aMainMaxSize),
+    2211:       mCrossMinSize(aCrossMinSize),
+    2212:       mCrossMaxSize(aCrossMaxSize),
+    2213:       mCrossSize(aTentativeCrossSize),
+    2214:       mIsInlineAxisMainAxis(aAxisTracker.IsInlineAxisMainAxis(mWM)),
+    2215:       mNeedsMinSizeAutoResolution(IsMinSizeAutoResolutionNeeded())
+    2216: // mAlignSelf, mHasAnyAutoMargin see below
+    2217: {
+    2218:   MOZ_ASSERT(mFrame, "expecting a non-null child frame");
+    2219:   MOZ_ASSERT(!mFrame->IsPlaceholderFrame(),
+    2220:              "placeholder frames should not be treated as flex items");
+    2221:   MOZ_ASSERT(mFrame->IsFlexItem(), "mFrame must be a flex item!");
+    2222:   MOZ_ASSERT(mIsInlineAxisMainAxis ==
+    2223:                  nsFlexContainerFrame::IsItemInlineAxisMainAxis(mFrame),
+    2224:              "public API should be consistent with internal state (about "
+    2225:              "whether flex item's inline axis is flex container's main axis)");
+    2226: 
+    2227:   const auto* container =
+    2228:       static_cast<nsFlexContainerFrame*>(mFrame->GetParent());
+    2229:   std::tie(mAlignSelf, mAlignSelfFlags) =
+    2230:       container->UsedAlignSelfAndFlagsForItem(mFrame);
+    2231: 
+    2232:   // Our main-size is considered definite if any of these are true:
+    2233:   // (a) main axis is the item's inline axis.
+    2234:   // (b) flex container has definite main size.
+    2235:   // (c) flex item has a definite flex basis.
+    2236:   //
+    2237:   // Hence, we need to take care to treat the final main-size as *indefinite*
+    2238:   // if none of these conditions are satisfied.
+    2239:   if (mIsInlineAxisMainAxis) {
+    2240:     // The item's block-axis is the flex container's cross axis. We don't need
+    2241:     // any special handling to treat cross sizes as indefinite, because the
+    2242:     // cases where we stomp on the cross size with a definite value are all...
+    2243:     // - situations where the spec requires us to treat the cross size as
+    2244:     // definite; specifically, `align-self:stretch` whose cross size is
+    2245:     // definite.
+    2246:     // - situations where definiteness doesn't matter (e.g. for an element with
+    2247:     // an aspect ratio, which for now are all leaf nodes and hence
+    2248:     // can't have any percent-height descendants that would care about the
+    2249:     // definiteness of its size. (Once bug 1528375 is fixed, we might need to
+    2250:     // be more careful about definite vs. indefinite sizing on flex items with
+    2251:     // aspect ratios.)
+    2252:     mTreatBSizeAsIndefinite = false;
+    2253:   } else {
+    2254:     // The item's block-axis is the flex container's main axis. So, the flex
+    2255:     // item's main size is its BSize, and is considered definite under certain
+    2256:     // conditions laid out for definite flex-item main-sizes in the spec.
+    2257:     const ReflowInput* containerRI = aFlexItemReflowInput.mParentReflowInput;
+    2258:     if (aAxisTracker.IsRowOriented() ||
+    2259:         (containerRI->ComputedBSize() != NS_UNCONSTRAINEDSIZE &&
+    2260:          !containerRI->mFlags.mTreatBSizeAsIndefinite)) {
+    2261:       // The flex *container* has a definite main-size (either by being
+    2262:       // row-oriented [and using its own inline size which is by definition
+    2263:       // definite, or by being column-oriented and having a definite
+    2264:       // block-size).  The spec says this means all of the flex items'
+    2265:       // post-flexing main sizes should *also* be treated as definite.
+    2266:       mTreatBSizeAsIndefinite = false;
+    2267:     } else if (aFlexBaseSize != NS_UNCONSTRAINEDSIZE) {
+    2268:       // The flex item has a definite flex basis, which we'll treat as making
+    2269:       // its main-size definite.
+    2270:       mTreatBSizeAsIndefinite = false;
+    2271:     } else {
+    2272:       // Otherwise, we have to treat the item's BSize as indefinite.
+    2273:       mTreatBSizeAsIndefinite = true;
+    2274:     }
+    2275:   }
+    2276: 
+    2277:   SetFlexBaseSizeAndMainSize(aFlexBaseSize);
+    2278: 
+    2279:   const nsStyleMargin* styleMargin = aFlexItemReflowInput.mStyleMargin;
+    2280:   const auto anchorResolutionParams =
+    2281:       AnchorPosResolutionParams::From(&aFlexItemReflowInput);
+    2282:   mHasAnyAutoMargin =
+    2283:       styleMargin->HasInlineAxisAuto(mCBWM, anchorResolutionParams) ||
+    2284:       styleMargin->HasBlockAxisAuto(mCBWM, anchorResolutionParams);
+    2285: 
+    2286:   // Assert that any "auto" margin components are set to 0.
+    2287:   // (We'll resolve them later; until then, we want to treat them as 0-sized.)
+    2288: #ifdef DEBUG
+    2289:   {
+    2290:     for (const auto side : LogicalSides::All) {
+    2291:       if (styleMargin->GetMargin(side, mCBWM, anchorResolutionParams)
+    2292:               ->IsAuto()) {
+    2293:         MOZ_ASSERT(GetMarginComponentForSide(side) == 0,
+    2294:                    "Someone else tried to resolve our auto margin");
+    2295:       }
+    2296:     }
+    2297:   }
+    2298: #endif  // DEBUG
+    2299: 
+    2300:   if (mAlignSelf == StyleAlignFlags::BASELINE ||
+    2301:       mAlignSelf == StyleAlignFlags::LAST_BASELINE) {
+    2302:     // Check which of the item's baselines we're meant to use (first vs. last)
+    2303:     const bool usingItemFirstBaseline =
+    2304:         (mAlignSelf == StyleAlignFlags::BASELINE);
+    2305:     if (IsBlockAxisCrossAxis()) {
+    2306:       // The flex item wants to be aligned in the cross axis using one of its
+    2307:       // baselines; and the cross axis is the item's block axis, so
+    2308:       // baseline-alignment in that axis makes sense.
+    2309: 
+    2310:       // To determine the item's baseline sharing group, we check whether the
+    2311:       // item's block axis has the same vs. opposite flow direction as the
+    2312:       // corresponding LogicalAxis on the flex container.  We do this by
+    2313:       // getting the physical side that corresponds to these axes' "logical
+    2314:       // start" sides, and we compare those physical sides to find out if
+    2315:       // they're the same vs. opposite.
+    2316:       mozilla::Side itemBlockStartSide = mWM.PhysicalSide(LogicalSide::BStart);
+    2317: 
+    2318:       // (Note: this is *not* the "flex-start" side; rather, it's the *logical*
+    2319:       // i.e. WM-relative block-start or inline-start side.)
+    2320:       mozilla::Side containerStartSideInCrossAxis = mCBWM.PhysicalSide(
+    2321:           MakeLogicalSide(aAxisTracker.CrossAxis(), LogicalEdge::Start));
+    2322: 
+    2323:       // We already know these two Sides (the item's block-start and the
+    2324:       // container's 'logical start' side for its cross axis) are in the same
+    2325:       // physical axis, since we're inside of a check for
+    2326:       // FlexItem::IsBlockAxisCrossAxis().  So these two Sides must be either
+    2327:       // the same physical side or opposite from each other.  If the Sides are
+    2328:       // the same, then the flow direction is the same, which means the item's
+    2329:       // {first,last} baseline participates in the {first,last}
+    2330:       // baseline-sharing group in its FlexLine.  Otherwise, the flow direction
+    2331:       // is opposite, and so the item's {first,last} baseline participates in
+    2332:       // the opposite i.e. {last,first} baseline-sharing group.  This is
+    2333:       // roughly per css-align-3 section 9.2, specifically the definition of
+    2334:       // what makes baseline alignment preferences "compatible".
+    2335:       bool itemBlockAxisFlowDirMatchesContainer =
+    2336:           (itemBlockStartSide == containerStartSideInCrossAxis);
+    2337:       mBaselineSharingGroup =
+    2338:           (itemBlockAxisFlowDirMatchesContainer == usingItemFirstBaseline)
+    2339:               ? BaselineSharingGroup::First
+    2340:               : BaselineSharingGroup::Last;
+    2341:     } else {
+    2342:       // The flex item wants to be aligned in the cross axis using one of its
+    2343:       // baselines, but we cannot get its baseline because the FlexItem's block
+    2344:       // axis is *orthogonal* to the container's cross axis. To handle this, we
+    2345:       // are supposed to synthesize a baseline from the item's border box and
+    2346:       // using that for baseline alignment.
+    2347:       mBaselineSharingGroup = usingItemFirstBaseline
+    2348:                                   ? BaselineSharingGroup::First
+    2349:                                   : BaselineSharingGroup::Last;
+    2350:     }
+    2351:   }
+    2352: }
+
+>>> 2357: FlexItem::FlexItem(nsIFrame* aChildFrame, nscoord aCrossSize,
+    2358:                    WritingMode aContainerWM,
+    2359:                    const FlexboxAxisTracker& aAxisTracker)
+    2360:     : mFrame(aChildFrame),
+    2361:       mWM(aChildFrame->GetWritingMode()),
+    2362:       mCBWM(aContainerWM),
+    2363:       mMainAxis(aAxisTracker.MainAxis()),
+    2364:       mBorderPadding(mCBWM),
+    2365:       mMargin(mCBWM),
+    2366:       mCrossSize(aCrossSize),
+    2367:       // Struts don't do layout, so its WM doesn't matter at this point. So, we
+    2368:       // just share container's WM for simplicity:
+    2369:       mIsFrozen(true),
+    2370:       mIsStrut(true),  // (this is the constructor for making struts, after all)
+    2371:       mAlignSelf(StyleAlignFlags::FLEX_START) {
+    2372:   MOZ_ASSERT(mFrame, "expecting a non-null child frame");
+    2373:   MOZ_ASSERT(mFrame->StyleVisibility()->IsCollapse(),
+    2374:              "Should only make struts for children with 'visibility:collapse'");
+    2375:   MOZ_ASSERT(!mFrame->IsPlaceholderFrame(),
+    2376:              "placeholder frames should not be treated as flex items");
+    2377:   MOZ_ASSERT(!mFrame->HasAnyStateBits(NS_FRAME_OUT_OF_FLOW),
+    2378:              "out-of-flow frames should not be treated as flex items");
+    2379: }
+Note: A newer version of searchfox-cli is available (current: 0.20.5, latest: 0.20.6)
+      Run: cargo binstall searchfox-cli
