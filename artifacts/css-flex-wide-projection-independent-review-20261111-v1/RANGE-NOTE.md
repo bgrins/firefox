@@ -1,0 +1,9 @@
+# Conservative range route, not a discharged native invariant
+
+If the actual valid FlexItem array has N≤2^27−1 (from capacity×sizeof(FlexItem)<2^32 and sizeof(FlexItem)≥32), and already-acquired MBP/base/current/inner/SumOfGaps operands are signed32, the absolute initial free-space bound is at most2^59. This bounds each ordered acquisition prefix as well as the final difference by the corresponding absolute-sum estimate. The stored-capacity producer invariant must be proved; the allocation request guard alone does not establish it.
+
+For each distribution step, an envelope min(F,0)−E≤delta≤max(F,0)+E gives |delta|+|F−delta|≤|F|+2E. With E=2^20, N≤2^27−1 and |F0|≤2^59, telescoping yields sum|delta|≤2^59+2N·2^20<2^60, comfortably below the root projection theorem's2^62 budget. A per-step remainder bound also keeps intermediates below2^60. The coefficient-based case is 0≤alpha≤1 and delta≈alpha F. Exact-one-share and zero-share branches fit the envelope.
+
+Searchfox discovery located AuCoordImpl::FromRound in gfx/src/nsCoord.h: floor(value+0.5f), followed by Rep construction. The coordinate primitive operators use common_type; exact promotion, floating evaluation/rounding, denominator/count validity and weight/share range still need an authenticated IEEE/provider argument. E is a deliberately loose proposed error budget, not yet proved for the native operations. Guarded factor-sum adjustment and original free-space capture also need inclusion in that argument. Root is preparing the conditional telescoping lemma separately; no duplicate proof is claimed here.
+
+If SumOfGaps is later widened, replace the single signed32 gap term by its count×acquired-gap bound; do not silently reuse the tight current F0 estimate. Component acquisition and all array producers remain separate source obligations.

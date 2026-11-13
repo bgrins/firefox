@@ -1,0 +1,208 @@
+--- a/layout/generic/nsFlexContainerFrame.cpp
++++ b/layout/generic/nsFlexContainerFrame.cpp
+@@ -3390,10 +3390,12 @@
+         // NOTE: It's important that we traverse our items in *reverse* order
+         // here, for correct width distribution according to the items'
+         // "ShareOfWeightSoFar" progressively-calculated values.
++        uint32_t itemIndex = NumItems();
+         for (FlexItem& item : Reversed(Items())) {
+           if (numUnfrozenItemsToBeSeen == 0) {
+             break;
+           }
++          --itemIndex;
+ 
+           if (!item.IsFrozen()) {
+             numUnfrozenItemsToBeSeen--;
+@@ -3427,40 +3429,20 @@
+ 
+             availableFreeSpace -= sizeDelta;
+ 
+-            item.SetMainSize(item.MainSize() +
+-                             nscoord(sizeDelta.ToMinMaxClamped()));
++            // Preserve cancellation before narrowing, without hiding min/max
++            // violations by clamping to the preferred coordinate range.
++            const AuCoord64 mainSize = AuCoord64(item.MainSize()) + sizeDelta;
++            item.SetMainSize(nscoord(
++                std::clamp<int64_t>(mainSize.value, INT32_MIN, INT32_MAX)));
++            if (aLineInfo) {
++              aLineInfo->mItems[itemIndex].mMainDeltaSize = sizeDelta.value;
++            }
+             FLEX_LOGV("  Flex item %p receives %" PRId64 ", for a total of %d",
+                       item.Frame(), sizeDelta.value, item.MainSize());
+           }
+         }
+ 
+         MOZ_ASSERT(numUnfrozenItemsToBeSeen == 0, "miscounted frozen items?");
+-
+-        // If we have an aLineInfo structure to fill out, capture any
+-        // size changes that may have occurred in the previous loop.
+-        // We don't do this inside the previous loop, because we don't
+-        // want to burden layout when aLineInfo is null.
+-        if (aLineInfo) {
+-          uint32_t itemIndex = 0;
+-          for (FlexItem& item : Items()) {
+-            if (!item.IsFrozen()) {
+-              // Calculate a deltaSize that represents how much the flex sizing
+-              // algorithm "wants" to stretch or shrink this item during this
+-              // pass through the algorithm. Later passes through the algorithm
+-              // may overwrite this, until this item is frozen. Note that this
+-              // value may not reflect how much the size of the item is
+-              // actually changed, since the size of the item will be clamped
+-              // to min and max values later in this pass. That's intentional,
+-              // since we want to report the value that the sizing algorithm
+-              // tried to stretch or shrink the item.
+-              nscoord deltaSize =
+-                  item.MainSize() - aLineInfo->mItems[itemIndex].mMainBaseSize;
+-
+-              aLineInfo->mItems[itemIndex].mMainDeltaSize = deltaSize;
+-            }
+-            ++itemIndex;
+-          }
+-        }
+       }
+     }
+ 
+--- a/layout/generic/nsFlexContainerFrame.h
++++ b/layout/generic/nsFlexContainerFrame.h
+@@ -43,7 +43,7 @@
+    * algorithm proceeds linearly, the mMainDeltaSize for an item only
+    * respects the resolved size of items already frozen.
+    */
+-  nscoord mMainDeltaSize;
++  int64_t mMainDeltaSize;
+   nscoord mMainMinSize;
+   nscoord mMainMaxSize;
+   nscoord mCrossMinSize;
+--- a/dom/flex/FlexItemValues.cpp
++++ b/dom/flex/FlexItemValues.cpp
+@@ -57,8 +57,7 @@
+   // Convert app unit sizes to css pixel sizes.
+   mMainBaseSize =
+       nsPresContext::AppUnitsToDoubleCSSPixels(aItem->mMainBaseSize);
+-  mMainDeltaSize =
+-      nsPresContext::AppUnitsToDoubleCSSPixels(aItem->mMainDeltaSize);
++  mMainDeltaSize = double(aItem->mMainDeltaSize) / AppUnitsPerCSSPixel();
+   mMainMinSize = nsPresContext::AppUnitsToDoubleCSSPixels(aItem->mMainMinSize);
+   mMainMaxSize = ToPossiblyUnconstrainedPixels(aItem->mMainMaxSize);
+   mCrossMinSize =
+--- a/dom/flex/test/chrome/test_flex_items.html
++++ b/dom/flex/test/chrome/test_flex_items.html
+@@ -47,6 +47,22 @@
+                  box-sizing: border-box;
+                  height: 10px;
+                  border: 1px solid teal; }
++
++  .large-base-container {
++    display: flex;
++    flex-direction: column;
++    height: 1000px;
++    width: 100px;
++    position: absolute;
++  }
++  .large-base-item {
++    flex: 1 1 auto;
++    min-height: 0;
++    margin-bottom: var(--test-margin);
++  }
++  .large-base-content {
++    height: var(--test-height);
++  }
+ 
+ </style>
+ 
+@@ -219,9 +235,38 @@
+   }
+ }
+ 
++function testLargeContentBase() {
++  for (const height of [1000, 10000000, 15000000, 17000000]) {
++    for (const margin of [0, 10000000]) {
++      const container = document.createElement("div");
++      container.className = "large-base-container";
++      container.style.setProperty("--test-height", `${height}px`);
++      container.style.setProperty("--test-margin", `${margin}px`);
++      const item = document.createElement("div");
++      item.className = "large-base-item";
++      for (let i = 0; i < 2; ++i) {
++        const content = document.createElement("div");
++        content.className = "large-base-content";
++        item.append(content);
++      }
++      container.append(item);
++      document.body.append(container);
++      const values = container.getAsFlexContainer().getLines()[0].getItems()[0];
++      const label = `Two ${height}px blocks with ${margin}px margin`;
++      isfuzzy(values.mainBaseSize, 2 * height, 1, `${label}: measured flex base`);
++      isfuzzy(values.mainDeltaSize, 1000 - margin - values.mainBaseSize, 1,
++              `${label}: requested shrink delta`);
++      isfuzzy(item.getBoundingClientRect().height, Math.max(0, 1000 - margin), 1,
++              `${label}: final item size`);
++      container.remove();
++    }
++  }
++}
++
+ function runTests() {
+   testFlexSanity();
+   testFlexGrowing();
++  testLargeContentBase();
+   SimpleTest.finish();
+ }
+ </script>
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-flexbox/flex-shrink-large-content-base.html
+@@ -0,0 +1,54 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>A large content flex base can shrink to a small target size</title>
++<link rel="help" href="https://drafts.csswg.org/css-flexbox/#resolve-flexible-lengths">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++  .container {
++    display: flex;
++    flex-direction: var(--direction);
++    writing-mode: var(--writing-mode);
++    inline-size: 100px;
++    block-size: 1000px;
++    position: absolute;
++  }
++  .item {
++    flex: 1 1 auto;
++    min-block-size: 0;
++  }
++  .content {
++    block-size: var(--content-size);
++  }
++</style>
++<div id="log"></div>
++<script>
++  for (const writingMode of ["horizontal-tb", "vertical-lr", "vertical-rl"]) {
++    for (const direction of ["column", "column-reverse"]) {
++      for (const contentSize of [1000, 10000000, 15000000, 17000000]) {
++        test(t => {
++          const container = document.createElement("div");
++          container.className = "container";
++          container.style.setProperty("--direction", direction);
++          container.style.setProperty("--writing-mode", writingMode);
++          container.style.setProperty("--content-size", `${contentSize}px`);
++          const item = document.createElement("div");
++          item.className = "item";
++          for (let i = 0; i < 2; ++i) {
++            const content = document.createElement("div");
++            content.className = "content";
++            item.append(content);
++          }
++          container.append(item);
++          document.body.append(container);
++          t.add_cleanup(() => container.remove());
++          const rect = item.getBoundingClientRect();
++          const size = writingMode === "horizontal-tb" ? rect.height : rect.width;
++          assert_approx_equals(size, 1000, 1, "The item shrinks to the container block size");
++          assert_approx_equals(parseFloat(getComputedStyle(item).blockSize), 1000, 1,
++                               "The resolved block size agrees");
++        }, `${writingMode}, ${direction}, two ${contentSize}px blocks`);
++      }
++    }
++  }
++</script>

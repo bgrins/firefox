@@ -1,0 +1,92 @@
+# CSS-FLEXBOX#resolve-flexible-lengths
+
+**Resolving Flexible Lengths** (heading)
+
+**SHA**: hash:38344222a11dfb6fd993f03323ad21badb79c1c13ea56af1b1395e8d3f88cbe2
+
+## Content
+
+To resolve the flexible lengths of the items within a flex line:
+
+1.  **Determine the used flex factor**. Sum the outer hypothetical main sizes of all items on the line. If the sum is less than the flex container’s inner [main size](CSS-FLEXBOX#main-size), use the flex grow factor for the rest of this algorithm; otherwise, use the flex shrink factor.
+2.  Each item in the flex line has a **target main size**, initially set to its [flex base size](CSS-FLEXBOX#flex-base-size). Each item is initially *unfrozen* and may become *frozen*.
+
+    > **Note:** Note: An item’s [target main size](CSS-FLEXBOX#target-main-size) doesn’t change after freezing.
+
+3.  **Size inflexible items.** Freeze, setting its [target main size](CSS-FLEXBOX#target-main-size) to its [hypothetical main size](CSS-FLEXBOX#hypothetical-main-size)…
+    *   any item that has a flex factor of zero
+    *   if using the [flex grow factor](CSS-FLEXBOX#flex-flex-grow-factor): any item that has a [flex base size](CSS-FLEXBOX#flex-base-size) greater than its [hypothetical main size](CSS-FLEXBOX#hypothetical-main-size)
+    *   if using the [flex shrink factor](CSS-FLEXBOX#flex-flex-shrink-factor): any item that has a [flex base size](CSS-FLEXBOX#flex-base-size) smaller than its [hypothetical main size](CSS-FLEXBOX#hypothetical-main-size)
+4.  **Calculate **initial free space**.** Sum the outer sizes of all items on the line, and subtract this from the flex container’s inner [main size](CSS-FLEXBOX#main-size). For frozen items, use their outer [target main size](CSS-FLEXBOX#target-main-size); for other items, use their outer [flex base size](CSS-FLEXBOX#flex-base-size).
+5.  Loop:
+    1.  **Check for flexible items.** If all the flex items on the line are frozen, exit this loop.
+    2.  **Calculate the **remaining free space**** as for [initial free space](CSS-FLEXBOX#initial-free-space), above. If the sum of the unfrozen flex items’ flex factors is less than one, multiply the initial free space by this sum. If the magnitude of this value is less than the magnitude of the [remaining free space](CSS-FLEXBOX#remaining-free-space), use this as the remaining free space.
+    3.  If the [remaining free space](CSS-FLEXBOX#remaining-free-space) is non-zero, **distribute it proportional to the flex factors**:
+
+        If using the [flex grow factor](CSS-FLEXBOX#flex-flex-grow-factor)
+
+        For every unfrozen item on the line, find the ratio of the item’s flex grow factor to the sum of the flex grow factors of all unfrozen items on the line. Set the item’s [target main size](CSS-FLEXBOX#target-main-size) to its [flex base size](CSS-FLEXBOX#flex-base-size) plus a fraction of the [remaining free space](CSS-FLEXBOX#remaining-free-space) proportional to the ratio.
+
+        If using the [flex shrink factor](CSS-FLEXBOX#flex-flex-shrink-factor)
+
+        For every unfrozen item on the line, multiply its flex shrink factor by its inner [flex base size](CSS-FLEXBOX#flex-base-size), and note this as its **scaled flex shrink factor**. Find the ratio of the item’s [scaled flex shrink factor](CSS-FLEXBOX#scaled-flex-shrink-factor) to the sum of the scaled flex shrink factors of all unfrozen items on the line. Set the item’s [target main size](CSS-FLEXBOX#target-main-size) to its flex base size minus a fraction of the absolute value of the [remaining free space](CSS-FLEXBOX#remaining-free-space) proportional to the ratio.
+    4.  **Fix min/max violations.** Clamp each non-frozen item’s [target main size](CSS-FLEXBOX#target-main-size) by its [used](CSS-CASCADE-5#used-value) min and max [main sizes](CSS-FLEXBOX#main-size) and floor its content-box size at zero. If the item’s target main size was made smaller by this, it’s a max violation. If the item’s target main size was made larger by this, it’s a min violation.
+    5.  **Freeze over-flexed items.** The total violation is the sum of the adjustments from the previous step `∑(clamped size - unclamped size)`. If the total violation is:
+
+        Zero
+
+        Freeze all items.
+
+        Positive
+
+        Freeze all the items with min violations.
+
+        Negative
+
+        Freeze all the items with max violations.
+
+        > **Note:** Note: This freezes at least one item, ensuring that the loop makes progress and eventually terminates.
+
+    6.  Return to the start of this loop.
+6.  Set each item’s used [main size](CSS-FLEXBOX#main-size) to its [target main size](CSS-FLEXBOX#target-main-size).
+
+Tests
+
+*   [item-with-max-height-and-scrollbar.html](https://wpt.fyi/results/css/css-flexbox/item-with-max-height-and-scrollbar.html) [(live test)](http://wpt.live/css/css-flexbox/item-with-max-height-and-scrollbar.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/item-with-max-height-and-scrollbar.html)
+*   [item-with-max-height-and-scrollbar.html](https://wpt.fyi/results/css/css-flexbox/item-with-max-height-and-scrollbar.html) [(live test)](http://wpt.live/css/css-flexbox/item-with-max-height-and-scrollbar.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/item-with-max-height-and-scrollbar.html)
+*   [max-width-violation.html](https://wpt.fyi/results/css/css-flexbox/max-width-violation.html) [(live test)](http://wpt.live/css/css-flexbox/max-width-violation.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/max-width-violation.html)
+*   [relayout-image-load.html](https://wpt.fyi/results/css/css-flexbox/relayout-image-load.html) [(live test)](http://wpt.live/css/css-flexbox/relayout-image-load.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/relayout-image-load.html)
+*   [table-as-item-inflexible-in-column-1.html](https://wpt.fyi/results/css/css-flexbox/table-as-item-inflexible-in-column-1.html) [(live test)](http://wpt.live/css/css-flexbox/table-as-item-inflexible-in-column-1.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/table-as-item-inflexible-in-column-1.html)
+*   [table-as-item-inflexible-in-column-2.html](https://wpt.fyi/results/css/css-flexbox/table-as-item-inflexible-in-column-2.html) [(live test)](http://wpt.live/css/css-flexbox/table-as-item-inflexible-in-column-2.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/table-as-item-inflexible-in-column-2.html)
+*   [table-as-item-inflexible-in-row-1.html](https://wpt.fyi/results/css/css-flexbox/table-as-item-inflexible-in-row-1.html) [(live test)](http://wpt.live/css/css-flexbox/table-as-item-inflexible-in-row-1.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/table-as-item-inflexible-in-row-1.html)
+*   [table-as-item-inflexible-in-row-2.html](https://wpt.fyi/results/css/css-flexbox/table-as-item-inflexible-in-row-2.html) [(live test)](http://wpt.live/css/css-flexbox/table-as-item-inflexible-in-row-2.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/table-as-item-inflexible-in-row-2.html)
+*   [total-min-max-violation-zero.html](https://wpt.fyi/results/css/css-flexbox/total-min-max-violation-zero.html) [(live test)](http://wpt.live/css/css-flexbox/total-min-max-violation-zero.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/total-min-max-violation-zero.html)
+
+## Navigation
+
+- Parent: `layout-algorithm` — Flex Layout Algorithm
+- Prev: `cross-alignment` — Cross-Axis Alignment
+- Next: `definite-sizes` — Definite and Indefinite Sizes
+- Children: 4
+  - `target-main-size` — target main size
+  - `initial-free-space` — initial free space
+  - `remaining-free-space` — remaining free space
+  - `scaled-flex-shrink-factor` — scaled flex shrink factor
+
+## Outgoing refs (10)
+
+`webspec-index refs CSS-FLEXBOX#resolve-flexible-lengths -d outgoing -l 10`
+
+## Incoming refs (6)
+
+`webspec-index refs CSS-FLEXBOX#resolve-flexible-lengths -d incoming -l 6`
+
+### Possible effects
+
+CSS-FLEXBOX#resolve-flexible-lengths
+
+Partial analysis: additional effects may exist.
+
+No effects detected by this analysis.
+
+Traces and conditions (bounded): `webspec-index effects "CSS-FLEXBOX#resolve-flexible-lengths" --format markdown`
