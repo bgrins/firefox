@@ -1,0 +1,372 @@
+--- a/layout/forms/nsTextControlFrame.cpp
++++ b/layout/forms/nsTextControlFrame.cpp
+@@ -322,6 +322,8 @@
+     }
+     return Some(0);
+   }
++  GridSnapshotProviderTrace(this, "text-clean", int(aBaselineGroup),
++                            !IsSubtreeDirty(), 0, 0, 0, 0);
+   NS_ASSERTION(!IsSubtreeDirty(), "frame must not be dirty");
+   return GetSingleLineTextControlBaseline(this, mFirstBaseline, aWM,
+                                           aBaselineGroup);
+--- a/layout/forms/nsTextControlFrame.h
++++ b/layout/forms/nsTextControlFrame.h
+@@ -15,6 +15,9 @@
+ class Element;
+ }  // namespace dom
+ }  // namespace mozilla
++
++void GridSnapshotProviderTrace(const nsIFrame*, const char*, int64_t, int64_t,
++                               int64_t, int64_t, int64_t, int64_t);
+ 
+ class nsTextControlFrame final : public mozilla::ScrollContainerFrame {
+   using Element = mozilla::dom::Element;
+@@ -64,6 +67,9 @@
+     if (aFrame->StyleDisplay()->IsContainLayout()) {
+       return Nothing{};
+     }
++    GridSnapshotProviderTrace(aFrame, "single-initialized", int(aBaselineGroup),
++                              aFirstBaseline != NS_INTRINSIC_ISIZE_UNKNOWN,
++                              aFirstBaseline, 0, 0, 0);
+     NS_ASSERTION(aFirstBaseline != NS_INTRINSIC_ISIZE_UNKNOWN,
+                  "please call Reflow before asking for the baseline");
+     return mozilla::Some(aBaselineGroup == BaselineSharingGroup::First
+--- a/layout/forms/nsCheckboxRadioFrame.cpp
++++ b/layout/forms/nsCheckboxRadioFrame.cpp
+@@ -9,6 +9,9 @@
+ #include "mozilla/ReflowInput.h"
+ #include "nsIContent.h"
+ #include "nsLayoutUtils.h"
++
++void GridSnapshotProviderTrace(const nsIFrame*, const char*, int64_t, int64_t,
++                               int64_t, int64_t, int64_t, int64_t);
+ 
+ using namespace mozilla;
+ 
+@@ -66,6 +69,8 @@
+ Maybe<nscoord> nsCheckboxRadioFrame::GetNaturalBaselineBOffset(
+     WritingMode aWM, BaselineSharingGroup aBaselineGroup,
+     BaselineExportContext) const {
++  GridSnapshotProviderTrace(this, "checkbox-clean", int(aBaselineGroup),
++                            !IsSubtreeDirty(), 0, 0, 0, 0);
+   NS_ASSERTION(!IsSubtreeDirty(), "frame must not be dirty");
+ 
+   if (aBaselineGroup == BaselineSharingGroup::Last) {
+--- a/layout/generic/ColumnSetWrapperFrame.cpp
++++ b/layout/generic/ColumnSetWrapperFrame.cpp
+@@ -9,6 +9,9 @@
+ #include "nsContentUtils.h"
+ #include "nsIFrame.h"
+ #include "nsIFrameInlines.h"
++
++void GridSnapshotProviderTrace(const nsIFrame*, const char*, int64_t, int64_t,
++                               int64_t, int64_t, int64_t, int64_t);
+ 
+ using namespace mozilla;
+ 
+@@ -234,6 +237,13 @@
+     Iterator aStart, Iterator aEnd, WritingMode aWM,
+     BaselineSharingGroup aBaselineGroup,
+     BaselineExportContext aExportContext) const {
++  GridSnapshotProviderTrace(
++      this, "column-iterator", int(aBaselineGroup), aStart != aEnd,
++      aStart != aEnd &&
++          ((*aStart == PrincipalChildList().FirstChild() &&
++            aBaselineGroup == BaselineSharingGroup::First) ||
++           (*aStart == PrincipalChildList().LastChild() &&
++            aBaselineGroup == BaselineSharingGroup::Last)), 0, 0, 0);
+   // Either forward iterator + first baseline, or reverse iterator + last
+   // baseline
+   MOZ_ASSERT((*aStart == PrincipalChildList().FirstChild() &&
+@@ -267,6 +277,8 @@
+ Maybe<nscoord> ColumnSetWrapperFrame::GetNaturalBaselineBOffset(
+     WritingMode aWM, BaselineSharingGroup aBaselineGroup,
+     BaselineExportContext aExportContext) const {
++  GridSnapshotProviderTrace(this, "column-entry", int(aBaselineGroup),
++                            StyleDisplay()->IsContainLayout(), 0, 0, 0, 0);
+   if (StyleDisplay()->IsContainLayout()) {
+     return Nothing{};
+   }
+--- a/layout/generic/nsGridContainerFrame.cpp
++++ b/layout/generic/nsGridContainerFrame.cpp
+@@ -7,6 +7,7 @@
+ #include "nsGridContainerFrame.h"
+ 
+ #include <stdlib.h>  // for div()
++#include <stdio.h>
+ 
+ #include <functional>
+ #include <type_traits>
+@@ -27,6 +28,7 @@
+ #include "mozilla/ReflowInput.h"
+ #include "mozilla/ScrollContainerFrame.h"
+ #include "mozilla/StaticPrefs_layout.h"
++#include "mozilla/dom/Element.h"
+ #include "mozilla/dom/Grid.h"
+ #include "mozilla/dom/GridBinding.h"
+ #include "nsCSSFrameConstructor.h"
+@@ -266,6 +268,58 @@
+       aAxis, aWM, rdSize, aBoxSizingAdjustment.EnsureAndGet()));
+ }
+ 
++static thread_local const nsIFrame* sGridSnapshotCapture = nullptr;
++static thread_local const char* sGridSnapshotRequest = "outside";
++static thread_local uint64_t sGridSnapshotCaptureId = 0;
++
++void GridSnapshotProviderTrace(const nsIFrame* aFrame, const char* aStage,
++                               int64_t a0, int64_t a1, int64_t a2,
++                               int64_t a3, int64_t a4, int64_t a5) {
++  const auto* owner = sGridSnapshotCapture ? sGridSnapshotCapture : aFrame;
++  const auto* content = owner->GetContent();
++  if (!content || !content->IsElement()) {
++    return;
++  }
++  nsAutoString id;
++  content->AsElement()->GetAttr(kNameSpaceID_None, nsGkAtoms::id, id);
++  if (!StringBeginsWith(id, u"gse-"_ns) &&
++      !StringBeginsWith(id, u"gsi-"_ns)) {
++    return;
++  }
++  nsAutoString phase;
++  content->AsElement()->GetAttr(kNameSpaceID_None, nsGkAtoms::title, phase);
++  static uint32_t sequence = 0;
++  if (sequence >= 32768) {
++    if (sequence == 32768) {
++      ++sequence;
++      fprintf(stderr, "GRIDSNAPSHOT TRUNCATED\n");
++    }
++    return;
++  }
++  fprintf(stderr,
++          "GRIDSNAPSHOT seq=%u stage=%s id=%s phase=%s request=%s "
++          "capture=%llu frame=%p owner=%p parent=%p type=%u "
++          "dirty=%d children=%d subtree=%d inreflow=%d empty=%d "
++          "prev=%d next=%d hidden=%d contain=%d "
++          "v0=%lld v1=%lld v2=%lld v3=%lld v4=%lld v5=%lld\n",
++          ++sequence, aStage, NS_ConvertUTF16toUTF8(id).get(),
++          NS_ConvertUTF16toUTF8(phase).get(), sGridSnapshotRequest,
++          static_cast<unsigned long long>(sGridSnapshotCaptureId),
++          static_cast<const void*>(aFrame), static_cast<const void*>(owner),
++          static_cast<const void*>(aFrame->GetParent()), unsigned(aFrame->Type()),
++          aFrame->HasAnyStateBits(NS_FRAME_IS_DIRTY),
++          aFrame->HasAnyStateBits(NS_FRAME_HAS_DIRTY_CHILDREN),
++          aFrame->IsSubtreeDirty(), aFrame->HasAnyStateBits(NS_FRAME_IN_REFLOW),
++          aFrame->PrincipalChildList().IsEmpty(),
++          aFrame->GetPrevContinuation() != nullptr,
++          aFrame->GetNextContinuation() != nullptr,
++          aFrame->IsHiddenByContentVisibilityOfInFlowParentForLayout(),
++          aFrame->StyleDisplay()->IsContainLayout(),
++          static_cast<long long>(a0), static_cast<long long>(a1),
++          static_cast<long long>(a2), static_cast<long long>(a3),
++          static_cast<long long>(a4), static_cast<long long>(a5));
++}
++
+ enum class MeasuringReflowRequest : uint8_t {
+   Geometry,
+   NaturalFirst,
+@@ -368,26 +422,57 @@
+   static Snapshot Capture(nsIFrame* aFrame, nscoord aBSize,
+                           nscoord aContentBSize,
+                           MeasuringReflowRequest aRequest) {
++    AutoRestore<const nsIFrame*> captureRestore(sGridSnapshotCapture);
++    AutoRestore<uint64_t> captureIdRestore(sGridSnapshotCaptureId);
++    static uint64_t captureCounter = 0;
++    sGridSnapshotCapture = aFrame;
++    sGridSnapshotCaptureId = ++captureCounter;
+     Snapshot result;
+     result.mRequest = aRequest;
+     result.mGeometry.mBSize = aBSize;
+     result.mGeometry.mContentBSize = aContentBSize;
+     result.mGeometry.mPhysicalSize = aFrame->GetSize();
+     result.mGeometry.mUsedMargin = aFrame->GetUsedMargin();
++    GridSnapshotProviderTrace(
++        aFrame, "capture-begin", aBSize, aContentBSize, int(aRequest),
++        aFrame->HasAnyStateBits(NS_STATE_GRID_PRODUCED_BASELINES),
++        !aFrame->IsSubtreeDirty(), aFrame->IsGridContainerFrame());
+     if (IsGridMeasuringReflowRequest(aRequest)) {
+       const auto* grid = static_cast<nsGridContainerFrame*>(aFrame);
+       if (grid->HasAnyStateBits(NS_STATE_GRID_PRODUCED_BASELINES) &&
+           !grid->IsSubtreeDirty()) {
++        GridSnapshotProviderTrace(aFrame, "grid-before", int(BaselineSharingGroup::First),
++                                  int(LogicalAxis::Block), 0, 0, 0, 0);
+         result.mBaselines[LogicalAxis::Block][BaselineSharingGroup::First] =
+             grid->GetBBaseline(BaselineSharingGroup::First);
++        GridSnapshotProviderTrace(aFrame, "grid-after", int(BaselineSharingGroup::First),
++                                  result.mBaselines[LogicalAxis::Block][BaselineSharingGroup::First],
++                                  int(LogicalAxis::Block), 0, 0, 0);
++        GridSnapshotProviderTrace(aFrame, "grid-before", int(BaselineSharingGroup::Last),
++                                  int(LogicalAxis::Block), 0, 0, 0, 0);
+         result.mBaselines[LogicalAxis::Block][BaselineSharingGroup::Last] =
+             grid->GetBBaseline(BaselineSharingGroup::Last);
++        GridSnapshotProviderTrace(aFrame, "grid-after", int(BaselineSharingGroup::Last),
++                                  result.mBaselines[LogicalAxis::Block][BaselineSharingGroup::Last],
++                                  int(LogicalAxis::Block), 0, 0, 0);
++        GridSnapshotProviderTrace(aFrame, "grid-before", int(BaselineSharingGroup::First),
++                                  int(LogicalAxis::Inline), 0, 0, 0, 0);
+         result.mBaselines[LogicalAxis::Inline][BaselineSharingGroup::First] =
+             grid->GetIBaseline(BaselineSharingGroup::First);
++        GridSnapshotProviderTrace(aFrame, "grid-after", int(BaselineSharingGroup::First),
++                                  result.mBaselines[LogicalAxis::Inline][BaselineSharingGroup::First],
++                                  int(LogicalAxis::Inline), 0, 0, 0);
++        GridSnapshotProviderTrace(aFrame, "grid-before", int(BaselineSharingGroup::Last),
++                                  int(LogicalAxis::Inline), 0, 0, 0, 0);
+         result.mBaselines[LogicalAxis::Inline][BaselineSharingGroup::Last] =
+             grid->GetIBaseline(BaselineSharingGroup::Last);
++        GridSnapshotProviderTrace(aFrame, "grid-after", int(BaselineSharingGroup::Last),
++                                  result.mBaselines[LogicalAxis::Inline][BaselineSharingGroup::Last],
++                                  int(LogicalAxis::Inline), 0, 0, 0);
+         result.mHasBaseline = true;
+         result.mHasGridBaselines = true;
++        GridSnapshotProviderTrace(aFrame, "capture-end", result.mHasGridBaselines,
++                              result.mHasBaseline, int(result.mRequest), 0, 0, 0);
+         return result;
+       }
+     }
+@@ -395,28 +480,58 @@
+     switch (aRequest) {
+       case MeasuringReflowRequest::NaturalFirst:
+       case MeasuringReflowRequest::NaturalLast:
++        GridSnapshotProviderTrace(
++            aFrame, "natural-before",
++            int(aRequest == MeasuringReflowRequest::NaturalFirst
++                    ? BaselineSharingGroup::First : BaselineSharingGroup::Last),
++            0, 0, 0, 0, 0);
+         baseline = aFrame->GetNaturalBaselineBOffset(
+             aFrame->GetWritingMode(),
+             aRequest == MeasuringReflowRequest::NaturalFirst
+                 ? BaselineSharingGroup::First
+                 : BaselineSharingGroup::Last,
+             BaselineExportContext::Other);
++        GridSnapshotProviderTrace(
++            aFrame, "natural-after",
++            int(aRequest == MeasuringReflowRequest::NaturalFirst
++                    ? BaselineSharingGroup::First : BaselineSharingGroup::Last),
++            baseline.isSome(), baseline.valueOr(0), 0, 0, 0);
+         break;
+       case MeasuringReflowRequest::GridBlockFirst:
+       case MeasuringReflowRequest::GridBlockLast:
++        GridSnapshotProviderTrace(
++            aFrame, "grid-before",
++            int(aRequest == MeasuringReflowRequest::GridBlockFirst
++                    ? BaselineSharingGroup::First : BaselineSharingGroup::Last),
++            int(LogicalAxis::Block), 0, 0, 0, 0);
+         baseline.emplace(
+             static_cast<nsGridContainerFrame*>(aFrame)->GetBBaseline(
+                 aRequest == MeasuringReflowRequest::GridBlockFirst
+                     ? BaselineSharingGroup::First
+                     : BaselineSharingGroup::Last));
++        GridSnapshotProviderTrace(
++            aFrame, "grid-after",
++            int(aRequest == MeasuringReflowRequest::GridBlockFirst
++                    ? BaselineSharingGroup::First : BaselineSharingGroup::Last),
++            baseline.valueOr(0), int(LogicalAxis::Block), 0, 0, 0);
+         break;
+       case MeasuringReflowRequest::GridInlineFirst:
+       case MeasuringReflowRequest::GridInlineLast:
++        GridSnapshotProviderTrace(
++            aFrame, "grid-before",
++            int(aRequest == MeasuringReflowRequest::GridInlineFirst
++                    ? BaselineSharingGroup::First : BaselineSharingGroup::Last),
++            int(LogicalAxis::Inline), 0, 0, 0, 0);
+         baseline.emplace(
+             static_cast<nsGridContainerFrame*>(aFrame)->GetIBaseline(
+                 aRequest == MeasuringReflowRequest::GridInlineFirst
+                     ? BaselineSharingGroup::First
+                     : BaselineSharingGroup::Last));
++        GridSnapshotProviderTrace(
++            aFrame, "grid-after",
++            int(aRequest == MeasuringReflowRequest::GridInlineFirst
++                    ? BaselineSharingGroup::First : BaselineSharingGroup::Last),
++            baseline.valueOr(0), int(LogicalAxis::Inline), 0, 0, 0);
+         break;
+       case MeasuringReflowRequest::Geometry:
+         break;
+@@ -426,6 +541,8 @@
+       result.mBaselines[LogicalAxis::Block][BaselineSharingGroup::First] =
+           *baseline;
+     }
++    GridSnapshotProviderTrace(aFrame, "capture-end", result.mHasGridBaselines,
++                              result.mHasBaseline, int(result.mRequest), 0, 0, 0);
+     return result;
+   }
+ 
+@@ -5834,7 +5951,11 @@
+     nsIFrame* aChild, const ReflowInput* aReflowInput, gfxContext* aRC,
+     const LogicalSize& aAvailableSize, const LogicalSize& aCBSize,
+     nscoord aIMinSizeClamp = NS_MAXSIZE, nscoord aBMinSizeClamp = NS_MAXSIZE,
+-    MeasuringReflowRequest aRequest = MeasuringReflowRequest::Geometry) {
++    MeasuringReflowRequest aRequest = MeasuringReflowRequest::Geometry,
++    const char* aTraceRequest = "content") {
++  AutoRestore<const char*> requestRestore(sGridSnapshotRequest);
++  sGridSnapshotRequest = aTraceRequest;
++  GridSnapshotProviderTrace(aChild, "measure-enter", int(aRequest), 0, 0, 0, 0, 0);
+   MOZ_ASSERT(aChild->IsGridItem(), "aChild should be a grid item!");
+   auto wm = aChild->GetWritingMode();
+   // NOTE: Reflowing or FinishReflowChild might invalidate the cache.
+@@ -5846,6 +5967,7 @@
+           "[perf] MeasuringReflow accepted cached value=%d, child=%p, "
+           "aCBSize.ISize=%d",
+           result->mBSize, aChild, aCBSize.ISize(wm));
++      GridSnapshotProviderTrace(aChild, "cache-hit", int(aRequest), 0, 0, 0, 0, 0);
+       return *result;
+     }
+   }
+@@ -5910,6 +6032,9 @@
+   parent->RemoveProperty(nsContainerFrame::DebugReflowingWithInfiniteISize());
+ #endif
+ 
++  GridSnapshotProviderTrace(aChild, "post-finish", childStatus.IsFullyComplete(),
++                            aAvailableSize.ISize(wm), aAvailableSize.BSize(wm),
++                            childSize.ISize(wm), childSize.BSize(wm), int(aRequest));
+   const auto snapshot = GridItemCachedBAxisMeasurement::Capture(
+       aChild, childSize.BSize(wm),
+       childSize.BSize(wm) -
+@@ -6801,7 +6926,7 @@
+       }
+       const auto measurement = ::MeasuringReflow(
+           child, aGridRI.mReflowInput, rc, avail, cbSize, NS_MAXSIZE, NS_MAXSIZE,
+-          request);
++          request, "baseline");
+ 
+       const auto frameSize = LogicalSize(containerWM, measurement.mPhysicalSize)
+                                  .Size(mAxis, containerWM);
+@@ -10562,6 +10687,9 @@
+       // it makes sense to use a central baseline, in an axis where that
+       // doesn't make sense.
+       MOZ_ASSERT(childAxis == LogicalAxis::Block, "unexpected childAxis");
++      GridSnapshotProviderTrace(child, "export-before", int(aGroup),
++                                int(LogicalAxis::Block), isOrthogonal,
++                                aGridOrderItem.mIsInEdgeTrack, 0, 0);
+       baseline = child
+                      ->GetNaturalBaselineBOffset(childWM, aGroup,
+                                                  BaselineExportContext::Other)
+@@ -10569,6 +10697,9 @@
+                        return Baseline::SynthesizeBOffsetFromBorderBox(
+                            child, childWM, aGroup);
+                      });
++      GridSnapshotProviderTrace(child, "export-after", int(aGroup),
++                                int(LogicalAxis::Block), isOrthogonal,
++                                aGridOrderItem.mIsInEdgeTrack, baseline, 0);
+     } else {
+       baseline =
+           ::SynthesizeBaselineFromBorderBox(aGroup, childWM, childAxis, size);
+@@ -10580,6 +10711,9 @@
+       baseline = isOrthogonal ? grid->GetBBaseline(aGroup)
+                               : grid->GetIBaseline(aGroup);
+     } else if (isOrthogonal && aGridOrderItem.mIsInEdgeTrack) {
++      GridSnapshotProviderTrace(child, "export-before", int(aGroup),
++                                int(LogicalAxis::Inline), isOrthogonal,
++                                aGridOrderItem.mIsInEdgeTrack, 0, 0);
+       baseline = child
+                      ->GetNaturalBaselineBOffset(childWM, aGroup,
+                                                  BaselineExportContext::Other)
+@@ -10587,6 +10721,9 @@
+                        return ::SynthesizeBaselineFromBorderBox(
+                            aGroup, childWM, childAxis, size);
+                      });
++      GridSnapshotProviderTrace(child, "export-after", int(aGroup),
++                                int(LogicalAxis::Inline), isOrthogonal,
++                                aGridOrderItem.mIsInEdgeTrack, baseline, 0);
+     } else {
+       baseline =
+           ::SynthesizeBaselineFromBorderBox(aGroup, childWM, childAxis, size);

@@ -1,0 +1,152 @@
+--- a/provider_parse.py
++++ b/provider_parse.py
+@@ -49,6 +49,7 @@
+         c, stage = r['capture'], r['stage']
+         if stage.startswith('export-'):
+             assert not c, 'export occurred inside Capture unexpectedly'
++            assert r['frame'] == r['owner'], 'outside export owner mismatch'
+             key = (r['frame'], r['id'], r['phase'], r['v0'], r['v1'])
+             if stage == 'export-before':
+                 assert key not in exports
+@@ -66,8 +67,14 @@
+             assert c in captures and not captures[c]['closed'], 'missing begin or event after end'
+             cap = captures[c]
+             assert all(r[k] == cap['entry'][k] for k in ['id', 'phase', 'request', 'owner'])
++            if stage in {'capture-begin', 'capture-end', 'natural-before', 'natural-after', 'grid-before', 'grid-after'}:
++                assert r['frame'] == r['owner'], 'capture/query frame differs from owner'
+             if stage in PROVIDERS:
+                 assert cap['query'] == ('natural', r['v0']), 'provider outside matching natural query'
++            if stage == 'natural-after':
++                assert r['v1'] in (0, 1), 'natural presence is not boolean'
++                assert r['v1'] or r['v2'] == 0, 'absent natural answer has nonzero value'
++                cap['natural_present'] = r['v1']
+             if stage == 'grid-before':
+                 assert r['v1'] in [0, 1], 'grid axis invalid'
+             if stage == 'grid-after':
+@@ -88,6 +95,7 @@
+                 entry = cap['entry']
+                 d = entry['v2']
+                 assert all(entry[k] in [0, 1] for k in ['v3', 'v4', 'v5'])
++                assert entry['v4'] == 1 - entry['subtree'], 'clean flag disagrees with subtree'
+                 assert d < 3 or entry['v5'] == 1
+                 bundled = d >= 3 and entry['v3'] == 1 and entry['v4'] == 1
+                 expected = {0: [], 1: [('natural', 0)], 2: [('natural', 1)],
+@@ -96,6 +104,8 @@
+                 if bundled:
+                     expected = [('grid', 0, 1), ('grid', 1, 1), ('grid', 0, 0), ('grid', 1, 0)]
+                 assert r['v0'] == int(bundled) and r['v1'] in [0, 1] and r['v2'] == d
++                if d in (1, 2):
++                    assert cap.get('natural_present') == r['v1'], 'natural/capture presence mismatch'
+                 assert d != 0 or r['v1'] == 0
+                 assert d < 3 or r['v1'] == 1
+                 assert cap['query'] is None
+--- a/work_parse.py
++++ b/work_parse.py
+@@ -135,6 +135,7 @@
+         assert begin['v0'] == end['v0'] == d
+         grid, produced, dirty = begin['v1'], begin['v2'], begin['v3']
+         assert all(value in (0, 1) for value in (grid, produced, dirty, end['v1'], end['v2']))
++        assert dirty == begin['subtree'], 'capture dirty flag disagrees with subtree'
+         assert d < 3 or grid
+         expected_bundle = bool(d >= 3 and grid and produced and not dirty)
+         assert bool(end['v2']) == expected_bundle
+--- a/check_parsers.py
++++ b/check_parsers.py
+@@ -45,7 +45,7 @@
+             event("producer-reset")
+             if produced:
+                 event("producer-complete", v0=1)
+-        event("capture-begin", v0=d, v1=int(grid), v2=produced, v3=dirty)
++        event("capture-begin", subtree=dirty, v0=d, v1=int(grid), v2=produced, v3=dirty)
+         bundled = bool(d >= 3 and grid and produced and not dirty)
+         queries = [(1, 0), (1, 1), (2, 0), (2, 1)] if bundled else ([] if work.QUERY[d] is None else [work.QUERY[d]])
+         for kind, group in queries:
+@@ -77,7 +77,7 @@
+         row.update(values)
+         rows.append(row)
+ 
+-    event("capture-begin", v2=d, v3=produced, v4=clean, v5=int(d >= 3))
++    event("capture-begin", subtree=1-clean, v2=d, v3=produced, v4=clean, v5=int(d >= 3))
+     bundled = bool(d >= 3 and produced and clean)
+     queries = [(1, 0), (1, 1), (2, 0), (2, 1)] if bundled else ([] if work.QUERY[d] is None else [work.QUERY[d]])
+     for kind, group in queries:
+@@ -192,6 +192,43 @@
+                                encode_provider(provider_records(0)) + "GRIDSNAPSHOT TRUNCATED\n"])
+     for text in malformed_provider:
+         refused(lambda: provider.parse(text))
++    strict_refusals = []
++    for present in (0, 1):
++        rows = provider_records(1, present=present)
++        after = next(row for row in rows if row["stage"] == "natural-after")
++        after.update(v1=1-present, v2=17 if not present else 0)
++        strict_refusals.append(("natural-presence-" + str(present), "provider", rows))
++    rows = provider_records(1)
++    next(row for row in rows if row["stage"] == "natural-after")["v1"] = 2
++    strict_refusals.append(("natural-nonboolean", "provider", rows))
++    for clean in (0, 1):
++        rows = provider_records(3, clean=clean)
++        rows[0]["subtree"] = clean
++        strict_refusals.append(("provider-clean-" + str(clean), "provider", rows))
++    for dirty in (0, 1):
++        rows = bundle_records(3, dirty=dirty)
++        next(row for row in rows if row["stage"] == "capture-begin")["subtree"] = 1-dirty
++        strict_refusals.append(("work-dirty-" + str(dirty), "work", rows))
++    for demand in (1, 3):
++        for stage in ("capture-begin", "capture-end",
++                      "natural-before" if demand == 1 else "grid-before",
++                      "natural-after" if demand == 1 else "grid-after"):
++            rows = provider_records(demand)
++            next(row for row in rows if row["stage"] == stage)["frame"] = "0x999"
++            strict_refusals.append(("provider-frame-" + stage, "provider", rows))
++    for stage in ("capture-begin", "capture-end", "query-begin", "query-end"):
++        rows = bundle_records(3)
++        next(row for row in rows if row["stage"] == stage)["frame"] = "0x999"
++        strict_refusals.append(("work-frame-" + stage, "work", rows))
++    for label, kind, rows in strict_refusals:
++        if kind == "provider":
++            refused(lambda: provider.parse(encode_provider(rows)))
++        else:
++            refused(lambda: work.parse(encode_work(rows), "bundle"))
++    descendants = provider_records(1)
++    next(row for row in descendants if row["stage"] == "text-clean")["frame"] = "0x789"
++    assert provider.parse(encode_provider(descendants))["captures"] == 1
++
+     real = {}
+     prior = HERE.parent / "css-grid-baseline-measurement-work-completion-plan-20261112-v1/parse.py"
+     spec = importlib.util.spec_from_file_location("prior_work", prior)
+@@ -208,6 +245,8 @@
+                   geometry_replacement_then_grid_miss=True, bundle_refusals=len(bad_cases),
+                   provider_cases=provider_count, provider_refusals=len(malformed_provider),
+                   unsafe_provider_predicate_retained=True, retained_real_streams=real,
++                  v2_refusals=[label for label, _, _ in strict_refusals],
++                  descendant_provider_identity_admitted=True,
+                   native_execution=False)
+     (HERE / "PARSER-CHECK.json").write_text(json.dumps(result, indent=2) + "\n")
+     print(json.dumps(result, indent=2))
+--- a/check_source.py
++++ b/check_source.py
+@@ -30,6 +30,16 @@
+     old_work = HERE.parent / 'css-grid-baseline-measurement-work-execution-plan-20261112-v3/fixtures'
+     for path in (HERE / 'work-fixtures').iterdir():
+         assert path.read_bytes() == (old_work / path.name).read_bytes()
++    predecessor = HERE.parent / 'css-grid-baseline-grid-bundle-provider-followup-preparation-20261112-v1'
++    for name in ('provider', 'work', 'provider-fixtures', 'work-fixtures'):
++        old_files = {str(path.relative_to(predecessor / name)): path.read_bytes()
++                     for path in (predecessor / name).rglob('*') if path.is_file()}
++        new_files = {str(path.relative_to(HERE / name)): path.read_bytes()
++                     for path in (HERE / name).rglob('*') if path.is_file()}
++        assert old_files == new_files, name
++    for name in ('generate.py', 'provider-helper.cpp.txt', 'work-helper.cpp.txt',
++                 'provider-edits.json', 'snapshot-extracted.inc', 'snapshot-state.cpp'):
++        assert (HERE / name).read_bytes() == (predecessor / name).read_bytes(), name
+     commands = []
+     for stage in ('provider', 'work'):
+         base = HERE / stage
+@@ -68,6 +78,7 @@
+     assert (HERE / 'snapshot-extracted.inc').read_text() == source[start:end] + source[a:b]
+     assert 'NS_STATE_GRID_PRODUCED_BASELINES' in (HERE / 'work/candidate/layout/generic/nsGridContainerFrame.cpp').read_text()
+     result = dict(status='PASS source-only diagnostic transport and exact fixtures/extraction',
++                  v1_native_patches_fixtures_and_state_harness_unchanged=True,
+                   getter_call_counts_unchanged=True, source_edits_invert_exactly=True,
+                   patch_commands=commands, original_work_configurations=4, flushes_per_configuration=29,
+                   provider_fixture_families=3, state_methods_verbatim=True,

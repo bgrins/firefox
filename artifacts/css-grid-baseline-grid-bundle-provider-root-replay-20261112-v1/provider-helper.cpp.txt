@@ -1,0 +1,52 @@
+static thread_local const nsIFrame* sGridSnapshotCapture = nullptr;
+static thread_local const char* sGridSnapshotRequest = "outside";
+static thread_local uint64_t sGridSnapshotCaptureId = 0;
+
+void GridSnapshotProviderTrace(const nsIFrame* aFrame, const char* aStage,
+                               int64_t a0, int64_t a1, int64_t a2,
+                               int64_t a3, int64_t a4, int64_t a5) {
+  const auto* owner = sGridSnapshotCapture ? sGridSnapshotCapture : aFrame;
+  const auto* content = owner->GetContent();
+  if (!content || !content->IsElement()) {
+    return;
+  }
+  nsAutoString id;
+  content->AsElement()->GetAttr(kNameSpaceID_None, nsGkAtoms::id, id);
+  if (!StringBeginsWith(id, u"gse-"_ns) &&
+      !StringBeginsWith(id, u"gsi-"_ns)) {
+    return;
+  }
+  nsAutoString phase;
+  content->AsElement()->GetAttr(kNameSpaceID_None, nsGkAtoms::title, phase);
+  static uint32_t sequence = 0;
+  if (sequence >= 32768) {
+    if (sequence == 32768) {
+      ++sequence;
+      fprintf(stderr, "GRIDSNAPSHOT TRUNCATED\n");
+    }
+    return;
+  }
+  fprintf(stderr,
+          "GRIDSNAPSHOT seq=%u stage=%s id=%s phase=%s request=%s "
+          "capture=%llu frame=%p owner=%p parent=%p type=%u "
+          "dirty=%d children=%d subtree=%d inreflow=%d empty=%d "
+          "prev=%d next=%d hidden=%d contain=%d "
+          "v0=%lld v1=%lld v2=%lld v3=%lld v4=%lld v5=%lld\n",
+          ++sequence, aStage, NS_ConvertUTF16toUTF8(id).get(),
+          NS_ConvertUTF16toUTF8(phase).get(), sGridSnapshotRequest,
+          static_cast<unsigned long long>(sGridSnapshotCaptureId),
+          static_cast<const void*>(aFrame), static_cast<const void*>(owner),
+          static_cast<const void*>(aFrame->GetParent()), unsigned(aFrame->Type()),
+          aFrame->HasAnyStateBits(NS_FRAME_IS_DIRTY),
+          aFrame->HasAnyStateBits(NS_FRAME_HAS_DIRTY_CHILDREN),
+          aFrame->IsSubtreeDirty(), aFrame->HasAnyStateBits(NS_FRAME_IN_REFLOW),
+          aFrame->PrincipalChildList().IsEmpty(),
+          aFrame->GetPrevContinuation() != nullptr,
+          aFrame->GetNextContinuation() != nullptr,
+          aFrame->IsHiddenByContentVisibilityOfInFlowParentForLayout(),
+          aFrame->StyleDisplay()->IsContainLayout(),
+          static_cast<long long>(a0), static_cast<long long>(a1),
+          static_cast<long long>(a2), static_cast<long long>(a3),
+          static_cast<long long>(a4), static_cast<long long>(a5));
+}
+

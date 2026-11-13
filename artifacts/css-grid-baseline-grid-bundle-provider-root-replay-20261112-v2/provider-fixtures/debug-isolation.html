@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Orthogonal form controls can be measured in hidden grids</title>
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.grid { display: grid; grid-template-columns: 40px min-content 80px;
+  grid-template-rows: auto; inline-size: 240px; }
+.grid > * { align-content: normal; align-self: start; }
+.target { writing-mode: vertical-rl; inline-size: 80px; block-size: auto;
+  border: 1px solid; padding: 2px; }
+.hidden { content-visibility: hidden; contain-intrinsic-size: 100px; }
+</style>
+<div id="cases"></div>
+<script>
+for (const kind of ["text", "checkbox"])
+for (const hidden of [false, true]) {
+  test(t => {
+    const grid = document.createElement("div");
+    grid.className = `grid ${hidden ? "hidden" : ""}`;
+    const target = document.createElement("input");
+    target.type = kind;
+    target.className = "target";
+    grid.append(document.createElement("div"), target, document.createElement("div"));
+    document.getElementById("cases").append(grid);
+    t.add_cleanup(() => grid.remove());
+    for (let i = 0; i < 4; ++i) {
+      target.setAttribute("value", i % 2 ? "X" : "XX");
+      const rect = grid.getBoundingClientRect();
+      assert_true(Number.isFinite(rect.width) && Number.isFinite(rect.height));
+    }
+    grid.classList.remove("hidden");
+    const rect = target.getBoundingClientRect();
+    assert_true(Number.isFinite(rect.width) && Number.isFinite(rect.height));
+  }, `Measure orthogonal ${kind} with content visibility ${hidden ? "hidden" : "visible"}`);
+}
+</script>

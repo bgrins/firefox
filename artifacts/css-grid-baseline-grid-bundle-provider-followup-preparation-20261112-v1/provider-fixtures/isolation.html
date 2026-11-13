@@ -1,0 +1,52 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Grid eager baseline query eligibility probes</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.grid { display: grid; grid-template-columns: 40px min-content 80px;
+  grid-template-rows: auto; inline-size: 240px; }
+.grid > * { align-content: normal; align-self: start; }
+.target { writing-mode: vertical-rl; inline-size: 80px; block-size: auto;
+  border: 1px solid; padding: 2px; }
+.hidden { content-visibility: hidden; contain-intrinsic-size: 100px; }
+.columns { column-count: 2; column-gap: 0; }
+.fragmentainer { column-count: 2; inline-size: 600px; block-size: 40px; }
+</style>
+<div id="cases"></div>
+<script>
+for (const kind of ["text", "checkbox", "empty-columns", "spanning-columns"])
+for (const state of ["visible", "hidden-grid", "fragmented"]) {
+  promise_test(async t => {
+    const shell = document.createElement("div");
+    shell.className = state === "fragmented" ? "fragmentainer" : "";
+    const grid = document.createElement("div");
+    grid.className = `grid ${state === "hidden-grid" ? "hidden" : ""}`;
+    const target = document.createElement(kind === "text" || kind === "checkbox" ? "input" : "div");
+    target.id = `gsi-${kind}-${state}`;
+    target.title = "seed";
+    target.className = `target ${kind.endsWith("columns") ? "columns" : ""}`;
+    if (kind === "text" || kind === "checkbox") target.type = kind;
+    if (kind === "spanning-columns") target.innerHTML = '<div style="column-span:all">X</div>';
+    grid.append(document.createElement("div"), target, document.createElement("div"));
+    shell.append(grid);
+    document.getElementById("cases").append(shell);
+    t.add_cleanup(() => shell.remove());
+    const samples = [];
+    for (let i = 0; i < 4; ++i) {
+      if (target.tagName === "INPUT") target.setAttribute("value", i % 2 ? "X" : "XX");
+      else if (kind === "empty-columns") target.textContent = i % 2 ? "" : "X";
+      else target.firstElementChild.textContent = i % 2 ? "X" : "XX";
+      target.title = `edit${i}${kind === "empty-columns" ? (target.textContent ? "-filled" : "-empty") : ""}`;
+      const r = grid.getBoundingClientRect();
+      samples.push([r.width, r.height, target.getClientRects().length]);
+    }
+    target.title = kind === "empty-columns" ? "reveal-empty" : "reveal";
+    grid.classList.remove("hidden");
+    const visible = target.getBoundingClientRect();
+    assert_true(Number.isFinite(visible.width) && Number.isFinite(visible.height));
+    test(() => {}, "ELIGIBILITY " + JSON.stringify({kind, state, samples,
+      visible: [visible.width, visible.height]}));
+  }, `Exercise normal-alignment ${kind}, ${state}; native coverage needs tracing`);
+}
+</script>

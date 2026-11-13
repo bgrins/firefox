@@ -1,0 +1,1 @@
+V2 source-only parser correction ready for review. Diagnostic patches/fixtures/native source and uncompiled state harness remain byte-identical to V1. All original controls plus nineteen added refusals pass. No compiler/browser/live-source execution. Execution baseline/restoration decision remains pending; see REQUEST.md and V2-REVIEW.md.

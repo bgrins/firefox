@@ -1,0 +1,100 @@
+struct GridWorkCall;
+struct GridWorkQuery;
+static thread_local GridWorkCall* sGridWorkCall = nullptr;
+static thread_local GridWorkQuery* sGridWorkQuery = nullptr;
+
+static void GridWorkLog(const char* aStage, int64_t a0 = 0, int64_t a1 = 0,
+                        int64_t a2 = 0, int64_t a3 = 0, int64_t a4 = 0,
+                        int64_t a5 = 0);
+
+struct GridWorkCall {
+  GridWorkCall* mPrevious;
+  const nsIFrame* mFrame;
+  nsCString mId;
+  nsCString mPhase;
+  uint64_t mCall;
+  int mDemand;
+  const char* mSite;
+
+  GridWorkCall(const nsIFrame* aFrame, int aDemand, const char* aSite)
+      : mPrevious(sGridWorkCall), mFrame(aFrame), mDemand(aDemand), mSite(aSite) {
+    static uint64_t nextCall = 0;
+    mCall = ++nextCall;
+    const auto* content = aFrame->GetContent();
+    if (content && content->IsElement()) {
+      nsAutoString id, phase;
+      content->AsElement()->GetAttr(kNameSpaceID_None, nsGkAtoms::id, id);
+      content->AsElement()->GetAttr(kNameSpaceID_None, nsGkAtoms::title, phase);
+      CopyUTF16toUTF8(id, mId);
+      CopyUTF16toUTF8(phase, mPhase);
+    }
+    sGridWorkCall = this;
+    GridWorkLog("call-begin");
+  }
+
+  ~GridWorkCall() {
+    GridWorkLog("call-end");
+    sGridWorkCall = mPrevious;
+  }
+};
+
+static void GridWorkLog(const char* aStage, int64_t a0, int64_t a1,
+                        int64_t a2, int64_t a3, int64_t a4, int64_t a5) {
+  const auto* c = sGridWorkCall;
+  if (!c || !StringBeginsWith(c->mId, "gsw-"_ns)) {
+    return;
+  }
+  static uint32_t sequence = 0;
+  if (sequence >= 4194304) {
+    if (sequence == 4194304) {
+      ++sequence;
+      fprintf(stderr, "GRIDWORK TRUNCATED\n");
+    }
+    return;
+  }
+  fprintf(stderr,
+          "GRIDWORK seq=%u stage=%s id=%s phase=%s call=%llu demand=%d site=%s "
+          "frame=%p dirty=%d children=%d subtree=%d "
+          "v0=%lld v1=%lld v2=%lld v3=%lld v4=%lld v5=%lld\n",
+          ++sequence, aStage, c->mId.get(), c->mPhase.get(),
+          static_cast<unsigned long long>(c->mCall), c->mDemand, c->mSite,
+          static_cast<const void*>(c->mFrame),
+          c->mFrame->HasAnyStateBits(NS_FRAME_IS_DIRTY),
+          c->mFrame->HasAnyStateBits(NS_FRAME_HAS_DIRTY_CHILDREN),
+          c->mFrame->IsSubtreeDirty(), static_cast<long long>(a0),
+          static_cast<long long>(a1), static_cast<long long>(a2),
+          static_cast<long long>(a3), static_cast<long long>(a4),
+          static_cast<long long>(a5));
+}
+
+struct GridWorkQuery {
+  GridWorkQuery* mPrevious;
+  uint32_t mCounts[3] = {};
+  int mKind;
+  int mGroup;
+  bool mTruncated = false;
+
+  GridWorkQuery(int aKind, int aGroup)
+      : mPrevious(sGridWorkQuery), mKind(aKind), mGroup(aGroup) {
+    sGridWorkQuery = this;
+    GridWorkLog("query-begin", mKind, mGroup);
+  }
+  ~GridWorkQuery() {
+    if (mTruncated) {
+      fprintf(stderr, "GRIDWORK TRUNCATED\n");
+    }
+    GridWorkLog("query-end", mKind, mGroup, mCounts[0], mCounts[1], mCounts[2]);
+    sGridWorkQuery = mPrevious;
+  }
+};
+
+void GridWorkBlockVisit(const nsIFrame*, uint32_t aKind) {
+  if (auto* q = sGridWorkQuery) {
+    if (aKind >= 3 || q->mCounts[aKind] >= 1048576) {
+      q->mTruncated = true;
+    } else {
+      ++q->mCounts[aKind];
+    }
+  }
+}
+

@@ -1,0 +1,90 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Bounded nested grid baseline demand-switch workload</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@font-face { font-family: Ahem; src: url(/fonts/Ahem.ttf); }
+.grid { display: grid; grid-template-columns: minmax(min-content, max-content) 40px;
+  align-items: start; font: 20px/1 Ahem; }
+.grid > * { align-content: baseline; align-self: normal; justify-self: baseline; }
+.last .grid > *, .grid.last > * { align-content: last baseline; justify-self: last baseline; }
+.mixed .grid > *, .grid.mixed > * { justify-self: last baseline; }
+.vertical { writing-mode: vertical-rl; }
+.horizontal { writing-mode: horizontal-tb; }
+.peer { font: 40px/1 Ahem; }
+.large .peer { font-size: 80px; }
+.leaf { inline-size: 100px; padding: 3px; border: 2px solid; }
+.empty { block-size: 0; }
+.columns { column-count: 2; column-gap: 0; }
+</style>
+<div id="host"></div>
+<script>
+promise_test(async t => {
+  await document.fonts.load("20px Ahem");
+  const query = new URLSearchParams("?depth=4&orientation=alternating&group=mixed&lines=0&columns=0");
+  const depth = Number(query.get("depth") || 4);
+  const lines = Number(query.get("lines") || 0);
+  const columns = query.get("columns") === "1";
+  const orientation = query.get("orientation") || "parallel";
+  const group = query.get("group") || "first";
+  assert_true(["parallel", "alternating"].includes(orientation));
+  assert_true(["first", "last", "mixed"].includes(group));
+  assert_true([1, 4, 8, 12].includes(depth));
+  assert_true([0, 64, 256].includes(lines));
+  let child = document.createElement("div");
+  child.id = "gsw-leaf";
+  child.title = "seed";
+  child.className = `leaf ${columns ? "columns" : ""}`;
+  const text = document.createElement("span");
+  text.textContent = "X";
+  child.append(text);
+  for (let i = 0; i < lines; ++i) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    child.append(empty);
+  }
+  for (let i = 0; i < depth; ++i) {
+    const grid = document.createElement("div");
+    grid.className = `grid ${orientation === "alternating" && i % 2 ? "vertical" : "horizontal"}`;
+    grid.id = `gsw-level-${i}`;
+    grid.title = "seed";
+    const peer = document.createElement("div");
+    peer.className = "peer";
+    peer.id = `gsw-peer-${i}`;
+    peer.title = "seed";
+    peer.textContent = "X";
+    grid.append(child, peer);
+    child = grid;
+  }
+  const root = child;
+  root.classList.add(group);
+  const phase = value => {
+    for (const node of [root, ...root.querySelectorAll("[id^=gsw-]")]) node.title = value;
+  };
+  document.getElementById("host").append(root);
+  t.add_cleanup(() => root.remove());
+  const flush = () => root.getBoundingClientRect().height;
+  flush();
+  for (let i = 0; i < 4; ++i) {
+    phase(`prime${i}`);
+    text.textContent = i % 2 ? "X" : "XX";
+    flush();
+  }
+  const samples = [];
+  let checksum = 0;
+  for (let sample = 0; sample < 3; ++sample) {
+    const start = performance.now();
+    for (let i = 0; i < 8; ++i) {
+      phase(`sample${sample}-toggle${i}`);
+      root.classList.toggle("large");
+      checksum += flush();
+    }
+    samples.push(performance.now() - start);
+  }
+  phase("finished");
+  assert_true(samples.every(x => Number.isFinite(x) && x >= 0));
+  assert_true(Number.isFinite(checksum));
+  test(() => {}, "WORKLOAD " + JSON.stringify({depth, lines, columns, orientation, group, samples, checksum}));
+}, "Collect a bounded dual-axis baseline workload; native demand coverage is required");
+</script>
