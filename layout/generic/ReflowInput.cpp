@@ -2542,6 +2542,9 @@ void ReflowInput::CalculateBlockSideMargins() {
   if (availMarginSpace < 0) {
     margin.IEnd(cbWM) += availMarginSpace;
     SetComputedLogicalMargin(cbWM, margin);
+    if (auto* propValue = mFrame->GetProperty(nsIFrame::UsedMarginProperty())) {
+      *propValue = margin.GetPhysicalMargin(cbWM);
+    }
     return;
   }
 
