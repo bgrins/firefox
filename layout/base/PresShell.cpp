@@ -10818,9 +10818,11 @@ bool PresShell::DoReflow(nsIFrame* target, bool aInterruptible,
     // Initialize reflow input with current used border and padding,
     // in case this was set specially by the parent frame when the reflow root
     // was reflowed by its parent.
+    reflowInput.mComputeSizeFlags += ComputeSizeFlag::PaddingIncludesBaseline;
     reflowInput.Init(mPresContext, Nothing(),
                      Some(target->GetLogicalUsedBorder(wm)),
                      Some(target->GetLogicalUsedPadding(wm)));
+    reflowInput.mComputeSizeFlags -= ComputeSizeFlag::PaddingIncludesBaseline;
   }
 
   // fix the computed height

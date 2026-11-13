@@ -46,6 +46,9 @@ enum class ComputeSizeFlag : uint8_t {
    */
   IsGridMeasuringReflow,
 
+  // Supplied padding already includes baseline alignment adjustments.
+  PaddingIncludesBaseline,
+
   /**
    * Indicates that we should clamp the margin-box min-size to the given CB
    * size.  This is used for implementing the grid area clamping here:

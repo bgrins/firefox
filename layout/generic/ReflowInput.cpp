@@ -2383,6 +2383,7 @@ void SizeComputationInput::InitOffsets(WritingMode aCBWM, nscoord aPercentBasis,
   const WritingMode wm = GetWritingMode();
   const nsStyleDisplay* disp = mFrame->StyleDisplayWithOptionalParam(aDisplay);
   bool needPaddingProp;
+  bool paddingIncludesBaseline = false;
   LayoutDeviceIntMargin widgetPadding;
   if (mIsThemed && presContext->Theme()->GetWidgetPadding(
                        presContext->DeviceContext(), mFrame,
@@ -2396,6 +2397,8 @@ void SizeComputationInput::InitOffsets(WritingMode aCBWM, nscoord aPercentBasis,
     needPaddingProp = false;
   } else if (aPadding) {  // padding is an input arg
     SetComputedLogicalPadding(wm, *aPadding);
+    paddingIncludesBaseline =
+        aFlags.contains(ComputeSizeFlag::PaddingIncludesBaseline);
     nsMargin stylePadding;
     // If the caller passes a padding that doesn't match our style (like
     // nsTextControlFrame might due due to theming), then we also need a
@@ -2408,8 +2411,9 @@ void SizeComputationInput::InitOffsets(WritingMode aCBWM, nscoord aPercentBasis,
 
   // Add [align|justify]-content:baseline padding contribution.
   typedef const FramePropertyDescriptor<SmallValueHolder<nscoord>>* Prop;
-  auto ApplyBaselinePadding = [this, wm, &needPaddingProp](LogicalAxis aAxis,
-                                                           Prop aProp) {
+  auto ApplyBaselinePadding = [this, wm, &needPaddingProp,
+                               paddingIncludesBaseline](LogicalAxis aAxis,
+                                                        Prop aProp) {
     bool found;
     nscoord val = mFrame->GetProperty(aProp, &found);
     if (found) {
@@ -2421,7 +2425,9 @@ void SizeComputationInput::InitOffsets(WritingMode aCBWM, nscoord aPercentBasis,
         side = MakeLogicalSide(aAxis, LogicalEdge::End);
         val = -val;
       }
-      mComputedPadding.Side(side, wm) += val;
+      if (!paddingIncludesBaseline) {
+        mComputedPadding.Side(side, wm) += val;
+      }
       needPaddingProp = true;
       if (aAxis == LogicalAxis::Block && val > 0) {
         // We have a baseline-adjusted block-axis start padding, so
