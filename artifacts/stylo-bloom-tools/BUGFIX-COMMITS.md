@@ -1,5 +1,18 @@
 # CSS verification bugfix commits
 
+## Research checkpoint at pause — 12 November 2026
+
+The accepted native-fix count remains **158**. These research commits add no fixes to that count:
+
+| Commit | Scope |
+|---|---|
+| `e74ea781f80f326c653301be244f83fcb672f109` | High-bit classifier targets, proof attempts and pending V4/final-gate preparation |
+| `f1a1592131dc191706c0aad8243b6e331e5950ee` | Grid work transaction tooling and failure/recovery checks |
+| `79dab9d6d01b58cd71f4bd393cf6f54ae467a777` | Grid bundle source candidate, ABI evidence and correctness-run preparation |
+| `bb65783f1315087d59ff444da663e3062f8b7ac7` | Unfinished grid diff and 23 untracked CSS WPT probes preserved for resumption |
+
+All four commits use the configured signing key and passed signature and exact-blob verification. The grid bundle remains an experiment pending work-cost, provider, timing and other acceptance gates. The [pause checkpoint](../css-paused-worktree-snapshot-20261112-v1/STATUS.md) records proof limitations and next steps. The live experimental files remain available and are not counted as new landable repairs.
+
 ## Current signed checkpoint — 12 November 2026
 
 **158 locally validated native fixes are committed.** This includes the nine previously uncommitted repairs below. Held repair 120 and unfinished grid peer-baseline, positioning and fragmentation work remain excluded. Each native/test commit follows its separate research commit; no working-tree source bytes changed during publication. All eighteen commits passed configured-key signature verification. Historical entries below retain their original validation and signing states.
@@ -21,6 +34,8 @@ Fix 154 uses the incremental patch after total-violation fix 153; its retained s
 [Publication receipts](../css-local-fixes-publication-20261112-v1/NATIVE-REPLAY.json) retain the exact patch replay and per-commit signature results.
 
 The standalone CSS Lean library is separately committed at `89180a24f72a6ee7bf68ee61b07b2442093f316c` (grammar/source adapters) and `ebfbba164d25bc4217694c18946606241a1f3d7e` (flex research). These commits add no browser-fix count.
+
+The final grid bundle correctness run completed all eight commands and restored the original sources and browser build. All three phases passed 700 focused subtests and preserved 2,947 alignment outcomes, including the same 64 failures and 22 screenshot hashes. This is correctness evidence only; the candidate is not yet an accepted repair. [Final receipt](../css-grid-baseline-grid-bundle-validation-final-root-review-20261112-v1/REVIEW.json).
 
 ## Earlier evidence and checkpoints
 
