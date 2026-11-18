@@ -732,6 +732,8 @@ _MDDEPEND_FILES :=
 
 ifneq (,$(filter target-objects target all default,$(MAKECMDGOALS)))
 _MDDEPEND_FILES += $(addsuffix .pp,$(notdir $(sort $(OBJS) $(PROGOBJS))))
+else ifneq (,$(filter pre-compile,$(MAKECMDGOALS)))
+_MDDEPEND_FILES += $(addsuffix .pp,$(CWASMOBJS) $(CPPWASMOBJS))
 endif
 
 ifneq (,$(filter host-objects host all default,$(MAKECMDGOALS)))
