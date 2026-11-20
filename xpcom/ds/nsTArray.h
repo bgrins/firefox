@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include <algorithm>
+#include <bit>
 #include <functional>
 #include <initializer_list>
 #include <iterator>
@@ -22,7 +23,6 @@
 #include "mozilla/BinarySearch.h"
 #include "mozilla/CheckedInt.h"
 #include "mozilla/FunctionTypeTraits.h"
-#include "mozilla/MathAlgorithms.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/NotNull.h"
 #include "mozilla/Span.h"
@@ -3141,7 +3141,7 @@ nsTArray_base<RelocationStrategy>::EnsureCapacityImpl(size_type aCapacity,
     bytesToAlloc = MiB * ((bytesToAlloc + MiB - 1) / MiB);
   } else {
     // Round up to the next power of two.
-    bytesToAlloc = mozilla::RoundUpPow2(reqSize);
+    bytesToAlloc = std::bit_ceil(reqSize);
   }
 
   Header* header;
