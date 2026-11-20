@@ -12,7 +12,6 @@
 
 #include "fmt/format.h"
 #include "mozilla/Array.h"
-#include "mozilla/MathAlgorithms.h"
 #include "mozilla/Span.h"
 
 namespace mozilla {
@@ -248,7 +247,7 @@ class BitSet {
       word = mStorage[wordIndex];
     }
 
-    uint_fast8_t pos = FindMostSignificantBit(word);
+    size_t pos = std::bit_width(word) - 1;
     return wordIndex * kBitsPerWord + pos;
   }
 
