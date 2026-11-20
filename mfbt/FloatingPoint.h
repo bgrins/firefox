@@ -9,14 +9,15 @@
 
 #include <algorithm>
 #include <bit>
+#include <climits>
 #include <cstdint>
 #include <limits>
 #include <type_traits>
 
+#include "mozilla/Abs.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Casting.h"
-#include "mozilla/MathAlgorithms.h"
 #include "mozilla/MemoryChecking.h"
 #include "mozilla/Types.h"
 
