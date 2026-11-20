@@ -16,6 +16,7 @@ Profile Guided Optimization <pgo>
 slow
 environment-variables
 build-targets
+buildbench
 python
 test_manifests
 mozinfo

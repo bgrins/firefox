@@ -417,6 +417,108 @@ def configure(
     )
 
 
+def buildbench_parser():
+    from mozbuild.buildbench import WORKLOADS
+
+    parser = argparse.ArgumentParser()
+    selector = parser.add_mutually_exclusive_group()
+    selector.add_argument("workload", nargs="?", choices=tuple(WORKLOADS))
+    selector.add_argument(
+        "--list", action="store_true", dest="list_workloads", help="List workloads."
+    )
+    selector.add_argument("--patch", help="Replay a Git patch as the edit workload.")
+    parser.add_argument(
+        "--output", help="Create this directory for the results, logs and profiles."
+    )
+    parser.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+        help="Number of trials (at least 1, default 1).",
+    )
+    parser.add_argument(
+        "-j",
+        "--jobs",
+        type=int,
+        default=0,
+        help="Number of parallel build jobs (nonnegative, default 0 lets Mach choose).",
+    )
+    return parser
+
+
+def _buildbench_tracked_changes(repository):
+    if repository.name != "git":
+        return sorted(repository.get_changed_files("ADM", mode="all"))
+
+    status = repository._run(
+        "--no-optional-locks",
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--no-renames",
+        "--untracked-files=no",
+        "--ignore-submodules=untracked",
+        encoding=None,
+    )
+    return sorted(os.fsdecode(entry[3:]) for entry in status.split(b"\0") if entry)
+
+
+@Command(
+    "buildbench",
+    category="build",
+    description="Measure repeatable native Firefox rebuild workloads.",
+    virtualenv_name="build",
+    parser=buildbench_parser,
+)
+def buildbench(
+    command_context,
+    workload=None,
+    list_workloads=False,
+    repeat=1,
+    jobs=0,
+    output=None,
+    patch=None,
+):
+    from pathlib import Path
+
+    from mach.util import get_state_dir
+
+    from mozbuild import buildbench as bench
+
+    if sum((workload is not None, list_workloads, patch is not None)) > 1:
+        print("Choose either --patch, --list or a named workload.")
+        return 1
+    if patch is not None:
+        workload = "patch"
+    if list_workloads or workload is None:
+        for name, description in bench.WORKLOADS.items():
+            print(f"{name:16} {description}")
+        return 0
+    try:
+        source = Path(command_context.topsrcdir)
+        repository = command_context.repository
+        metadata = {
+            "revision": repository.head_rev,
+            "tracked_changes": _buildbench_tracked_changes(repository),
+        }
+        bench.run(
+            source,
+            Path(command_context.topobjdir),
+            Path(get_state_dir(True, source)),
+            workload,
+            repeat,
+            jobs,
+            metadata,
+            output,
+            patch,
+            mozconfig=command_context.mozconfig,
+        )
+    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
+        print(exc)
+        return 1
+    return 0
+
+
 @Command(
     "resource-usage",
     category="post-build",
