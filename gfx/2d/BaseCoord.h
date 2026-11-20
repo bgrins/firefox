@@ -8,7 +8,7 @@
 #include <ostream>
 #include <tuple>
 
-#include "mozilla/MathAlgorithms.h"
+#include "mozilla/Abs.h"
 
 namespace mozilla::gfx {
 
