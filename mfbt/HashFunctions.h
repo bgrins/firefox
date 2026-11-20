@@ -45,13 +45,13 @@
 #ifndef mozilla_HashFunctions_h
 #define mozilla_HashFunctions_h
 
+#include <bit>
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
 
 #include "mozilla/Attributes.h"
 #include "mozilla/EndianUtils.h"
-#include "mozilla/MathAlgorithms.h"
 #include "mozilla/Types.h"
 #include "mozilla/WrappingOperations.h"
 
@@ -455,19 +455,19 @@ class HashCodeScrambler {
 
     void sipRound() {
       mV0 = WrappingAdd(mV0, mV1);
-      mV1 = RotateLeft(mV1, 13);
+      mV1 = std::rotl(mV1, 13);
       mV1 ^= mV0;
-      mV0 = RotateLeft(mV0, 32);
+      mV0 = std::rotl(mV0, 32);
       mV2 = WrappingAdd(mV2, mV3);
-      mV3 = RotateLeft(mV3, 16);
+      mV3 = std::rotl(mV3, 16);
       mV3 ^= mV2;
       mV0 = WrappingAdd(mV0, mV3);
-      mV3 = RotateLeft(mV3, 21);
+      mV3 = std::rotl(mV3, 21);
       mV3 ^= mV0;
       mV2 = WrappingAdd(mV2, mV1);
-      mV1 = RotateLeft(mV1, 17);
+      mV1 = std::rotl(mV1, 17);
       mV1 ^= mV2;
-      mV2 = RotateLeft(mV2, 32);
+      mV2 = std::rotl(mV2, 32);
     }
 
     uint64_t mV0, mV1, mV2, mV3;

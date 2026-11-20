@@ -8,12 +8,14 @@
 #ifndef PLDHashTable_h
 #define PLDHashTable_h
 
+#include <limits>
 #include <utility>
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/CheckedArithmetic.h"
 #include "mozilla/HashFunctions.h"
+#include "mozilla/MathAlgorithms.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/fallible.h"
