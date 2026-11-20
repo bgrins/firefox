@@ -21,11 +21,20 @@ endif
 USE_AUTOTARGETS_MK = 1
 include $(MOZILLA_DIR)/config/makefiles/makeutils.mk
 
+report_build = $(info $1)
+ifdef MACH
+# Only the initial short-option word of MAKEFLAGS can contain the dry-run flag.
+ifeq (,$(findstring n,$(filter-out -%,$(firstword $(MAKEFLAGS)))))
+# Keep the progress text and its newline together on Mach's shared output pipe.
+report_build = @printf '%s\n' '$(subst ','\'',$1)'
+endif
+endif
+
 ifdef REBUILD_CHECK
-REPORT_BUILD = $(info $(shell $(PYTHON3) $(MOZILLA_DIR)/config/rebuild_check.py $@ $?))
+REPORT_BUILD = $(call report_build,$(shell $(PYTHON3) $(MOZILLA_DIR)/config/rebuild_check.py $@ $?))
 REPORT_BUILD_VERBOSE = $(REPORT_BUILD)
 else
-REPORT_BUILD = $(info $(relativesrcdir)/$(notdir $@))
+REPORT_BUILD = $(call report_build,$(relativesrcdir)/$(notdir $@))
 
 ifdef BUILD_VERBOSE_LOG
 REPORT_BUILD_VERBOSE = $(REPORT_BUILD)
