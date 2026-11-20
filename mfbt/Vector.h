@@ -7,6 +7,7 @@
 #ifndef mozilla_Vector_h
 #define mozilla_Vector_h
 
+#include <bit>
 #include <new>  // for placement new
 #include <type_traits>
 #include <utility>
@@ -17,7 +18,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/CheckedArithmetic.h"
 #include "mozilla/Likely.h"
-#include "mozilla/MathAlgorithms.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/OperatorNewExtensions.h"
 #include "mozilla/PodOperations.h"
@@ -39,7 +39,8 @@ namespace detail {
 template <size_t EltSize>
 bool CapacityHasExcessSpace(size_t aCapacity) {
   size_t size = aCapacity * EltSize;
-  return RoundUpPow2(size) - size >= EltSize;
+  MOZ_ASSERT(size <= std::bit_floor(SIZE_MAX));
+  return std::bit_ceil(size) - size >= EltSize;
 }
 
 /*
@@ -57,7 +58,7 @@ bool CapacityHasExcessSpace(size_t aCapacity) {
  * mozalloc.h defines a very widely-used InfallibleAllocPolicy, and yet it
  * can only be compiled in limited contexts, eg within `extern "C"` and with
  * -std=c++11 rather than a later version. That makes the headers that are
- * necessary for the computation unavailable (eg mfbt/MathAlgorithms.h).
+ * necessary for the computation unavailable (eg <bit>).
  */
 
 // Fallback version.
@@ -116,7 +117,7 @@ inline size_t GrowEltsByDoubling(size_t aOldElts, size_t aIncr) {
   }
 
   size_t newMinSize = newMinCap * EltSize;
-  size_t newSize = RoundUpPow2(newMinSize);
+  size_t newSize = std::bit_ceil(newMinSize);
   return newSize / EltSize;
 };
 
@@ -1083,7 +1084,7 @@ MOZ_NEVER_INLINE bool Vector<T, N, AP>::growStorageBy(size_t aIncr) {
 
   if (aIncr == 1 && usingInlineStorage()) {
     /* This case occurs in ~70--80% of the calls to this function. */
-    constexpr size_t newSize = RoundUpPow2((kInlineCapacity + 1) * sizeof(T));
+    constexpr size_t newSize = std::bit_ceil((kInlineCapacity + 1) * sizeof(T));
     static_assert(newSize / sizeof(T) > 0,
                   "overflow when exceeding inline Vector storage");
     newCap = newSize / sizeof(T);
