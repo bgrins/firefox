@@ -8,7 +8,7 @@ import sys
 import traceback
 from configparser import RawConfigParser
 from io import StringIO
-from multiprocessing import Manager
+from multiprocessing import Pool
 
 import ipdl
 from ipdl.ast import SYNC
@@ -20,17 +20,11 @@ class WorkerPool:
 
     def __init__(
         self,
-        manager,
         files,
         asts,
         headersdir,
         cppdir,
         segmentCapacityDict,
-        allmessages,
-        allprotocols,
-        allmessageprognames,
-        allsyncmessages,
-        alljsonobjs,
         *,
         processes=None,
     ):
@@ -39,7 +33,7 @@ class WorkerPool:
         processes = min(processes, 8)
         self.n = len(files)
         self.asts = asts
-        self.pool = manager.Pool(
+        self.pool = Pool(
             initializer=WorkerPool._init_worker,
             initargs=(
                 files,
@@ -47,17 +41,13 @@ class WorkerPool:
                 headersdir,
                 cppdir,
                 segmentCapacityDict,
-                allmessages,
-                allprotocols,
-                allmessageprognames,
-                allsyncmessages,
-                alljsonobjs,
             ),
             processes=processes,
         )
 
     def run(self):
-        self.pool.map(WorkerPool._run_worker, range(self.n))
+        with self.pool:
+            return self.pool.map(WorkerPool._run_worker, range(self.n))
 
     @staticmethod
     def _init_worker(*state):
@@ -71,32 +61,28 @@ class WorkerPool:
             headersdir,
             cppdir,
             segmentCapacityDict,
-            allmessages,
-            allprotocols,
-            allmessageprognames,
-            allsyncmessages,
-            alljsonobjs,
         ) = WorkerPool.per_process_context
         try:
             ast = asts[index]
             ipdl.gencxx(files[index], ast, headersdir, cppdir, segmentCapacityDict)
 
             if ast.protocol:
-                allmessages[ast.protocol.name] = ipdl.genmsgenum(ast)
-                allprotocols.append(ast.protocol.name)
-
-                alljsonobjs.append(JSONExporter.protocolToObject(ast.protocol))
-
-                # e.g. PContent::RequestMemoryReport (not prefixed or suffixed.)
-                for md in ast.protocol.messageDecls:
-                    allmessageprognames.append(
-                        "%s::%s" % (md.namespace, md.decl.progname)
-                    )
-
-                    if md.sendSemantics is SYNC:
-                        allsyncmessages.append(
-                            "%s__%s" % (ast.protocol.name, md.prettyMsgName())
-                        )
+                names = [
+                    "%s::%s" % (md.namespace, md.decl.progname)
+                    for md in ast.protocol.messageDecls
+                ]
+                sync = [
+                    "%s__%s" % (ast.protocol.name, md.prettyMsgName())
+                    for md in ast.protocol.messageDecls
+                    if md.sendSemantics is SYNC
+                ]
+                return (
+                    ast.protocol.name,
+                    ipdl.genmsgenum(ast),
+                    JSONExporter.protocolToObject(ast.protocol),
+                    names,
+                    sync,
+                )
         except Exception as exc:
             raise RuntimeError(
                 f"IPDL worker failed while processing "
@@ -227,13 +213,12 @@ def main():
     msgMetadataConfig = RawConfigParser()
     msgMetadataConfig.read_file(open(options.msgMetadata))
 
-    manager = Manager()
-    segmentCapacityDict = manager.dict()
-    allmessages = manager.dict()
-    allsyncmessages = manager.list()
-    allmessageprognames = manager.list()
-    allprotocols = manager.list()
-    alljsonobjs = manager.list()
+    segmentCapacityDict = {}
+    allmessages = {}
+    allsyncmessages = []
+    allmessageprognames = []
+    allprotocols = []
+    alljsonobjs = []
 
     for msgName in msgMetadataConfig.sections():
         if msgMetadataConfig.has_option(msgName, "segment_capacity"):
@@ -279,23 +264,24 @@ def main():
 
     # Second pass: generate code
     pool = WorkerPool(
-        manager,
         files,
         asts,
         headersdir,
         cppdir,
         segmentCapacityDict,
-        allmessages,
-        allprotocols,
-        allmessageprognames,
-        allsyncmessages,
-        alljsonobjs,
     )
-    pool.run()
+    for result in pool.run():
+        if result is None:
+            continue
+        protocol, messages, jsonobj, names, sync = result
+        allprotocols.append(protocol)
+        allmessages[protocol] = messages
+        alljsonobjs.append(jsonobj)
+        allmessageprognames.extend(names)
+        allsyncmessages.extend(sync)
 
     if cppdir is not None:
         # Sort to ensure deterministic output
-        alljsonobjs = list(alljsonobjs)
         alljsonobjs.sort(key=lambda p: p["name"])
         ipdl.writeifmodified(
             json.dumps({"protocols": alljsonobjs}, indent=2),
