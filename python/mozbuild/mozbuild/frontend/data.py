@@ -313,14 +313,28 @@ class WebIDLCollection(ContextDerived):
         # Bindings are compiled in unified mode to speed up compilation and
         # to reduce linker memory size. Note that test bindings are separated
         # from regular ones so tests bindings aren't shipped.
-        return list(
-            group_unified_files(
-                sorted(self.all_regular_cpp_basenames()),
-                unified_prefix="UnifiedBindings",
-                unified_suffix="cpp",
-                files_per_unified_file=32,
+        events = []
+        other = []
+        for name in sorted(self.all_regular_cpp_basenames()):
+            if name.endswith(("EventBinding.cpp", "Event.cpp")):
+                events.append(name)
+            else:
+                other.append(name)
+
+        mapping = []
+        for prefix, names in (
+            ("UnifiedBindings", other),
+            ("UnifiedEventBindings", events),
+        ):
+            mapping.extend(
+                group_unified_files(
+                    names,
+                    unified_prefix=prefix,
+                    unified_suffix="cpp",
+                    files_per_unified_file=48,
+                )
             )
-        )
+        return mapping
 
     def all_source_files(self):
         from mozwebidlcodegen import WebIDLCodegenManager
