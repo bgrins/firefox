@@ -2,6 +2,7 @@
 # http://creativecommons.org/publicdomain/zero/1.0/
 
 import os
+from pathlib import Path
 from unittest import mock
 
 import mozunit
@@ -58,6 +59,36 @@ class TestGenerateManifest(TestWithTmpDir):
             self.assertFalse(os.path.exists(self.tmppath("dest/foo/file1")))
             self.assertFalse(os.path.exists(self.tmppath("dest/foo/file2")))
             self.assertFalse(os.path.exists(self.tmppath("dest/foo/file3")))
+
+    def test_track_records_the_files_selected_for_copy(self):
+        source = Path(self.tmppath("source"))
+        source.mkdir()
+        (source / "first").touch()
+        manifest = InstallManifest()
+        manifest.add_pattern_copy(str(source), "*", "")
+        path = self.tmppath("manifest")
+        manifest.write(path=path)
+
+        dest = Path(self.tmppath("dest"))
+        track = self.tmppath("track")
+        copier = process_install_manifest.FileCopier
+        copy = copier.copy
+
+        def change_sources(registry, *args, **kwargs):
+            result = copy(registry, *args, **kwargs)
+            (source / "first").unlink()
+            (source / "second").touch()
+            return result
+
+        with mock.patch.object(copier, "copy", change_sources):
+            process_install_manifest.process_manifest(str(dest), [path], track)
+        installed = InstallManifest(path=track)
+        self.assertIn("first", installed)
+        self.assertNotIn("second", installed)
+
+        process_install_manifest.process_manifest(str(dest), [path], track)
+        self.assertFalse((dest / "first").exists())
+        self.assertTrue((dest / "second").is_file())
 
     def test_a_first_run_does_not_read_the_destination(self):
         """Without a track there is nothing to remove, so a destination such as

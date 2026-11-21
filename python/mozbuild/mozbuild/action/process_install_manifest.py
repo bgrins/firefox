@@ -3,6 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import argparse
+import functools
 import os
 import sys
 import time
@@ -10,7 +11,7 @@ import time
 from mozpack.copier import FileCopier, FileRegistry
 from mozpack.errors import errors
 from mozpack.files import BaseFile, FileFinder
-from mozpack.manifests import InstallManifest
+from mozpack.manifests import InstallManifest, find_pattern_paths
 
 COMPLETE = (
     "Elapsed: {elapsed:.2f}s; From {dest}: Kept {existing} existing; "
@@ -26,7 +27,8 @@ def process_manifest(destdir, paths, track, no_symlinks=False):
 
     copier = FileCopier()
     link_policy = "copy" if no_symlinks else "symlink"
-    manifest.populate_registry(copier, link_policy=link_policy)
+    find_paths = functools.cache(find_pattern_paths)
+    manifest.populate_registry(copier, link_policy=link_policy, find_paths=find_paths)
 
     if os.path.exists(track):
         # We use the same format as install manifests for the tracking
@@ -69,7 +71,7 @@ def process_manifest(destdir, paths, track, no_symlinks=False):
     if track:
         # We should record files that we actually copied.
         # It is too late to expand wildcards when the track file is read.
-        manifest.write(path=track, expand_pattern=True)
+        manifest.write(path=track, expand_pattern=True, find_paths=find_paths)
 
     return result
 

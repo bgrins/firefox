@@ -40,6 +40,10 @@ def _auto_fileobj(path, fileobj, mode="r"):
             fileobj.close()
 
 
+def find_pattern_paths(base, pattern):
+    return [path for path, _ in FileFinder(base).find(pattern)]
+
+
 class UnreadableInstallManifest(Exception):
     """Raised when an invalid install manifest is parsed."""
 
@@ -231,7 +235,14 @@ class InstallManifest:
         """
         return json.loads(data)
 
-    def write(self, path=None, fileobj=None, expand_pattern=False):
+    def write(
+        self,
+        path=None,
+        fileobj=None,
+        expand_pattern=False,
+        *,
+        find_paths=find_pattern_paths,
+    ):
         """Serialize this manifest to a file or file object.
 
         If path is specified, that file will be written to, and left untouched
@@ -252,8 +263,7 @@ class InstallManifest:
                 ):
                     type, base, pattern, dest = entry
                     type = self.LINK if type == self.PATTERN_LINK else self.COPY
-                    finder = FileFinder(base)
-                    paths = sorted(f[0] for f in finder.find(pattern))
+                    paths = sorted(find_paths(base, pattern))
                     for file_path in paths:
                         source = mozpath.join(base, file_path)
                         parts = [f"{type}", mozpath.join(dest, file_path), source]
@@ -389,7 +399,9 @@ class InstallManifest:
 
             self._add_entry(new_dest, new_entry)
 
-    def populate_registry(self, registry, link_policy="symlink"):
+    def populate_registry(
+        self, registry, link_policy="symlink", *, find_paths=find_pattern_paths
+    ):
         """Populate a mozpack.copier.FileRegistry instance with data from us.
 
         The caller supplied a FileRegistry instance (or at least something that
@@ -428,8 +440,7 @@ class InstallManifest:
 
             if install_type in (self.PATTERN_LINK, self.PATTERN_COPY):
                 _, base, pattern, dest = entry
-                finder = FileFinder(base)
-                paths = [f[0] for f in finder.find(pattern)]
+                paths = find_paths(base, pattern)
 
                 if install_type == self.PATTERN_LINK:
                     if link_policy == "symlink":
