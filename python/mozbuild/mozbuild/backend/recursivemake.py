@@ -1029,8 +1029,15 @@ class RecursiveMakeBackend(MakeBackend):
 
             # The track says what the install put where. Giving it a rule lets
             # another rule depend on it before the install has run.
+            track_dep = target
+            if (
+                manifest == "dist/xpi-stage"
+                and not is_hybrid
+                and not self._install_manifest_deps[manifest]
+            ):
+                track_dep = f"$(if $(xpi_stage_installed),,{target})"
             root_deps_mk.add_statement(
-                f"$(DEPTH)/install_{underscored}.track: {target} ;"
+                f"$(DEPTH)/install_{underscored}.track: {track_dep} ;"
             )
 
         self._add_staged_objdir_rules(root_deps_mk)

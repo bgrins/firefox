@@ -99,6 +99,15 @@ include $(topsrcdir)/testing/testsuite-targets.mk
 endif
 endif
 
+ifeq (pre-export misc tools,$(filter pre-export misc tools,$(TIERS)))
+default all:: export MOZBUILD_HAS_PREEXPORT_INSTALL := 1
+endif
+ifeq ($(MOZBUILD_HAS_PREEXPORT_INSTALL),1)
+ifneq (,$(filter recurse_misc recurse_tools,$(MAKECMDGOALS)))
+xpi_stage_installed := $(wildcard $(DEPTH)/install_dist_xpi-stage.track)
+endif
+endif
+
 default all::
 	$(call BUILDSTATUS,TIERS $(TIERS) $(if $(MOZ_AUTOMATION),$(MOZ_AUTOMATION_TIERS)))
 
