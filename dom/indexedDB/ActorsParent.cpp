@@ -117,7 +117,7 @@
 #include "mozilla/dom/indexedDB/PBackgroundIDBVersionChangeTransactionParent.h"
 #include "mozilla/dom/indexedDB/PBackgroundIndexedDBUtilsParent.h"
 #include "mozilla/dom/ipc/IdType.h"
-#include "mozilla/dom/quota/ArtificialFailure.h"
+#include "mozilla/dom/quota/ArtificialFailureChecks.h"
 #include "mozilla/dom/quota/Assertions.h"
 #include "mozilla/dom/quota/CachingDatabaseConnection.h"
 #include "mozilla/dom/quota/Client.h"
@@ -5897,8 +5897,7 @@ nsresult RemoveDatabaseFilesAndDirectory(nsIFile& aBaseDirectory,
 
   AUTO_PROFILER_LABEL("RemoveDatabaseFilesAndDirectory", DOM);
 
-  QM_TRY(ArtificialFailure(
-      nsIQuotaArtificialFailure::CATEGORY_REMOVE_DATABASE_FILES));
+  QM_TRY(CheckDatabaseFileRemovalFailure());
 
   QM_TRY_UNWRAP(auto markerFile,
                 CreateMarkerFile(aBaseDirectory, aDatabaseFilenameBase));

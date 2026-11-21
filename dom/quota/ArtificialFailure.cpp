@@ -6,6 +6,7 @@
 
 #include "mozilla/Result.h"
 #include "mozilla/StaticPrefs_dom.h"
+#include "mozilla/dom/quota/ArtificialFailureChecks.h"
 
 namespace mozilla::dom::quota {
 
@@ -34,6 +35,11 @@ Result<Ok, nsresult> ArtificialFailure(
 
   nsresult rv = static_cast<nsresult>(errorCode);
   return Err(rv);
+}
+
+Result<Ok, nsresult> CheckDatabaseFileRemovalFailure() {
+  return ArtificialFailure(
+      nsIQuotaArtificialFailure::CATEGORY_REMOVE_DATABASE_FILES);
 }
 
 }  // namespace mozilla::dom::quota
