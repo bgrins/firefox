@@ -13,12 +13,9 @@
 #include "mozilla/Monitor.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/RefPtr.h"
-#include "mozilla/layers/NativeLayerWayland.h"
 #include "nsWaylandDisplay.h"
 
 namespace mozilla {
-
-using layers::NativeLayerRootWayland;
 
 /*
  * WaylandVsyncSource
