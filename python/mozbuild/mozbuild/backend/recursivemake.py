@@ -874,6 +874,15 @@ class RecursiveMakeBackend(MakeBackend):
                     r = root_deps_mk.create_rule([target])
                     r.add_dependencies([prior_target])
 
+            link_inputs = graph.get("toolkit/library/build/target", set())
+            buildid_objects = "toolkit/library/target-objects"
+            if category == "compile" and buildid_objects in link_inputs:
+                # Read libxul object timestamps after their producers finish.
+                root_deps_mk.add_statement("ifeq ($(MAKECMDGOALS),recurse_compile)")
+                buildid = root_deps_mk.create_rule(["toolkit/library/pre-compile"])
+                buildid.add_dependencies(sorted(link_inputs - {buildid_objects}))
+                root_deps_mk.add_statement("endif")
+
             rule.add_dependencies(chain(rust_roots, sorted(roots)))
             for target, deps in sorted(graph.items()):
                 if deps:
