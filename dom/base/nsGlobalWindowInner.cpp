@@ -19,7 +19,6 @@
 #include "MainThreadUtils.h"
 #include "Navigator.h"
 #include "PaintWorkletImpl.h"
-#include "SessionStorageCache.h"
 #include "Units.h"
 #include "VRManagerChild.h"
 #include "WindowDestroyedEvent.h"
@@ -5143,21 +5142,8 @@ Storage* nsGlobalWindowInner::GetLocalStorage(ErrorResult& aError) {
       return nullptr;
     }
 
-    RefPtr<SessionStorageCache> cache;
-    if (isolated) {
-      cache = MakeRefPtr<SessionStorageCache>();
-    } else {
-      // This will clone the session storage if it exists.
-      rv = storageManager->GetSessionStorageCache(principal, storagePrincipal,
-                                                  &cache);
-      if (NS_FAILED(rv)) {
-        aError.Throw(rv);
-        return nullptr;
-      }
-    }
-
     mLocalStorage = MakeRefPtr<PartitionedLocalStorage>(
-        this, principal, storagePrincipal, cache);
+        this, principal, storagePrincipal);
   }
 
   MOZ_ASSERT(mLocalStorage);

@@ -20,8 +20,9 @@ NS_IMPL_RELEASE_INHERITED(PartitionedLocalStorage, Storage)
 
 PartitionedLocalStorage::PartitionedLocalStorage(
     nsPIDOMWindowInner* aWindow, nsIPrincipal* aPrincipal,
-    nsIPrincipal* aStoragePrincipal, SessionStorageCache* aCache)
-    : Storage(aWindow, aPrincipal, aStoragePrincipal), mCache(aCache) {}
+    nsIPrincipal* aStoragePrincipal)
+    : Storage(aWindow, aPrincipal, aStoragePrincipal),
+      mCache(MakeRefPtr<SessionStorageCache>()) {}
 
 PartitionedLocalStorage::~PartitionedLocalStorage() = default;
 
