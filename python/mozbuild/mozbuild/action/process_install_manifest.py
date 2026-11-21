@@ -20,15 +20,30 @@ COMPLETE = (
 
 
 def process_manifest(destdir, paths, track, no_symlinks=False):
+    manifest = InstallManifest()
+    for path in paths:
+        manifest |= InstallManifest(path=path)
+
+    copier = FileCopier()
+    link_policy = "copy" if no_symlinks else "symlink"
+    manifest.populate_registry(copier, link_policy=link_policy)
+
     if os.path.exists(track):
         # We use the same format as install manifests for the tracking
         # data.
-        manifest = InstallManifest(path=track)
+        previous = InstallManifest(path=track)
         remove_unaccounted = FileRegistry()
         dummy_file = BaseFile()
 
         finder = FileFinder(destdir, find_dotfiles=True)
-        for dest in manifest._dests:
+        retained = set(copier.paths())
+        for dest in previous._dests:
+            if (
+                dest in retained
+                and "*" not in dest
+                and not os.path.isdir(os.path.join(destdir, dest))
+            ):
+                continue
             for p, f in finder.find(dest):
                 remove_unaccounted.add(p, dummy_file)
 
@@ -43,13 +58,6 @@ def process_manifest(destdir, paths, track, no_symlinks=False):
         remove_empty_directories = False
         remove_all_directory_symlinks = False
 
-    manifest = InstallManifest()
-    for path in paths:
-        manifest |= InstallManifest(path=path)
-
-    copier = FileCopier()
-    link_policy = "copy" if no_symlinks else "symlink"
-    manifest.populate_registry(copier, link_policy=link_policy)
     with errors.accumulate():
         result = copier.copy(
             destdir,
