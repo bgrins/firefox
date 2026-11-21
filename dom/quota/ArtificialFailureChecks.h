@@ -11,6 +11,10 @@ namespace mozilla::dom::quota {
 
 Result<Ok, nsresult> CheckDatabaseFileRemovalFailure();
 
+Result<Ok, nsresult> CheckDirectoryMetadataCreationFailure();
+Result<Ok, nsresult> CheckOriginInitializationFailure();
+Result<Ok, nsresult> CheckClientDirectoryOpenFailure();
+
 }  // namespace mozilla::dom::quota
 
 #endif  // DOM_QUOTA_ARTIFICIALFAILURECHECKS_H_

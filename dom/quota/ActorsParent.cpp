@@ -94,7 +94,7 @@
 #include "mozilla/dom/indexedDB/ActorsParent.h"
 #include "mozilla/dom/ipc/IdType.h"
 #include "mozilla/dom/localstorage/ActorsParent.h"
-#include "mozilla/dom/quota/ArtificialFailure.h"
+#include "mozilla/dom/quota/ArtificialFailureChecks.h"
 #include "mozilla/dom/quota/AssertionsImpl.h"
 #include "mozilla/dom/quota/CheckedUnsafePtr.h"
 #include "mozilla/dom/quota/CipherKeyManager.h"
@@ -3838,8 +3838,7 @@ nsresult QuotaManager::CreateDirectoryMetadata2(
 
   AssertIsOnIOThread();
 
-  QM_TRY(ArtificialFailure(
-      nsIQuotaArtificialFailure::CATEGORY_CREATE_DIRECTORY_METADATA2));
+  QM_TRY(CheckDirectoryMetadataCreationFailure());
 
   QM_TRY_INSPECT(const auto& file, MOZ_TO_RESULT_INVOKE_MEMBER_TYPED(
                                        nsCOMPtr<nsIFile>, aDirectory, Clone));
@@ -4686,8 +4685,7 @@ nsresult QuotaManager::InitializeOrigin(
 
   AssertIsOnIOThread();
 
-  QM_TRY(
-      ArtificialFailure(nsIQuotaArtificialFailure::CATEGORY_INITIALIZE_ORIGIN));
+  QM_TRY(CheckOriginInitializationFailure());
 
   // The ScopedLogExtraInfo is not set here on purpose, so the callers can
   // decide if they want to set it. The extra info can be set sooner this way

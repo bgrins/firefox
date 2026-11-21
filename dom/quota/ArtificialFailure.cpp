@@ -42,4 +42,19 @@ Result<Ok, nsresult> CheckDatabaseFileRemovalFailure() {
       nsIQuotaArtificialFailure::CATEGORY_REMOVE_DATABASE_FILES);
 }
 
+Result<Ok, nsresult> CheckDirectoryMetadataCreationFailure() {
+  return ArtificialFailure(
+      nsIQuotaArtificialFailure::CATEGORY_CREATE_DIRECTORY_METADATA2);
+}
+
+Result<Ok, nsresult> CheckOriginInitializationFailure() {
+  return ArtificialFailure(
+      nsIQuotaArtificialFailure::CATEGORY_INITIALIZE_ORIGIN);
+}
+
+Result<Ok, nsresult> CheckClientDirectoryOpenFailure() {
+  return ArtificialFailure(
+      nsIQuotaArtificialFailure::CATEGORY_OPEN_CLIENT_DIRECTORY);
+}
+
 }  // namespace mozilla::dom::quota

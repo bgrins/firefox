@@ -7,7 +7,7 @@
 
 #include "mozilla/MozPromise.h"
 #include "mozilla/RefPtr.h"
-#include "mozilla/dom/quota/ArtificialFailure.h"
+#include "mozilla/dom/quota/ArtificialFailureChecks.h"
 #include "mozilla/dom/quota/ClientDirectoryLock.h"
 #include "mozilla/dom/quota/ClientDirectoryLockHandle.h"
 #include "mozilla/dom/quota/DirectoryLock.h"
@@ -116,8 +116,7 @@ class MaybeFinalizeHelper final {
           aValue.RejectValue(), __func__);
     }
 
-    QM_TRY(ArtificialFailure(
-               nsIQuotaArtificialFailure::CATEGORY_OPEN_CLIENT_DIRECTORY),
+    QM_TRY(CheckClientDirectoryOpenFailure(),
            [this](nsresult rv) {
              DropDirectoryLock(mClientDirectoryLock);
              DropDirectoryLock(mFirstAccessDirectoryLock);
