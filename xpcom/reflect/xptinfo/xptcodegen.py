@@ -9,6 +9,7 @@ import functools
 import json
 
 import buildconfig
+from mozbuild.util import FileAvoidWrite
 from perfecthash import PerfectHash
 
 
@@ -625,7 +626,7 @@ def main():
     parser.add_argument("xpts", nargs="*", help="source xpt files")
 
     args = parser.parse_args(sys.argv[1:])
-    with open(args.outfile, "w") as fd, open(args.outheader, "w") as header_fd:
+    with open(args.outfile, "w") as fd, FileAvoidWrite(args.outheader) as header_fd:
         link_and_write(args.xpts, fd, header_fd)
 
 
